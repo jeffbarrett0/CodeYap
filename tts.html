@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metin Okuyucu / Text Reader</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; background: #fafafa; color: #222; }
+  textarea { width: 100%; height: 260px; font-size: 16px; padding: 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; }
+  .row { display: flex; gap: 12px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+  button { padding: 10px 18px; font-size: 15px; border: none; border-radius: 8px; cursor: pointer; background: #2563eb; color: #fff; }
+  button.stop { background: #dc2626; }
+  select, input { font-size: 15px; padding: 6px; }
+  select { max-width: 100%; }
+  #status { color: #555; font-size: 14px; min-height: 20px; }
+</style>
+</head>
+<body>
+<h2>Metin Okuyucu / Text Reader</h2>
+<textarea id="text" placeholder="Metni buraya yaz / Type your text here..."></textarea>
+
+<div class="row">
+  <button id="play">▶ Oku / Read</button>
+  <button id="stop" class="stop">■ Durdur / Stop</button>
+  <label>Dil / Language:
+    <select id="mode">
+      <option value="auto">Otomatik / Auto (TR/EN)</option>
+      <option value="tr-TR">Türkçe</option>
+      <option value="en-US">English</option>
+    </select>
+  </label>
+  <label>Hız / Speed:
+    <input type="range" id="rate" min="0.5" max="1.5" step="0.1" value="1">
+    <span id="rateVal">1.0×</span>
+  </label>
+</div>
+<div class="row">
+  <label>Türkçe ses: <select id="voiceTr"></select></label>
+  <label>English voice: <select id="voiceEn"></select></label>
+</div>
+<div id="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const textEl = $('text'), statusEl = $('status');
+
+// ---- Dil algılama: Türkçe/İngilizce yaygın kelime + Türkçe'ye özgü harf skoru ----
+const TR_WORDS = new Set('ve bir bu da de ile için çok ben sen biz siz o ne ama gibi daha en var yok değil olan oldu mu mi ki her şey şu ise veya merhaba nasıl evet hayır lütfen teşekkürler'.split(' '));
+const EN_WORDS = new Set('the and is are was were to of in that it you for with this have has not but on as be at or from they we he she what how hello please thanks yes no i a an my your'.split(' '));
+const TR_CHARS = /[ğışİĞŞ]/g; // ü ö ç diğer dillerde de geçtiği için daha düşük ağırlık
+const TR_WEAK = /[üöçÜÖÇ]/g;
+
+let lastLang = 'en-US';
+function detectLang(s) {
+  const words = s.toLowerCase().match(/[a-zçğıöşü]+/g) || [];
+  let tr = (s.match(TR_CHARS) || []).length * 2 + (s.match(TR_WEAK) || []).length;
+  let en = 0;
+  for (const w of words) {
+    if (TR_WORDS.has(w)) tr++;
+    if (EN_WORDS.has(w)) en++;
+  }
+  if (tr !== en) lastLang = tr > en ? 'tr-TR' : 'en-US';
+  return lastLang; // belirsizse önceki cümlenin dili / on a tie, keep the previous language
+}
+
+// ---- Metni cümlelere, uzun cümleleri de ~200 karakterlik parçalara böl (Chrome uzun metni keser) ----
+function splitText(text, max = 200) {
+  const sentences = text.match(/[^.!?…\n]+[.!?…]*/g) || [];
+  const out = [];
+  for (let s of sentences) {
+    s = s.trim();
+    while (s.length > max) {
+      let cut = Math.max(s.lastIndexOf(',', max), s.lastIndexOf(';', max), s.lastIndexOf(':', max));
+      if (cut < max / 2) cut = s.lastIndexOf(' ', max);
+      if (cut <= 0) cut = max;
+      out.push(s.slice(0, cut + 1).trim());
+      s = s.slice(cut + 1).trim();
+    }
+    if (/[\p{L}\p{N}]/u.test(s)) out.push(s); // sadece noktalama olanları atla
+  }
+  return out;
+}
+
+// ---- Sesler ----
+let voices = [];
+const norm = l => l.replace('_', '-');
+function fillSelect(sel, prefix) {
+  const list = voices.filter(v => v.lang.toLowerCase().startsWith(prefix));
+  const prev = sel.value;
+  sel.innerHTML = '';
+  if (!list.length) sel.add(new Option('— yok / none —', ''));
+  list.forEach(v => sel.add(new Option(`${v.name} (${norm(v.lang)})`, v.voiceURI)));
+  if (list.some(v => v.voiceURI === prev)) sel.value = prev;
+}
+function loadVoices() {
+  voices = speechSynthesis.getVoices();
+  fillSelect($('voiceTr'), 'tr');
+  fillSelect($('voiceEn'), 'en');
+}
+speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+function pickVoice(lang) {
+  const uri = $(lang.startsWith('tr') ? 'voiceTr' : 'voiceEn').value;
+  return voices.find(v => v.voiceURI === uri) || null;
+}
+
+$('rate').oninput = e => $('rateVal').textContent = parseFloat(e.target.value).toFixed(1) + '×';
+
+// ---- Okuma ----
+const live = []; // Chrome, referans tutulmayan utterance'ları çöpe atıp onend'i tetiklemeyebiliyor
+let keepAlive = null;
+
+function speakAll() {
+  speechSynthesis.cancel();
+  clearInterval(keepAlive);
+  live.length = 0;
+  lastLang = 'en-US';
+
+  const text = textEl.value.trim();
+  if (!text) return;
+
+  const mode = $('mode').value;
+  const rate = parseFloat($('rate').value);
+  const parts = splitText(text);
+  const missing = new Set();
+
+  parts.forEach((part, i) => {
+    const lang = mode === 'auto' ? detectLang(part) : mode;
+    const u = new SpeechSynthesisUtterance(part);
+    u.lang = lang;
+    u.rate = rate;
+    const v = pickVoice(lang);
+    if (v) u.voice = v; else missing.add(lang);
+    if (i === parts.length - 1) u.onend = () => { clearInterval(keepAlive); statusEl.textContent = 'Bitti / Done'; };
+    u.onerror = e => { if (e.error !== 'interrupted' && e.error !== 'canceled') statusEl.textContent = 'Hata / Error: ' + e.error; };
+    live.push(u);
+    speechSynthesis.speak(u);
+  });
+
+  // Chrome'da bazı (ağ tabanlı) sesler ~15 sn sonra takılır; periyodik pause/resume bunu önler
+  keepAlive = setInterval(() => {
+    if (!speechSynthesis.speaking) return clearInterval(keepAlive);
+    speechSynthesis.pause(); speechSynthesis.resume();
+  }, 10000);
+
+  statusEl.textContent = 'Okunuyor... / Reading...' +
+    (missing.size ? '  ⚠ Ses bulunamadı / Voice missing: ' + [...missing].join(', ') : '');
+}
+
+$('play').onclick = speakAll;
+$('stop').onclick = () => { speechSynthesis.cancel(); clearInterval(keepAlive); statusEl.textContent = ''; };
+window.addEventListener('beforeunload', () => speechSynthesis.cancel());
+
+if (!('speechSynthesis' in window)) statusEl.textContent = 'Bu tarayıcı konuşma sentezini desteklemiyor / Speech synthesis is not supported in this browser.';
+</script>
+</body>
+</html>
