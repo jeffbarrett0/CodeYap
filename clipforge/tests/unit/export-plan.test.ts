@@ -10,8 +10,13 @@ import type { Clip } from '@shared/types'
 const asset = { path: '/rec/Yayın Kaydı çğış.mkv', kind: 'video' as const, audioStreams: [{ index: 0, streamIndex: 1, codec: 'aac', channels: 2, sampleRate: 48000 }, { index: 1, streamIndex: 2, codec: 'aac', channels: 2, sampleRate: 48000 }, { index: 2, streamIndex: 3, codec: 'aac', channels: 2, sampleRate: 48000 }] }
 const mk = (id: string, trackId: string, start: number, srcIn: number, srcOut: number, extra: Partial<Clip> = {}): Clip => ({ id, trackId, assetId: 'a1', start, srcIn, srcOut, volume: 1, label: id, ...extra })
 
+/** Katman konumu olmayan (eski sürüm) proje: yerleşim eski düzen şablonlarından gelir */
+function legacy(tl: ReturnType<typeof createDefaultTimeline>) {
+  return { ...tl, tracks: tl.tracks.filter((t) => ['V1', 'V2', 'A1', 'A2'].includes(t.id)).map(({ placement: _p, ...t }) => t) }
+}
+
 function timeline() {
-  let tl = createDefaultTimeline()
+  let tl = legacy(createDefaultTimeline())
   tl = ops.addClip(tl, TRACK_IDS.screen, mk('v', TRACK_IDS.screen, 0, 1394, 1424))
   tl = ops.addClip(tl, TRACK_IDS.webcam, mk('c', TRACK_IDS.webcam, 0, 1394, 1424, { crop: { x: 0.75, y: 0.7, w: 0.25, h: 0.3 } }))
   tl = ops.addClip(tl, TRACK_IDS.game, mk('ga', TRACK_IDS.game, 0, 1394, 1424, { audioStream: 1 }))
@@ -64,7 +69,7 @@ describe('dışa aktarma planı', () => {
   })
   it('filtre grafiği: tabanda siyah, bulanık dolgu, kamera kırpma, altyazı, ses karışımı', () => {
     const f = plan.files.find((x) => x.name === 'filters.txt')!.content
-    expect(f).toContain('color=c=black:s=1080x1920:r=30:d=30.000')
+    expect(f).toContain('color=c=0x000000:s=1080x1920:r=30:d=30.000')
     expect(f).toContain('boxblur')
     expect(f).toContain('crop=iw*0.25000:ih*0.30000:iw*0.75000:ih*0.70000')
     expect(f).toContain('ass=captions.ass')

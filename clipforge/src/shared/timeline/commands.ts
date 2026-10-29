@@ -1,4 +1,5 @@
-import type { Caption, CaptionStyle, Clip, ID, LayoutPreset, AspectRatio, NormRect, Timeline } from '../types'
+import type { Caption, CaptionStyle, Clip, ID, LayoutPreset, AspectRatio, LayoutTemplate, NormRect, Placement, TextSpec, Timeline, TrackKind, TrackRole } from '../types'
+import { applyTemplate } from './templates'
 import { makeCommand, type Command } from './history'
 import * as ops from './ops'
 
@@ -26,5 +27,22 @@ export const cmd = {
   aspect: (aspect: AspectRatio): TimelineCommand => makeCommand('En-boy oranı', (t) => ({ ...t, aspect })),
   layout: (layout: LayoutPreset): TimelineCommand => makeCommand('Düzen', (t) => ({ ...t, layout })),
   webcamOverlay: (r: NormRect): TimelineCommand => makeCommand('Kamera konumu', (t) => ({ ...t, webcamOverlay: r }), 'webcam'),
-  replace: (label: string, next: Timeline): TimelineCommand => makeCommand(label, () => next)
+  replace: (label: string, next: Timeline): TimelineCommand => makeCommand(label, () => next),
+  placement: (trackId: ID, patch: Partial<Placement>, coalesce = true): TimelineCommand =>
+    makeCommand('Katman konumu', (t) => ops.setPlacement(t, trackId, patch), coalesce ? `pl:${trackId}:${Object.keys(patch).join(',')}` : undefined),
+  addTrack: (spec: { name: string; kind: Exclude<TrackKind, 'caption'>; role: TrackRole; placement?: Placement; textDefault?: TextSpec }): TimelineCommand =>
+    makeCommand('Katman ekle', (t) => ops.addTrack(t, spec)),
+  removeTrack: (trackId: ID): TimelineCommand => makeCommand('Katmanı sil', (t) => ops.removeTrack(t, trackId)),
+  moveTrack: (trackId: ID, dir: 'up' | 'down'): TimelineCommand => makeCommand('Katman sırası', (t) => ops.moveTrackOrder(t, trackId, dir)),
+  applyTemplate: (tpl: LayoutTemplate): TimelineCommand => makeCommand('Şablon uygula', (t) => ops.fillTextTracks(applyTemplate(t, tpl))),
+  fillText: (): TimelineCommand => makeCommand('Metin katmanlarını doldur', (t) => ops.fillTextTracks(t)),
+  extendToEnd: (clipId: ID): TimelineCommand => makeCommand('Sona kadar uzat', (t) => ops.extendToEnd(t, clipId)),
+  cutRange: (a: number, b: number, ripple = true): TimelineCommand => makeCommand('Aralığı kes', (t) => ops.cutRange(t, a, b, ripple)),
+  join: (clipId: ID): TimelineCommand => makeCommand('Birleştir', (t) => ops.joinWithNext(t, clipId)),
+  closeGaps: (): TimelineCommand => makeCommand('Boşlukları kapat', (t) => ops.closeGaps(t)),
+  textSpec: (clipId: ID, patch: Partial<TextSpec>): TimelineCommand =>
+    makeCommand('Metin', (t) => {
+      const f = t.tracks.flatMap((tr) => tr.clips).find((c) => c.id === clipId)
+      return f?.text ? ops.updateClip(t, clipId, { text: { ...f.text, ...patch }, label: (patch.text ?? f.text.text).split('\n')[0].slice(0, 40) }) : t
+    }, `txt:${clipId}:${Object.keys(patch).join(',')}`)
 }

@@ -48,7 +48,7 @@ export interface MediaAsset {
   path: string
   /** Proje dosyasına göre göreli yol (kaydedilirken doldurulur) */
   relativePath?: string
-  kind: 'video' | 'audio'
+  kind: 'video' | 'audio' | 'image'
   container: string
   durationSec: number
   width: number
@@ -169,8 +169,33 @@ export interface SearchOptions {
 
 // ───────────────────────────── Zaman çizelgesi ─────────────────────────────
 
-export type TrackKind = 'video' | 'audio' | 'caption'
-export type TrackRole = 'screen' | 'webcam' | 'game' | 'voice' | 'mix' | 'caption'
+export type TrackKind = 'video' | 'audio' | 'caption' | 'image' | 'text'
+export type TrackRole = 'screen' | 'webcam' | 'game' | 'voice' | 'mix' | 'caption' | 'image' | 'text'
+
+/** Bir görsel katmanın (video / görsel / metin izi) çıkış karesindeki yeri. rect: 0..1 normalize. */
+export interface Placement {
+  rect: NormRect
+  /** cover: dikdörtgeni doldurur (kırpar); contain: oranı korur, ortalar */
+  fit: 'cover' | 'contain'
+  visible: boolean
+  /** 0..1 */
+  opacity: number
+}
+
+export type TextAnimation = 'none' | 'fade' | 'pulse' | 'slide-up'
+
+/** Metin klibinin içeriği ve biçimi (altyazı gibi ASS ile yakılır). fontSize: kısa kenar 1080 px'e göre. */
+export interface TextSpec {
+  text: string
+  fontFamily: string
+  fontSize: number
+  color: string
+  outlineColor: string
+  outlineWidth: number
+  bold: boolean
+  italic?: boolean
+  animation: TextAnimation
+}
 
 export interface ClipOrigin {
   assetId: ID
@@ -195,6 +220,8 @@ export interface Clip {
   audioStream?: number
   volume: number
   label: string
+  /** Metin klibi (assetId boş) */
+  text?: TextSpec
   /** Aynı gruptaki kliplerin (ör. görüntü + ses) taşıma/bölme/silme/kırpma işlemleri birlikte uygulanır */
   groupId?: ID
   /** Kaynak kayıtla bağlantı (kaynak zaman damgası meta verisi) */
@@ -215,6 +242,10 @@ export interface Track {
   locked: boolean
   /** Ses seviyesi çarpanı (0..2) */
   volume: number
+  /** Görsel izler (video/görsel/metin) için kare içindeki yer; yoksa eski sürüm düzeni kullanılır */
+  placement?: Placement
+  /** Metin izi: izin boş kaldığı yerlerde zaman çizelgesi uzunluğunca otomatik oluşturulacak varsayılan metin */
+  textDefault?: TextSpec
 }
 
 export interface Caption {
@@ -252,8 +283,21 @@ export interface Timeline {
   tracks: Track[]
   captions: Caption[]
   captionStyle: CaptionStyle
-  /** Kamera overlay varsayılanı (cam-overlay-corner düzeni ve 16:9 için) */
+  /** Kamera overlay varsayılanı (yalnızca katman konumu olmayan eski projeler için) */
   webcamOverlay: NormRect
+  /** Kare arka plan rengi (#RRGGBB) */
+  background?: string
+}
+
+/** Kaydedilebilir sahne/kare düzeni: katmanların konumları + metin katmanlarının varsayılan metni. */
+export interface LayoutTemplate {
+  id: ID
+  name: string
+  builtin?: boolean
+  aspect: AspectRatio
+  background: string
+  /** Üstten alta (ilk = en üstteki katman) */
+  layers: { id: ID; name: string; kind: Exclude<TrackKind, 'audio' | 'caption'>; role: TrackRole; placement: Placement; textDefault?: TextSpec }[]
 }
 
 // ───────────────────────────── Sohbet / öneri ─────────────────────────────
@@ -373,7 +417,7 @@ export interface Settings {
 
 // ───────────────────────────── Proje ─────────────────────────────
 
-export const PROJECT_VERSION = 1
+export const PROJECT_VERSION = 2
 
 export interface Project {
   version: number

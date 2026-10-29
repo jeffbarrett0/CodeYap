@@ -1,7 +1,7 @@
 import type { Clip, ExportOptions, ID, MediaAsset, Timeline, Track } from '../types'
 import { clipEnd, timelineDuration } from '../timeline/model'
 import { resolveLayout, toPx, type PxRect } from './layout'
-import { buildAss } from './ass'
+import { buildAss, type TextEvent } from './ass'
 
 export interface ExportPlan {
   /** ffmpeg argümanları (ffmpeg yolu hariç). Dosya adları `files` ile aynı çalışma klasörüne göredir. */
@@ -54,20 +54,24 @@ export function buildExportPlan(
   const warnings: string[] = []
 
   const inputs: string[][] = []
-  const addInput = (p: Piece): number | null => {
+  const addInput = (p: Piece, image = false): number | null => {
     const a = assetOf(p.clip.assetId)
     if (!a) {
       warnings.push(`Kaynak medya bulunamadı: ${p.clip.label}`)
       return null
     }
-    inputs.push(['-ss', f3(p.srcIn), '-t', f3(p.dur), '-i', a.path.startsWith('-') ? `./${a.path}` : a.path])
+    const path = a.path.startsWith('-') ? `./${a.path}` : a.path
+    // Durağan görsel: döngüye alınır ve klip süresince akıtılır
+    inputs.push(image ? ['-loop', '1', '-framerate', String(o.fps), '-t', f3(p.dur), '-i', path] : ['-ss', f3(p.srcIn), '-t', f3(p.dur), '-i', path])
     return inputs.length - 1
   }
+  const usePlacement = tl.tracks.some((t) => t.placement)
+  const textEvents: TextEvent[] = []
 
   const layout = resolveLayout(tl.aspect, tl.layout, W, H, tl.webcamOverlay)
   const lines: string[] = []
 
-  lines.push(`color=c=black:s=${W}x${H}:r=${o.fps}:d=${f3(D)},format=yuv420p[base]`)
+  lines.push(`color=c=${(tl.background ?? '#000000').replace('#', '0x')}:s=${W}x${H}:r=${o.fps}:d=${f3(D)},format=yuv420p[base]`)
   let cur = 'base'
   let layer = 0
 
@@ -83,6 +87,37 @@ export function buildExportPlan(
     cur = next
   }
 
+  if (usePlacement) {
+    // ── katmanlar: alttan üste (iz listesinin sonu en alttaki katmandır)
+    for (const t of [...tl.tracks].reverse()) {
+      if (!t.placement || !t.placement.visible) continue
+      if (t.kind !== 'video' && t.kind !== 'image' && t.kind !== 'text') continue
+      const r = toPx(t.placement.rect, W, H)
+      for (const c of t.clips) {
+        const p = slice(c, t, rs, re)
+        if (!p) continue
+        if (t.kind === 'text') {
+          if (c.text) textEvents.push({ start: p.at, end: p.at + p.dur, spec: c.text, rect: r })
+          continue
+        }
+        const idx = addInput(p, t.kind === 'image')
+        if (idx === null) continue
+        const L = layer + 1
+        const crop = c.crop ? `crop=iw*${c.crop.w.toFixed(5)}:ih*${c.crop.h.toFixed(5)}:iw*${c.crop.x.toFixed(5)}:ih*${c.crop.y.toFixed(5)},` : ''
+        const alpha = t.kind === 'image' || t.placement.opacity < 1 ? 'format=rgba,' : ''
+        const fade = t.placement.opacity < 1 ? `,colorchannelmixer=aa=${t.placement.opacity.toFixed(3)}` : ''
+        const fit =
+          t.placement.fit === 'cover'
+            ? `scale=${r.w}:${r.h}:force_original_aspect_ratio=increase,crop=${r.w}:${r.h}`
+            : `scale=${r.w}:${r.h}:force_original_aspect_ratio=decrease`
+        lines.push(`[${idx}:v]${alpha}setpts=PTS-STARTPTS,fps=${o.fps},${crop}${fit}${fade},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
+        const next = `L${++layer}`
+        const pos = t.placement.fit === 'cover' ? `${r.x}:${r.y}` : `x=${r.x}+(${r.w}-overlay_w)/2:y=${r.y}+(${r.h}-overlay_h)/2`
+        lines.push(`[${cur}][ly${L}]overlay=${pos}:eof_action=pass:repeatlast=0[${next}]`)
+        cur = next
+      }
+    }
+  } else {
   // ── ekran
   for (const t of screenTracks) {
     for (const c of t.clips) {
@@ -121,10 +156,13 @@ export function buildExportPlan(
     }
   }
 
+  }
+
   // ── altyazı
   const files: ExportPlan['files'] = []
-  if (tl.captionStyle.enabled && tl.captions.length > 0) {
-    const ass = buildAss(tl.captions, tl.captionStyle, W, H, rs, re)
+  const hasCaptions = tl.captionStyle.enabled && tl.captions.length > 0
+  if (hasCaptions || textEvents.length > 0) {
+    const ass = buildAss(hasCaptions ? tl.captions : [], tl.captionStyle, W, H, rs, re, textEvents)
     files.push({ name: 'captions.ass', content: ass })
     lines.push(`[${cur}]ass=captions.ass[vtxt]`)
     cur = 'vtxt'

@@ -8,6 +8,7 @@ import { runExport } from '../../src/main/export'
 import { saveProject, openProject, dataDirFor } from '../../src/main/project/io'
 import { CancelledError } from '../../src/main/tasks'
 import { createDefaultTimeline, newId, TRACK_IDS } from '@shared/timeline/model'
+import { applyTemplate, BUILTIN_TEMPLATES } from '@shared/timeline/templates'
 import * as ops from '@shared/timeline/ops'
 import { optionsFromPreset } from '@shared/export/presets'
 import { PROJECT_VERSION, type Clip, type MediaAsset, type Project } from '@shared/types'
@@ -29,7 +30,8 @@ const mk = (trackId: string, start: number, srcIn: number, srcOut: number, extra
 })
 
 function timeline() {
-  let tl = createDefaultTimeline()
+  // 9:16 "oyun ortada, kamera altta" şablonu (katman konumlarıyla)
+  let tl = applyTemplate(createDefaultTimeline(), BUILTIN_TEMPLATES[1])
   tl = ops.addClip(tl, TRACK_IDS.screen, mk(TRACK_IDS.screen, 0, 4, 12))
   tl = ops.addClip(tl, TRACK_IDS.webcam, mk(TRACK_IDS.webcam, 0, 4, 12, { crop: { x: 0.7, y: 0.6, w: 0.3, h: 0.4 } }))
   tl = ops.addClip(tl, TRACK_IDS.game, mk(TRACK_IDS.game, 0, 4, 12, { audioStream: 1 }))
@@ -66,8 +68,7 @@ d('dışa aktarma (gerçek ffmpeg)', () => {
     }
     expect(luma(960)).toBeGreaterThan(20) // oyun
     expect(luma(1500)).toBeGreaterThan(20) // kamera bölgesi
-    const topBlur = luma(40)
-    expect(topBlur).toBeGreaterThan(0) // bulanık dolgu var (tam siyah değil)
+    expect(luma(40)).toBeLessThan(30) // üst bölge boş: arka plan rengi
   })
 
   it('16:9 ve 1:1 şablonları doğru çözünürlükte çıkar', async () => {
@@ -92,6 +93,38 @@ d('dışa aktarma (gerçek ffmpeg)', () => {
   it('kayıp kaynak ve boş zaman çizelgesi anlaşılır hata verir', async () => {
     await expect(runExport({ name: 'k', timeline: timeline(), assets: [{ ...asset, missing: true }], options: optionsFromPreset('shorts'), range: { start: 0, end: 8 }, outputPath: join(root, 'x.mp4') }, tools)).rejects.toThrow(/bulunamadı/)
     await expect(runExport({ name: 'k', timeline: createDefaultTimeline(), assets: [asset], options: optionsFromPreset('shorts'), range: { start: 0, end: 0 }, outputPath: join(root, 'y.mp4') }, tools)).rejects.toThrow(/boş/)
+  })
+})
+
+d('3 bölgeli varsayılan şablon (yüz / davet metni / görsel) — gerçek ffmpeg', () => {
+  it('üstte yüz, ortada beyaz davet metni, altta görsel olarak çıkar; oyun ekranı katmanı kapalıyken görünmez', async () => {
+    const png = join(root, 'konu görseli.png')
+    execFileSync(FFMPEG, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=800x600:d=1', '-frames:v', '1', png])
+    const imgAsset: MediaAsset = { ...asset, id: 'img1', name: 'konu görseli.png', path: png, kind: 'image', durationSec: 0, width: 800, height: 600, audioStreams: [], container: 'png' }
+    let tl = createDefaultTimeline()
+    tl = ops.addClip(tl, 'V2', mk('V2', 0, 4, 10))
+    tl = ops.addClip(tl, 'V1', mk('V1', 0, 4, 10)) // oyun katmanı kapalı → görünmemeli
+    tl = ops.addClip(tl, 'I1', { ...mk('I1', 0, 0, 6), assetId: 'img1' })
+    tl = ops.addClip(tl, 'A2', mk('A2', 0, 4, 10, { audioStream: 2 }))
+    tl = ops.fillTextTracks(tl)
+    const out = join(root, 'uc-bolge.mp4')
+    await runExport({ name: 'k', timeline: tl, assets: [asset, imgAsset], options: optionsFromPreset('shorts'), range: { start: 0, end: 6 }, outputPath: out }, tools)
+    expect(probeVideo(out)).toMatchObject({ width: 1080, height: 1920, audio: 1 })
+    const rgb = (y: number, h = 40, w = 300) => {
+      const buf = execFileSync(FFMPEG, ['-v', 'error', '-ss', '2', '-i', out, '-frames:v', '1', '-vf', `crop=${w}:${h}:390:${y}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])
+      const px = buf.length / 3
+      let r = 0, g = 0, b = 0, max = 0
+      for (let i = 0; i < buf.length; i += 3) { r += buf[i]; g += buf[i + 1]; b += buf[i + 2]; max = Math.max(max, buf[i], buf[i + 1], buf[i + 2]) }
+      return { r: r / px, g: g / px, b: b / px, max }
+    }
+    const top = rgb(200)
+    expect(top.r + top.g + top.b).toBeGreaterThan(60) // yüz videosu (siyah değil)
+    const bottom = rgb(1500)
+    expect(bottom.r).toBeGreaterThan(200) // kırmızı görsel
+    expect(bottom.g).toBeLessThan(40)
+    expect(bottom.b).toBeLessThan(40)
+    const text = rgb(760, 130, 300)
+    expect(text.max).toBeGreaterThan(240) // beyaz davet metni pikselleri
   })
 })
 

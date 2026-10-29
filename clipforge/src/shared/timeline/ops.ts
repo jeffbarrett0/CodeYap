@@ -1,4 +1,4 @@
-import type { Caption, Clip, ID, Timeline, Track } from '../types'
+import type { Caption, Clip, ID, Placement, TextSpec, Timeline, Track, TrackKind, TrackRole } from '../types'
 import { clipDuration, clipEnd, findClip, groupMembers, MIN_CLIP_SEC, newId } from './model'
 
 /** Saf (immutable) zaman çizelgesi işlemleri. Hepsi yeni bir Timeline döner. */
@@ -174,7 +174,7 @@ export function findFreeStart(track: Track, desired: number, duration: number): 
   return start
 }
 
-export function updateTrack(tl: Timeline, trackId: ID, patch: Partial<Pick<Track, 'volume' | 'muted' | 'locked' | 'name'>>): Timeline {
+export function updateTrack(tl: Timeline, trackId: ID, patch: Partial<Pick<Track, 'volume' | 'muted' | 'locked' | 'name' | 'placement' | 'textDefault'>>): Timeline {
   return mapTracks(tl, (t) => (t.id === trackId ? { ...t, ...patch } : t))
 }
 
@@ -196,4 +196,150 @@ export function snapPoints(tl: Timeline, exclude: ID[] = []): number[] {
   const pts = new Set<number>([0])
   for (const tr of tl.tracks) for (const c of tr.clips) if (!exclude.includes(c.id)) (pts.add(c.start), pts.add(clipEnd(c)))
   return [...pts].sort((a, b) => a - b)
+}
+
+// ───────────────────────── katmanlar ─────────────────────────
+
+const VISUAL = new Set<TrackKind>(['video', 'image', 'text'])
+
+/** Katmanın (iz) kare içindeki konumunu/boyutunu/görünürlüğünü günceller. */
+export function setPlacement(tl: Timeline, trackId: ID, patch: Partial<Placement>): Timeline {
+  return mapTracks(tl, (t) => (t.id === trackId && t.placement ? { ...t, placement: { ...t.placement, ...patch, rect: { ...t.placement.rect, ...(patch.rect ?? {}) } } } : t))
+}
+
+/** Yeni görsel/ses katmanı. Görsel katmanlar en üste (en öndeki katman) eklenir. */
+export function addTrack(tl: Timeline, spec: { id?: ID; name: string; kind: Exclude<TrackKind, 'caption'>; role: TrackRole; placement?: Placement; textDefault?: TextSpec }): Timeline {
+  const id = spec.id ?? newId(spec.kind === 'audio' ? 'A' : 'L')
+  if (tl.tracks.some((t) => t.id === id)) return tl
+  const track: Track = {
+    id,
+    name: spec.name,
+    kind: spec.kind,
+    role: spec.role,
+    clips: [],
+    muted: false,
+    locked: false,
+    volume: 1,
+    placement: VISUAL.has(spec.kind) ? (spec.placement ?? { rect: { x: 0.1, y: 0.1, w: 0.5, h: 0.3 }, fit: 'cover', visible: true, opacity: 1 }) : undefined,
+    textDefault: spec.textDefault
+  }
+  return { ...tl, tracks: VISUAL.has(spec.kind) ? [track, ...tl.tracks] : [...tl.tracks, track] }
+}
+
+export function removeTrack(tl: Timeline, trackId: ID): Timeline {
+  return { ...tl, tracks: tl.tracks.filter((t) => t.id !== trackId) }
+}
+
+/** Katman sırasını değiştirir (up = öne). Yalnızca görsel katmanlar kendi aralarında yer değiştirir. */
+export function moveTrackOrder(tl: Timeline, trackId: ID, dir: 'up' | 'down'): Timeline {
+  const visualIdx = tl.tracks.map((t, i) => (VISUAL.has(t.kind) ? i : -1)).filter((i) => i >= 0)
+  const at = tl.tracks.findIndex((t) => t.id === trackId)
+  const pos = visualIdx.indexOf(at)
+  if (pos < 0) return tl
+  const other = visualIdx[pos + (dir === 'up' ? -1 : 1)]
+  if (other === undefined) return tl
+  const tracks = [...tl.tracks]
+  ;[tracks[at], tracks[other]] = [tracks[other], tracks[at]]
+  return { ...tl, tracks }
+}
+
+export function makeTextClip(trackId: ID, start: number, duration: number, spec: TextSpec): Clip {
+  return { id: newId('clip'), trackId, assetId: '', start, srcIn: 0, srcOut: duration, volume: 1, label: spec.text.split('\n')[0].slice(0, 40), text: spec }
+}
+
+/** Boş metin izlerinde, izin varsayılan metni zaman çizelgesi uzunluğunca bir klip olarak oluşturur. */
+export function fillTextTracks(tl: Timeline): Timeline {
+  const total = tl.tracks.reduce((m, t) => (t.kind === 'text' ? m : t.clips.reduce((mm, c) => Math.max(mm, clipEnd(c)), m)), 0)
+  if (total <= 0) return tl
+  return mapTracks(tl, (t) => (t.kind === 'text' && t.textDefault && t.clips.length === 0 ? { ...t, clips: [makeTextClip(t.id, 0, total, t.textDefault)] } : t))
+}
+
+/** Metin klibinin (ya da görselin) süresini zaman çizelgesi sonuna kadar uzatır. */
+export function extendToEnd(tl: Timeline, clipId: ID): Timeline {
+  const f = findClip(tl, clipId)
+  if (!f) return tl
+  const total = tl.tracks.reduce((m, t) => t.clips.reduce((mm, c) => (c.id === clipId ? mm : Math.max(mm, clipEnd(c))), m), 0)
+  return updateClip(tl, clipId, { srcOut: f.clip.srcIn + Math.max(MIN_CLIP_SEC, total - f.clip.start) })
+}
+
+// ───────────────────────── kesme / birleştirme ─────────────────────────
+
+/**
+ * [a, b) zaman aralığını TÜM (kilitsiz) izlerden keser. `ripple` açıkken sonrası aynı miktarda sola kayar (transkriptten kesme).
+ * Aralığı kapsayan klipler ikiye bölünür, kısmi kesişenler kırpılır. Altyazılar da aynı şekilde işlenir.
+ */
+export function cutRange(tl: Timeline, a: number, b: number, ripple = true): Timeline {
+  if (!(b - a > 1e-6)) return tl
+  const gap = b - a
+  const groupMap = new Map<ID, ID>()
+  const suffix = newId('g')
+  const tracks = tl.tracks.map((t): Track => {
+    if (t.locked) return t
+    const out: Clip[] = []
+    for (const c of t.clips) {
+      const s = c.start
+      const e = clipEnd(c)
+      if (e <= a + 1e-9) {
+        out.push(c)
+      } else if (s >= b - 1e-9) {
+        out.push(ripple ? { ...c, start: s - gap } : c)
+      } else if (s >= a - 1e-9 && e <= b + 1e-9) {
+        // tamamen içeride → silinir
+      } else if (s < a && e > b) {
+        const rg = c.groupId ? (groupMap.get(c.groupId) ?? (groupMap.set(c.groupId, `${c.groupId}.${suffix}`), groupMap.get(c.groupId))) : undefined
+        out.push({ ...c, srcOut: c.srcIn + (a - s) })
+        out.push({ ...c, id: newId('clip'), groupId: rg, start: ripple ? a : b, srcIn: c.srcIn + (b - s) })
+      } else if (s < a) {
+        out.push({ ...c, srcOut: c.srcIn + (a - s) }) // sağ kısım kesildi
+      } else {
+        // sol kısım kesildi: kalan parça b'den başlar
+        out.push({ ...c, start: ripple ? a : b, srcIn: c.srcIn + (b - s) })
+      }
+    }
+    return { ...t, clips: out.sort((x, y) => x.start - y.start) }
+  })
+  const captions: Caption[] = []
+  for (const c of tl.captions) {
+    if (c.end <= a) captions.push(c)
+    else if (c.start >= b) captions.push(ripple ? { ...c, start: c.start - gap, end: c.end - gap } : c)
+    else if (c.start >= a && c.end <= b) continue
+    else if (c.start < a && c.end > b) captions.push({ ...c, end: ripple ? c.end - gap : c.end })
+    else if (c.start < a) captions.push({ ...c, end: a })
+    else captions.push({ ...c, start: ripple ? a : b, end: ripple ? c.end - gap : c.end })
+  }
+  return { ...tl, tracks, captions }
+}
+
+/** Klibi, aynı kaynaktan kesintisiz devam eden hemen sonraki klibiyle (ve gruplarıyla) tek klip yapar. */
+export function joinWithNext(tl: Timeline, clipId: ID): Timeline {
+  const f = findClip(tl, clipId)
+  if (!f || f.track.locked) return tl
+  const members = groupMembers(tl, clipId)
+  const drop = new Set<ID>()
+  const updates = new Map<ID, Clip | null>()
+  for (const m of members) {
+    const track = tl.tracks.find((t) => t.id === m.trackId)
+    const next = track?.clips.filter((c) => c.start >= clipEnd(m) - 1e-3).sort((x, y) => x.start - y.start)[0]
+    const ok = next && Math.abs(next.start - clipEnd(m)) < 1e-3 && next.assetId === m.assetId && !m.text && !next.text && Math.abs(next.srcIn - m.srcOut) < 1e-3 && next.audioStream === m.audioStream
+    if (!ok || !next) return tl // tüm üyeler birleşemiyorsa hiçbiri birleşmez
+    updates.set(m.id, { ...m, srcOut: next.srcOut })
+    drop.add(next.id)
+  }
+  for (const id of drop) updates.set(id, null)
+  return replaceClips(tl, updates)
+}
+
+/** Hiçbir izde içerik olmayan boşlukları siler (sonrası sola kayar). Metin izlerindeki tam uzunluklu klipler sayılmaz. */
+export function closeGaps(tl: Timeline): Timeline {
+  const spans = tl.tracks
+    .filter((t) => t.kind !== 'text' && t.kind !== 'caption')
+    .flatMap((t) => t.clips.map((c) => [c.start, clipEnd(c)] as const))
+    .sort((x, y) => x[0] - y[0])
+  const gaps: [number, number][] = []
+  let reach = 0
+  for (const [s, e] of spans) {
+    if (s > reach + 1e-3) gaps.push([reach, s])
+    reach = Math.max(reach, e)
+  }
+  return gaps.reverse().reduce((acc, [a, b]) => cutRange(acc, a, b, true), tl)
 }

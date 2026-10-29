@@ -1,0 +1,209 @@
+import { describe, expect, it } from 'vitest'
+import { createDefaultTimeline, findClip, timelineDuration, TRACK_IDS } from '@shared/timeline/model'
+import * as ops from '@shared/timeline/ops'
+import { applyTemplate, BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, templateFromTimeline } from '@shared/timeline/templates'
+import { cmd } from '@shared/timeline/commands'
+import { History } from '@shared/timeline/history'
+import { buildAss } from '@shared/export/ass'
+import { buildExportPlan } from '@shared/export/plan'
+import { optionsFromPreset } from '@shared/export/presets'
+import type { Clip, Timeline } from '@shared/types'
+
+const mk = (id: string, trackId: string, start: number, srcIn: number, srcOut: number, extra: Partial<Clip> = {}): Clip => ({ id, trackId, assetId: 'a1', start, srcIn, srcOut, volume: 1, label: id, ...extra })
+const clips = (tl: Timeline, id: string) => tl.tracks.find((t) => t.id === id)!.clips
+
+function base(): Timeline {
+  let tl = createDefaultTimeline()
+  tl = ops.addClip(tl, 'V2', mk('cam', 'V2', 0, 100, 130, { groupId: 'g' }))
+  tl = ops.addClip(tl, 'A2', mk('voice', 'A2', 0, 100, 130, { groupId: 'g', audioStream: 0 }))
+  return tl
+}
+
+describe('şablonlar', () => {
+  it('varsayılan şablon üç bölge: yüz üstte, davet ortada, görsel altta; oyun ekranı kapalı', () => {
+    const r = (id: string) => DEFAULT_TEMPLATE.layers.find((l) => l.id === id)!
+    expect(r('V2').placement.rect).toMatchObject({ x: 0, y: 0, w: 1 })
+    expect(r('I1').placement.rect.y).toBeGreaterThan(0.4)
+    expect(r('I1').placement.rect.y + r('I1').placement.rect.h).toBeCloseTo(1)
+    const t1 = r('T1').placement.rect
+    expect(t1.y).toBeGreaterThan(r('V2').placement.rect.h - 0.05) // yüz ile görsel birleşiminde
+    expect(t1.y).toBeLessThan(r('I1').placement.rect.y + 0.1)
+    expect(r('T1').textDefault!.text).toContain('VİDEONUN TAMAMI')
+    expect(r('V1').placement.visible).toBe(false)
+    expect(BUILTIN_TEMPLATES.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('şablon uygulanınca konumlar değişir, klipler korunur, kullanıcı katmanı altta kalır', () => {
+    let tl = base()
+    tl = ops.addTrack(tl, { name: 'Logo', kind: 'image', role: 'image' })
+    const extra = tl.tracks[0].id
+    const out = applyTemplate(tl, BUILTIN_TEMPLATES[1])
+    expect(out.tracks.find((t) => t.id === 'V2')!.placement!.rect.y).toBeCloseTo(0.675)
+    expect(clips(out, 'V2')).toHaveLength(1)
+    expect(out.tracks.map((t) => t.id).indexOf(extra)).toBeGreaterThan(out.tracks.map((t) => t.id).indexOf('V1'))
+  })
+
+  it('katman düzeni şablon olarak yakalanıp tekrar uygulanabilir (konum, görünürlük, metin)', () => {
+    let tl = base()
+    tl = ops.setPlacement(tl, 'V2', { rect: { x: 0.1, y: 0.2, w: 0.5, h: 0.3 }, visible: false })
+    tl = ops.fillTextTracks(tl)
+    tl = cmd.textSpec(clips(tl, 'T1')[0].id, { text: 'BENİ TAKİP ET' }).do(tl)
+    const tpl = templateFromTimeline(tl, 'ozel', 'Özel düzen')
+    const fresh = applyTemplate(createDefaultTimeline(), tpl)
+    expect(fresh.tracks.find((t) => t.id === 'V2')!.placement).toMatchObject({ visible: false, rect: { x: 0.1, y: 0.2 } })
+    expect(fresh.tracks.find((t) => t.id === 'T1')!.textDefault!.text).toBe('BENİ TAKİP ET')
+    // JSON olarak serileştirilebilir
+    expect(JSON.parse(JSON.stringify(tpl))).toEqual(tpl)
+  })
+})
+
+describe('katman işlemleri', () => {
+  it('konum/boyut/görünürlük güncellenir, geri alınır', () => {
+    const h = new History(base())
+    h.execute(cmd.placement('V2', { rect: { x: 0, y: 0, w: 0.5, h: 0.2 } }))
+    expect(h.present.tracks.find((t) => t.id === 'V2')!.placement!.rect).toMatchObject({ w: 0.5, h: 0.2 })
+    h.execute(cmd.placement('V2', { visible: false }))
+    expect(h.present.tracks.find((t) => t.id === 'V2')!.placement!.visible).toBe(false)
+    h.undo()
+    expect(h.present.tracks.find((t) => t.id === 'V2')!.placement!.visible).toBe(true)
+  })
+
+  it('katman ekleme/silme/sıralama; ses katmanı sona, görsel katman öne', () => {
+    let tl = ops.addTrack(base(), { name: 'Logo', kind: 'image', role: 'image' })
+    expect(tl.tracks[0].name).toBe('Logo')
+    const id = tl.tracks[0].id
+    tl = ops.moveTrackOrder(tl, id, 'down')
+    expect(tl.tracks[1].id).toBe(id)
+    expect(ops.moveTrackOrder(tl, 'A1', 'up')).toBe(tl) // ses izleri sıralanmaz
+    tl = ops.addTrack(tl, { name: 'Müzik', kind: 'audio', role: 'mix' })
+    expect(tl.tracks.at(-1)!.name).toBe('Müzik')
+    expect(ops.removeTrack(tl, id).tracks.some((t) => t.id === id)).toBe(false)
+  })
+
+  it('boş metin izleri timeline uzunluğunca varsayılan metinle dolar', () => {
+    const tl = ops.fillTextTracks(base())
+    expect(clips(tl, 'T1')).toHaveLength(1)
+    expect(clips(tl, 'T1')[0].text!.text).toContain('VİDEONUN TAMAMI')
+    expect(clips(tl, 'T1')[0].srcOut - clips(tl, 'T1')[0].srcIn).toBeCloseTo(30)
+    expect(ops.fillTextTracks(createDefaultTimeline())).toEqual(createDefaultTimeline()) // boş projede klip yok
+  })
+})
+
+describe('kesme, birleştirme, boşluk kapatma', () => {
+  it('cutRange: tüm izlerden keser, sonrasını sola kaydırır, bağlı klipler birlikte bölünür', () => {
+    const tl = ops.cutRange(base(), 10, 15)
+    const cam = clips(tl, 'V2')
+    expect(cam).toHaveLength(2)
+    expect(cam[0]).toMatchObject({ start: 0, srcIn: 100, srcOut: 110 })
+    expect(cam[1]).toMatchObject({ start: 10, srcIn: 115, srcOut: 130 })
+    expect(clips(tl, 'A2').map((c) => [c.start, c.srcIn, c.srcOut])).toEqual([[0, 100, 110], [10, 115, 130]])
+    expect(timelineDuration(tl)).toBeCloseTo(25)
+    expect(cam[1].groupId).toBe(clips(tl, 'A2')[1].groupId)
+  })
+
+  it('cutRange: baştan/sondan kısmi kesme, ripple kapalıysa boşluk bırakır, altyazılar kayar', () => {
+    let tl = base()
+    tl = { ...tl, captions: [{ id: 'c1', start: 2, end: 4, text: 'a' }, { id: 'c2', start: 11, end: 13, text: 'b' }, { id: 'c3', start: 20, end: 22, text: 'c' }] }
+    const head = ops.cutRange(tl, 0, 5)
+    expect(clips(head, 'V2')[0]).toMatchObject({ start: 0, srcIn: 105, srcOut: 130 })
+    const tail = ops.cutRange(tl, 25, 40)
+    expect(clips(tail, 'V2')[0]).toMatchObject({ srcOut: 125 })
+    const cut = ops.cutRange(tl, 10, 15)
+    expect(cut.captions.map((c) => [c.id, c.start])).toEqual([['c1', 2], ['c3', 15]])
+    const hole = ops.cutRange(tl, 10, 15, false)
+    expect(clips(hole, 'V2')[1].start).toBe(15)
+    expect(ops.cutRange(tl, 5, 5)).toBe(tl)
+  })
+
+  it('kilitli iz kesmeden etkilenmez', () => {
+    const tl = ops.cutRange(ops.updateTrack(base(), 'A2', { locked: true }), 10, 15)
+    expect(clips(tl, 'A2')).toHaveLength(1)
+    expect(clips(tl, 'V2')).toHaveLength(2)
+  })
+
+  it('joinWithNext: kesintisiz bitişik parçaları (gruplarıyla) birleştirir; bitişik değilse dokunmaz', () => {
+    const split = ops.splitClip(base(), 'cam', 12)
+    const first = clips(split, 'V2')[0].id
+    const joined = ops.joinWithNext(split, first)
+    expect(clips(joined, 'V2')).toHaveLength(1)
+    expect(clips(joined, 'V2')[0]).toMatchObject({ srcIn: 100, srcOut: 130 })
+    expect(clips(joined, 'A2')).toHaveLength(1)
+    const gapped = ops.moveClip(split, clips(split, 'V2')[1].id, 20)
+    expect(ops.joinWithNext(gapped, first)).toBe(gapped)
+  })
+
+  it('closeGaps: hiçbir izde içerik olmayan boşlukları kapatır; metin izleri sayılmaz', () => {
+    let tl = ops.fillTextTracks(base())
+    tl = ops.addClip(tl, 'V2', mk('cam2', 'V2', 50, 200, 210))
+    tl = ops.addClip(tl, 'A2', mk('v2', 'A2', 50, 200, 210, { audioStream: 0 }))
+    const out = ops.closeGaps(tl)
+    expect(clips(out, 'V2')[1].start).toBeCloseTo(30)
+    expect(clips(out, 'A2')[1].start).toBeCloseTo(30)
+    expect(timelineDuration(out)).toBeCloseTo(40)
+  })
+})
+
+describe('ASS metin katmanı', () => {
+  it('konum, stil, sarma ve animasyonlar', () => {
+    const spec = DEFAULT_TEMPLATE.layers[0].textDefault!
+    const ass = buildAss([], createDefaultTimeline().captionStyle, 1080, 1920, 0, 10, [
+      { start: 1, end: 6, spec, rect: { x: 30, y: 740, w: 1020, h: 180 } },
+      { start: 0, end: 3, spec: { ...spec, animation: 'slide-up' }, rect: { x: 0, y: 0, w: 1080, h: 100 } }
+    ])
+    expect(ass).toContain('Style: Txt0,Impact,62')
+    expect(ass).toContain('\\an5\\pos(540,830)')
+    expect(ass).toContain('\\t(400,700,\\fscx108\\fscy108)') // pulse
+    expect(ass).toContain('\\move(540,')
+    expect(ass).toContain('VİDEONUN TAMAMI:\\NKANAL ADIN KANALINDA')
+  })
+})
+
+describe('katman konumlu dışa aktarma planı', () => {
+  const asset = { path: '/rec/k.mkv', kind: 'video' as const, audioStreams: [{ index: 0, streamIndex: 1, codec: 'aac', channels: 2, sampleRate: 48000 }] }
+  const img = { path: '/img/görsel çğ.png', kind: 'image' as const, audioStreams: [] }
+  const lookup = (id: string) => (id === 'img' ? img : asset)
+
+  function tl3() {
+    let tl = createDefaultTimeline()
+    tl = ops.addClip(tl, 'V2', mk('cam', 'V2', 0, 100, 110))
+    tl = ops.addClip(tl, 'I1', { ...mk('img', 'I1', 0, 0, 10), assetId: 'img' })
+    tl = ops.addClip(tl, 'V1', mk('game', 'V1', 0, 100, 110))
+    tl = ops.addClip(tl, 'A2', mk('voice', 'A2', 0, 100, 110, { audioStream: 0 }))
+    return ops.fillTextTracks(tl)
+  }
+
+  it('yüz üstte, görsel altta; oyun katmanı kapalıyken girişe alınmaz; metinler ASS olarak', () => {
+    const plan = buildExportPlan(tl3(), lookup, optionsFromPreset('shorts'), 'x.mp4')
+    const f = plan.files.find((x) => x.name === 'filters.txt')!.content
+    expect(f).toContain('overlay=0:0') // yüz (0,0)
+    expect(f).toMatch(/overlay=0:797/) // görsel: 0.415*1920
+    expect(plan.args.join(' ')).toContain('-loop 1')
+    expect(plan.args).toContain('/img/görsel çğ.png')
+    // oyun klibi (V1) kapalı: yalnızca yüz + görsel + ses girişi
+    expect(plan.args.filter((a) => a === '-i')).toHaveLength(3)
+    const ass = plan.files.find((x) => x.name === 'captions.ass')!.content
+    expect(ass).toContain('VİDEONUN TAMAMI')
+    expect(ass).toContain('TAKİP ETMEYİ UNUTMAYIN')
+    expect(f).toContain('ass=captions.ass')
+  })
+
+  it('oyun katmanı açılınca girişe eklenir; katman sırası çizimi belirler', () => {
+    const on = ops.setPlacement(tl3(), 'V1', { visible: true })
+    const plan = buildExportPlan(on, lookup, optionsFromPreset('shorts'), 'x.mp4')
+    expect(plan.args.filter((a) => a === '-i')).toHaveLength(4)
+    // alttaki katman (oyun) önce, sonra görsel, en sonda yüz çizilir → giriş sırası da böyledir
+    const inputs = plan.args.flatMap((a, i) => (plan.args[i - 1] === '-i' ? [a] : []))
+    expect(inputs).toEqual(['/rec/k.mkv', '/img/görsel çğ.png', '/rec/k.mkv', '/rec/k.mkv'])
+  })
+
+  it('şeffaflık ve arka plan rengi', () => {
+    let tl = ops.setPlacement(tl3(), 'V2', { opacity: 0.5 })
+    tl = { ...tl, background: '#112233' }
+    const f = buildExportPlan(tl, lookup, optionsFromPreset('shorts'), 'x.mp4').files.find((x) => x.name === 'filters.txt')!.content
+    expect(f).toContain('color=c=0x112233')
+    expect(f).toContain('colorchannelmixer=aa=0.500')
+  })
+})
+
+void findClip
+void TRACK_IDS

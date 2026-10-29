@@ -1,4 +1,5 @@
 import type { AspectRatio, CaptionStyle, Clip, ID, Timeline, Track } from '../types'
+import { applyTemplate, AUDIO_TRACKS, DEFAULT_TEMPLATE } from './templates'
 
 let counter = 0
 /** Çakışmasız, serileştirilebilir kimlik. */
@@ -20,33 +21,21 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
   maxCharsPerLine: 22
 }
 
-export const TRACK_IDS = { screen: 'V1', webcam: 'V2', game: 'A1', voice: 'A2' } as const
+export const TRACK_IDS = { screen: 'V1', webcam: 'V2', image: 'I1', game: 'A1', voice: 'A2' } as const
 
 export function createDefaultTimeline(): Timeline {
-  const track = (id: string, name: string, kind: Track['kind'], role: Track['role']): Track => ({
-    id,
-    name,
-    kind,
-    role,
-    clips: [],
-    muted: false,
-    locked: false,
-    volume: 1
-  })
-  return {
+  const base: Timeline = {
     fps: 30,
     aspect: '9:16',
     layout: 'game-center-cam-bottom',
-    tracks: [
-      track(TRACK_IDS.webcam, 'Kamera', 'video', 'webcam'),
-      track(TRACK_IDS.screen, 'Ekran', 'video', 'screen'),
-      track(TRACK_IDS.game, 'Oyun sesi', 'audio', 'game'),
-      track(TRACK_IDS.voice, 'Konuşma', 'audio', 'voice')
-    ],
+    tracks: AUDIO_TRACKS(),
     captions: [],
     captionStyle: { ...DEFAULT_CAPTION_STYLE },
-    webcamOverlay: { x: 0.68, y: 0.04, w: 0.3, h: 0.3 }
+    // Eski sürüm projeleri için yedek; yeni projelerde katman konumları (Track.placement) geçerlidir
+    webcamOverlay: { x: 0.68, y: 0.04, w: 0.3, h: 0.3 },
+    background: '#000000'
   }
+  return applyTemplate(base, DEFAULT_TEMPLATE)
 }
 
 export const clipDuration = (c: Clip) => c.srcOut - c.srcIn
