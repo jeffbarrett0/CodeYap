@@ -101,6 +101,8 @@ export interface IpcInvoke {
   'media:syncOffset': [[{ screenAssetId: string; camAssetId: string }], number]
   'transcript:start': [[TranscribeRequest], string]
   'transcript:get': [[string], Transcript | null]
+  'transcript:fix': [[{ assetId: string; index: number; text: string; all: boolean; remember: boolean }], { transcript: Transcript; replaced: number }]
+  'transcript:vocab': [[string], { transcript: Transcript; corrections: number }]
   'search:run': [[SearchRequest], SearchResult[]]
   'chat:import': [[ChatImportRequest], { chat: ChatLog; warnings: string[] }]
   'suggest:start': [[SuggestRequest], string]

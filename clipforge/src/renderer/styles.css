@@ -230,3 +230,6 @@ kbd { background: var(--panel3); border: 1px solid var(--border); border-bottom-
 .crop-rect { position: absolute; border: 2px solid var(--accent); box-sizing: border-box; cursor: move; }
 .crop-hd { background: #fff; }
 .crop-bar span, .crop-bar b { white-space: nowrap; }
+
+.tw-word.unsure { text-decoration: underline wavy #ffb224; text-underline-offset: 3px; }
+.tw-word.fixed { text-decoration: underline dotted #53fc18; text-underline-offset: 3px; }

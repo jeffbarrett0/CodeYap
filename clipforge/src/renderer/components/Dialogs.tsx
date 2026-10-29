@@ -133,6 +133,11 @@ export function SettingsDialog() {
             </Field>
           </div>
           <Field label="Varsayılan dil"><select value={s.language} onChange={(e) => set({ language: e.target.value })} aria-label="Dil">{LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}</select></Field>
+          <Field label="Özel sözlük: isimler, yöresel kelimeler, terimler (satır ya da virgülle)">
+            <textarea rows={4} value={s.vocabulary} onChange={(e) => set({ vocabulary: e.target.value })} placeholder={'Abdullah Kavukçu\nDursun Özbek'} aria-label="Özel sözlük" data-testid="vocab-input" />
+          </Field>
+          <label className="check"><input type="checkbox" checked={s.transcribeFillers} onChange={(e) => set({ transcribeFillers: e.target.checked })} /> ııı, eee, hımm gibi dolgu seslerini de yazıya dök (sessizlik/dolgu kesme için)</label>
+          <div className="hint">Sözlük hem Whisper'a ipucu olarak verilir hem de çıkan yazıya bulanık düzeltme olarak uygulanır ("kabukçu" → "Kavukçu"). Yeni sözlükten sonra transkripti yeniden üretin ya da Transkript sekmesinde "Özel sözlüğü uygula"ya basın. Emin olunamayan kelimeler transkriptte dalgalı çizgiyle işaretlenir. Özel isimlerde <b>medium</b> model belirgin biçimde daha doğrudur.</div>
           {s.provider === 'whisper-cpp' && (
             <>
               <Field label="whisper-cli yolu (boş = PATH)"><input type="text" value={s.whisperCppPath} onChange={(e) => set({ whisperCppPath: e.target.value })} placeholder="/usr/local/bin/whisper-cli" /></Field>

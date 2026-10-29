@@ -16,10 +16,10 @@ Belirsiz kalan kararlar: [`DECISIONS.md`](DECISIONS.md).
 |---|---|
 | **İçe aktarma** | Sürükle-bırak / dosya seçici; MP4·MOV·MKV·FLV. OBS sürümü, codec (x264/NVENC/AMF), container ve **ses track sayısı** algılanır. Her ses track'i ayrı okunur; transkripsiyon varsayılan **Track 1** (oyun+mikrofon karışımı), değiştirilebilir. Arka planda işleme, ilerleme çubuğu, iptal. Proje kaydet/aç (JSON, **göreli medya yolları**). Küçük resim, süre, çözünürlük. |
 | **Transkripsiyon** | Kelime düzeyinde zaman damgası; kayıt 10 dk + 15 sn **örtüşen** parçalarla işlenir (sınırda kelime kaybı yok); sonuç projeye kaydedilir ve **yeniden kullanılır**; dil varsayılanı Türkçe. |
-| **Transkriptten düzenleme** | Transkript sekmesi: kelimeye tıkla → atla; aralık seçip **kes** (ripple), zaman damgasına git, seçimden klip. |
+| **Transkriptten düzenleme** | Transkript sekmesi: kelimeye tıkla → atla; aralık seçip **kes** (ripple), zaman damgasına git, seçimden klip; **tek tıkla sessizlik / ııı-eee kesme**; kelime düzeltme, özel sözlük, güvensiz kelime işareti. |
 | **Konuşmada arama** | Tek kelime / isim / serbest cümle. **Tam** (ı/i, ş/s, ğ/g, ç/c, ö/o, ü/u duyarsız) · **bulanık** (“Viktor Nelsen” → “Victor Nelson”, eşik ayarlı) · **yakınlık penceresi** (“Victor” ve “Nelson” 10 sn içinde) · isteğe bağlı **anlamsal** arama. Sonuç: zaman, cümle, önceki/sonraki bağlam, skor; zamana göre sıralı; aynı konuşmadaki tekrarlar tek sonuç; tıklayınca oynatıcı o ana gider; son 10 sorgu. |
 | **Klip oluşturma** | Başlangıç/bitiş **cümle sınırına** yapışır; pre-roll (5 sn) / post-roll (10 sn) ayarlı; hedef 15/30/60 sn; sınır aşımı uyarısı; oynatıcıdan ince ayar; kaynak zaman damgası klipte saklanır; tek tek ya da toplu. |
-| **Otomatik öneri** | Ses enerjisi sıçramaları, **sohbet hızı** (CSV/JSON/metin; sütun eşlemesi), tepki sözcükleri, isteğe bağlı sahne yoğunluğu, OBS işaretçileri → skor + **gerekçe**; kabul/red/süre ayarı. İşaretçi yoksa sessizce kapalı. |
+| **Otomatik öneri** | *Arayüzden kaldırıldı* (Öneriler sekmesi); altyapı kodda duruyor. |
 | **Katmanlar & şablonlar** | Yüz / davet metni / görsel / oyun ekranı **ayrı katmanlar**: önizlemede sürükle-bırak + sayısal konum/boyut/görünürlük; metin animasyonları; düzenleri **şablon olarak kaydet**; ekran, oyun sesi, konuşma, kamera ve görsel ayrı dosyalarla çalışma. |
 | **Zaman çizelgesi** | Çoklu video/ses izi, yakınlaştırma, taşı / kenardan kırp / böl / sil, bağlı (grup) klipler, kare kare oynatma başlığı, **geri al/yinele** (komut deseni), otomatik altyazı (yazı tipi/renk/konum), yüz kamerası overlay'i (ayrı dosya + senkron ya da tek dosyada bölge). |
 | **Önizleme & dışa aktarma** | Gerçek zamanlı canvas önizleme (katman konumları dışa aktarmayla aynı); 9:16 · 1:1 · 16:9; hazır şablonlar (3 bölgeli, oyun ortada + kamera alt/üstte, tam kare + köşe kamera); oyun/konuşma **ayrı ses seviyesi**; H.264, çözünürlük/fps/bitrate/CRF; kuyruk, ilerleme, iptal; TikTok/Reels/Shorts (9:16, 60 sn) ve YouTube şablonları; **telif hatırlatması**. |
@@ -31,7 +31,7 @@ Belirsiz kalan kararlar: [`DECISIONS.md`](DECISIONS.md).
 ## Arayüz düzeni
 * **Sol panel:** yalnızca **içe aktarma alanı** ve **Medya kütüphanesi**. Bir dosyaya tıklamak onu seçer ve kaynak oynatıcıda **baştan otomatik oynatır** (video, ses, görsel). Dosyayı zaman çizelgesindeki bir ize sürükleyebilirsin.
 * **Orta:** önizleme. *Zaman çizelgesi* görünümünde **sağ tık → Crop / Kırp** (aşağıda); katmanları ve altyazıları doğrudan sürükleyebilirsin.
-* **Sağ panel**, iki sıra sekme: **Düzenleme** — Klip · Katmanlar · Ses · Altyazı; **Bul / kaynak** — **Kaynak** (seçili dosyanın ayrıntıları: transkripsiyon, rol, bağlı kaynaklar, ize ekleme) · **Arama** · **Transkript** · **Öneriler**.
+* **Sağ panel**, iki sıra sekme: **Düzenleme** — Klip · Katmanlar · Ses · Altyazı; **Bul / kaynak** — **Kaynak** (transkripsiyonu başlat, bağlı kaynaklar, kamera bölgesi) · **Arama** · **Transkript**.
 * **Alt:** zaman çizelgesi.
 
 **Kırpma (Crop):** Önizlemede sağ tık → *Crop / Kırp* (sağ tıkladığın noktadaki video/görsel katmanı kırpılır; yoksa seçili klip). Klibin tamamı gösterilir; yeşil kırpma dikdörtgeninin **alt kenarını yukarı** çekerek (ya da üst/sol/sağ kenar ve köşe tutamaçlarıyla) serbestçe kırp, ortadan sürükleyerek kaydır. *Alttan %* kutusundan sayısal gir; **Sıfırla** / **Bitti**; `Esc` çıkar. Kırpma klipte saklanır, geri alınabilir ve dışa aktarmaya aynen yansır. Klip sekmesinde de *Crop / Kırp* düğmesi ve sayısal değerler var.
@@ -58,12 +58,16 @@ Varsayılan şablon (**“YouTube Shorts · Yüz / Davet / Görsel”**, 9:16 = 
 4. **Göster / gizle:** listedeki 👁 (ya da zaman çizelgesinde iz başlığındaki **G**). **Sıra:** ↑ ↓ (üstteki en önde).
 5. **Metin katmanı** (*+ Metin*, boş başlar): metin, yazı tipi, boyut, renk, kontur, **animasyon** (yok / belirme / nabız / aşağıdan kayma); “Süreyi sona kadar uzat”.
 6. **Katman ekle:** *+ Görsel*, *+ Metin*, *+ Video* (isteğe bağlı logo, ikinci görsel vb.).
-7. **Şablon:** *Düzeni kaydet* ile mevcut düzeni (konumlar, görünürlük, metin biçimi) adlandırıp kaydet; üstteki listeden **Uygula**. Klipler değişmez. Şablon, kullanıcı verisi klasöründe `templates.json` olarak saklanır.
+7. **Kayıtlı düzenlerim:** *Düzeni kaydet* ile mevcut düzeni (konumlar, görünürlük, metin biçimi) adlandırıp kaydet; kayıtlı düzenler listesinden **Uygula**. Klipler değişmez. Saklandığı yer: kullanıcı verisi klasöründeki `templates.json`. (Hazır şablon listesi kaldırıldı.)
 
 **Kaynakları ayrı yönetmek** (Medya sekmesi)
-* Ekran kaydı, oyun sesi, konuşma sesi, kamera ve görseller **ayrı dosyalar** olarak içe aktarılır (MP4/MKV…, MP3/WAV/M4A…, PNG/JPG/WEBP). Dosyaya **rol** ver.
-* Dosyayı **zaman çizelgesindeki bir ize sürükle** ya da *Zaman çizelgesine ekle → Hedef iz → Oynatma başlığına / Sona ekle*. Bir **videoyu video katmanına** eklediğinde **sesi de** (oyun sesi `A1` ya da dosya rolü *Konuşma* ise `A2`) otomatik eklenir; istemezsen *Videonun sesini de ekle* işaretini kaldır. Ses izine görsel gibi uyumsuz bırakmalar anlaşılır uyarı verir.
-* **Bağlı kaynaklar:** konuşma kaydını (transkript onda) seçip ekran / oyun sesi / kamera dosyalarını bağla (gerekirse *Sesten bul* ile senkron ofseti). Konuşmadan klip çıkarınca hepsi **aynı aralıkta**, kendi izlerine gelir.
+* Ekran kaydı, oyun sesi, konuşma sesi, kamera ve görseller **ayrı dosyalar** olarak içe aktarılır (MP4/MKV…, MP3/WAV/M4A…, PNG/JPG/WEBP).
+* Dosyayı kütüphaneden **zaman çizelgesindeki bir ize sürükleyip bırak** (bırakma yeri klibin başlangıcıdır). Bir **videoyu video katmanına** bıraktığında **sesi de** otomatik olarak oyun sesi izine (`A1`) eklenir; sesi istemiyorsan bırakırken **Alt** tuşuna bas. Ses izine görsel gibi uyumsuz bırakmalar anlaşılır uyarı verir.
+* **Bağlı kaynaklar:** Kaynak sekmesinde, konuşma kaydını (transkript onda; tek başına bir ses dosyası, başka kaynağa bağlanınca *konuşma* sayılır ve `A2`'ye gider) seçip ekran / oyun sesi / kamera dosyalarını bağla (gerekirse *Sesten bul* ile senkron ofseti). Konuşmadan klip çıkarınca hepsi **aynı aralıkta**, kendi izlerine gelir.
+
+**Tek tıkla temizlik:** Transkript sekmesindeki (ve zaman çizelgesi araç çubuğundaki) **✂ Sessizlikleri ve ııı/eee'leri kes** düğmesi, konuşma olmayan sessiz aralıkları ve *ı, ııı, eee, hımm* gibi dolgu seslerini tek adımda keser (sonrası kayar, görüntü/ses/altyazı birlikte; `Ctrl+Z` hepsini geri alır). *Kesme ayarları*: şundan uzun sessizlik kesilsin (varsayılan 0.7 sn), kesimden sonra kalan nefes payı (0.15 sn), dolgu seslerini de kes. Kesim, kelime zaman damgalarına dayanır; bu yüzden transkript gerekir.
+
+**Transkript doğruluğu:** (1) **Özel sözlük** (Ayarlar → Transkripsiyon): isimler, yöresel kelimeler, terimler. Whisper'a ipucu olarak verilir ve çıkan yazıya bulanık düzeltme uygulanır ("kabukçu" → "Kavukçu"; ekler korunur, "kabuk" gibi gerçek sözcüklere dokunulmaz). (2) **Emin olunamayan kelimeler** transkriptte dalgalı turuncu çizgiyle işaretlenir ("N kelimeden emin olunamadı" · *Sonraki şüpheli*). (3) Bir kelimeyi seç → **Düzelt** ya da **Tümünde düzelt + sözlüğe ekle** (sonraki transkripsiyonlarda da doğru yazılır). Düzeltilen kelimeler yeşil noktalı çizgiyle gösterilir, özgün yazım korunur. En iyi sonuç için özel isimlerde **medium** model önerilir.
 
 **Kendin kesip birleştirmek**
 * **Transkript** sekmesi: kelimeye tıkla → oraya atla; sürükle / Shift+tıkla → aralık seç; **✂ Seçimi kes** o aralığı tüm izlerden siler (sonrası kayar, bağlı ses/görüntü/altyazı birlikte; `Ctrl+Z` geri alır). *Sil, boşluk kalsın* seçeneği de var. **Zamana git:** `23:14`, `1:02:03`, `754`.

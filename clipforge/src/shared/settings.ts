@@ -27,7 +27,9 @@ export const DEFAULT_SETTINGS: Settings = {
   proxyHeight: 540,
   silenceMinGapSec: 0.7,
   silenceKeepSec: 0.15,
-  cutFillers: true
+  cutFillers: true,
+  vocabulary: '',
+  transcribeFillers: true
 }
 
 export const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium'] as const

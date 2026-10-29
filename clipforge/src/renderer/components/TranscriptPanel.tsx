@@ -8,6 +8,26 @@ interface W {
   text: string
   start: number
   end: number
+  confidence?: number
+  corrected?: string
+  /** düzeltme için: kaynak transkript ve kelime indeksi */
+  assetId?: string
+  srcIndex?: number
+}
+
+const UNSURE = 0.5
+
+/** start'a göre sıralı kelime dizisinde ikili arama */
+function indexByStart(words: { start: number }[], start: number): number {
+  let lo = 0
+  let hi = words.length - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (Math.abs(words[mid].start - start) < 1e-6) return mid
+    if (words[mid].start < start) lo = mid + 1
+    else hi = mid - 1
+  }
+  return -1
 }
 
 function SilenceSettings() {
@@ -33,7 +53,7 @@ const WINDOW_SEC = 600
  *  - Kaynak: kaydın tamamı; seçimden klip oluşturulur.
  */
 export function TranscriptPanel() {
-  const { project, transcripts, selectedAssetId, playhead, sourceTime, viewMode, setViewMode, jumpTo, cutTimelineRange, openDraftFromRange, setPlayhead, setSourceTime } = useStore()
+  const { project, transcripts, selectedAssetId, playhead, sourceTime, viewMode, setViewMode, jumpTo, cutTimelineRange, openDraftFromRange, setPlayhead, setSourceTime, fixTranscriptWord, applyVocabulary } = useStore()
   const [mode, setMode] = useState<'timeline' | 'source'>('timeline')
   const [sel, setSel] = useState<{ a: number; b: number } | null>(null)
   const [code, setCode] = useState('')
@@ -43,7 +63,12 @@ export function TranscriptPanel() {
   const tl = project.timeline
   const tr = selectedAssetId ? transcripts[selectedAssetId] : undefined
 
-  const all: W[] = useMemo(() => (mode === 'timeline' ? timelineWords(tl, transcripts) : (tr?.words ?? [])), [mode, tl, transcripts, tr])
+  const all: W[] = useMemo(() => {
+    if (mode === 'source') return (tr?.words ?? []).map((w, i) => ({ ...w, assetId: tr?.assetId, srcIndex: i }))
+    return timelineWords(tl, transcripts).map((w) => ({ ...w, srcIndex: indexByStart(transcripts[w.assetId]?.words ?? [], w.sourceStart) }))
+  }, [mode, tl, transcripts, tr])
+  const unsure = useMemo(() => all.flatMap((w, i) => (w.confidence !== undefined && w.confidence < UNSURE && w.corrected === undefined && /\p{L}/u.test(w.text) ? [i] : [])), [all])
+  const [fixText, setFixText] = useState('')
   const now = mode === 'timeline' ? playhead : sourceTime
   const cur = wordIndexAt(all, now)
 
@@ -165,6 +190,40 @@ export function TranscriptPanel() {
           </div>
         </div>
       )}
+      {unsure.length > 0 && (
+        <div className="row wrap" data-testid="tw-unsure-bar">
+          <span className="badge warn">⚠ {unsure.length} kelimeden emin olunamadı</span>
+          <button className="btn sm" data-testid="tw-next-unsure" onClick={() => {
+            const next = unsure.find((i) => all[i].start > now + 0.05) ?? unsure[0]
+            setSel({ a: next, b: next })
+            setFixText(all[next].text.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+            seek(next)
+          }}>Sonraki şüpheli ▸</button>
+        </div>
+      )}
+      {(() => {
+        const one = sel && lo === hi ? all[lo] : null
+        if (!one || one.srcIndex === undefined || one.srcIndex < 0 || !one.assetId) return null
+        const assetId = one.assetId
+        const srcIndex = one.srcIndex
+        const plain = one.text.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+        return (
+          <div className="cand" data-testid="tw-fix">
+            <div className="hint">
+              Kelimeyi düzelt{one.confidence !== undefined ? ` · güven %${Math.round(one.confidence * 100)}` : ''}
+              {one.corrected ? ` · özgün yazım: "${one.corrected}"` : ''}
+            </div>
+            <input type="text" value={fixText || plain} onChange={(e) => setFixText(e.target.value)} aria-label="Düzeltilmiş yazım" data-testid="tw-fix-input" />
+            <div className="row wrap">
+              <button className="btn sm" onClick={() => { void fixTranscriptWord(assetId, srcIndex, fixText || plain, false); setFixText('') }} data-testid="tw-fix-one">Düzelt</button>
+              <button className="btn sm primary" onClick={() => { void fixTranscriptWord(assetId, srcIndex, fixText || plain, true); setFixText('') }} data-testid="tw-fix-all" title="Aynı yazımdaki tüm geçişleri düzeltir ve özel sözlüğe ekler; sonraki transkripsiyonlarda da doğru yazılır">Tümünde düzelt + sözlüğe ekle</button>
+            </div>
+          </div>
+        )
+      })()}
+      <div className="row wrap">
+        <button className="btn sm" data-testid="tw-apply-vocab" onClick={() => { const ids = [...new Set(all.map((w) => w.assetId).filter(Boolean))] as string[]; (ids.length ? ids : selectedAssetId ? [selectedAssetId] : []).forEach((id) => void applyVocabulary(id)) }} title="Ayarlar → Transkripsiyon → Özel sözlükteki yazımları bu transkripte uygular">Özel sözlüğü uygula</button>
+      </div>
       <div className="hint">Kelimeye tıkla: oraya atla · sürükle ya da Shift+tıkla: aralık seç.</div>
 
       <div className="tw" data-testid="tw-words" onMouseLeave={() => (dragging.current = false)}>
@@ -175,7 +234,8 @@ export function TranscriptPanel() {
               <span
                 key={i}
                 ref={i === cur ? curRef : undefined}
-                className={`tw-word${i === cur ? ' cur' : ''}${i >= lo && i <= hi ? ' sel' : ''}`}
+                className={`tw-word${i === cur ? ' cur' : ''}${i >= lo && i <= hi ? ' sel' : ''}${all[i].confidence !== undefined && all[i].confidence! < UNSURE && all[i].corrected === undefined && /\p{L}/u.test(all[i].text) ? ' unsure' : ''}${all[i].corrected !== undefined ? ' fixed' : ''}`}
+                title={all[i].corrected !== undefined ? `Düzeltildi: "${all[i].corrected}" → "${all[i].text}"` : all[i].confidence !== undefined && all[i].confidence! < UNSURE ? `Emin olunamadı (%${Math.round(all[i].confidence! * 100)}) — seçip düzeltebilirsiniz` : undefined}
                 data-testid="tw-word"
                 onMouseDown={(e) => {
                   if (e.shiftKey && sel) setSel({ a: sel.a, b: i })

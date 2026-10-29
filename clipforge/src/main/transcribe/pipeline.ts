@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { planChunks, mergeChunkResults, type ChunkResult } from '../../shared/transcript/chunking'
 import { buildSegments } from '../../shared/transcript/sentences'
+import { applyVocabulary } from '../../shared/transcript/vocabulary'
 import type { MediaAsset, Transcript, TranscriptWord, WhisperModelSize } from '../../shared/types'
 import { ToolError } from '../ffmpeg'
 import type { MediaTools } from '../media/import'
@@ -17,6 +18,10 @@ export interface TranscribeParams {
   language: string
   model: WhisperModelSize
   force?: boolean
+  /** Whisper başlangıç ipucu (özel sözlük + dolgu) */
+  prompt?: string
+  /** Üretim sonrası bulanık düzeltme için özel sözlük terimleri */
+  vocabulary?: string[]
 }
 
 export interface PipelineDeps {
@@ -38,6 +43,10 @@ export async function loadTranscript(dataDir: string, assetId: string): Promise<
   } catch {
     return null
   }
+}
+
+export async function saveTranscript(dataDir: string, t: Transcript): Promise<void> {
+  await writeJsonAtomic(transcriptPath(dataDir, t.assetId), t)
 }
 
 async function writeJsonAtomic(path: string, data: unknown) {
@@ -62,7 +71,7 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
 
   if (!p.force) {
     const existing = await loadTranscript(d.dataDir, asset.id)
-    if (existing && existing.audioTrack === p.track && existing.language === p.language && existing.model === p.model && existing.provider === d.provider.kind) {
+    if (existing && existing.audioTrack === p.track && existing.language === p.language && existing.model === p.model && existing.provider === d.provider.kind && (existing.prompt ?? '') === (p.prompt ?? '')) {
       d.progress?.(1, 'Kayıtlı transkript kullanıldı')
       return { transcript: existing, reused: true }
     }
@@ -71,7 +80,7 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
   const chunkSec = d.chunkSec ?? CHUNK_SEC
   const overlap = d.overlapSec ?? OVERLAP_SEC
   const chunks = planChunks(asset.durationSec, chunkSec, overlap)
-  const key = `${asset.id}_t${p.track}_${p.language}_${p.model}_${d.provider.kind}_${chunkSec}_${overlap}`
+  const key = `${asset.id}_t${p.track}_${p.language}_${p.model}_${d.provider.kind}_${chunkSec}_${overlap}_${hash(p.prompt ?? '')}`
   const cacheDir = join(d.dataDir, 'transcripts', 'chunks', key)
   const workDir = join(d.dataDir, 'tmp', key)
   await mkdir(cacheDir, { recursive: true })
@@ -95,7 +104,7 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
         const wav = join(workDir, `chunk_${c.index}.wav`)
         await extractWavChunk(asset, p.track, c.start, c.end - c.start, wav, d.tools, d.signal)
         try {
-          words = await d.provider.transcribeChunk({ wavPath: wav, offsetSec: c.start, language: p.language, model: p.model, signal: d.signal, workDir })
+          words = await d.provider.transcribeChunk({ wavPath: wav, offsetSec: c.start, language: p.language, model: p.model, signal: d.signal, workDir, prompt: p.prompt })
         } finally {
           await rm(wav, { force: true })
         }
@@ -107,7 +116,8 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
     await rm(workDir, { recursive: true, force: true }).catch(() => undefined)
   }
 
-  const words = mergeChunkResults(results)
+  // Özel sözlükle bulanık düzeltme (ör. kabukçu → Kavukçu); düzeltilen kelimelerde özgün yazım saklanır
+  const words = applyVocabulary(mergeChunkResults(results), p.vocabulary ?? []).words
   const transcript: Transcript = {
     id: `tr_${asset.id}_${Date.now().toString(36)}`,
     assetId: asset.id,
@@ -115,6 +125,7 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
     model: p.model,
     provider: d.provider.kind,
     audioTrack: p.track,
+    prompt: p.prompt || undefined,
     createdAt: new Date().toISOString(),
     durationSec: asset.durationSec,
     words,
@@ -124,4 +135,11 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
   await rm(cacheDir, { recursive: true, force: true }).catch(() => undefined)
   d.progress?.(1, 'Tamamlandı')
   return { transcript, reused: false }
+}
+
+/** Kısa, kararlı karma (önbellek anahtarı için) */
+function hash(s: string): string {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return (h >>> 0).toString(36)
 }

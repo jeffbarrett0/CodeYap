@@ -170,3 +170,27 @@ Görevler çubuğunda görünür). Bu bir yorumdur: istenirse sekmeler başka bi
 **Kırpma:** klibin kaynak karesine göre normalize dikdörtgendir (`Clip.crop`), katman yerleşiminden önce uygulanır; kırpma sırasında klibin tamamı gösterilir.
 Kırpma klip bazındadır (aynı izdeki diğer klipleri etkilemez); kaynak görünümünde sağ tık yalnızca zaman çizelgesindeki klibe yönlendirir.
 **Altyazı konumu** altyazı bazında (`Caption.pos`); stildeki genel konum varsayılan kalır. Kutu boyutu yaklaşık hesaplanır (karakter genişliği tahmini), libass ile birkaç piksel fark olabilir.
+
+## 20. İstenmeyen bölümlerin kaldırılması (sadeleştirme turu 2)
+**Kaldırıldı (arayüzden):** Kaynak sekmesindeki "Seçili kayıt" bloğu (OBS/codec rozetleri, algılama notu, **ses track tablosu**), "Bu dosyanın rolü", "Zaman çizelgesine ekle" paneli,
+**Öneriler** sekmesi (ve içindeki sohbet günlüğü içe aktarma), Katmanlar'daki **hazır şablon listesi** ("YouTube Shorts · Yüz / Davet / Görsel" dahil).
+**Korundu (istek gereği dokunulmadı):** en-boy oranı, seçili katman alanı (konum/boyut), sığdırma, saydamlık; katman listesi; "Düzeni kaydet" ve kullanıcının kayıtlı düzenleri.
+**Sonuçlar / yorumlar (onay gerekebilir):**
+* Track tablosu kalktığı için transkripsiyon her zaman **Track 1**'den yapılır ve oyun/konuşma track eşlemesi arayüzden değiştirilemez (çok track'li OBS kayıtlarında Track 1 = karışım varsayımı). Veri modeli (`transcriptionTrack`, `audioMap`) duruyor; gerekirse arayüze geri eklenir.
+* Rol kaldırıldı: rolü olmayan, başka kaynağa bağlı bir **ses dosyası konuşma (A2)** sayılır; diğer sesler A1'e gider.
+* Dosyayı ize ekleme yolu artık yalnızca **sürükle-bırak** (Alt = videonun sesi olmadan) ve arama/transkript akışları.
+* "Hazır şablon listesi" kalktı; varsayılan 3 bölgeli düzen yeni projelerde hâlâ başlangıç düzenidir ama listeden yeniden uygulanamaz. Bu, "yazan kısmı kaldır" isteğinin yorumudur (yalnızca yazıyı gizlemek yerine hazır şablonları kaldırdım).
+* Öneriler sekmesinin kaldırılması sohbet günlüğü içe aktarmayı da erişilemez yaptı (kod ve Ayarlar → Sohbet sütun eşlemesi duruyor).
+
+## 21. Sessizlik / dolgu kesme
+Kesim planı **transkript kelime zaman damgalarından** çıkar (`planSilenceCuts`): `minGap` (0.7 sn) üstü boşluklar iki yandan `keep` (0.15 sn) pay bırakılarak, dolgu sesleri kendi aralıklarıyla (komşu gerçek
+kelimelere taşmadan), baş/son sessizlik kısaltılarak kesilir; hepsi tek komut = tek geri alma. Gerçek kelime yoksa hiçbir şey kesilmez.
+**Sınırlar:** (a) Whisper dolgu seslerini çoğu zaman yazıya dökmez; `transcribeFillers` açıkken ipucuna ("Şey, ııı, eee, hımm, yani.") dolgu örneği eklenir (whisper.cpp `--prompt`). Bu bazen **sessiz bölümlerde ipucunu halüsinasyon olarak tekrarlatabilir**; sorun görülürse
+Ayarlar'dan kapatılabilir. Gerçek kayıtla denenmedi. (b) Kesim zaman çizelgesindeki TÜM izleri etkiler: sessizlik sırasında oyun sesi/görüntü akıyorsa o da kesilir (konuşmasız oyun anları dahil) — bu istenen davranış olarak yorumlandı.
+(c) Ses tabanlı sessizlik algılama (ffmpeg `silencedetect`) yok; konuşma dışı gürültü (nefes, tıkırtı) kelime olarak yazılmadığı sürece "sessizlik" sayılır.
+
+## 22. Transkript doğruluğu
+Yöntemler: (1) Whisper'a **ipucu** (özel sözlük) — `whisper.cpp --prompt`, faster-whisper `initial_prompt`, OpenAI `prompt`; ipucu değişince transkript yeniden üretilir (önbellek anahtarına dahil).
+(2) **Bulanık sözlük düzeltmesi** (≥5 harfli sözlük kelimeleri, benzerlik ≥ 0.84, ≤5 harf ek; "kabuk" gibi gerçek sözcükler korunur). (3) **Güven işareti**: whisper.cpp `-ojf` belirteç olasılıklarının ortalaması < 0.5 ise "emin değil"
+(faster-whisper `probability`; OpenAI API güven vermez → işaret yok). (4) **Elle düzeltme** + "tümünde düzelt + sözlüğe ekle" ile sistem öğrenir.
+**%100 garanti yoktur**: özellikle yöresel kelimeler/özel isimler için `medium` model ve sözlük önerilir. Eşikler (0.5 / 0.84) gerçek Türkçe kayıtla ayarlanmadı; false positive riski düşük tutuldu (kısa kelime ve uzak benzerlik düzeltilmez).

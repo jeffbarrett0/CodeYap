@@ -26,7 +26,7 @@ export function timelineWords(tl: Timeline, transcripts: Record<ID, Transcript |
       const key = `${c.assetId}|${w.start.toFixed(3)}|${start.toFixed(2)}`
       if (seen.has(key)) continue
       seen.add(key)
-      out.push({ text: w.text, start, end, confidence: w.confidence, assetId: c.assetId, sourceStart: w.start })
+      out.push({ text: w.text, start, end, confidence: w.confidence, corrected: w.corrected, assetId: c.assetId, sourceStart: w.start })
     }
   }
   return out.sort((a, b) => a.start - b.start)

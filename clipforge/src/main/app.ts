@@ -18,7 +18,8 @@ import { SettingsStore, TemplateStore } from './settings-store'
 import { TaskQueue, userMessage } from './tasks'
 import { createEmbeddingProvider } from './embeddings'
 import { downloadModel, modelInstalled } from './transcribe/models'
-import { loadTranscript, transcribeAsset } from './transcribe/pipeline'
+import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pipeline'
+import { applyVocabulary, buildPrompt, fixWord, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
 
 export interface AppDeps {
@@ -153,7 +154,7 @@ export class AppService {
       kind: 'transcribe',
       title: `Transkripsiyon: ${asset.name} (Track ${req.track + 1}, ${req.language})`,
       run: async (ctx) => {
-        const { transcript, reused } = await transcribeAsset(asset, { track: req.track, language: req.language, model, force: req.force }, { tools: this.tools, provider, dataDir: this.dataDir, signal: ctx.signal, progress: ctx.progress })
+        const { transcript, reused } = await transcribeAsset(asset, { track: req.track, language: req.language, model, force: req.force, prompt: buildPrompt(s.vocabulary, s.transcribeFillers), vocabulary: parseVocabulary(s.vocabulary) }, { tools: this.tools, provider, dataDir: this.dataDir, signal: ctx.signal, progress: ctx.progress })
         this.search.load(asset.id, transcript)
         this.deps.emit('transcript:ready', { assetId: asset.id, transcript, reused })
       }
@@ -167,6 +168,36 @@ export class AppService {
     const t = await loadTranscript(this.dataDir, assetId)
     if (t) this.search.load(assetId, t)
     return t
+  }
+
+  /** Elle düzeltme: tek kelime ya da tüm geçişler; `remember` ile sözlüğe eklenir. Transkript diske yazılır, arama indeksi yenilenir. */
+  async transcriptFix(req: { assetId: string; index: number; text: string; all: boolean; remember: boolean }): Promise<{ transcript: Transcript; replaced: number }> {
+    const t = await this.transcriptGet(req.assetId)
+    if (!t) throw new ToolError('Transkript bulunamadı.')
+    if (!req.text.trim()) throw new ToolError('Düzeltme metni boş olamaz.')
+    const r = fixWord(t, req.index, req.text, req.all)
+    await saveTranscript(this.dataDir, r.transcript)
+    this.search.load(req.assetId, r.transcript)
+    if (req.remember) {
+      const terms = parseVocabulary(this.settings.value.vocabulary)
+      if (!terms.some((x) => x.toLocaleLowerCase('tr-TR') === req.text.trim().toLocaleLowerCase('tr-TR'))) {
+        await this.settings.update({ vocabulary: [...terms, req.text.trim()].join('\n') })
+      }
+    }
+    return r
+  }
+
+  /** Mevcut transkripte (yeniden üretmeden) güncel özel sözlüğü uygular */
+  async transcriptApplyVocabulary(assetId: string): Promise<{ transcript: Transcript; corrections: number }> {
+    const t = await this.transcriptGet(assetId)
+    if (!t) throw new ToolError('Transkript bulunamadı.')
+    const r = applyVocabulary(t.words, parseVocabulary(this.settings.value.vocabulary))
+    const next = r.corrections.length ? withWords(t, r.words) : t
+    if (r.corrections.length) {
+      await saveTranscript(this.dataDir, next)
+      this.search.load(assetId, next)
+    }
+    return { transcript: next, corrections: r.corrections.length }
   }
 
   async searchRun(req: SearchRequest): Promise<SearchResult[]> {

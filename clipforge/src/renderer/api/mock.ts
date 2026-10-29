@@ -9,6 +9,7 @@ import { DEFAULT_SETTINGS, normalizeSettings } from '@shared/settings'
 import { DEFAULT_SEARCH_OPTIONS } from '@shared/search/engine'
 import { SearchService } from '@shared/search/service'
 import { buildSegments } from '@shared/transcript/sentences'
+import { applyVocabulary, fixWord, parseVocabulary, withWords } from '@shared/transcript/vocabulary'
 import { scoreCandidates, snapCandidate } from '@shared/suggest/score'
 import { newId } from '@shared/timeline/model'
 import type { MediaAsset, Settings, Transcript, TranscriptWord } from '@shared/types'
@@ -31,7 +32,8 @@ const INJECT: { at: number; text: string }[] = [
   { at: 20, text: 'Adam gerçekten çok komik bir tipti.' },
   { at: 61, text: 'Viktor Nelsen diye bir yayıncı vardı ya.' },
   { at: 97, text: 'Victor Nelson yine geldi.' },
-  { at: 34, text: 'Şimdi ııı eee yani hımm bakalım.' }
+  { at: 34, text: 'Şimdi ııı eee yani hımm bakalım.' },
+  { at: 75, text: 'Abdullah Kabukçu bunu yapmaz derken Kabukçu\'nun sözleri geldi.' }
 ]
 
 export function demoTranscript(assetId: string, duration: number, lang: string): Transcript {
@@ -50,7 +52,8 @@ export function demoTranscript(assetId: string, duration: number, lang: string):
   for (const l of lines) {
     let s = l.at
     for (const w of l.text.split(' ')) {
-      words.push({ text: w, start: s, end: s + 0.31 })
+      // güven: "Kabukçu" gibi emin olunamayan kelimeler düşük güvenli (arayüzde işaretlenir)
+      words.push({ text: w, start: s, end: s + 0.31, confidence: /^Kabuk/.test(w) ? 0.32 : 0.95 })
       s += 0.35
     }
   }
@@ -125,12 +128,33 @@ export function createMockApi(): ClipforgeApi {
           const a = assets.get(req.assetId)
           if (!a) throw new Error('Medya bulunamadı')
           for (let i = 1; i <= 5; i++) (ctx.progress(i / 5, `Parça ${i}/5`), await sleep(60))
-          const t = demoTranscript(a.id, a.durationSec, req.language)
+          let t = demoTranscript(a.id, a.durationSec, req.language)
+          const vr = applyVocabulary(t.words, parseVocabulary(settings.vocabulary))
+          if (vr.corrections.length) t = withWords(t, vr.words)
           search.load(a.id, t)
           emit('transcript:ready', { assetId: a.id, transcript: t, reused: false })
         }
       }).id,
     'transcript:get': (id) => search.get(id) ?? null,
+    'transcript:fix': (req) => {
+      const t = search.get(req.assetId)
+      if (!t) throw new Error('Transkript bulunamadı.')
+      const r = fixWord(t, req.index, req.text, req.all)
+      search.load(req.assetId, r.transcript)
+      if (req.remember) {
+        const terms = parseVocabulary(settings.vocabulary)
+        if (!terms.some((x) => x.toLowerCase() === req.text.trim().toLowerCase())) settings = normalizeSettings({ ...settings, vocabulary: [...terms, req.text.trim()].join('\n') })
+      }
+      return r
+    },
+    'transcript:vocab': (id) => {
+      const t = search.get(id)
+      if (!t) throw new Error('Transkript bulunamadı.')
+      const r = applyVocabulary(t.words, parseVocabulary(settings.vocabulary))
+      const next = r.corrections.length ? withWords(t, r.words) : t
+      search.load(id, next)
+      return { transcript: next, corrections: r.corrections.length }
+    },
     'search:run': (req) => search.search(req.assetId, req.query, { ...DEFAULT_SEARCH_OPTIONS, fuzzyThreshold: settings.fuzzyThreshold, fuzzy: settings.fuzzyEnabled, windowSec: settings.windowSec, ...req.options }),
     'chat:import': (req) => {
       const text = w.__mock?.nextChat === 'bad' ? 'bu hiç sohbet dosyasına benzemiyor' : SAMPLE_CSV

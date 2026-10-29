@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ClipForge köprüsü: faster-whisper ile kelime düzeyinde transkripsiyon.
 
-Kullanım: faster_whisper_cli.py <wav> <model: tiny|base|small|medium> <dil|auto>
+Kullanım: faster_whisper_cli.py <wav> <model: tiny|base|small|medium> <dil|auto> [ipucu]
 Çıktı (stdout): {"words": [{"text": ..., "start": ..., "end": ..., "confidence": ...}]}
 """
 import json
@@ -13,6 +13,7 @@ def main() -> int:
         print("kullanım: faster_whisper_cli.py <wav> <model> <dil>", file=sys.stderr)
         return 2
     wav, model_name, lang = sys.argv[1:4]
+    prompt = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else None
     from faster_whisper import WhisperModel  # noqa: WPS433 (isteğe bağlı bağımlılık)
 
     model = WhisperModel(model_name, device="auto", compute_type="auto")
@@ -21,6 +22,7 @@ def main() -> int:
         language=None if lang == "auto" else lang,
         word_timestamps=True,
         vad_filter=True,
+        initial_prompt=prompt,
     )
     words = []
     for seg in segments:

@@ -183,6 +183,9 @@ interface State {
   closeGaps(): void
   /** Tek tıkla: konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini zaman çizelgesinden keser */
   cutSilence(): void
+  /** Transkripti elle düzelt (tek kelime / tüm geçişler; sözlüğe ekle) */
+  fixTranscriptWord(assetId: string, index: number, text: string, all: boolean): Promise<void>
+  applyVocabulary(assetId: string): Promise<void>
   /** Klip eklendikten sonra: metin katmanlarını doldurur; kamera yoksa oyun ekranı katmanını açar */
   afterClipsAdded(trackIds: string[]): void
 }
@@ -729,6 +732,25 @@ export const useStore = create<State>()((set, get) => {
       const before = project.timeline
       get().exec(cmd.join(selection[0]))
       if (get().project.timeline === before) get().toast('info', 'Birleştirilemedi: iki klip yan yana, aynı kaynaktan ve kaynakta kesintisiz devam eden parçalar olmalı.')
+    },
+    async fixTranscriptWord(assetId, index, text, all) {
+      try {
+        const r = await api().invoke('transcript:fix', { assetId, index, text, all, remember: all })
+        set((s) => ({ transcripts: { ...s.transcripts, [assetId]: r.transcript } }))
+        if (all) void api().invoke('settings:get').then((settings) => set({ settings }))
+        get().toast('success', `${r.replaced} kelime düzeltildi${all ? ' ve sözlüğe eklendi' : ''}.`)
+      } catch (e) {
+        get().toast('error', errText(e))
+      }
+    },
+    async applyVocabulary(assetId) {
+      try {
+        const r = await api().invoke('transcript:vocab', assetId)
+        set((s) => ({ transcripts: { ...s.transcripts, [assetId]: r.transcript } }))
+        get().toast(r.corrections ? 'success' : 'info', r.corrections ? `Sözlükle ${r.corrections} kelime düzeltildi.` : 'Sözlükle düzeltilecek kelime bulunamadı.')
+      } catch (e) {
+        get().toast('error', errText(e))
+      }
     },
     cutSilence() {
       const { project, transcripts, settings } = get()

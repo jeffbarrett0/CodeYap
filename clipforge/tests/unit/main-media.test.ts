@@ -27,6 +27,27 @@ beforeAll(() => {
 })
 afterAll(() => rmSync(root, { recursive: true, force: true }))
 
+describe('whisper.cpp tam JSON: kelime güveni', () => {
+  it('belirteç olasılıklarının ortalaması kelime güvenidir; birleşen noktalama düşük olanı korur; özel belirteçler sayılmaz', () => {
+    const words = parseWhisperCppJson(
+      {
+        transcription: [
+          { offsets: { from: 0, to: 100 }, text: '[_BEG_]', tokens: [{ text: '[_BEG_]', p: 0.01 }] },
+          { offsets: { from: 200, to: 500 }, text: ' Kabukçu', tokens: [{ text: ' Kab', p: 0.2 }, { text: 'ukçu', p: 0.4 }, { text: '[_TT_50]', p: 0.0 }] },
+          { offsets: { from: 500, to: 700 }, text: ' geldi', tokens: [{ text: ' geldi', p: 0.98 }] },
+          { offsets: { from: 700, to: 800 }, text: '.', tokens: [{ text: '.', p: 0.99 }] }
+        ]
+      },
+      0
+    )
+    expect(words.map((w) => w.text)).toEqual(['Kabukçu', 'geldi.'])
+    expect(words[0].confidence).toBeCloseTo(0.3)
+    expect(words[1].confidence).toBeCloseTo(0.98)
+    // belirteç bilgisi yoksa (eski çıktı) güven yoktur
+    expect(parseWhisperCppJson({ transcription: [{ offsets: { from: 0, to: 100 }, text: ' x' }] }, 0)[0].confidence).toBeUndefined()
+  })
+})
+
 describe('whisper.cpp çıktısı', () => {
   it('kelimeleri birleştirir, özel belirteçleri atar, noktalamayı yapıştırır, ofset ekler', () => {
     const words = parseWhisperCppJson(
@@ -168,6 +189,35 @@ d('transkripsiyon hattı (sahte sağlayıcı + gerçek ffmpeg parçalama)', () =
     // farklı dil → yeniden hesaplanır
     const r3 = await transcribeAsset(asset, { track: 0, language: 'en', model: 'tiny' }, { tools, provider, dataDir, chunkSec: 8, overlapSec: 2 })
     expect(r3.reused).toBe(false)
+  })
+
+  it('özel sözlük ipucu sağlayıcıya iletilir, çıktıya bulanık düzeltme uygulanır; ipucu değişince yeniden üretilir', async () => {
+    const seen: (string | undefined)[] = []
+    const kabuk = wordsFromLines([{ at: 2, text: 'Abdullah Kabukçu geldi.' }, { at: 12, text: "Kabukçu'nun sözleri kabuk gibi." }], 0.3)
+    const provider = {
+      kind: 'mock' as const,
+      async transcribeChunk(req: Parameters<MockProvider['transcribeChunk']>[0]) {
+        seen.push(req.prompt)
+        return kabuk.filter((w) => w.start >= req.offsetSec && w.end <= req.offsetSec + 8)
+      }
+    }
+    const dataDir = join(root, 'd-vocab')
+    const base = { track: 0, language: 'tr', model: 'tiny' as const }
+    const r1 = await transcribeAsset(asset, { ...base, prompt: 'Kavukçu.', vocabulary: ['Abdullah Kavukçu'] }, { tools, provider, dataDir, chunkSec: 8, overlapSec: 2 })
+    expect(seen.every((p) => p === 'Kavukçu.')).toBe(true)
+    expect(r1.transcript.prompt).toBe('Kavukçu.')
+    const texts = r1.transcript.words.map((w) => w.text)
+    expect(texts).toContain('Kavukçu')
+    expect(texts).toContain("Kavukçu'nun")
+    expect(texts).toContain('kabuk') // gerçek sözcüğe dokunulmadı
+    expect(r1.transcript.words.find((w) => w.text === 'Kavukçu')!.corrected).toBe('Kabukçu')
+    // aynı ipucu: yeniden kullanılır; farklı ipucu: yeniden üretilir
+    const n = seen.length
+    expect((await transcribeAsset(asset, { ...base, prompt: 'Kavukçu.', vocabulary: ['Abdullah Kavukçu'] }, { tools, provider, dataDir, chunkSec: 8, overlapSec: 2 })).reused).toBe(true)
+    expect(seen.length).toBe(n)
+    const r3 = await transcribeAsset(asset, { ...base, prompt: 'Başka.' }, { tools, provider, dataDir, chunkSec: 8, overlapSec: 2 })
+    expect(r3.reused).toBe(false)
+    expect(r3.transcript.words.map((w) => w.text)).toContain('Kabukçu') // sözlük yok → düzeltme yok
   })
 
   it('geçersiz track ve iptal', async () => {

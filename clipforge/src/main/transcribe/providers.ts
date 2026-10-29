@@ -13,6 +13,8 @@ export interface ChunkRequest {
   signal?: AbortSignal
   /** Geçici çıktılar için klasör */
   workDir: string
+  /** Başlangıç ipucu (özel sözlük + dolgu örneği): isim/terim doğruluğunu artırır */
+  prompt?: string
 }
 
 export interface TranscriptionProvider {
@@ -24,7 +26,7 @@ export interface TranscriptionProvider {
 // ───────────────────────── whisper.cpp ─────────────────────────
 
 interface WhisperCppJson {
-  transcription?: { offsets?: { from: number; to: number }; text?: string }[]
+  transcription?: { offsets?: { from: number; to: number }; text?: string; tokens?: { text?: string; p?: number }[] }[]
 }
 
 const SPECIAL = /^\s*(\[[A-Z_ ]*[\]]?|<\|[^|]*\|>|\([^)]*\))\s*$/ // [_BEG_], [MUSIC], (müzik) vb.
@@ -38,14 +40,18 @@ export function parseWhisperCppJson(json: WhisperCppJson, offsetSec: number): Tr
     const start = seg.offsets.from / 1000 + offsetSec
     const end = Math.max(start, seg.offsets.to / 1000 + offsetSec)
     const clean = text.trim()
+    // Kelime güveni: özel olmayan belirteçlerin olasılık ortalaması (-ojf çıktısında bulunur)
+    const ps = (seg.tokens ?? []).filter((t) => typeof t.p === 'number' && !/^\[_|^<\|/.test(t.text ?? '')).map((t) => t.p as number)
+    const conf = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : undefined
     const startsNewWord = /^\s/.test(text) || words.length === 0
     const punctOnly = /^[\p{P}\p{S}]+$/u.test(clean)
     if ((!startsNewWord || punctOnly) && words.length > 0) {
       const last = words[words.length - 1]
       last.text += clean
       last.end = Math.max(last.end, end)
+      if (conf !== undefined && last.confidence !== undefined) last.confidence = Math.min(last.confidence, conf)
     } else {
-      words.push({ text: clean, start, end })
+      words.push({ text: clean, start, end, ...(conf !== undefined ? { confidence: conf } : {}) })
     }
   }
   return words
@@ -66,7 +72,8 @@ export class WhisperCppProvider implements TranscriptionProvider {
   async transcribeChunk(req: ChunkRequest): Promise<TranscriptWord[]> {
     const model = whisperModelFile(this.modelDir, req.model)
     const prefix = join(req.workDir, `wcpp_${Math.round(req.offsetSec)}`)
-    const args = ['-m', model, '-f', req.wavPath, '-l', req.language, '-oj', '-of', prefix, '-ml', '1', '-sow', '-t', String(this.threads), '-np']
+    const args = ['-m', model, '-f', req.wavPath, '-l', req.language, '-ojf', '-of', prefix, '-ml', '1', '-sow', '-t', String(this.threads), '-np']
+    if (req.prompt) args.push('--prompt', req.prompt)
     try {
       await runTool(this.binary, args, { signal: req.signal }, (stderr) => {
         if (/failed to open|no such file|could not open|error: failed to load/i.test(stderr) && /ggml|model/i.test(stderr)) {
@@ -130,6 +137,7 @@ export class OpenAIProvider implements TranscriptionProvider {
       form.append('response_format', 'verbose_json')
       form.append('timestamp_granularities[]', 'word')
       if (req.language && req.language !== 'auto') form.append('language', req.language)
+      if (req.prompt) form.append('prompt', req.prompt)
       const res = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, '')}/audio/transcriptions`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${this.apiKey}` },

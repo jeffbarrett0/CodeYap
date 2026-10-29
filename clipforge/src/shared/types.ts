@@ -101,8 +101,10 @@ export interface TranscriptWord {
   text: string
   start: number
   end: number
-  /** 0..1 */
+  /** 0..1 (sağlayıcı güveni). Düşükse arayüzde "emin değil" diye işaretlenir. */
   confidence?: number
+  /** Sözlükle ya da elle düzeltildiyse özgün (yanlış) yazım */
+  corrected?: string
 }
 
 /** Cümle düzeyinde bölüt; kelime dizisindeki [firstWord, lastWord] aralığına işaret eder. */
@@ -124,6 +126,8 @@ export interface Transcript {
   audioTrack: number
   createdAt: string
   durationSec: number
+  /** Üretimde kullanılan ipucu (özel sözlük + dolgu); değişirse transkript yeniden üretilir */
+  prompt?: string
   words: TranscriptWord[]
   segments: Segment[]
 }
@@ -428,6 +432,10 @@ export interface Settings {
   silenceKeepSec: number
   /** ııı / eee gibi dolgu seslerini de kes */
   cutFillers: boolean
+  /** Özel sözlük: isimler, yöresel kelimeler, terimler (satır ya da virgülle ayrılmış) */
+  vocabulary: string
+  /** ııı / eee gibi dolgu seslerini de yazıya dökmesi için whisper'a ipucu ver */
+  transcribeFillers: boolean
 }
 
 // ───────────────────────────── Proje ─────────────────────────────
