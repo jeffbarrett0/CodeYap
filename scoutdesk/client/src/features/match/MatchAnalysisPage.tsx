@@ -23,6 +23,7 @@ import { VideoPlayer } from './VideoPlayer'
 import { deleteClips, patchClips, useClips } from './clips'
 import { useAngles } from './angles'
 import { useMode } from '@/store/mode'
+import { DrawingInspector } from './DrawingInspector'
 import { useDrawing } from './drawing'
 import { useFilters } from './filters'
 import { useHistory } from './history'
@@ -50,6 +51,8 @@ export function MatchAnalysisPage() {
   const [rightTab, setRightTab] = useState('tag')
   const [bottomTab, setBottomTab] = useState('clips')
   const mode = useMode((s) => s.mode)
+  const selectedShape = useDrawing((s) => s.shapes.find((x) => x.id === s.selectedId))
+  useEffect(() => { if (selectedShape?.type === 'player') setRightTab('draw') }, [selectedShape?.id, selectedShape?.type])
 
   const videos = useMemo(() => allVideos.filter((v) => v.matchId === matchId), [allVideos, matchId])
   const primaryId = useAngles((s) => s.primaryId)
@@ -204,10 +207,21 @@ export function MatchAnalysisPage() {
       <div className="flex h-full min-h-0 flex-col">
         <MatchHeader match={match} />
         <div className="min-h-0 flex-1">
-          <PanelGroup direction="vertical" autoSaveId="sd-simple-v1">
-            <Panel id="pnl-video" defaultSize={72} minSize={35} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
-            <Handle dir="h" />
-            <Panel id="pnl-timeline" defaultSize={28} minSize={14} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+          <PanelGroup direction="horizontal" autoSaveId="sd-simple-h">
+            <Panel id="pnl-main" defaultSize={78} minSize={50} order={1}>
+              <PanelGroup direction="vertical" autoSaveId="sd-simple-v1">
+                <Panel id="pnl-video" defaultSize={72} minSize={35} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
+                <Handle dir="h" />
+                <Panel id="pnl-timeline" defaultSize={28} minSize={14} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+              </PanelGroup>
+            </Panel>
+            <Handle dir="v" />
+            <Panel id="pnl-side" defaultSize={22} minSize={16} maxSize={36} order={2}>
+              <Tabs value="draw" className="flex h-full flex-col bg-surface">
+                <TabsList><TabsTrigger value="draw">Çizim</TabsTrigger></TabsList>
+                <TabsContent value="draw"><DrawingInspector match={match} /></TabsContent>
+              </Tabs>
+            </Panel>
           </PanelGroup>
         </div>
       </div>
@@ -245,9 +259,11 @@ export function MatchAnalysisPage() {
           <TabsList>
             <TabsTrigger value="tag">Tagging</TabsTrigger>
             <TabsTrigger value="clip">Clip</TabsTrigger>
+            <TabsTrigger value="draw">Çizim</TabsTrigger>
           </TabsList>
           <TabsContent value="tag" forceMount><TaggingPanel match={match} canWrite={canWrite} /></TabsContent>
           <TabsContent value="clip" forceMount><ClipInspector canWrite={canWrite} onPlayClip={playClip} /></TabsContent>
+          <TabsContent value="draw"><DrawingInspector match={match} /></TabsContent>
         </Tabs>
       </Panel>
     </PanelGroup>

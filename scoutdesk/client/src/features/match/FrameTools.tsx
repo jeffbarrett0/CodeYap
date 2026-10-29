@@ -1,4 +1,4 @@
-import { Circle, Hand, Link2, ListOrdered, Minus, MousePointer2, MoveUpRight, Pentagon, Route, ScanSearch, Sparkles, Trash2, User, ZoomIn, ZoomOut } from 'lucide-react'
+import { Circle, Hand, Link2, ListOrdered, Minus, MousePointer2, MoveUpRight, Pentagon, Route, ScanEye, ScanSearch, Sparkles, Trash2, User, ZoomIn, ZoomOut } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -7,14 +7,15 @@ import { DRAW_COLORS, useDrawing, type Tool } from './drawing'
 const TOOLS: { id: Tool; label: string; tip: string; hotkey?: string; icon: typeof Circle }[] = [
   { id: 'select', label: 'Seç', tip: 'Çizimi seç ve taşı', hotkey: 'D', icon: MousePointer2 },
   { id: 'arrow', label: 'Ok', tip: 'Ok çiz: videoda sürükle', icon: MoveUpRight },
-  { id: 'circle', label: 'Daire', tip: 'Daire çiz (Shift = tam daire)', icon: Circle },
+  { id: 'circle', label: 'Daire', tip: 'Oyuncunun üstüne tıkla: halka. Sürüklersen istediğin boyda çizer', icon: Circle },
+  { id: 'zoom', label: 'Zoom', tip: 'Oyuncunun üstüne daire çiz: solda "Player close up" büyütmesi açılır', icon: ScanEye },
   { id: 'line', label: 'Çizgi', tip: 'Düz çizgi çiz', icon: Minus },
-  { id: 'link', label: 'Bağlantı', tip: 'İki oyuncuyu birbirine bağla', icon: Link2 },
-  { id: 'run', label: 'Koşu oku', tip: 'Oyuncunun koşusunu göster', icon: Route },
-  { id: 'area', label: 'Alan', tip: 'Alan çiz: köşelere tıkla, çift tıkla bitir', icon: Pentagon },
-  { id: 'number', label: 'Numara', tip: 'Oyuncunun üstüne numara koy (1, 2, 3…)', icon: ListOrdered },
-  { id: 'player', label: 'Oyuncu', tip: 'Oyuncu etiketi koy (çift tıkla: adı değiştir)', icon: User },
-  { id: 'spot', label: 'Aydınlat', tip: 'Bir bölgeyi aydınlat, çevresini karart', icon: Sparkles },
+  { id: 'link', label: 'Bağlantı', tip: 'Oyunculara sırayla tıkla, aralarında bağlantı çizilir. Bitirmek için sağ tık', icon: Link2 },
+  { id: 'run', label: 'Koşu oku', tip: 'Oyuncunun koşusunu göster: sürükle', icon: Route },
+  { id: 'area', label: 'Alan', tip: 'Köşelere tıkla; bitirmek için sağ tık', icon: Pentagon },
+  { id: 'number', label: 'Numara', tip: 'Oyunculara sırayla tıkla: 1, 2, 3… Bitirmek için sağ tık', icon: ListOrdered },
+  { id: 'player', label: 'Oyuncu', tip: 'Oyuncuya tıkla, adını sağdaki Çizim sekmesinden yaz', icon: User },
+  { id: 'spot', label: 'Aydınlat', tip: 'Oyuncuya tıkla: beyaz ışıkla aydınlat. Sürüklersen boyunu ayarlar', icon: Sparkles },
   { id: 'pan', label: 'Kaydır', tip: 'Yakınlaştırılmış videoyu sürükleyerek kaydır', icon: Hand },
 ]
 

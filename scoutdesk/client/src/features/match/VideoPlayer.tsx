@@ -115,7 +115,12 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
   const onPointerUp = () => {
     const d = drag.current
     drag.current = null
-    if (d && d.moved < 4 && !drawing) player.toggle()
+    if (d && d.moved < 4 && !drawing) {
+      // With a drawing selected, a click on empty video just deselects it (it must not start playback and hide it).
+      const ds = useDrawing.getState()
+      if (ds.selectedId) ds.select(null)
+      else player.toggle()
+    }
   }
 
   // Fullscreen ──────────────────────────────────────────────────────────────
@@ -251,7 +256,7 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
       <SeekBar />
       <FrameTools zoom={zoom.s} onZoom={(f) => zoomAt(f)} onResetZoom={() => setZoom({ s: 1, x: 0, y: 0 })} />
       <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-surface px-4 py-1 text-xs text-muted">
-        <p className="min-w-[12rem] flex-1 truncate" title="Çizimin üzerine tıklayıp taşı; köşelerinden büyüt veya küçült. Oynatınca gizlenir. Videoda devam etmesini istersen çizim süresini uzat.">Çizimi tıklayıp taşı, köşelerinden büyüt. Oynatınca gizlenir; kalsın istersen süreyi uzat.</p>
+        <p className="min-w-[12rem] flex-1 truncate" title="Çizimin üzerine tıklayıp taşı; köşelerinden büyüt veya küçült. Oynatınca gizlenir. Videoda devam etmesini istersen çizim süresini uzat.">Çizimi tıklayıp taşı, köşelerinden büyüt. Bağlantı/Numara/Alan: sağ tık bitirir. Oynatınca gizlenir; kalsın istersen süreyi uzat.</p>
         <label className="flex items-center gap-1.5 whitespace-nowrap">Çizim süresi
           <select value={hold} onChange={(e) => setHold(Number(e.target.value))} aria-label="Çizim süresi" className="h-6 rounded border border-border bg-raised px-1 text-foreground">
             <option value={0}>Sadece bu kare</option>

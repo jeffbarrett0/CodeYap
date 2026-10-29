@@ -7,7 +7,7 @@ export async function captureSnapshot(video: HTMLVideoElement, shapes: Shape[]):
   canvas.height = video.videoHeight || 720
   const ctx = canvas.getContext('2d')!
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-  paintShapes(ctx, shapes, canvas.width, canvas.height)
+  paintShapes(ctx, shapes, canvas.width, canvas.height, video)
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not encode snapshot'))), 'image/png'))
 }
 

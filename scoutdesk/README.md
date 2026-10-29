@@ -99,7 +99,16 @@ saved snapshots, and a written-notes section (ruled lines when left empty). Live
 
 - **Simple / Pro mode** (button top right). Simple (default): the footage, frame tools, screenshot and the timeline. Pro: also tagging, clip inspector, clips table, event log and pitch map. The choice is remembered.
 - **Your own JSON files**: Matches → *Import from link* (or the upload dialog) → *Choose JSON file(s)*. Reads StatsBomb / Hudl open data (matches, lineups, events), SofaScore JSON (event, lineups) and a simple format (see the example in the dialog). Several files can be combined; a swap box fixes home/away.
-- **Frame tools** (Turkish labels, under the video): Seç, Ok, Daire, Çizgi, Bağlantı (two players), Koşu oku (run arrow), Alan (click corners, double-click to finish), Numara (1, 2, 3…), Oyuncu (name tag; press it twice quickly to rename), Aydınlat (spotlight), Kaydır (pan), delete, colour, zoom to region, zoom −/+. Pause, pick a tool, drag or click on the video. Press any drawing to move it; drag the white dots to resize; `Delete` removes it. *Çizim süresi* keeps a drawing on screen for 2–10 s while playing (default: only on its frame). *Video boyutu* resizes the picture, *Ortala* recentres it.
+- **Frame tools** (Turkish labels, under the video). Pause, pick a tool, draw; after one drawing the tool hands you back to *Seç*, so the next click never draws by accident. Click a drawing to select it, press its middle to move it, drag the white dots to resize, `Delete` removes it.
+  - **Ok**, **Çizgi**, **Koşu oku** (dashed run arrow): drag.
+  - **Daire**: click a player for a ground ring (or drag any size; Shift = perfect circle).
+  - **Zoom**: click or drag a circle on a player; a live **"Player close up"** magnifier opens on the left of the video (also in screenshots).
+  - **Bağlantı**: click player after player (yellow/black rings, joined by a line); right-click ends.
+  - **Alan**: click corners; right-click (or double-click) closes the hatched area.
+  - **Numara**: click players for 1, 2, 3…; right-click ends.
+  - **Oyuncu**: click a player; the side **Çizim** tab opens with the name box (type, or pick from the match's players).
+  - **Aydınlat**: click a player to light them with a white glow.
+  - **Çizim süresi** keeps a drawing on screen for 2–10 s while playing (default: only on its frame). *Video boyutu* resizes the picture, *Ortala* recentres it.
 - **Ekran görüntüsü al** (top right of the video panel) saves only the match footage, without drawings or interface.
 - **Timeline** is a simple CapCut-style strip: time ruler, the match video as a filmstrip, tagged clips as coloured markers (click one to open it). Click or drag anywhere to jump; `+`/`-` zoom.
 - **Seek bar** under the video with minute ticks and hover preview; type a time in *Go to* (`3` = minute 3, `4:30` = 4 min 30 s).
