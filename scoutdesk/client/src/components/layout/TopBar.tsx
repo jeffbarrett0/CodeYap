@@ -16,23 +16,16 @@ export function TopBar() {
   const users = useData((s) => s.users)
   const teams = useData((s) => s.teams)
   const setCheatSheetOpen = useUi((s) => s.setCheatSheetOpen)
-  const { teamById, matchById } = useLookups()
+  const { matchById } = useLookups()
   const user = users.find((u) => u.id === userId)
   const matchRoute = useMatch('/match/:matchId')
   const match = matchRoute ? matchById.get(matchRoute.params.matchId!) : undefined
-  const home = match && teamById.get(match.homeTeamId)
-  const away = match && teamById.get(match.awayTeamId)
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
       <div className="flex min-w-0 flex-[1.4] items-center gap-3">
-        {match && home && away ? (
-          <div className="flex min-w-0 items-center gap-2 text-xs" aria-label="Current match">
-            <span className="truncate font-semibold">{home.name}</span>
-            <span className="timecode shrink-0 whitespace-nowrap rounded bg-raised px-1.5 py-0.5 font-semibold">{match.homeScore ?? '–'} – {match.awayScore ?? '–'}</span>
-            <span className="truncate font-semibold">{away.name}</span>
-            <span className="hidden truncate text-muted 2xl:inline">· {match.competition}</span>
-          </div>
+        {match ? (
+          <p className="text-xs text-muted">Match analysis</p>
         ) : (
           <label className="flex items-center gap-2 text-xs">
             <span className="label">Team</span>

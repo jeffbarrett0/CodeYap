@@ -21,6 +21,13 @@ const MIME: Record<string, string> = {
   '.mkv': 'video/x-matroska',
 }
 
+/** Clips imported before any footage existed have no video yet: link them to the first video attached to the match. */
+async function adoptOrphanClips(matchId: string | null, videoId: string) {
+  if (!matchId) return
+  const others = await prisma.video.count({ where: { matchId, id: { not: videoId } } })
+  if (others === 0) await prisma.clip.updateMany({ where: { matchId, videoId: null }, data: { videoId } })
+}
+
 const videoPatch = z
   .object({
     title: z.string().min(1),
@@ -115,6 +122,7 @@ export async function videoRoutes(app: FastifyInstance) {
         status: 'processing',
       },
     })
+    await adoptOrphanClips(matchId, video.id)
     // Fire and forget; the client polls GET /api/videos until status flips.
     void processVideo(video.id)
     return reply.code(201).send(videoDTO(video))
@@ -122,6 +130,7 @@ export async function videoRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string } }>('/api/videos/:id', { preHandler: canWrite }, async (req) => {
     const v = await prisma.video.update({ where: { id: req.params.id }, data: parse(videoPatch, req.body) })
+    if (v.matchId) await adoptOrphanClips(v.matchId, v.id)
     return videoDTO(v)
   })
 

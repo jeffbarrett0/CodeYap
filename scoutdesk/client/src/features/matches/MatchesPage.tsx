@@ -1,4 +1,4 @@
-import { CalendarDays, Pencil, Plus, Share2, Trash2 } from 'lucide-react'
+import { CalendarDays, Download, Pencil, Plus, Share2, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ import { useData } from '@/store/data'
 import { useCan, useLookups } from '@/store/hooks'
 import type { Match, TagStatus } from '@/types'
 import { ShareDialog } from '../share/ShareDialog'
+import { ImportMatchDialog } from './ImportMatchDialog'
 
 const STATUS: Record<TagStatus, { label: string; cls: string }> = {
   untagged: { label: 'Untagged', cls: '' },
@@ -30,6 +31,8 @@ export function MatchesPage() {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Match | null>(null)
   const [sharing, setSharing] = useState<Match | null>(null)
+  const [importing, setImporting] = useState<{ target: string | null } | null>(null)
+  const navigate = useNavigate()
   const refreshMatches = useData((s) => s.refreshMatches)
   useEffect(() => void refreshMatches().catch(() => {}), [refreshMatches])
 
@@ -43,7 +46,10 @@ export function MatchesPage() {
       <PageHeader
         title="Matches"
         subtitle={`${rows.length} match${rows.length === 1 ? '' : 'es'}`}
-        actions={<Button variant="primary" size="sm" disabled={!canWrite || teams.length < 2} onClick={() => setCreating(true)}><Plus className="h-3.5 w-3.5" /> New match</Button>}
+        actions={<>
+          <Button size="sm" disabled={!canWrite} onClick={() => setImporting({ target: null })}><Download className="h-3.5 w-3.5" /> Import from link</Button>
+          <Button variant="primary" size="sm" disabled={!canWrite || teams.length < 2} onClick={() => setCreating(true)}><Plus className="h-3.5 w-3.5" /> New match</Button>
+        </>}
       />
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {rows.length === 0 ? (
@@ -76,7 +82,7 @@ export function MatchesPage() {
                     <td className="timecode border-b border-border px-3 py-2">{m.videoCount}</td>
                     <td className="timecode border-b border-border px-3 py-2">{m.clipCount}</td>
                     <td className="border-b border-border px-3 py-2"><Badge className={st.cls}>{st.label}</Badge></td>
-                    <td className="whitespace-nowrap border-b border-border px-3 py-1 text-right"><Button variant="ghost" size="icon-sm" aria-label={`Share match ${h?.name} v ${a?.name}`} disabled={!canWrite || m.videoCount === 0} title={m.videoCount === 0 ? 'Attach a video first' : 'Share read-only link'} onClick={() => setSharing(m)}><Share2 className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon-sm" aria-label={`Edit match ${h?.name} v ${a?.name}`} disabled={!canWrite} onClick={() => setEditing(m)}><Pencil className="h-3.5 w-3.5" /></Button></td>
+                    <td className="whitespace-nowrap border-b border-border px-3 py-1 text-right"><Button variant="ghost" size="icon-sm" aria-label={`Import data into match ${h?.name} v ${a?.name} from a link`} title="Fill in from a link" disabled={!canWrite} onClick={() => setImporting({ target: m.id })}><Download className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon-sm" aria-label={`Share match ${h?.name} v ${a?.name}`} disabled={!canWrite || m.videoCount === 0} title={m.videoCount === 0 ? 'Attach a video first' : 'Share read-only link'} onClick={() => setSharing(m)}><Share2 className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon-sm" aria-label={`Edit match ${h?.name} v ${a?.name}`} disabled={!canWrite} onClick={() => setEditing(m)}><Pencil className="h-3.5 w-3.5" /></Button></td>
                   </tr>
                 )
               })}
@@ -86,6 +92,7 @@ export function MatchesPage() {
       </div>
       {creating && <NewMatchDialog onClose={() => setCreating(false)} />}
       {sharing && <ShareDialog kind="match" refId={sharing.id} label={`${teamById.get(sharing.homeTeamId)?.name} v ${teamById.get(sharing.awayTeamId)?.name}`} onClose={() => setSharing(null)} />}
+      {importing && <ImportMatchDialog targetMatchId={importing.target} onClose={() => setImporting(null)} onDone={(id) => { setImporting(null); if (!importing.target) navigate(`/match/${id}`) }} />}
       {editing && <EditMatchDialog match={editing} onClose={() => setEditing(null)} />}
     </div>
   )

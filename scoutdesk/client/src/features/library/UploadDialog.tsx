@@ -1,4 +1,4 @@
-import { FileVideo, UploadCloud, X } from 'lucide-react'
+import { FileVideo, Link2, UploadCloud, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -7,6 +7,7 @@ import { cn, formatBytes, formatDate } from '@/lib/utils'
 import { useData } from '@/store/data'
 import { useLookups } from '@/store/hooks'
 import { useUploads } from '@/store/uploads'
+import { ImportMatchDialog } from '../matches/ImportMatchDialog'
 
 const ACCEPT = '.mp4,.m4v,.mov,.webm,.mkv,video/*'
 const ANGLES = ['Main', 'Tactical', 'Behind goal', 'Broadcast', 'Other']
@@ -28,6 +29,8 @@ export function UploadDialog({ open, onOpenChange, defaultMatchId }: { open: boo
   const [angle, setAngle] = useState('Main')
   const [tags, setTags] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [link, setLink] = useState('')
+  const [importing, setImporting] = useState(false)
 
   const add = (files: FileList | File[]) => {
     const list = [...files].filter((f) => f.type.startsWith('video/') || /\.(mp4|m4v|mov|webm|mkv)$/i.test(f.name))
@@ -89,6 +92,18 @@ export function UploadDialog({ open, onOpenChange, defaultMatchId }: { open: boo
             </ul>
           )}
 
+          {drafts.length > 0 && !matchId && (
+            <div className="space-y-2 rounded-lg border border-accent/40 bg-accent/5 p-3">
+              <p className="flex items-center gap-1.5 text-sm font-semibold"><Link2 className="h-4 w-4 text-accent" /> Which match is this video from?</p>
+              <p className="text-xs text-muted">Send me a link to the match — SofaScore, Transfermarkt or any page — and I’ll fill in the teams, date, league, lineups and more, so your reports are easy later.</p>
+              <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); setImporting(true) }}>
+                <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://www.sofascore.com/football/match/…" aria-label="Link to this match" />
+                <Button type="submit" variant="primary" size="md">{link.trim() ? 'Import match' : 'Find a match…'}</Button>
+              </form>
+              <p className="text-2xs text-muted">Not a real match (training, friendly clip)? Skip this and pick or create a match below.</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <Field label="Match" className="col-span-2" hint={matches.length === 0 ? 'No matches yet — create one under Matches first.' : undefined}>
               <Select value={matchId} onChange={(e) => setMatchId(e.target.value)}>
@@ -110,6 +125,7 @@ export function UploadDialog({ open, onOpenChange, defaultMatchId }: { open: boo
             </Field>
           </div>
         </DialogBody>
+        {importing && <ImportMatchDialog initialUrl={link.trim() || undefined} onClose={() => setImporting(false)} onDone={(id) => { setMatchId(id); setImporting(false); setLink('') }} />}
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button variant="primary" disabled={drafts.length === 0} onClick={submit}>

@@ -106,8 +106,14 @@ async function segmentsFor(job: { kind: string; refId: string }): Promise<{ segs
   return { segs, name: pl.title }
 }
 
-const loadClip = (id: string) =>
-  prisma.clip.findUniqueOrThrow({ where: { id }, include: { video: true, tagType: true, player: true } })
+const loadClip = async (id: string) => {
+  const c = await prisma.clip.findUniqueOrThrow({ where: { id }, include: { video: true, tagType: true, player: true } })
+  if (c.video) return c
+  // Clips imported before a video was attached have no videoId: use the match's main angle.
+  const vids = await prisma.video.findMany({ where: { matchId: c.matchId, status: 'ready' }, orderBy: { createdAt: 'asc' } })
+  const video = vids.find((v) => v.angle === 'Main') ?? vids[0] ?? null
+  return { ...c, video }
+}
 
 async function runJob(id: string) {
   const job = await prisma.exportJob.findUnique({ where: { id } })

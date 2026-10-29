@@ -431,7 +431,7 @@ export function Timeline({ visibleIds, canEdit }: { visibleIds: Set<string>; can
         <span className="timecode ml-3 text-2xs text-muted">{visibleIds.size}/{clips.length} clips</span>
       </div>
 
-      <div ref={wrapRef} className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div ref={wrapRef} tabIndex={0} role="region" aria-label="Timeline lanes" className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {duration === 0 ? (
           <p className="p-4 text-xs text-muted">Waiting for video metadata…</p>
         ) : (

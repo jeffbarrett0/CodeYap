@@ -1,4 +1,4 @@
-import { Camera, Check, Clapperboard, ChevronLeft, ChevronRight, Maximize, Minimize, Pause, PenLine, Play, Volume2, VolumeX } from 'lucide-react'
+import { Camera, Check, Clapperboard, ChevronLeft, ChevronRight, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown'
 import { useAngles } from './angles'
@@ -7,7 +7,6 @@ import { Tip } from '@/components/ui/tooltip'
 import { formatHotkey } from '@/lib/hotkeys'
 import { formatTimecode } from '@/lib/timecode'
 import { cn } from '@/lib/utils'
-import { useDrawing } from './drawing'
 import { SPEEDS, player, usePlayback } from './playback'
 
 const skipBtn = 'h-7 min-w-[34px] px-1.5 font-mono text-2xs'
@@ -30,8 +29,6 @@ export function PlayerControls({ fullscreen, onToggleFullscreen, onSnapshot, can
   const rate = usePlayback((s) => s.rate)
   const volume = usePlayback((s) => s.volume)
   const muted = usePlayback((s) => s.muted)
-  const drawing = useDrawing((s) => s.active)
-  const setDrawing = useDrawing((s) => s.setActive)
 
   return (
     <div role="toolbar" aria-label="Video controls" className="flex h-11 shrink-0 items-center gap-1 border-t border-border bg-surface px-2">
@@ -93,11 +90,6 @@ export function PlayerControls({ fullscreen, onToggleFullscreen, onSnapshot, can
           </DropdownMenu>
         )}
         <div className="mx-1 h-5 w-px bg-border" />
-        <Tip label="Draw on frame" hotkey="D" side="top">
-          <Button variant={drawing ? 'primary' : 'ghost'} size="icon" aria-label="Draw on frame" aria-pressed={drawing} onClick={() => setDrawing(!drawing)}>
-            <PenLine className="h-4 w-4" />
-          </Button>
-        </Tip>
         <DropdownMenu>
           <Tip label="Snapshot of this frame (with drawings)" side="top">
             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Snapshot"><Camera className="h-4 w-4" /></Button></DropdownMenuTrigger>

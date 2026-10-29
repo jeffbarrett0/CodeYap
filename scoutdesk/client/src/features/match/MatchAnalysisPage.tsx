@@ -17,6 +17,7 @@ import { ClipTable } from './ClipTable'
 import { EventLog } from './EventLog'
 import { PitchView } from './PitchView'
 import { TaggingPanel } from './TaggingPanel'
+import { MatchHeader } from './MatchHeader'
 import { Timeline } from './Timeline'
 import { VideoPlayer } from './VideoPlayer'
 import { deleteClips, patchClips, useClips } from './clips'
@@ -68,7 +69,7 @@ export function MatchAnalysisPage() {
     if (!matchId) return
     useHistory.getState().clear()
     useAngles.getState().reset()
-    useDrawing.setState({ shapes: [], active: false })
+    useDrawing.setState({ shapes: [], tool: 'select', selectedId: null })
     void useClips.getState().load(matchId)
     return () => {
       useClips.getState().reset()
@@ -111,7 +112,6 @@ export function MatchAnalysisPage() {
   }, [visibleList])
 
   // Hotkeys ──────────────────────────────────────────────────────────────────
-  const drawing = useDrawing((s) => s.active)
   const bindings: Binding[] = [
     { combo: 'space', description: 'Play / pause', group: 'Playback', handler: () => player.toggle() },
     { combo: 'left', description: 'Previous frame', group: 'Playback', repeat: true, handler: () => player.stepFrames(-1) },
@@ -128,14 +128,13 @@ export function MatchAnalysisPage() {
     { combo: '.', description: 'Next tagged event', group: 'Playback', handler: () => jump(1) },
     { combo: 'm', description: 'Mute', group: 'Playback', handler: () => player.toggleMute() },
     { combo: 'f', description: 'Fullscreen', group: 'Playback', handler: () => window.dispatchEvent(new Event('scoutdesk:toggle-fullscreen')) },
-    { combo: 'd', description: 'Draw on the paused frame', group: 'Playback', handler: () => useDrawing.getState().setActive(!useDrawing.getState().active) },
+    { combo: 'd', description: 'Toggle frame tools (select ↔ arrow)', group: 'Playback', handler: () => useDrawing.getState().setTool(useDrawing.getState().tool === 'select' ? 'arrow' : 'select') },
 
-    { combo: 'mod+z', description: 'Undo', group: 'Editing', enabled: canWrite && !drawing, handler: () => void useHistory.getState().undo() },
+    { combo: 'mod+z', description: 'Undo (drawings first, when you are on a drawn frame)', group: 'Editing', handler: undo },
     { combo: 'mod+shift+z', description: 'Redo', group: 'Editing', enabled: canWrite, handler: () => void useHistory.getState().redo() },
     { combo: 'mod+y', description: 'Redo', group: 'Editing', hidden: true, enabled: canWrite, handler: () => void useHistory.getState().redo() },
-    { combo: 'mod+z', description: 'Undo last drawing', group: 'Drawing', enabled: drawing, handler: () => useDrawing.getState().undoLast(Math.floor(player.currentTime * usePlayback.getState().fps + 1e-4)) },
-    { combo: 'delete', description: 'Delete selected clips', group: 'Editing', enabled: canWrite, handler: () => void deleteSelected() },
-    { combo: 'backspace', description: 'Delete selected clips', group: 'Editing', hidden: true, enabled: canWrite, handler: () => void deleteSelected() },
+    { combo: 'delete', description: 'Delete selected drawing or clips', group: 'Editing', handler: () => void deleteSelected() },
+    { combo: 'backspace', description: 'Delete selected drawing or clips', group: 'Editing', hidden: true, handler: () => void deleteSelected() },
     { combo: 'i', description: 'Set clip start to playhead', group: 'Editing', enabled: canWrite, handler: () => adjustActive('startSec') },
     { combo: 'o', description: 'Set clip end to playhead', group: 'Editing', enabled: canWrite, handler: () => adjustActive('endSec') },
     { combo: 'enter', description: 'Open clip inspector', group: 'Editing', handler: () => useClips.getState().activeId && setRightTab('clip') },
@@ -144,7 +143,17 @@ export function MatchAnalysisPage() {
   ]
   useHotkeys(bindings)
 
+  const frameNow = () => Math.floor(player.currentTime * usePlayback.getState().fps + 1e-4)
+  function undo() {
+    const d = useDrawing.getState()
+    // Drawings belong to a frame: while this frame has any, Ctrl+Z steps through those first.
+    if (d.shapes.some((s) => s.frame === frameNow())) return d.undoLast(frameNow())
+    if (canWrite) void useHistory.getState().undo()
+  }
   function deleteSelected() {
+    const d = useDrawing.getState()
+    if (d.selectedId) return d.remove(d.selectedId)
+    if (!canWrite) return
     const ids = useClips.getState().selectedIds
     if (!ids.length) return
     void deleteClips(ids)
@@ -163,7 +172,8 @@ export function MatchAnalysisPage() {
     if (usePlayback.getState().clipRange) {
       player.pause()
       usePlayback.setState({ clipRange: null })
-    } else if (useDrawing.getState().active) useDrawing.getState().setActive(false)
+    } else if (useDrawing.getState().tool !== 'select') useDrawing.getState().setTool('select')
+    else if (useDrawing.getState().selectedId) useDrawing.getState().select(null)
     else useClips.getState().select([])
   }
 
@@ -187,14 +197,17 @@ export function MatchAnalysisPage() {
   }
 
   return (
+    <div className="flex h-full min-h-0 flex-col">
+    <MatchHeader match={match} />
+    <div className="min-h-0 flex-1">
     <PanelGroup direction="horizontal" autoSaveId="sd-analysis-h" className="h-full">
       <Panel id="pnl-main" defaultSize={74} minSize={45} order={1}>
-        <PanelGroup direction="vertical" autoSaveId="sd-analysis-v">
-          <Panel id="pnl-video" defaultSize={42} minSize={22} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
+        <PanelGroup direction="vertical" autoSaveId="sd-analysis-v3">
+          <Panel id="pnl-video" defaultSize={52} minSize={26} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
           <Handle dir="h" />
-          <Panel id="pnl-timeline" defaultSize={27} minSize={14} order={2}><Timeline visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+          <Panel id="pnl-timeline" defaultSize={22} minSize={12} order={2}><Timeline visibleIds={visibleIds} canEdit={canWrite} /></Panel>
           <Handle dir="h" />
-          <Panel id="pnl-bottom" defaultSize={31} minSize={10} order={3}>
+          <Panel id="pnl-bottom" defaultSize={26} minSize={8} order={3}>
             <Tabs value={bottomTab} onValueChange={setBottomTab} className="flex h-full flex-col bg-surface">
               <TabsList>
                 <TabsTrigger value="clips">Clips <span className="timecode text-2xs text-muted">{clipTotal}</span></TabsTrigger>
@@ -220,5 +233,7 @@ export function MatchAnalysisPage() {
         </Tabs>
       </Panel>
     </PanelGroup>
+    </div>
+    </div>
   )
 }

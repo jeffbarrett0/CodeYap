@@ -16,6 +16,7 @@ import { taxonomyRoutes } from './routes/taxonomy.js'
 import { videoRoutes } from './routes/videos.js'
 import { commentRoutes } from './routes/comments.js'
 import { exportRoutes } from './routes/exports.js'
+import { importRoutes } from './routes/import.js'
 import { profileRoutes } from './routes/profile.js'
 import { playlistRoutes } from './routes/playlists.js'
 import { reportRoutes } from './routes/reports.js'
@@ -69,6 +70,7 @@ export async function buildApp({ logger = false }: { logger?: boolean | { level:
   await app.register(profileRoutes)
   await app.register(shareRoutes)
   await app.register(reportRoutes)
+  await app.register(importRoutes)
 
   // Serve the built client (production). In dev, Vite serves it and proxies /api here.
   if (fs.existsSync(path.join(CLIENT_DIST, 'index.html'))) {

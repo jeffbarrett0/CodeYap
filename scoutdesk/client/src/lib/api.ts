@@ -1,4 +1,4 @@
-import type { Category, Clip, ClipComment, ClipPatch, ExportJob, Match, Player, PlayerProfile, Playlist, PlaylistSummary, ShareLink, Snapshot, Team, User, Video } from '@/types'
+import type { HudlCompetition, HudlMatch, ImportPreviewResponse, ImportResult, Category, Clip, ClipComment, ClipPatch, ExportJob, Match, Player, PlayerProfile, Playlist, PlaylistSummary, ShareLink, Snapshot, Team, User, Video } from '@/types'
 
 let userId: string | null = null
 export const setApiUser = (id: string | null) => {
@@ -152,6 +152,11 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, ((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Report failed')
     return res.blob()
   },
+
+  importPreview: (b: { url?: string; hudlMatchId?: number }) => request<ImportPreviewResponse>('POST', '/import/preview', b),
+  importApply: (b: Record<string, unknown>) => request<ImportResult>('POST', '/import/apply', b),
+  hudlCompetitions: () => request<HudlCompetition[]>('GET', '/import/hudl/competitions'),
+  hudlMatches: (competitionId: number, seasonId: number) => request<HudlMatch[]>('GET', `/import/hudl/matches?competitionId=${competitionId}&seasonId=${seasonId}`),
 
   videos: () => request<Video[]>('GET', '/videos'),
   patchVideo: (id: string, v: Partial<Video>) => request<Video>('PATCH', `/videos/${id}`, v),

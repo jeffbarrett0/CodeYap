@@ -1,9 +1,7 @@
-import { AlertTriangle, Circle, Eraser, Minus, MoveUpRight, Undo2, ZoomIn, ZoomOut } from 'lucide-react'
+import { AlertTriangle, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/misc'
-import { Tip } from '@/components/ui/tooltip'
 import { frameAt, formatTimecode } from '@/lib/timecode'
 import { clamp, cn } from '@/lib/utils'
 import { api } from '@/lib/api'
@@ -14,7 +12,9 @@ import type { Video } from '@/types'
 import { DrawingLayer } from './DrawingLayer'
 import { SecondaryPane } from './SecondaryPane'
 import { PlayerControls } from './PlayerControls'
-import { DRAW_COLORS, useDrawing, type DrawTool } from './drawing'
+import { FrameTools } from './FrameTools'
+import { SeekBar } from './SeekBar'
+import { useDrawing } from './drawing'
 import { player, usePlayback } from './playback'
 import { captureSnapshot, downloadBlob } from './snapshot'
 
@@ -38,8 +38,11 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
   const error = usePlayback((s) => s.error)
   const ready = usePlayback((s) => s.ready)
   const clipRange = usePlayback((s) => s.clipRange)
-  const drawing = useDrawing((s) => s.active)
+  const drawing = useDrawing((s) => s.tool !== 'select')
   const retried = useRef(false)
+  // One-time beginner tip for the drawing tools (remembered per browser).
+  const [tip, setTip] = useState(() => { try { return localStorage.getItem('scoutdesk.drawtip') !== '1' } catch { return true } })
+  const dismissTip = () => { setTip(false); try { localStorage.setItem('scoutdesk.drawtip', '1') } catch { /* private mode */ } }
 
   // Controller wiring ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -73,6 +76,16 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
       return { s, x: mx - (s * (mx - z.x)) / z.s, y: my - (s * (my - z.y)) / z.s }
     })
   }, [stage.w, stage.h])
+
+  /** Fit a native-pixel rectangle to the stage (the "zoom to region" tool). */
+  const zoomToRect = useCallback((r: { x1: number; y1: number; x2: number; y2: number }) => {
+    const fx = Math.abs(r.x2 - r.x1) / native.w
+    const fy = Math.abs(r.y2 - r.y1) / native.h
+    const s = clamp(Math.min(1 / Math.max(fx, 1e-3), 1 / Math.max(fy, 1e-3)), 1, 8)
+    const cx = ((r.x1 + r.x2) / 2 / native.w - 0.5) * fit.w
+    const cy = ((r.y1 + r.y2) / 2 / native.h - 0.5) * fit.h
+    setZoom(s === 1 ? { s: 1, x: 0, y: 0 } : { s, x: -s * cx, y: -s * cy })
+  }, [native.w, native.h, fit.w, fit.h])
 
   useEffect(() => {
     const el = stageRef.current!
@@ -121,13 +134,14 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
   }, [toggleFullscreen])
 
   const { canWrite } = useCan()
-  const snapshot = async (save = false) => {
+  /** `clean` = footage only (no drawings), used by the Screenshot button. */
+  const snapshot = async (save = false, clean = false) => {
     const el = videoRef.current
     if (!el) return
     try {
       const { fps } = usePlayback.getState()
       const frame = frameAt(el.currentTime, fps)
-      const shapes = useDrawing.getState().shapes.filter((s) => s.frame === frame)
+      const shapes = clean ? [] : useDrawing.getState().shapes.filter((s) => s.frame === frame)
       const blob = await captureSnapshot(el, shapes)
       if (save) {
         const ctx = useTagging.getState()
@@ -135,7 +149,7 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
         toast.success(`Saved to the report library${shapes.length ? ` with ${shapes.length} drawing${shapes.length > 1 ? 's' : ''}` : ''}`)
       } else {
         downloadBlob(blob, `${video.title.replace(/[^\w-]+/g, '_')}_${formatTimecode(el.currentTime, fps).replace(/[:.]/g, '-')}.png`)
-        toast.success(shapes.length ? `Snapshot downloaded with ${shapes.length} drawing${shapes.length > 1 ? 's' : ''}` : 'Snapshot downloaded')
+        toast.success(clean ? 'Screenshot saved (footage only)' : shapes.length ? `Snapshot downloaded with ${shapes.length} drawing${shapes.length > 1 ? 's' : ''}` : 'Snapshot downloaded')
       }
     } catch {
       toast.error('Could not capture this frame')
@@ -167,6 +181,7 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
 
   return (
     <div ref={containerRef} className="flex h-full min-h-0 flex-col bg-black">
+      <FrameTools zoom={zoom.s} onZoom={(f) => zoomAt(f)} onResetZoom={() => setZoom({ s: 1, x: 0, y: 0 })} onScreenshot={() => void snapshot(false, true)} />
       <div className="flex min-h-0 flex-1">
       <div
         ref={stageRef}
@@ -205,18 +220,21 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
             onSeeked={(e) => usePlayback.setState({ time: e.currentTarget.currentTime })}
             onError={onError}
           />
-          <DrawingLayer w={native.w} h={native.h} />
+          <DrawingLayer w={native.w} h={native.h} unit={native.w / Math.max(1, fit.w * zoom.s)} onZoomRect={zoomToRect} />
         </div>
 
-        {/* overlays (marked so they don't start a pan / play toggle) */}
-        <div data-overlay className="absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-white/10 bg-black/60 p-0.5 backdrop-blur">
-          <Tip label="Zoom out" side="bottom"><Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10" aria-label="Zoom out" onClick={() => zoomAt(1 / 1.4)}><ZoomOut className="h-3.5 w-3.5" /></Button></Tip>
-          <button type="button" className="timecode w-11 text-center text-2xs text-white/90 hover:text-white" aria-label={`Reset zoom, currently ${Math.round(zoom.s * 100)}%`} onClick={() => setZoom({ s: 1, x: 0, y: 0 })}>{Math.round(zoom.s * 100)}%</button>
-          <Tip label="Zoom in (or scroll)" side="bottom"><Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10" aria-label="Zoom in" onClick={() => zoomAt(1.4)}><ZoomIn className="h-3.5 w-3.5" /></Button></Tip>
-        </div>
-
-        {drawing && <DrawingToolbar />}
-
+        {tip && (
+          <div data-overlay className="absolute left-2 top-2 w-56 rounded-md border border-white/15 bg-black/80 p-2 text-[11px] leading-snug text-white shadow-lg">
+            <button type="button" aria-label="Dismiss tip" onClick={dismissTip} className="absolute right-1 top-1 text-white/60 hover:text-white"><X className="h-3.5 w-3.5" /></button>
+            <p className="mb-0.5 pr-4 font-semibold">How to draw</p>
+            <ol className="list-decimal space-y-0.5 pl-4 text-white/85">
+              <li>Pause, pick a tool above, drag on the video.</li>
+              <li>Click a drawing to move it; drag the white dots to resize.</li>
+              <li><kbd className="rounded bg-white/15 px-1">Delete</kbd> removes it.</li>
+            </ol>
+            <button type="button" onClick={dismissTip} className="mt-1 rounded bg-white/15 px-2 py-0.5 font-medium hover:bg-white/25">Got it</button>
+          </div>
+        )}
         {clipRange && (
           <div data-overlay className="pointer-events-none absolute left-2 top-2 rounded bg-accent px-2 py-0.5 text-2xs font-semibold text-accent-foreground">Playing clip · Esc to stop</div>
         )}
@@ -232,38 +250,8 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
       </div>
       {secondary && <SecondaryPane key={secondary.id} video={secondary} />}
       </div>
+      <SeekBar />
       <PlayerControls fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen} onSnapshot={(save) => void snapshot(save)} canSave={canWrite} angles={angles} primaryId={video.id} />
-    </div>
-  )
-}
-
-const TOOLS: { id: DrawTool; label: string; icon: typeof Minus }[] = [
-  { id: 'arrow', label: 'Arrow', icon: MoveUpRight },
-  { id: 'line', label: 'Line', icon: Minus },
-  { id: 'circle', label: 'Circle', icon: Circle },
-]
-
-function DrawingToolbar() {
-  const { tool, setTool, color, setColor, width, setWidth, undoLast, clearFrame } = useDrawing()
-  const frameNow = () => frameAt(player.currentTime, usePlayback.getState().fps)
-  return (
-    <div data-overlay className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-md border border-white/10 bg-black/70 p-1 backdrop-blur" role="toolbar" aria-label="Drawing tools">
-      {TOOLS.map(({ id, label, icon: Icon }) => (
-        <Tip key={id} label={label} side="top">
-          <Button variant={tool === id ? 'primary' : 'ghost'} size="icon-sm" className={tool !== id ? 'text-white hover:bg-white/10' : ''} aria-label={label} aria-pressed={tool === id} onClick={() => setTool(id)}>
-            <Icon className="h-3.5 w-3.5" />
-          </Button>
-        </Tip>
-      ))}
-      <div className="mx-1 h-4 w-px bg-white/20" />
-      {DRAW_COLORS.map((c) => (
-        <button key={c} type="button" aria-label={`Colour ${c}`} aria-pressed={color === c} onClick={() => setColor(c)} className={cn('h-4 w-4 rounded-full border-2', color === c ? 'border-white' : 'border-transparent')} style={{ background: c }} />
-      ))}
-      <div className="mx-1 h-4 w-px bg-white/20" />
-      <input type="range" min={2} max={12} value={width} onChange={(e) => setWidth(Number(e.target.value))} aria-label="Stroke width" className="h-1 w-14" />
-      <div className="mx-1 h-4 w-px bg-white/20" />
-      <Tip label="Undo last shape" hotkey="Ctrl+Z" side="top"><Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10" aria-label="Undo last shape" onClick={() => undoLast(frameNow())}><Undo2 className="h-3.5 w-3.5" /></Button></Tip>
-      <Tip label="Clear this frame" side="top"><Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10" aria-label="Clear drawings on this frame" onClick={() => clearFrame(frameNow())}><Eraser className="h-3.5 w-3.5" /></Button></Tip>
     </div>
   )
 }

@@ -95,6 +95,16 @@ saved snapshots, and a written-notes section (ruled lines when left empty). Live
 
 **Roles** — admin, analyst (can tag, build, export, share), viewer (read-only). Enforced in the UI *and* on the server (401/403).
 
+### Drawing, seek bar and match import
+
+- **Frame tools** bar above the video: Select/move, Arrow, Circle, Line, Spotlight, Box, delete, colour/thickness, zoom to region, zoom −/+/reset. Pause, pick a tool, drag on the video. Click any drawing and drag its middle to move it; drag the white dots to resize. Circles/boxes fill the box you drag (hold Shift for a perfect circle). `Delete` removes the selected drawing. Drawings belong to the frame they were drawn on.
+- **Screenshot** (top right of the tools bar) saves only the match footage (no UI), with your drawings burned in.
+- **Seek bar** under the video with minute ticks and hover preview; type a time in *Go to* (`3` = minute 3, `4:30` = 4 min 30 s).
+- **Match header** at the top of the analysis screen (teams, crests, score, competition, venue, formations, status).
+- **Import from a link**: when uploading a video you are asked which match it is. Paste a link and the match (teams, date, competition, venue, score, lineups, formations, optionally events as clips) is filled in. Also under Matches → *Import from link*.
+  - Hudl open data (`github.com/hudl/open-data`) is verified against live data.
+  - SofaScore (JSON API) and generic pages (JSON-LD / title) are implemented but could not be tested from the build sandbox; sites may block automated requests. Transfermarkt has no dedicated parser yet (best-effort generic only).
+
 ### Keyboard shortcuts (press `?` in the app for the live list)
 
 | | |

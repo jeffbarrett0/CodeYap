@@ -251,3 +251,23 @@ export interface PlayerProfile {
 export type SharePayload =
   | { kind: 'playlist'; label: string; title: string; description: string; expiresAt: string | null; videos: Video[]; items: { id: string; title: string | null; transition: 'cut' | 'fade'; clip: DisplayClip }[] }
   | { kind: 'match'; label: string; expiresAt: string | null; match: { id: string; date: string; competition: string; home: string; away: string; homeScore: number | null; awayScore: number | null }; videos: Video[]; clips: DisplayClip[] }
+
+export interface ImportPlayer { name: string; jersey: number | null; position: string | null; starter: boolean; country?: string | null }
+export interface ImportTeam { name: string; country?: string | null; formation?: string | null; players: ImportPlayer[] }
+export interface MatchPreview {
+  source: 'hudl' | 'sofascore' | 'generic'
+  sourceUrl: string
+  date: string | null
+  competition: string
+  venue: string | null
+  homeScore: number | null
+  awayScore: number | null
+  home: ImportTeam
+  away: ImportTeam
+  missing: string[]
+}
+export interface EventsInfo { available: boolean; summary: { tag: string; count: number }[]; pressureCount: number; outsideTwoHalves: number }
+export type ImportPreviewResponse = { kind: 'preview'; previewId: string; preview: MatchPreview; events: EventsInfo } | { kind: 'browse'; competitionId?: number; seasonId?: number }
+export interface ImportResult { matchId: string; createdTeams: string[]; createdPlayers: number; matchedPlayers: number; clipsCreated: number; clipsSkipped: number; unknownTags: string[] }
+export interface HudlCompetition { competitionId: number; seasonId: number; name: string; season: string; country: string; gender: string }
+export interface HudlMatch { matchId: number; date: string; home: string; away: string; homeScore: number | null; awayScore: number | null; stage: string | null }

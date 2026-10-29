@@ -27,7 +27,7 @@ export async function exportRoutes(app: FastifyInstance) {
     if (body.kind === 'clip') {
       const c = await prisma.clip.findUnique({ where: { id: body.refId }, include: { tagType: true, player: true } })
       if (!c) throw new HttpError(404, 'Clip not found')
-      if (!c.videoId) throw new HttpError(400, 'This clip has no video attached')
+      if (!c.videoId && !(await prisma.video.count({ where: { matchId: c.matchId, status: 'ready' } }))) throw new HttpError(400, 'This clip has no video attached')
       label = `${c.tagType.name}${c.player ? ` · ${c.player.name}` : ''}`
     } else {
       const p = await prisma.playlist.findUnique({ where: { id: body.refId }, include: { _count: { select: { items: true } } } })
