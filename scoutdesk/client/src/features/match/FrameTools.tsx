@@ -16,7 +16,7 @@ const TOOLS: { id: Tool; label: string; tip: string; hotkey?: string; icon: type
   { id: 'area', label: 'Alan', tip: 'Köşelere tıkla; bitirmek için sağ tık', icon: Pentagon },
   { id: 'number', label: 'Numara', tip: 'Oyunculara sırayla tıkla: 1, 2, 3… Bitirmek için sağ tık', icon: ListOrdered },
   { id: 'player', label: 'Oyuncu', tip: 'Oyuncuya tıkla, adını sağdaki Çizim sekmesinden yaz', icon: User },
-  { id: 'spot', label: 'Aydınlat', tip: 'Oyuncuya tıkla: beyaz ışıkla aydınlat. Sürüklersen boyunu ayarlar', icon: Sparkles },
+  { id: 'spot', label: 'Aydınlat', tip: 'Tıkla: tüm kareyi yukarıdan aşağı aydınlat. Sürüklersen sadece o alanı aydınlatır', icon: Sparkles },
   { id: 'pan', label: 'Kaydır', tip: 'Yakınlaştırılmış videoyu sürükleyerek kaydır', icon: Hand },
 ]
 

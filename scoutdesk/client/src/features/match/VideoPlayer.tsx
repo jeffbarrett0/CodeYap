@@ -53,6 +53,8 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
     el.muted = st.muted
     el.playbackRate = st.rate
     usePlayback.setState({ fps: video.fps > 0 ? video.fps : 25, duration: video.durationSec, error: null })
+    // The metadata event can fire before React hooks the handler (cached video): pick the state up directly.
+    if (el.readyState >= 1) usePlayback.setState({ duration: el.duration || video.durationSec, ready: true })
     return () => player.detach()
   }, [video.id, video.fps, video.durationSec])
 
@@ -148,7 +150,7 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
       const { fps } = usePlayback.getState()
       const frame = frameAt(el.currentTime, fps)
       const shapes = clean ? [] : useDrawing.getState().shapes.filter((s) => isVisible(s, frame, fps, false))
-      const blob = await captureSnapshot(el, shapes)
+      const blob = await captureSnapshot(el, shapes, { frame, fps })
       if (save) {
         const ctx = useTagging.getState()
         await api.uploadSnapshot(blob, { matchId: video.matchId ?? '', videoId: video.id, timeSec: String(+el.currentTime.toFixed(2)), playerId: ctx.playerId ?? '', caption: shapes.length ? 'Annotated frame' : '' })
@@ -166,6 +168,24 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
     window.addEventListener('scoutdesk:snapshot', onSnap)
     return () => window.removeEventListener('scoutdesk:snapshot', onSnap)
   })
+
+  /**
+   * Right click anywhere in the player = "stop what I'm doing": playback and clip playback pause, an unfinished
+   * drawing is dropped (DrawingLayer handles that part), the tool goes back to Seç and the selection clears.
+   * Text boxes keep their normal browser menu (copy / paste).
+   */
+  const onContextMenu = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('input, textarea, select')) return
+    const handledByLayer = e.defaultPrevented // a click tool finished its shape; keep it selected
+    e.preventDefault()
+    player.pause()
+    usePlayback.setState({ clipRange: null })
+    if (!handledByLayer) {
+      const ds = useDrawing.getState()
+      ds.select(null)
+      ds.setTool('select')
+    }
+  }
 
   const onError = () => {
     const err = videoRef.current?.error
@@ -186,7 +206,7 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
   }
 
   return (
-    <div ref={containerRef} className="flex h-full min-h-0 flex-col bg-black">
+    <div ref={containerRef} className="flex h-full min-h-0 flex-col bg-black" onContextMenu={onContextMenu}>
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
         <h2 className="text-sm font-semibold">Match footage</h2>
         <div className="flex items-center gap-3">

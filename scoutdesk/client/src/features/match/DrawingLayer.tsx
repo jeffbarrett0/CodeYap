@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { newId } from '@/lib/ids'
 import { frameAt } from '@/lib/timecode'
-import { arrowHead, clickBox, ellipseOf, isVisible, markerGeom, tagCenterY, tagWidth, useDrawing, withBounds, zoomInset, type DrawTool, type Shape } from './drawing'
+import { LIGHT_VEC, arrowHead, clickBox, ellipseOf, isVisible, lightFront, lightStops, markerGeom, tagCenterY, tagWidth, useDrawing, withBounds, zoomInset, type DrawTool, type Shape } from './drawing'
 import { player, usePlayback } from './playback'
 
 type Drag =
@@ -169,10 +169,14 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
         onZoomRect({ x1: draft.x1, y1: draft.y1, x2: draft.x2, y2: draft.y2 })
         setTool('select')
       }
+    } else if (draft.type === 'spot') {
+      // Light: a dragged box lights just that area; a plain click lights the whole frame. It sweeps in over 3 s unless you set another duration.
+      add({ ...draft, ...(big ? {} : { x1: 0, y1: 0, x2: w, y2: h }), hold: hold || 3, ldir: 'down', lint: 0.6, lanim: true })
+      setTool('select')
     } else if (big) {
       add(draft)
       setTool('select')
-    } else if (draft.type === 'circle' || draft.type === 'zoom' || draft.type === 'spot') {
+    } else if (draft.type === 'circle' || draft.type === 'zoom') {
       // A plain click on a player drops a ready-sized ring / close-up circle / light.
       add({ ...draft, ...clickBox(draft.type, draft.x1, draft.y1, w) })
       setTool('select')
@@ -182,6 +186,9 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
   const onContextMenu = (e: React.MouseEvent) => {
     if (!creating) return
     e.preventDefault()
+    // A right click always stops whatever is going on: playback, a drag in progress, an unfinished shape.
+    if (playing) player.pause()
+    if (drag.current?.kind === 'draw') { drag.current = null; setDraft(null); setTool('select'); return }
     if (tool === 'link' || tool === 'area') finishPoly(polyRef.current)
     else if (tool === 'number') setTool('select')
   }
@@ -222,16 +229,35 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
     const dashed = { fill: 'none', stroke: 'hsl(var(--accent))', strokeWidth: unit, strokeDasharray: `${5 * unit} ${4 * unit}`, style: { pointerEvents: 'none' as const } }
     let body: React.ReactNode
     let handles: [number, number][] = [[s.x1, s.y1], [s.x2, s.y2]]
-    if (s.type === 'circle' || s.type === 'zoom' || s.type === 'spot') {
+    if (s.type === 'spot') {
+      // Light: white gradient from one edge of its box, travelling across while the drawing plays. The rect itself lets clicks through;
+      // a small "Işık" tag in the corner is what you grab to move it.
+      const x0 = Math.min(s.x1, s.x2), y0 = Math.min(s.y1, s.y2), bw = Math.abs(s.x2 - s.x1), bh = Math.abs(s.y2 - s.y1)
+      const [gx1, gy1, gx2, gy2] = LIGHT_VEC[s.ldir ?? 'down']
+      const lw = 58 * g.k, lh = 24 * g.k
+      body = (
+        <>
+          <defs>
+            <linearGradient id={`sd-l-${s.id}`} x1={gx1} y1={gy1} x2={gx2} y2={gy2}>
+              {lightStops(s, lightFront(s, frame, fps)).map(([o, a], i) => <stop key={i} offset={o} stopColor="#fff" stopOpacity={a} />)}
+            </linearGradient>
+          </defs>
+          <rect x={x0} y={y0} width={bw} height={bh} fill={`url(#sd-l-${s.id})`} style={{ pointerEvents: 'none' }} />
+          {!preview && (
+            <g {...common}>
+              <rect x={x0 + 6 * g.k} y={y0 + 6 * g.k} width={lw} height={lh} rx={4 * g.k} fill="#0b1220" stroke="#fff" strokeWidth={1.5 * g.k} />
+              <text x={x0 + 6 * g.k + lw / 2} y={y0 + 6 * g.k + lh / 2} dy="0.35em" textAnchor="middle" fill="#fff" fontWeight={700} fontSize={14 * g.k} style={{ pointerEvents: 'none' }}>Işık</text>
+            </g>
+          )}
+          {sel && <rect x={x0} y={y0} width={bw} height={bh} {...dashed} />}
+        </>
+      )
+    } else if (s.type === 'circle' || s.type === 'zoom') {
       const e = ellipseOf(s)
       const z = s.type === 'zoom' ? zoomInset(s, Math.max(0, zooms.findIndex((x) => x.id === s.id)), Math.max(1, zooms.length), w, h) : null
       body = (
         <>
-          {s.type === 'spot' ? (
-            <ellipse cx={e.cx} cy={e.cy} rx={Math.max(e.rx, 0.5)} ry={Math.max(e.ry, 0.5)} fill="url(#sd-glow)" stroke="none" {...common} />
-          ) : (
-            <ellipse cx={e.cx} cy={e.cy} rx={Math.max(e.rx, 0.5)} ry={Math.max(e.ry, 0.5)} {...stroke(s)} fill="transparent" {...common} />
-          )}
+          <ellipse cx={e.cx} cy={e.cy} rx={Math.max(e.rx, 0.5)} ry={Math.max(e.ry, 0.5)} {...stroke(s)} fill="transparent" {...common} />
           {z && (
             <g style={{ pointerEvents: 'none' }}>
               <line x1={z.cx} y1={z.cy} x2={z.icx} y2={z.icy} stroke="#fff" strokeWidth={2 * g.k} strokeDasharray={`${8 * g.k} ${6 * g.k}`} />
@@ -338,11 +364,6 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
           <pattern id="sd-hatch" patternUnits="userSpaceOnUse" width={16 * g.k} height={16 * g.k}>
             <rect width={8 * g.k} height={16 * g.k} fill="rgba(0,0,0,0.45)" />
           </pattern>
-          <radialGradient id="sd-glow">
-            <stop offset="0" stopColor="#fff" stopOpacity="0.75" />
-            <stop offset="0.55" stopColor="#fff" stopOpacity="0.35" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </radialGradient>
         </defs>
         {/* the selected shape is drawn last so its handles are never hidden under another shape */}
         {[...visible].sort((a, b) => Number(a.id === selectedId) - Number(b.id === selectedId)).map((s) => render(s))}
@@ -430,6 +451,24 @@ function ZoomInsets({ w, h, zooms }: { w: number; h: number; zooms: Shape[] }) {
     panning.current = { id: s.id, x: e.clientX, y: e.clientY }
     useDrawing.getState().update(s.id, { zdx: (s.zdx ?? 0) + dx, zdy: (s.zdy ?? 0) + dy })
   }
+  // Moving the whole close-up window: grab its "Player close up" label and drag.
+  const moving = useRef<{ id: string; x: number; y: number } | null>(null)
+  const moveDown = (e: React.PointerEvent, s: Shape) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    useDrawing.getState().select(s.id)
+    moving.current = { id: s.id, x: e.clientX, y: e.clientY }
+  }
+  const moveMove = (e: React.PointerEvent, s: Shape, i: number, canvas: HTMLCanvasElement | null) => {
+    const m = moving.current
+    if (!m || m.id !== s.id || !canvas) return
+    const z = zoomInset(s, i, zooms.length, w, h)
+    const scale = canvas.getBoundingClientRect().width / (2 * z.R) // screen px per video px
+    const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi))
+    moving.current = { id: s.id, x: e.clientX, y: e.clientY }
+    useDrawing.getState().update(s.id, { zx: clamp(z.icx + (e.clientX - m.x) / scale, z.R, w - z.R), zy: clamp(z.icy + (e.clientY - m.y) / scale, z.R, h - z.R) })
+  }
   const handleDown = (e: React.PointerEvent, s: Shape, canvas: HTMLCanvasElement | null) => {
     if (e.button !== 0 || !canvas) return
     e.stopPropagation()
@@ -463,6 +502,16 @@ function ZoomInsets({ w, h, zooms }: { w: number; h: number; zooms: Shape[] }) {
               onPointerDown={(e) => down(e, s)}
               onPointerMove={(e) => move(e, s, i)}
               onPointerUp={() => { panning.current = null }}
+            />
+            {/* move handle: sits exactly over the "Player close up" label */}
+            <div
+              data-zoom-move
+              title="Close-up penceresini taşımak için sürükle"
+              className="absolute left-0 right-0 cursor-move touch-none"
+              style={{ top: `-${(((markerGeom(w).tagH + 4 * markerGeom(w).k) / (2 * z.R)) * 100).toFixed(2)}%`, height: `${((markerGeom(w).tagH / (2 * z.R)) * 100).toFixed(2)}%` }}
+              onPointerDown={(e) => moveDown(e, s)}
+              onPointerMove={(e) => moveMove(e, s, i, refs.current[i] ?? null)}
+              onPointerUp={() => { moving.current = null }}
             />
             {/* resize dot on the circle's lower-right edge */}
             <span

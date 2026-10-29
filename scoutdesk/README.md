@@ -107,14 +107,17 @@ saved snapshots, and a written-notes section (ruled lines when left empty). Live
   - **Alan**: click corners; right-click (or double-click) closes the hatched area.
   - **Numara**: click players for 1, 2, 3…; right-click ends.
   - **Oyuncu**: click a player; the side **Çizim** tab opens with the name box (type, or pick from the match's players).
-  - **Aydınlat**: click a player to light them with a white glow.
+  - **Aydınlat**: a white light that spreads from the top edge downwards (click = whole frame, drag = just that area) and travels across while the drawing lasts. Direction, strength and the sweep are set in the Çizim tab.
+  - **Right click** anywhere in the player stops what you are doing: pauses playback, cancels a half-drawn shape, returns to Seç and clears the selection (Bağlantı / Alan / Numara use it to finish).
+  - **Close-up**: drag its "Player close up" label to move the window.
   - **Colours**: 32 ready colours (basic, pastel, dark, neutral) plus a free colour (picker or `#rrggbb`).
   - **Close-up** (Zoom): drag inside it to pan, mouse wheel to zoom, drag the dot on its edge to resize (or use the sliders in the Çizim tab).
   - **Numara / Oyuncu**: drag the white dot or use the mouse wheel to resize; Oyuncu also has a *Yazı boyutu* slider.
   - **Layout**: drag the dividers between sections; sizes are remembered, *Düzeni sıfırla* (top right of the match header) restores the defaults.
   - **Çizim süresi** keeps a drawing on screen for 2–10 s while playing (default: only on its frame). *Video boyutu* resizes the picture, *Ortala* recentres it.
 - **Ekran görüntüsü al** (top right of the video panel) saves only the match footage, without drawings or interface.
-- **Timeline** is a simple CapCut-style strip: time ruler, the match video as a filmstrip, tagged clips as coloured markers (click one to open it). Click or drag anywhere to jump; `+`/`-` zoom.
+- **Timeline** is a simple CapCut-style strip. Under the video, **Çizimler** lists every drawing as its own row: click to select and jump there, drag to move it in time, drag the right edge to change how long it stays (or type start/duration in the Çizim tab).
+  The strip itself: time ruler, the match video as a filmstrip, tagged clips as coloured markers (click one to open it). Click or drag anywhere to jump; `+`/`-` zoom.
 - **Seek bar** under the video with minute ticks and hover preview; type a time in *Go to* (`3` = minute 3, `4:30` = 4 min 30 s).
 - **Match header** at the top of the analysis screen (teams, crests, score, competition, venue, formations, status).
 - **Import from a link**: when uploading a video you are asked which match it is. Paste a link and the match (teams, date, competition, venue, score, lineups, formations, optionally events as clips) is filled in. Also under Matches → *Import from link*.

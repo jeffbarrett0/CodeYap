@@ -8,13 +8,18 @@ import { clamp, cn } from '@/lib/utils'
 import { useLookups } from '@/store/hooks'
 import type { Video } from '@/types'
 import { useClips } from './clips'
+import { drawingLabel, useDrawing, type Shape } from './drawing'
 import { player, usePlayback } from './playback'
 
 const PAD_L = 16
 const PAD_R = 24
-const RULER_H = 24
-const TRACK_H = 44
+const RULER_H = 22
+const TRACK_H = 36
 const TICK_H = 14
+const DRAW_HEAD = 22 // title row of the drawings section
+const DRAW_ROW = 24
+const DRAW_GAP = 4
+const EDGE = 7 // grab zone on a drawing's right edge (px)
 const MAX_WIDTH = 8000
 const STRIP_FRAMES = 24
 const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
@@ -23,6 +28,9 @@ const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
  * Simple timeline: a time ruler, the match video as one filmstrip track, and the tagged events as thin ticks
  * underneath. Only three tones are used: neutral grey (events), the accent (goals and the selected event) and
  * the playhead. Click or drag anywhere to jump to that moment; click a tick to open that clip.
+ *
+ * Below the video sits the "Çizimler" section: every drawing is its own row and block. Click a block to select it
+ * (the player jumps there), drag it to move it in time, drag its right edge to change how long it stays.
  */
 export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<string>; canEdit?: boolean }) {
   const clips = useClips((s) => s.clips)
@@ -112,7 +120,46 @@ export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<
     player.seek(start)
   }
 
-  const contentH = RULER_H + 6 + TRACK_H + 8 + TICK_H + 8
+  // Drawings ────────────────────────────────────────────────────────────────
+  const drawings = useDrawing((s) => s.shapes)
+  const selectedDrawing = useDrawing((s) => s.selectedId)
+  const rows = useMemo(() => [...drawings].sort((a, b) => a.frame - b.frame), [drawings])
+  const span = (d: Shape) => ({ start: d.frame / fps, dur: d.hold > 0 ? d.hold : 1 / fps }) // "only that frame" = one frame wide
+  const dragRef = useRef<{ kind: 'move' | 'edge'; id: string; x: number; frame: number; hold: number } | null>(null)
+
+  const drawingDown = (e: React.PointerEvent, d: Shape, kind: 'move' | 'edge') => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const st = useDrawing.getState()
+    st.select(d.id)
+    player.pause()
+    if (kind === 'move') player.seek((d.frame + 0.5) / fps)
+    dragRef.current = { kind, id: d.id, x: e.clientX, frame: d.frame, hold: d.hold }
+  }
+  const drawingMove = (e: React.PointerEvent) => {
+    const g = dragRef.current
+    if (!g || pps <= 0) return
+    const dt = (e.clientX - g.x) / pps
+    if (g.kind === 'move') {
+      const frame = Math.max(0, Math.min(Math.floor(duration * fps) - 1, g.frame + Math.round(dt * fps)))
+      useDrawing.getState().update(g.id, { frame })
+      player.seek((frame + 0.5) / fps)
+    } else {
+      // Right edge: the duration follows the mouse in 0.1 s steps; very short = "only that frame".
+      const base = g.hold > 0 ? g.hold : 1 / fps
+      const hold = Math.round((base + dt) * 10) / 10
+      useDrawing.getState().update(g.id, { hold: hold < 0.25 ? 0 : Math.min(120, hold) })
+    }
+  }
+  const drawingUp = () => { dragRef.current = null }
+  const picked = rows.find((d) => d.id === selectedDrawing)
+  const pickedText = picked
+    ? `Seçili: ${drawingLabel(picked)} · ${formatTimecode(span(picked).start, fps)} → ${formatTimecode(span(picked).start + span(picked).dur, fps)} (${picked.hold > 0 ? `${picked.hold} sn` : 'tek kare'})`
+    : 'Bir çizimi seç; taşı ya da sağ kenarından süresini uzat.'
+  const drawTop = RULER_H + 6 + TRACK_H + 6
+  const tickTop = drawTop + DRAW_HEAD + Math.max(1, rows.length) * (DRAW_ROW + DRAW_GAP) + 6
+  const contentH = tickTop + TICK_H + 10
   const cells = Math.max(1, Math.ceil(trackW / ((TRACK_H * 16) / 9)))
 
   return (
@@ -154,7 +201,7 @@ export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<
             </div>
 
             {/* tagged events: thin ticks, goals and the selected one in the accent colour */}
-            <div className="absolute" style={{ left: 0, right: 0, top: RULER_H + 6 + TRACK_H + 8 }}>
+            <div className="absolute" style={{ left: 0, right: 0, top: tickTop }}>
               {markers.map((clip) => {
                 const tag = tagById.get(clip.tagTypeId)
                 const who = clip.playerId ? playerById.get(clip.playerId)?.name : null
@@ -171,6 +218,53 @@ export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<
                     className={cn('absolute top-0 w-[3px] rounded-full', hot ? 'bg-accent' : 'bg-foreground/35 hover:bg-foreground/70', selected.has(clip.id) && 'ring-1 ring-accent ring-offset-1 ring-offset-surface')}
                     style={{ left: xOf(clip.timeSec) - 1.5, height: TICK_H }}
                   />
+                )
+              })}
+            </div>
+
+            {/* drawings: one row per drawing */}
+            <div className="absolute" style={{ left: 0, right: 0, top: drawTop }} onPointerDown={(e) => e.stopPropagation()}>
+              <div className="sticky left-0 flex items-center gap-2 whitespace-nowrap px-2 text-2xs" style={{ height: DRAW_HEAD, width: 'max-content', maxWidth: boxW }}>
+                <span className="label">Çizimler</span>
+                <span className="timecode rounded bg-raised px-1.5">{rows.length}</span>
+                <span className="truncate text-muted" aria-live="polite" data-testid="drawing-status">{pickedText}</span>
+              </div>
+              {rows.length === 0 && <p className="sticky left-0 px-2 py-1 text-2xs text-muted" style={{ width: boxW }}>Henüz çizim yok. Videoya bir şey çizince burada satır olarak görünür.</p>}
+              {rows.map((d, i) => {
+                const { start, dur } = span(d)
+                const left = xOf(start)
+                const width = Math.max(12, dur * pps)
+                const sel = d.id === selectedDrawing
+                const wide = width > 90
+                return (
+                  <div key={d.id} className="absolute" style={{ top: DRAW_HEAD + i * (DRAW_ROW + DRAW_GAP), left, height: DRAW_ROW }} data-drawing-row={d.id}>
+                    <div
+                      role="button"
+                      tabIndex={-1}
+                      aria-label={`${drawingLabel(d)} ${formatTimecode(start, fps)}`}
+                      aria-pressed={sel}
+                      title={`${drawingLabel(d)} · ${formatTimecode(start, fps)} · ${d.hold > 0 ? `${d.hold} sn` : 'tek kare'} — sürükle: taşı, sağ kenar: süreyi değiştir`}
+                      onPointerDown={(e) => drawingDown(e, d, 'move')}
+                      onPointerMove={drawingMove}
+                      onPointerUp={drawingUp}
+                      data-drawing-block={d.id}
+                      className={cn('relative flex h-full cursor-grab items-center overflow-hidden rounded border text-2xs active:cursor-grabbing', sel ? 'border-accent bg-accent/25 text-foreground' : 'border-border bg-raised text-foreground/80 hover:border-foreground/40')}
+                      style={{ width }}
+                    >
+                      <span className="h-full w-1 shrink-0" style={{ background: d.color }} aria-hidden />
+                      {wide && <span className="truncate px-1.5">{drawingLabel(d)}</span>}
+                      <span
+                        onPointerDown={(e) => drawingDown(e, d, 'edge')}
+                        onPointerMove={drawingMove}
+                        onPointerUp={drawingUp}
+                        data-drawing-edge={d.id}
+                        className="absolute right-0 top-0 h-full cursor-ew-resize bg-foreground/10 hover:bg-accent/60"
+                        style={{ width: Math.min(EDGE, Math.max(3, width / 3)) }}
+                        aria-hidden
+                      />
+                    </div>
+                    {!wide && <span className="pointer-events-none absolute top-0 flex h-full items-center whitespace-nowrap pl-1 text-2xs text-muted" style={{ left: width }}>{drawingLabel(d)}</span>}
+                  </div>
                 )
               })}
             </div>

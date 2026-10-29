@@ -59,11 +59,12 @@ export function MatchAnalysisPage() {
   const hRef = useRef<ImperativePanelGroupHandle>(null)
   const resetLayout = () => {
     const simple = useMode.getState().mode === 'simple'
-    vRef.current?.setLayout(simple ? [78, 22] : [62, 14, 24])
+    vRef.current?.setLayout(simple ? [66, 34] : [52, 24, 24])
     hRef.current?.setLayout(simple ? [78, 22] : [76, 24])
   }
   const selectedShape = useDrawing((s) => s.shapes.find((x) => x.id === s.selectedId))
-  useEffect(() => { if (selectedShape?.type === 'player') setRightTab('draw') }, [selectedShape?.id, selectedShape?.type])
+  // Selecting any drawing opens its side tab (name, colour, timing, light settings…).
+  useEffect(() => { if (selectedShape) setRightTab('draw') }, [selectedShape?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const videos = useMemo(() => allVideos.filter((v) => v.matchId === matchId), [allVideos, matchId])
   const primaryId = useAngles((s) => s.primaryId)
@@ -220,10 +221,10 @@ export function MatchAnalysisPage() {
         <div className="min-h-0 flex-1">
           <PanelGroup ref={hRef} direction="horizontal" autoSaveId="sd-simple-h2">
             <Panel id="pnl-main" defaultSize={78} minSize={40} order={1}>
-              <PanelGroup ref={vRef} direction="vertical" autoSaveId="sd-simple-v2">
-                <Panel id="pnl-video" defaultSize={78} minSize={25} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
+              <PanelGroup ref={vRef} direction="vertical" autoSaveId="sd-simple-v4">
+                <Panel id="pnl-video" defaultSize={66} minSize={25} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
                 <Handle dir="h" />
-                <Panel id="pnl-timeline" defaultSize={22} minSize={8} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+                <Panel id="pnl-timeline" defaultSize={34} minSize={8} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
               </PanelGroup>
             </Panel>
             <Handle dir="v" />
@@ -245,10 +246,10 @@ export function MatchAnalysisPage() {
     <div className="min-h-0 flex-1">
     <PanelGroup ref={hRef} direction="horizontal" autoSaveId="sd-analysis-h2" className="h-full">
       <Panel id="pnl-main" defaultSize={76} minSize={40} order={1}>
-        <PanelGroup ref={vRef} direction="vertical" autoSaveId="sd-analysis-v6">
-          <Panel id="pnl-video" defaultSize={62} minSize={20} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
+        <PanelGroup ref={vRef} direction="vertical" autoSaveId="sd-analysis-v10">
+          <Panel id="pnl-video" defaultSize={52} minSize={20} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
           <Handle dir="h" />
-          <Panel id="pnl-timeline" defaultSize={14} minSize={8} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+          <Panel id="pnl-timeline" defaultSize={24} minSize={8} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
           <Handle dir="h" />
           <Panel id="pnl-bottom" defaultSize={24} minSize={5} order={3}>
             <Tabs value={bottomTab} onValueChange={setBottomTab} className="flex h-full flex-col bg-surface">

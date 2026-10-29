@@ -121,6 +121,15 @@ export function ClipTable({ canWrite, onPlayClip }: { canWrite: boolean; onPlayC
     return () => window.clearTimeout(t)
   }, [activeIndex, virt])
 
+  // When the table is resized (panels settling, divider dragged) keep the active row in view.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => { if (activeIndex >= 0) virt.scrollToIndex(activeIndex, { align: 'auto' }) })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [activeIndex, virt])
+
   const select = useClips.getState().select
   const onRowClick = useCallback((e: React.MouseEvent, id: string) => {
     const ids = rows.map((r) => r.clip.id)

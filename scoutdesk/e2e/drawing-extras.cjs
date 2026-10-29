@@ -84,7 +84,7 @@ const assert = (c, m) => { if (!c) throw new Error('ASSERT: ' + m); console.log(
   console.log('6. Panel sizes: dragged, remembered, resettable')
   const handle = p.locator('[data-panel-resize-handle-id]').filter({ has: p.locator('span') }).first()
   const vid0 = (await p.getByRole('toolbar', { name: 'Video controls' }).boundingBox()).y
-  assert(vid0 > 400, `match footage starts big (controls end at y=${Math.round(vid0)})`)
+  assert(vid0 > 330, `match footage starts big (controls end at y=${Math.round(vid0)})`)
   const hbx = await handle.boundingBox()
   await p.mouse.move(hbx.x + hbx.width / 2, hbx.y + hbx.height / 2); await p.mouse.down(); await p.mouse.move(hbx.x + hbx.width / 2, hbx.y - 120, { steps: 6 }); await p.mouse.up()
   const vid1 = (await p.getByRole('toolbar', { name: 'Video controls' }).boundingBox()).y

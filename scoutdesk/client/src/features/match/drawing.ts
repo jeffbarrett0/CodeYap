@@ -29,6 +29,32 @@ export interface Shape {
   zdx?: number
   zdy?: number
   zs?: number
+  /** zoom: where the close-up window sits (centre, in video px). Default: left side of the frame. */
+  zx?: number
+  zy?: number
+  /** spot (light): direction the light spreads in, strength 0.1–1, and whether it sweeps in during its duration. */
+  ldir?: LightDir
+  lint?: number
+  lanim?: boolean
+}
+
+export type LightDir = 'down' | 'up' | 'left' | 'right'
+export const LIGHT_DIRS: { id: LightDir; label: string }[] = [
+  { id: 'down', label: 'Yukarıdan aşağı' }, { id: 'up', label: 'Aşağıdan yukarı' }, { id: 'right', label: 'Soldan sağa' }, { id: 'left', label: 'Sağdan sola' },
+]
+/** Start and end of the light's gradient as fractions of the lit box. */
+export const LIGHT_VEC: Record<LightDir, [number, number, number, number]> = { down: [0, 0, 0, 1], up: [0, 1, 0, 0], right: [0, 0, 1, 0], left: [1, 0, 0, 0] }
+
+/** How far the light has travelled (0.12 → 1) at this frame; a static light (or a one-frame one) is fully spread. */
+export function lightFront(s: Shape, frame: number, fps: number): number {
+  if (!(s.lanim ?? true) || s.hold <= 0) return 1
+  const p = Math.min(1, Math.max(0, (frame - s.frame) / (s.hold * fps)))
+  return 0.12 + 0.88 * p
+}
+/** Gradient stops [offset, alpha]: bright at the edge the light comes from, fading out at the travelling front. */
+export function lightStops(s: Shape, front: number): [number, number][] {
+  const a = s.lint ?? 0.6
+  return [[0, a], [front * 0.55, a * 0.55], [front, 0], [1, 0]]
 }
 
 /** Ready-made colours, grouped so the picker stays easy to scan. The first one is the default. */
@@ -45,6 +71,12 @@ export function isVisible(s: Shape, frame: number, fps: number, playing: boolean
   if (playing && s.hold <= 0) return false
   return frame >= s.frame && frame <= s.frame + Math.round(s.hold * fps)
 }
+
+export const DRAWING_NAME: Record<DrawTool, string> = {
+  arrow: 'Ok', line: 'Çizgi', circle: 'Daire', zoom: 'Zoom (Player close up)', spot: 'Aydınlatma', link: 'Bağlantı', run: 'Koşu oku', area: 'Alan', number: 'Numara', player: 'Oyuncu',
+}
+/** Short readable name of a drawing, used in the timeline and the side tab. */
+export const drawingLabel = (s: Shape) => (s.type === 'player' ? `Oyuncu: ${s.text || '—'}` : s.type === 'number' ? `Numara ${s.text ?? ''}`.trim() : DRAWING_NAME[s.type])
 
 /** Recompute an area's bounding box (x1..y2) from its vertices. */
 export function withBounds<T extends Shape>(s: T): T {
@@ -105,10 +137,10 @@ export const useDrawing = create<DrawingState>((set) => ({
 export function markerGeom(w: number) {
   const k = w / 1280
   // rx/ry: the rings of links; badge/numFont: number markers; tagH/font: player name tags (all scaled by Shape.size).
-  return { k, rx: 20 * k, ry: 8 * k, badge: 16 * k, numFont: 19 * k, tagH: 32 * k, font: 20 * k }
+  return { k, rx: 34 * k, ry: 14 * k, badge: 36 * k, numFont: 42 * k, tagH: 50 * k, font: 34 * k }
 }
 /** Name-tag width for a player label (about 0.6 em per character plus padding). */
-export const tagWidth = (text: string, k: number, size = 1) => (Math.max(text.length, 3) * 12.5 + 24) * k * size
+export const tagWidth = (text: string, k: number, size = 1) => (Math.max(text.length, 3) * 20 + 36) * k * size
 /** Number badge centre is the click; a player tag sits just above the click. */
 export const tagCenterY = (s: Pick<Shape, 'y1' | 'size'>, g: ReturnType<typeof markerGeom>) => s.y1 - (g.tagH * (s.size ?? 1)) / 2 - 8 * g.k
 
@@ -127,10 +159,10 @@ export function arrowHead(s: Pick<Shape, 'x1' | 'y1' | 'x2' | 'y2' | 'width'>): 
 /** Ellipse inscribed in the shape's bounding box (a circle when the box is square). */
 export const ellipseOf = (s: Pick<Shape, 'x1' | 'y1' | 'x2' | 'y2'>) => ({ cx: (s.x1 + s.x2) / 2, cy: (s.y1 + s.y2) / 2, rx: Math.abs(s.x2 - s.x1) / 2, ry: Math.abs(s.y2 - s.y1) / 2 })
 
-/** What a single click (no drag) creates for the circle-like tools, sized for a player in a 1280px-wide frame. */
-export function clickBox(type: 'circle' | 'zoom' | 'spot', x: number, y: number, w: number): Pick<Shape, 'x1' | 'y1' | 'x2' | 'y2'> {
+/** What a single click (no drag) creates for the circle tools, sized for a player in a 1280px-wide frame. */
+export function clickBox(type: 'circle' | 'zoom', x: number, y: number, w: number): Pick<Shape, 'x1' | 'y1' | 'x2' | 'y2'> {
   const k = w / 1280
-  const [rx, ry] = type === 'circle' ? [24 * k, 10 * k] : type === 'zoom' ? [38 * k, 38 * k] : [46 * k, 46 * k]
+  const [rx, ry] = type === 'circle' ? [34 * k, 14 * k] : [50 * k, 50 * k]
   return { x1: x - rx, y1: y - ry, x2: x + rx, y2: y + ry }
 }
 
@@ -142,13 +174,13 @@ export function zoomInset(s: Shape, index: number, count: number, w: number, h: 
   const R = Math.min(0.17 * h, 0.15 * w) * (s.zs ?? 1)
   const gap = 2 * R + 34 * (w / 1280)
   const icy = clamp(h / 2 + (index - (count - 1) / 2) * gap, R + 24 * (w / 1280), h - R - 8)
-  return { cx, cy, r, scx: cx + (s.zdx ?? 0), scy: cy + (s.zdy ?? 0), R, icx: 20 * (w / 1280) + R, icy }
+  return { cx, cy, r, scx: cx + (s.zdx ?? 0), scy: cy + (s.zdy ?? 0), R, icx: s.zx ?? 20 * (w / 1280) + R, icy: s.zy ?? icy }
 }
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi))
 
 
 /** Paint shapes onto a 2D canvas (used for snapshot export; mirrors the SVG rendering in DrawingLayer). */
-export function paintShapes(ctx: CanvasRenderingContext2D, shapes: Shape[], w = ctx.canvas.width, h = ctx.canvas.height, video?: CanvasImageSource) {
+export function paintShapes(ctx: CanvasRenderingContext2D, shapes: Shape[], w = ctx.canvas.width, h = ctx.canvas.height, video?: CanvasImageSource, at?: { frame: number; fps: number }) {
   const g = markerGeom(w)
   const ring = (x: number, y: number, color: string, lw: number, casing = false) => {
     ctx.beginPath()
@@ -167,19 +199,13 @@ export function paintShapes(ctx: CanvasRenderingContext2D, shapes: Shape[], w = 
     ctx.lineJoin = 'round'
     ctx.setLineDash([])
     if (s.type === 'spot') {
-      const { cx, cy, rx, ry } = ellipseOf(s)
-      ctx.save()
-      ctx.translate(cx, cy)
-      ctx.scale(Math.max(rx, 1), Math.max(ry, 1))
-      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 1)
-      grad.addColorStop(0, 'rgba(255,255,255,0.75)')
-      grad.addColorStop(0.55, 'rgba(255,255,255,0.35)')
-      grad.addColorStop(1, 'rgba(255,255,255,0)')
+      // Light: a white gradient spreading from one edge of its box (animated while the drawing plays).
+      const x0 = Math.min(s.x1, s.x2), y0 = Math.min(s.y1, s.y2), bw = Math.abs(s.x2 - s.x1), bh = Math.abs(s.y2 - s.y1)
+      const [fx1, fy1, fx2, fy2] = LIGHT_VEC[s.ldir ?? 'down']
+      const grad = ctx.createLinearGradient(x0 + fx1 * bw, y0 + fy1 * bh, x0 + fx2 * bw, y0 + fy2 * bh)
+      for (const [o, a] of lightStops(s, at ? lightFront(s, at.frame, at.fps) : 1)) grad.addColorStop(o, `rgba(255,255,255,${a})`)
       ctx.fillStyle = grad
-      ctx.beginPath()
-      ctx.arc(0, 0, 1, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
+      ctx.fillRect(x0, y0, bw, bh)
     } else if (s.type === 'circle' || s.type === 'zoom') {
       const { cx, cy, rx, ry } = ellipseOf(s)
       ctx.beginPath()
