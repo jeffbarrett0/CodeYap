@@ -151,3 +151,32 @@ export function clipsForVideoWithAudio(
   }
   return { items }
 }
+
+/**
+ * Üretilen kliplerin hedef izi zaman çizelgesinde yoksa (ör. oyun ekranı katmanı elle eklenmemişse) kullanıcı adına YENİ KATMAN
+ * OLUŞTURMAZ; bunun yerine uygun mevcut ize yönlendirir: video → ilk video izi, ses → rolü eşleşen / ilk ses izi.
+ * Aynı izde iki video çakışacaksa ilki (asıl görüntü) tutulur, fazlası atlanır.
+ */
+export function retargetItems(tl: Timeline, items: NewClipItem[]): NewClipItem[] {
+  const has = (id: ID) => tl.tracks.some((t) => t.id === id)
+  const firstVideo = tl.tracks.find((t) => t.kind === 'video')
+  const audioFor = (wantId: ID) => tl.tracks.find((t) => t.kind === 'audio' && t.role === (wantId === TRACK_IDS.voice ? 'voice' : 'game')) ?? tl.tracks.find((t) => t.kind === 'audio')
+  const used = new Set<ID>()
+  const out: NewClipItem[] = []
+  for (const it of items) {
+    let target = it.trackId
+    if (!has(target)) {
+      const isAudio = it.clip.audioStream !== undefined
+      const t = isAudio ? audioFor(it.trackId) : firstVideo
+      if (!t) continue
+      target = t.id
+    }
+    const track = tl.tracks.find((t) => t.id === target)
+    if (track?.kind === 'video') {
+      if (used.has(target)) continue
+      used.add(target)
+    }
+    out.push({ trackId: target, clip: { ...it.clip, trackId: target } })
+  }
+  return out
+}

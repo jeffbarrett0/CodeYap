@@ -49,6 +49,8 @@ export function buildExportPlan(
   const rs = range?.start ?? 0
   const re = range?.end ?? timelineDuration(tl)
   const D = Math.max(0.1, re - rs)
+  // fps=0 (kaynak) normalde çağıran tarafından çözülür; çözülmediyse 30
+  const fps = o.fps > 0 ? o.fps : 30
   const W = o.width
   const H = o.height
   const warnings: string[] = []
@@ -62,7 +64,7 @@ export function buildExportPlan(
     }
     const path = a.path.startsWith('-') ? `./${a.path}` : a.path
     // Durağan görsel: döngüye alınır ve klip süresince akıtılır
-    inputs.push(image ? ['-loop', '1', '-framerate', String(o.fps), '-t', f3(p.dur), '-i', path] : ['-ss', f3(p.srcIn), '-t', f3(p.dur), '-i', path])
+    inputs.push(image ? ['-loop', '1', '-framerate', String(fps), '-t', f3(p.dur), '-i', path] : ['-ss', f3(p.srcIn), '-t', f3(p.dur), '-i', path])
     return inputs.length - 1
   }
   const usePlacement = tl.tracks.some((t) => t.placement)
@@ -71,7 +73,7 @@ export function buildExportPlan(
   const layout = resolveLayout(tl.aspect, tl.layout, W, H, tl.webcamOverlay)
   const lines: string[] = []
 
-  lines.push(`color=c=${(tl.background ?? '#000000').replace('#', '0x')}:s=${W}x${H}:r=${o.fps}:d=${f3(D)},format=yuv420p[base]`)
+  lines.push(`color=c=${(tl.background ?? '#000000').replace('#', '0x')}:s=${W}x${H}:r=${fps}:d=${f3(D)},format=yuv420p[base]`)
   let cur = 'base'
   let layer = 0
 
@@ -108,9 +110,9 @@ export function buildExportPlan(
         const fade = t.placement.opacity < 1 ? `,colorchannelmixer=aa=${t.placement.opacity.toFixed(3)}` : ''
         const fit =
           t.placement.fit === 'cover'
-            ? `scale=${r.w}:${r.h}:force_original_aspect_ratio=increase,crop=${r.w}:${r.h}`
-            : `scale=${r.w}:${r.h}:force_original_aspect_ratio=decrease`
-        lines.push(`[${idx}:v]${alpha}setpts=PTS-STARTPTS,fps=${o.fps},${crop}${fit}${fade},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
+            ? `scale=${r.w}:${r.h}:flags=lanczos:force_original_aspect_ratio=increase,crop=${r.w}:${r.h}`
+            : `scale=${r.w}:${r.h}:flags=lanczos:force_original_aspect_ratio=decrease`
+        lines.push(`[${idx}:v]${alpha}setpts=PTS-STARTPTS,fps=${fps},${crop}${fit}${fade},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
         const next = `L${++layer}`
         const pos = t.placement.fit === 'cover' ? `${r.x}:${r.y}` : `x=${r.x}+(${r.w}-overlay_w)/2:y=${r.y}+(${r.h}-overlay_h)/2`
         lines.push(`[${cur}][ly${L}]overlay=${pos}:eof_action=pass:repeatlast=0[${next}]`)
@@ -126,14 +128,14 @@ export function buildExportPlan(
       if (!p || idx === null) continue
       const L = layer + 1
       const r = layout.screen
-      const head = `[${idx}:v]setpts=PTS-STARTPTS,fps=${o.fps}`
+      const head = `[${idx}:v]setpts=PTS-STARTPTS,fps=${fps}`
       if (layout.screenFit === 'cover') {
-        lines.push(`${head},scale=${r.w}:${r.h}:force_original_aspect_ratio=increase,crop=${r.w}:${r.h}[sv${L}]`)
+        lines.push(`${head},scale=${r.w}:${r.h}:flags=lanczos:force_original_aspect_ratio=increase,crop=${r.w}:${r.h}[sv${L}]`)
       } else {
         // oran korunur; boş alanlar aynı görüntünün bulanık hâliyle doldurulur
         lines.push(`${head},split=2[sa${L}][sb${L}]`)
-        lines.push(`[sa${L}]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=30:4,eq=brightness=-0.12[bg${L}]`)
-        lines.push(`[sb${L}]scale=${r.w}:${r.h}:force_original_aspect_ratio=decrease[fg${L}]`)
+        lines.push(`[sa${L}]scale=${W}:${H}:flags=lanczos:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=30:4,eq=brightness=-0.12[bg${L}]`)
+        lines.push(`[sb${L}]scale=${r.w}:${r.h}:flags=lanczos:force_original_aspect_ratio=decrease[fg${L}]`)
         lines.push(`[bg${L}][fg${L}]overlay=x=${r.x}+(${r.w}-overlay_w)/2:y=${r.y}+(${r.h}-overlay_h)/2[sv${L}]`)
         place(`sv${L}`, p.at, { x: 0, y: 0, w: W, h: H })
         continue
@@ -151,7 +153,7 @@ export function buildExportPlan(
       const L = layer + 1
       const rect = layout.cam && tl.aspect === '9:16' && tl.layout !== 'fill' && tl.layout !== 'cam-overlay-corner' ? layout.cam : toPx(c.overlay ?? tl.webcamOverlay, W, H)
       const crop = c.crop ? `crop=iw*${c.crop.w.toFixed(5)}:ih*${c.crop.h.toFixed(5)}:iw*${c.crop.x.toFixed(5)}:ih*${c.crop.y.toFixed(5)},` : ''
-      lines.push(`[${idx}:v]setpts=PTS-STARTPTS,fps=${o.fps},${crop}scale=${rect.w}:${rect.h}:force_original_aspect_ratio=increase,crop=${rect.w}:${rect.h}[cv${L}]`)
+      lines.push(`[${idx}:v]setpts=PTS-STARTPTS,fps=${fps},${crop}scale=${rect.w}:${rect.h}:flags=lanczos:force_original_aspect_ratio=increase,crop=${rect.w}:${rect.h}[cv${L}]`)
       place(`cv${L}`, p.at, rect)
     }
   }
@@ -204,10 +206,9 @@ export function buildExportPlan(
 
   files.push({ name: 'filters.txt', content: lines.join(';\n') + '\n' })
 
-  const rate =
-    o.crf > 0
-      ? ['-crf', String(o.crf), '-maxrate', `${Math.round(o.videoBitrateKbps * 1.5)}k`, '-bufsize', `${o.videoBitrateKbps * 3}k`]
-      : ['-b:v', `${o.videoBitrateKbps}k`, '-maxrate', `${o.videoBitrateKbps}k`, '-bufsize', `${o.videoBitrateKbps * 2}k`]
+  // crf açıkken bitrate yalnızca ÜST SINIRDIR (kaliteyi crf belirler); crf=0 ise hedef bitrate
+  const cap = Math.max(1000, o.videoBitrateKbps)
+  const rate = o.crf > 0 ? ['-crf', String(o.crf), '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`] : ['-b:v', `${cap}k`, '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`]
 
   const args = [
     '-hide_banner',
@@ -225,13 +226,20 @@ export function buildExportPlan(
     '-c:v',
     'libx264',
     '-preset',
-    'medium',
+    o.encoderPreset ?? 'slow',
     '-profile:v',
     'high',
     '-pix_fmt',
     'yuv420p',
+    // HD için renk bilgisi açıkça etiketlenir (oynatıcılar arası renk kayması olmasın)
+    '-colorspace',
+    'bt709',
+    '-color_primaries',
+    'bt709',
+    '-color_trc',
+    'bt709',
     '-r',
-    String(o.fps),
+    String(fps),
     ...rate,
     '-c:a',
     'aac',

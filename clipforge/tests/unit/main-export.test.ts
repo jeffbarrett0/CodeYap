@@ -1,3 +1,4 @@
+import { createTimelineWithGame } from './helpers'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -12,6 +13,9 @@ import { applyTemplate, BUILTIN_TEMPLATES } from '@shared/timeline/templates'
 import { clipsForVideoWithAudio } from '@shared/timeline/create'
 import * as ops from '@shared/timeline/ops'
 import { optionsFromPreset } from '@shared/export/presets'
+
+/** Testlerde hızlı kodlama (üretimde varsayılan: slow + CRF 14). Kalite testi ayrıca gerçek varsayılanı dener. */
+const quick = (id: string, o: Partial<import('@shared/types').ExportOptions> = {}) => optionsFromPreset(id, { encoderPreset: 'ultrafast', crf: 23, ...o })
 import { PROJECT_VERSION, type Clip, type MediaAsset, type Project } from '@shared/types'
 import { ffmpegAvailable, FFMPEG, makeObsLikeMkv, probeVideo, tools } from './ffmpeg-fixtures'
 
@@ -32,7 +36,7 @@ const mk = (trackId: string, start: number, srcIn: number, srcOut: number, extra
 
 function timeline() {
   // 9:16 "oyun ortada, kamera altta" şablonu (katman konumlarıyla)
-  let tl = applyTemplate(createDefaultTimeline(), BUILTIN_TEMPLATES[1])
+  let tl = applyTemplate(createTimelineWithGame(), BUILTIN_TEMPLATES[1])
   tl = ops.addClip(tl, TRACK_IDS.screen, mk(TRACK_IDS.screen, 0, 4, 12))
   tl = ops.addClip(tl, TRACK_IDS.webcam, mk(TRACK_IDS.webcam, 0, 4, 12, { crop: { x: 0.7, y: 0.6, w: 0.3, h: 0.4 } }))
   tl = ops.addClip(tl, TRACK_IDS.game, mk(TRACK_IDS.game, 0, 4, 12, { audioStream: 1 }))
@@ -45,7 +49,7 @@ d('dışa aktarma (gerçek ffmpeg)', () => {
     const out = join(root, 'Çıktı Klasörü', 'klip çıktı.mp4')
     const progress: number[] = []
     const r = await runExport(
-      { name: 'k', timeline: timeline(), assets: [asset], options: optionsFromPreset('shorts', { fps: 30 }), range: { start: 0, end: 8 }, outputPath: out },
+      { name: 'k', timeline: timeline(), assets: [asset], options: quick('shorts', { fps: 30 }), range: { start: 0, end: 8 }, outputPath: out },
       tools,
       { progress: (f) => progress.push(f) }
     )
@@ -61,7 +65,7 @@ d('dışa aktarma (gerçek ffmpeg)', () => {
 
   it('9:16: oyun ekranı ortada, kamera altta — kare içeriği doğrulanır', async () => {
     const out = join(root, 'frame-check.mp4')
-    await runExport({ name: 'k', timeline: { ...timeline(), captions: [] }, assets: [asset], options: optionsFromPreset('shorts'), range: { start: 0, end: 3 }, outputPath: out }, tools)
+    await runExport({ name: 'k', timeline: { ...timeline(), captions: [] }, assets: [asset], options: quick('shorts'), range: { start: 0, end: 3 }, outputPath: out }, tools)
     // Üst şerit (y<200) yalnızca bulanık arka plan, orta (y≈960) oyun, alt (y≈1500) kamera: üç bölge de siyah olmamalı
     const luma = (y: number) => {
       const buf = execFileSync(FFMPEG, ['-v', 'error', '-ss', '1', '-i', out, '-frames:v', '1', '-vf', `crop=200:40:440:${y},format=gray`, '-f', 'rawvideo', '-'])
@@ -76,7 +80,7 @@ d('dışa aktarma (gerçek ffmpeg)', () => {
     for (const [preset, w, h] of [['youtube', 1920, 1080], ['square', 1080, 1080]] as const) {
       const tl = { ...timeline(), aspect: preset === 'youtube' ? ('16:9' as const) : ('1:1' as const), captions: [] }
       const out = join(root, `${preset}.mp4`)
-      await runExport({ name: 'k', timeline: tl, assets: [asset], options: optionsFromPreset(preset), range: { start: 0, end: 2 }, outputPath: out }, tools)
+      await runExport({ name: 'k', timeline: tl, assets: [asset], options: quick(preset), range: { start: 0, end: 2 }, outputPath: out }, tools)
       expect(probeVideo(out)).toMatchObject({ width: w, height: h })
     }
   })
@@ -84,7 +88,7 @@ d('dışa aktarma (gerçek ffmpeg)', () => {
   it('iptal edilince yarım dosya bırakılmaz', async () => {
     const out = join(root, 'iptal.mp4')
     const ctrl = new AbortController()
-    const p = runExport({ name: 'k', timeline: timeline(), assets: [asset], options: optionsFromPreset('shorts'), range: { start: 0, end: 8 }, outputPath: out }, tools, { signal: ctrl.signal })
+    const p = runExport({ name: 'k', timeline: timeline(), assets: [asset], options: quick('shorts'), range: { start: 0, end: 8 }, outputPath: out }, tools, { signal: ctrl.signal })
     setTimeout(() => ctrl.abort(), 150)
     await expect(p).rejects.toBeInstanceOf(CancelledError)
     expect(existsSync(out)).toBe(false)
@@ -92,8 +96,8 @@ d('dışa aktarma (gerçek ffmpeg)', () => {
   })
 
   it('kayıp kaynak ve boş zaman çizelgesi anlaşılır hata verir', async () => {
-    await expect(runExport({ name: 'k', timeline: timeline(), assets: [{ ...asset, missing: true }], options: optionsFromPreset('shorts'), range: { start: 0, end: 8 }, outputPath: join(root, 'x.mp4') }, tools)).rejects.toThrow(/bulunamadı/)
-    await expect(runExport({ name: 'k', timeline: createDefaultTimeline(), assets: [asset], options: optionsFromPreset('shorts'), range: { start: 0, end: 0 }, outputPath: join(root, 'y.mp4') }, tools)).rejects.toThrow(/boş/)
+    await expect(runExport({ name: 'k', timeline: timeline(), assets: [{ ...asset, missing: true }], options: quick('shorts'), range: { start: 0, end: 8 }, outputPath: join(root, 'x.mp4') }, tools)).rejects.toThrow(/bulunamadı/)
+    await expect(runExport({ name: 'k', timeline: createTimelineWithGame(), assets: [asset], options: quick('shorts'), range: { start: 0, end: 0 }, outputPath: join(root, 'y.mp4') }, tools)).rejects.toThrow(/boş/)
   })
 })
 
@@ -102,7 +106,7 @@ d('3 bölgeli varsayılan şablon (yüz / orta görsel yeri / alt görsel) — g
     const png = join(root, 'konu görseli.png')
     execFileSync(FFMPEG, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=800x600:d=1', '-frames:v', '1', png])
     const imgAsset: MediaAsset = { ...asset, id: 'img1', name: 'konu görseli.png', path: png, kind: 'image', durationSec: 0, width: 800, height: 600, audioStreams: [], container: 'png' }
-    let tl = createDefaultTimeline()
+    let tl = createTimelineWithGame()
     tl = ops.addClip(tl, 'V2', mk('V2', 0, 4, 10))
     tl = ops.addClip(tl, 'V1', mk('V1', 0, 4, 10)) // oyun katmanı kapalı → görünmemeli
     tl = ops.addClip(tl, 'I1', { ...mk('I1', 0, 0, 6), assetId: 'img1' })
@@ -113,7 +117,7 @@ d('3 bölgeli varsayılan şablon (yüz / orta görsel yeri / alt görsel) — g
     const blueAsset: MediaAsset = { ...imgAsset, id: 'img2', name: 'orta mavi.png', path: blue, width: 1000, height: 200 }
     tl = ops.addClip(tl, 'I2', { ...mk('I2', 0, 0, 6), assetId: 'img2' })
     const out = join(root, 'uc-bolge.mp4')
-    await runExport({ name: 'k', timeline: tl, assets: [asset, imgAsset, blueAsset], options: optionsFromPreset('shorts'), range: { start: 0, end: 6 }, outputPath: out }, tools)
+    await runExport({ name: 'k', timeline: tl, assets: [asset, imgAsset, blueAsset], options: quick('shorts'), range: { start: 0, end: 6 }, outputPath: out }, tools)
     expect(probeVideo(out)).toMatchObject({ width: 1080, height: 1920, audio: 1 })
     const rgb = (y: number, h = 40, w = 300) => {
       const buf = execFileSync(FFMPEG, ['-v', 'error', '-ss', '2', '-i', out, '-frames:v', '1', '-vf', `crop=${w}:${h}:390:${y}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])
@@ -142,28 +146,66 @@ d('ses (gerçek ffmpeg)', () => {
   }
 
   it('video katmanına eklenen videonun sesi dışa aktarılan dosyada DUYULUR; sesi eklenmezse sessizdir', async () => {
-    const tracks = createDefaultTimeline().tracks
+    const tracks = createTimelineWithGame().tracks
     const withSound = clipsForVideoWithAudio(asset, tracks.find((t) => t.id === 'V2')!, tracks, { at: 0, srcIn: 2, duration: 6 })
     if ('error' in withSound) throw new Error(withSound.error)
-    let tl = createDefaultTimeline()
+    let tl = createTimelineWithGame()
     for (const it of withSound.items) tl = ops.addClip(tl, it.trackId, it.clip)
     const out = join(root, 'sesli.mp4')
-    await runExport({ name: 'k', timeline: tl, assets: [asset], options: optionsFromPreset('shorts', { normalizeAudio: false }), range: { start: 0, end: 6 }, outputPath: out }, tools)
+    await runExport({ name: 'k', timeline: tl, assets: [asset], options: quick('shorts', { normalizeAudio: false }), range: { start: 0, end: 6 }, outputPath: out }, tools)
     expect(meanVolume(out)).toBeGreaterThan(-40) // sinüs sesi var
 
     // yalnızca görüntü: ses izi yok → çıktı sessiz
-    let silent = createDefaultTimeline()
+    let silent = createTimelineWithGame()
     silent = ops.addClip(silent, 'V2', mk('V2', 0, 2, 8))
     const out2 = join(root, 'sessiz.mp4')
-    await runExport({ name: 'k', timeline: silent, assets: [asset], options: optionsFromPreset('shorts', { normalizeAudio: false }), range: { start: 0, end: 6 }, outputPath: out2 }, tools)
+    await runExport({ name: 'k', timeline: silent, assets: [asset], options: quick('shorts', { normalizeAudio: false }), range: { start: 0, end: 6 }, outputPath: out2 }, tools)
     expect(meanVolume(out2)).toBeLessThan(-70)
+  })
+})
+
+d('MP4 kalitesi (gerçek ffmpeg): varsayılan en yüksek kalite ayarları', () => {
+  const ssim = (a: string, b: string): number => {
+    const r = spawnSync(FFMPEG, ['-hide_banner', '-i', a, '-i', b, '-lavfi', '[0:v][1:v]ssim', '-f', 'null', '-'], { encoding: 'utf8' })
+    const m = /All:([\d.]+)/.exec(r.stderr)
+    return m ? Number(m[1]) : 0
+  }
+  const probeAll = (f: string) => JSON.parse(execFileSync(tools.ffprobe, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', f]).toString())
+
+  it('varsayılan şablon: yüksek profil, 320 kbps ses, bt709, kaynak kare hızı; düşük kaliteli ayardan belirgin biçimde daha yüksek benzerlik (SSIM)', async () => {
+    let tl = createTimelineWithGame()
+    tl = { ...tl, aspect: '16:9' }
+    // tek video katmanı tam kare (kaynağa en yakın karşılaştırma için)
+    tl = ops.setPlacement(tl, 'V2', { rect: { x: 0, y: 0, w: 1, h: 1 }, fit: 'cover' })
+    tl = ops.addClip(tl, 'V2', mk('V2', 0, 3, 8))
+    tl = ops.addClip(tl, 'A1', mk('A1', 0, 3, 8, { audioStream: 0 }))
+    const dflt = optionsFromPreset('youtube') // GERÇEK varsayılan: crf 14, slow, fps kaynak
+    expect(dflt).toMatchObject({ crf: 14, encoderPreset: 'slow', audioBitrateKbps: 320, fps: 0 })
+    const hi = join(root, 'kalite-yuksek.mp4')
+    const lo = join(root, 'kalite-dusuk.mp4')
+    await runExport({ name: 'k', timeline: tl, assets: [asset], options: dflt, range: { start: 0, end: 5 }, outputPath: hi }, tools)
+    await runExport({ name: 'k', timeline: tl, assets: [asset], options: { ...dflt, crf: 38, encoderPreset: 'veryfast' }, range: { start: 0, end: 5 }, outputPath: lo }, tools)
+
+    const j = probeAll(hi)
+    const v = j.streams.find((x: { codec_type: string }) => x.codec_type === 'video')
+    const a = j.streams.find((x: { codec_type: string }) => x.codec_type === 'audio')
+    expect(v).toMatchObject({ codec_name: 'h264', profile: 'High', width: 1920, height: 1080, pix_fmt: 'yuv420p', color_space: 'bt709' })
+    expect(v.avg_frame_rate).toBe('30/1') // kaynak 30 fps → 30 fps (otomatik)
+    expect(Number(a.bit_rate)).toBeGreaterThan(150_000) // 320 kbps AAC hedefi (sinüs sinyali bunun altında kalabilir; plan testi bayrağı doğrular)
+    // referans: AYNI boru hattının neredeyse kayıpsız (CRF 1) çıktısı — yalnızca kodlama kaybı ölçülür (kare hizası aynı kalır)
+    const ref = join(root, 'kalite-referans.mp4')
+    await runExport({ name: 'k', timeline: tl, assets: [asset], options: { ...dflt, crf: 1, encoderPreset: 'ultrafast' }, range: { start: 0, end: 5 }, outputPath: ref }, tools)
+    const qHi = ssim(hi, ref)
+    const qLo = ssim(lo, ref)
+    expect(qHi).toBeGreaterThan(0.99)
+    expect(qHi).toBeGreaterThan(qLo + 0.02)
   })
 })
 
 describe('proje kaydet / aç', () => {
   const baseProject = (a: MediaAsset): Project => ({
     version: PROJECT_VERSION, id: 'p1', name: 'Test', createdAt: '2024-01-01', updatedAt: '2024-01-01',
-    assets: [a], timeline: createDefaultTimeline(), chatLogs: [], candidates: [], markers: {}, searchHistory: ['Victor Nelson'], transcriptRefs: {}, exportJobs: []
+    assets: [a], timeline: createTimelineWithGame(), chatLogs: [], candidates: [], markers: {}, searchHistory: ['Victor Nelson'], transcriptRefs: {}, exportJobs: []
   })
   const fake: MediaAsset = {
     id: 'a1', name: 'k.mkv', path: '', kind: 'video', container: 'mkv', durationSec: 10, width: 1920, height: 1080, fps: 60, sizeBytes: 1,
@@ -197,7 +239,7 @@ describe('proje kaydet / aç', () => {
   it('v1 proje (katman konumu yok) açılınca varsayılan şablona geçirilir; klipler ve iz kimlikleri korunur', async () => {
     const dir = join(root, 'v1proje')
     mkdirSync(dir, { recursive: true })
-    const old = createDefaultTimeline()
+    const old = createTimelineWithGame()
     const legacyTl = { ...old, tracks: old.tracks.filter((t) => ['V1', 'V2', 'A1', 'A2'].includes(t.id)).map(({ placement: _p, textDefault: _t, ...t }) => t) }
     legacyTl.tracks[1].clips = [{ id: 'c1', trackId: 'V1', assetId: 'a1', start: 0, srcIn: 5, srcOut: 9, volume: 1, label: 'eski klip' }]
     const projPath = join(dir, 'eski.clipforge')

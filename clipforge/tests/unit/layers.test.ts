@@ -1,3 +1,4 @@
+import { createTimelineWithGame } from './helpers'
 import { describe, expect, it } from 'vitest'
 import { createDefaultTimeline, findClip, timelineDuration, TRACK_IDS } from '@shared/timeline/model'
 import * as ops from '@shared/timeline/ops'
@@ -14,7 +15,7 @@ const mk = (id: string, trackId: string, start: number, srcIn: number, srcOut: n
 const clips = (tl: Timeline, id: string) => tl.tracks.find((t) => t.id === id)!.clips
 
 function base(): Timeline {
-  let tl = createDefaultTimeline()
+  let tl = createTimelineWithGame()
   tl = ops.addClip(tl, 'V2', mk('cam', 'V2', 0, 100, 130, { groupId: 'g' }))
   tl = ops.addClip(tl, 'A2', mk('voice', 'A2', 0, 100, 130, { groupId: 'g', audioStream: 0 }))
   return tl
@@ -31,7 +32,9 @@ describe('şablonlar', () => {
     expect(mid.y).toBeGreaterThan(r('V2').placement.rect.h - 0.1) // yüz ile alt görsel arasında
     expect(mid.y).toBeLessThan(r('I1').placement.rect.y + 0.1)
     expect(DEFAULT_TEMPLATE.layers.some((l) => l.kind === 'text' || l.textDefault)).toBe(false)
-    expect(r('V1').placement.visible).toBe(false)
+    expect(DEFAULT_TEMPLATE.layers.some((l) => l.id === 'V1')).toBe(false) // oyun ekranı katmanı varsayılanda yok
+    expect(r('V2').name).toBe('Video')
+    expect(r('V2').placement.fit).toBe('contain')
     expect(BUILTIN_TEMPLATES.length).toBeGreaterThanOrEqual(4)
   })
 
@@ -52,7 +55,7 @@ describe('şablonlar', () => {
     tl = ops.fillTextTracks(tl)
     tl = cmd.textSpec(clips(tl, 'TX')[0].id, { text: 'BENİ TAKİP ET' }).do(tl)
     const tpl = templateFromTimeline(tl, 'ozel', 'Özel düzen')
-    const fresh = applyTemplate(createDefaultTimeline(), tpl)
+    const fresh = applyTemplate(createTimelineWithGame(), tpl)
     expect(fresh.tracks.find((t) => t.id === 'V2')!.placement).toMatchObject({ visible: false, rect: { x: 0.1, y: 0.2 } })
     expect(fresh.tracks.find((t) => t.id === 'TX')!.textDefault!.text).toBe('BENİ TAKİP ET')
     // JSON olarak serileştirilebilir
@@ -90,7 +93,7 @@ describe('katman işlemleri', () => {
     expect(clips(tl, 'TX')).toHaveLength(1)
     expect(clips(tl, 'TX')[0].text!.text).toBe('Kendi yazım')
     expect(clips(tl, 'TX')[0].srcOut - clips(tl, 'TX')[0].srcIn).toBeCloseTo(30)
-    expect(ops.fillTextTracks(createDefaultTimeline())).toEqual(createDefaultTimeline()) // boş projede klip yok
+    expect(ops.fillTextTracks(createTimelineWithGame())).toEqual(createTimelineWithGame()) // boş projede klip yok
   })
 })
 
@@ -151,7 +154,7 @@ describe('kesme, birleştirme, boşluk kapatma', () => {
 describe('ASS metin katmanı', () => {
   it('konum, stil, sarma ve animasyonlar', () => {
     const spec = TEXT
-    const ass = buildAss([], createDefaultTimeline().captionStyle, 1080, 1920, 0, 10, [
+    const ass = buildAss([], createTimelineWithGame().captionStyle, 1080, 1920, 0, 10, [
       { start: 1, end: 6, spec, rect: { x: 30, y: 740, w: 1020, h: 180 } },
       { start: 0, end: 3, spec: { ...spec, animation: 'slide-up' }, rect: { x: 0, y: 0, w: 1080, h: 100 } }
     ])
@@ -169,7 +172,7 @@ describe('katman konumlu dışa aktarma planı', () => {
   const lookup = (id: string) => (id === 'img' ? img : asset)
 
   function tl3() {
-    let tl = createDefaultTimeline()
+    let tl = createTimelineWithGame()
     tl = ops.addClip(tl, 'V2', mk('cam', 'V2', 0, 100, 110))
     tl = ops.addClip(tl, 'I1', { ...mk('img', 'I1', 0, 0, 10), assetId: 'img' })
     tl = ops.addClip(tl, 'V1', mk('game', 'V1', 0, 100, 110))
@@ -181,7 +184,7 @@ describe('katman konumlu dışa aktarma planı', () => {
   it('yüz üstte, görsel altta; oyun katmanı kapalıyken girişe alınmaz; metinler ASS olarak', () => {
     const plan = buildExportPlan(tl3(), lookup, optionsFromPreset('shorts'), 'x.mp4')
     const f = plan.files.find((x) => x.name === 'filters.txt')!.content
-    expect(f).toContain('overlay=0:0') // yüz (0,0)
+    expect(f).toContain('overlay=x=0+(1080-overlay_w)/2') // üst video: sığdır, alanın içinde ortalı
     expect(f).toMatch(/overlay=0:797/) // görsel: 0.415*1920
     expect(plan.args.join(' ')).toContain('-loop 1')
     expect(plan.args).toContain('/img/görsel çğ.png')
@@ -202,7 +205,7 @@ describe('katman konumlu dışa aktarma planı', () => {
   })
 
   it('kırpma (alttan yukarı) video katmanında kırp filtresi olarak, kapak ve sığdır modunda uygulanır', () => {
-    let tl = createDefaultTimeline()
+    let tl = createTimelineWithGame()
     tl = ops.addClip(tl, 'V2', mk('cam', 'V2', 0, 100, 110, { crop: { x: 0, y: 0, w: 1, h: 0.6 } }))
     for (const fit of ['cover', 'contain'] as const) {
       const t = ops.setPlacement(tl, 'V2', { fit })
@@ -225,7 +228,7 @@ void findClip
 void TRACK_IDS
 
 describe('altyazı konumu (sürükleyerek taşıma)', () => {
-  const tl = (): Timeline => ({ ...createDefaultTimeline(), captions: [{ id: 'c1', start: 1, end: 3, text: 'Birinci satır' }, { id: 'c2', start: 4, end: 6, text: 'İkinci' }] as Caption[] })
+  const tl = (): Timeline => ({ ...createTimelineWithGame(), captions: [{ id: 'c1', start: 1, end: 3, text: 'Birinci satır' }, { id: 'c2', start: 4, end: 6, text: 'İkinci' }] as Caption[] })
 
   it('konum yalnızca seçilen altyazıyı değiştirir; sınırlar 0..1; varsayılana dönülebilir', () => {
     const t1 = ops.setCaptionPos(tl(), 'c1', { x: 0.3, y: 1.4 })

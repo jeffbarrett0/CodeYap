@@ -7,7 +7,8 @@ import { cmd, type TimelineCommand } from '@shared/timeline/commands'
 import { captionsForTimeline } from '@shared/timeline/captions'
 import { planSilenceCuts } from '@shared/timeline/silence'
 import { timelineWords } from '@shared/timeline/transcript'
-import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio } from '@shared/timeline/create'
+import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems } from '@shared/timeline/create'
+import { removeClipsOfAsset } from '@shared/timeline/ops'
 import { clipEnd, createDefaultTimeline, findClip, groupMembers, newId, timelineDuration } from '@shared/timeline/model'
 import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
 import { EXPORT_PRESETS } from '@shared/export/presets'
@@ -148,7 +149,11 @@ interface State {
   canRedo(): boolean
   select(ids: string[]): void
   splitAtPlayhead(): void
-  deleteSelection(): void
+  /** Seçili klibi siler. Varsayılan: YALNIZCA seçili klip; `withLinked` (Shift+Delete) bağlı görüntü/ses klipleriyle birlikte */
+  deleteSelection(withLinked?: boolean): void
+  deleteCaption(id: string): void
+  /** Dosyayı kütüphaneden kaldırır (diskteki dosyaya dokunmaz); zaman çizelgesinde kullanılıyorsa onay ister */
+  removeAsset(id: string): void
   generateCaptions(): void
   setPlayhead(t: number): void
   setSourceTime(t: number): void
@@ -186,8 +191,8 @@ interface State {
   /** Transkripti elle düzelt (tek kelime / tüm geçişler; sözlüğe ekle) */
   fixTranscriptWord(assetId: string, index: number, text: string, all: boolean): Promise<void>
   applyVocabulary(assetId: string): Promise<void>
-  /** Klip eklendikten sonra: metin katmanlarını doldurur; kamera yoksa oyun ekranı katmanını açar */
-  afterClipsAdded(trackIds: string[]): void
+  /** Klip eklendikten sonra: kullanıcının eklediği boş metin katmanlarını doldurur */
+  afterClipsAdded(trackIds?: string[]): void
 }
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -245,7 +250,7 @@ export const useStore = create<State>()((set, get) => {
       })
       a.on('asset:added', (asset) => {
         mutateProject((p) => ({ ...p, assets: [...p.assets.filter((x) => x.id !== asset.id), asset] }))
-        set((s) => ({ selectedAssetId: s.selectedAssetId ?? asset.id, rightTab: s.selectedAssetId ? s.rightTab : 'source' }))
+        // Otomatik seçme/oynatma YOK: orta alan, kullanıcı kütüphanede bir dosyaya tıklayana kadar boş kalır
         void a.invoke('media:markers', asset.id).then((m) => mutateProject((p) => ({ ...p, markers: { ...p.markers, [asset.id]: m } })))
       })
       a.on('asset:updated', (asset) => mutateProject((p) => ({ ...p, assets: p.assets.map((x) => (x.id === asset.id ? { ...x, proxyPath: asset.proxyPath, proxyHeight: asset.proxyHeight, audioStreams: asset.audioStreams } : x)) })))
@@ -435,10 +440,11 @@ export const useStore = create<State>()((set, get) => {
       if (!asset) return
       const items = clipItemsForSource(asset, { start: d.start, end: d.end }, timelineDuration(s.project.timeline), { query: d.query, resultId: d.resultId, matchTime: d.matchTime, candidateId: d.candidateId }, (id) => s.project.assets.find((a) => a.id === id))
       const at = timelineDuration(s.project.timeline)
-      get().exec(cmd.addClips(items.map((i) => ({ ...i, clip: { ...i.clip, start: at + (i.clip.start - items[0].clip.start) } }))))
-      get().afterClipsAdded(items.map((i) => i.trackId))
+      const placed = retargetItems(s.project.timeline, items)
+      get().exec(cmd.addClips(placed.map((i) => ({ ...i, clip: { ...i.clip, start: at + (i.clip.start - items[0].clip.start) } }))))
+      get().afterClipsAdded(placed.map((i) => i.trackId))
       if (d.candidateId) get().setCandidateStatus(d.candidateId, 'accepted')
-      set({ clipDraft: null, dialog: null, selection: items.slice(0, 1).map((i) => i.clip.id), viewMode: 'timeline', rightTab: 'inspector' })
+      set({ clipDraft: null, dialog: null, selection: placed.slice(0, 1).map((i) => i.clip.id), viewMode: 'timeline', rightTab: 'inspector' })
       get().setPlayhead(at)
       get().toast('success', `Klip zaman çizelgesine eklendi (${(d.end - d.start).toFixed(1)} sn).`)
     },
@@ -487,8 +493,9 @@ export const useStore = create<State>()((set, get) => {
         at += sug.duration
       }
       if (items.length === 0) return
-      get().exec(cmd.addClips(items, 'Toplu klip oluştur'))
-      get().afterClipsAdded(items.map((i) => i.trackId))
+      const placed = retargetItems(s.project.timeline, items)
+      get().exec(cmd.addClips(placed, 'Toplu klip oluştur'))
+      get().afterClipsAdded(placed.map((i) => i.trackId))
       set({ selectedResults: [], viewMode: 'timeline' })
       get().toast(warned ? 'info' : 'success', `${ids.length} klip eklendi${warned ? ` (${warned} klipte uyarı var: süre/sınır kontrolü önerilir)` : ''}.`)
     },
@@ -536,7 +543,7 @@ export const useStore = create<State>()((set, get) => {
     canUndo: () => history.canUndo,
     canRedo: () => history.canRedo,
     // Klip seçilince "Klip" sekmesine yalnızca düzenleme sekmelerindeyken geçilir; arama/transkript/kaynak sekmesindeki çalışma bölünmez
-    select: (ids) => set((st) => ({ selection: ids, rightTab: ids.length && !['source', 'search', 'transcript'].includes(st.rightTab) ? 'inspector' : st.rightTab })),
+    select: (ids) => set((st) => ({ selection: ids, selectedCaptionId: ids.length ? null : st.selectedCaptionId, rightTab: ids.length && !['source', 'search', 'transcript'].includes(st.rightTab) ? 'inspector' : st.rightTab })),
     splitAtPlayhead() {
       const { project, selection, playhead } = get()
       const tl = project.timeline
@@ -552,15 +559,42 @@ export const useStore = create<State>()((set, get) => {
         get().exec(cmd.split(id, playhead))
       }
     },
-    deleteSelection() {
+    deleteSelection(withLinked = false) {
       const { selection } = get()
-      const done = new Set<string>()
-      for (const id of selection) {
-        if (done.has(id)) continue
-        groupMembers(get().project.timeline, id).forEach((m) => done.add(m.id))
-        get().exec(cmd.remove(id))
-      }
+      for (const id of selection) get().exec(cmd.remove(id, false, !withLinked))
       set({ selection: [] })
+    },
+    deleteCaption(id) {
+      get().exec(cmd.captions(get().project.timeline.captions.filter((c) => c.id !== id)))
+      set({ selectedCaptionId: null })
+    },
+    removeAsset(id) {
+      const s = get()
+      const asset = s.project.assets.find((a) => a.id === id)
+      if (!asset) return
+      const used = s.project.timeline.tracks.reduce((n, t) => n + t.clips.filter((c) => c.assetId === id).length, 0)
+      if (used > 0 && !window.confirm(`"${asset.name}" zaman çizelgesinde ${used} klipte kullanılıyor.\nKütüphaneden kaldırırsanız bu klipler de silinir ve işlem geri alınamaz. Devam edilsin mi?`)) return
+      let tl = s.project.timeline
+      if (used > 0) {
+        tl = removeClipsOfAsset(tl, id)
+        history.clear(tl) // kütüphane değişikliği geri alınamaz: tutarsız duruma dönülmesin
+      }
+      const transcripts = { ...s.transcripts }
+      delete transcripts[id]
+      set({
+        project: {
+          ...s.project,
+          timeline: tl,
+          assets: s.project.assets.filter((a) => a.id !== id).map((a) => ({ ...a, webcamAssetId: a.webcamAssetId === id ? undefined : a.webcamAssetId, sources: a.sources && Object.values(a.sources).includes(id) ? Object.fromEntries(Object.entries(a.sources).filter(([, v]) => v !== id)) : a.sources }))
+        },
+        dirty: true,
+        transcripts,
+        selectedAssetId: s.selectedAssetId === id ? null : s.selectedAssetId,
+        selection: used > 0 ? [] : s.selection,
+        historyVersion: s.historyVersion + 1,
+        playing: false
+      })
+      get().toast('info', `"${asset.name}" kütüphaneden kaldırıldı (diskteki dosya silinmedi).`)
     },
     generateCaptions() {
       const s = get()
@@ -595,7 +629,7 @@ export const useStore = create<State>()((set, get) => {
           const t = await api().invoke('transcript:get', a.id)
           if (t) transcripts[a.id] = t
         }
-        set({ project: r.project, projectPath: r.path, dirty: false, transcripts, selection: [], selectedAssetId: r.project.assets[0]?.id ?? null, playhead: 0, historyVersion: 0, results: [] })
+        set({ project: r.project, projectPath: r.path, dirty: false, transcripts, selection: [], selectedAssetId: null, playhead: 0, historyVersion: 0, results: [] })
         const missing = r.project.assets.filter((a) => a.missing)
         get().toast(missing.length ? 'error' : 'success', missing.length ? `Bulunamayan medya: ${missing.map((m) => m.name).join(', ')}` : 'Proje açıldı.')
       } catch (e) {
@@ -648,7 +682,8 @@ export const useStore = create<State>()((set, get) => {
     cancelTask: (id) => void api().invoke('task:cancel', id),
 
     selectCaption(id, seek = false) {
-      set({ selectedCaptionId: id, ...(id ? { selectedLayerId: null, rightTab: 'captions' as RightTab } : {}) })
+      // Tek seçim kuralı: altyazı seçilince klip/katman seçimi temizlenir (Delete yalnızca seçili TEK öğeyi siler)
+      set({ selectedCaptionId: id, ...(id ? { selection: [], selectedLayerId: null, rightTab: 'captions' as RightTab } : {}) })
       const cap = id ? get().project.timeline.captions.find((c) => c.id === id) : undefined
       if (cap && seek) {
         set({ viewMode: 'timeline' })
@@ -702,14 +737,9 @@ export const useStore = create<State>()((set, get) => {
         get().toast('error', errText(e))
       }
     },
-    afterClipsAdded(trackIds) {
+    afterClipsAdded() {
+      // Yalnızca (kullanıcının kendi eklediği) boş metin katmanları doldurulur; hiçbir katman kendiliğinden açılmaz/eklenmez
       get().exec(cmd.fillText())
-      const tl = get().project.timeline
-      const screen = tl.tracks.find((t) => t.id === 'V1')
-      // Şablonda oyun ekranı katmanı kapalıdır; yüz/kamera kaynağı yoksa görüntü hiç görünmezdi → aç
-      if (trackIds.includes('V1') && !trackIds.includes('V2') && screen?.placement && !screen.placement.visible && !tl.tracks.find((t) => t.id === 'V2')?.clips.length) {
-        get().exec(cmd.placement('V1', { visible: true }, false))
-      }
     },
     jumpTo(sec) {
       if (get().viewMode === 'timeline') get().setPlayhead(sec)

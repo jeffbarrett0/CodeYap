@@ -30,7 +30,13 @@ function useShortcuts() {
         setRate(1); jRate = 0
         st.setPlaying(!st.playing)
       } else if (k === 's') { st.splitAtPlayhead() }
-      else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); st.deleteSelection() }
+      else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Yalnızca o an seçili TEK öğe silinir: odak kütüphane kartındaysa dosya, değilse seçili klip, o da yoksa seçili altyazı
+        const inLibrary = el?.closest?.('[data-testid="asset"]')
+        if (inLibrary && st.selectedAssetId) { e.preventDefault(); st.removeAsset(st.selectedAssetId) }
+        else if (st.selection.length) { e.preventDefault(); st.deleteSelection(e.shiftKey) }
+        else if (st.selectedCaptionId) { e.preventDefault(); st.deleteCaption(st.selectedCaptionId) }
+      }
       else if (k === 'k') { jRate = 0; setRate(1); st.setPlaying(false) }
       else if (k === 'l') {
         if (st.viewMode !== 'timeline') st.setViewMode('timeline')

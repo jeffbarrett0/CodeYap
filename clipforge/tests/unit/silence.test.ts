@@ -1,3 +1,4 @@
+import { createTimelineWithGame } from './helpers'
 import { describe, expect, it } from 'vitest'
 import { isFiller, planSilenceCuts } from '@shared/timeline/silence'
 import { cutBoundsForWords, timelineWords } from '@shared/timeline/transcript'
@@ -73,7 +74,7 @@ describe('zaman çizelgesine uygulama', () => {
   const words = [w('Merhaba', 100.5), w('arkadaşlar', 100.9), w('ııı', 102), w('bugün', 105), w('çok', 105.4), w('güzel', 105.8)]
   const tr: Transcript = { id: 't', assetId: 'a1', language: 'tr', model: 'm', provider: 'mock', audioTrack: 0, createdAt: '', durationSec: 300, words, segments: buildSegments(words) }
   const mk = (id: string, trackId: string, extra: Partial<Clip> = {}): Clip => ({ id, trackId, assetId: 'a1', start: 0, srcIn: 100, srcOut: 107, volume: 1, label: id, groupId: 'g', ...extra })
-  const tl0 = () => ops.addClip(ops.addClip(createDefaultTimeline(), 'V2', mk('v', 'V2')), 'A2', mk('a', 'A2', { audioStream: 0 }))
+  const tl0 = () => ops.addClip(ops.addClip(createTimelineWithGame(), 'V2', mk('v', 'V2')), 'A2', mk('a', 'A2', { audioStream: 0 }))
 
   it('çok kesim tek adımda uygulanır, bağlı klipler birlikte kısalır, tek geri almayla eski hâle döner', () => {
     const t0 = tl0()

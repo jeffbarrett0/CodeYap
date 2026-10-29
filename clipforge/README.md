@@ -22,11 +22,17 @@ Belirsiz kalan kararlar: [`DECISIONS.md`](DECISIONS.md).
 | **Otomatik öneri** | *Arayüzden kaldırıldı* (Öneriler sekmesi); altyapı kodda duruyor. |
 | **Katmanlar & şablonlar** | Yüz / davet metni / görsel / oyun ekranı **ayrı katmanlar**: önizlemede sürükle-bırak + sayısal konum/boyut/görünürlük; metin animasyonları; düzenleri **şablon olarak kaydet**; ekran, oyun sesi, konuşma, kamera ve görsel ayrı dosyalarla çalışma. |
 | **Zaman çizelgesi** | Çoklu video/ses izi, yakınlaştırma, taşı / kenardan kırp / böl / sil, bağlı (grup) klipler, kare kare oynatma başlığı, **geri al/yinele** (komut deseni), otomatik altyazı (yazı tipi/renk/konum), yüz kamerası overlay'i (ayrı dosya + senkron ya da tek dosyada bölge). |
-| **Önizleme & dışa aktarma** | Gerçek zamanlı canvas önizleme (katman konumları dışa aktarmayla aynı); 9:16 · 1:1 · 16:9; hazır şablonlar (3 bölgeli, oyun ortada + kamera alt/üstte, tam kare + köşe kamera); oyun/konuşma **ayrı ses seviyesi**; H.264, çözünürlük/fps/bitrate/CRF; kuyruk, ilerleme, iptal; TikTok/Reels/Shorts (9:16, 60 sn) ve YouTube şablonları; **telif hatırlatması**. |
+| **Önizleme & dışa aktarma** | Gerçek zamanlı canvas önizleme (katman konumları dışa aktarmayla aynı); 9:16 · 1:1 · 16:9; hazır şablonlar (3 bölgeli, oyun ortada + kamera alt/üstte, tam kare + köşe kamera); oyun/konuşma **ayrı ses seviyesi**; **H.264 maksimum kalite** (CRF 14 · slow · 320 kbps ses · kaynak kare hızı · 1080p ve 4K şablonlar); kuyruk, ilerleme, iptal; TikTok/Reels/Shorts (9:16, 60 sn) ve YouTube şablonları; **telif hatırlatması**. |
 
 ### Klavye kısayolları
 `Space` oynat/durdur · `S` böl · `Delete` sil · `J/K/L` geri/dur/ileri (tekrar basınca hızlanır) · `←/→` kare (Shift: 1 sn) ·
 `Ctrl/Cmd+Z` geri al · `Ctrl/Cmd+Shift+Z` yinele · `Ctrl/Cmd+S` kaydet · `Ctrl/Cmd+E` dışa aktar · `Ctrl + tekerlek` yakınlaştır.
+
+## Her şey senin kontrolünde (otomatik davranış yok)
+* **Otomatik yükleme yok:** içe aktarılan ya da projeden açılan dosya kendiliğinden seçilmez/oynatılmaz; orta alan sen kütüphanede bir dosyaya tıklayana kadar boştur. Orta görsel yeri, üst video ve alt görsel başlangıçta boştur.
+* **Otomatik odaklama/kırpma yok:** üst alan normal bir video alanıdır; video kırpılmadan sığdırılır. (Kırpmayı yalnızca sen *Crop / Kırp* ile yaparsın.)
+* **Otomatik ekleme yok:** oyun ekranı katmanı kendiliğinden gelmez, hiçbir katman kendiliğinden açılmaz. Aramadan klip çıkarınca video, oyun ekranı katmanı yoksa **Video** katmanına (`V2`) konur; sesler kendi izlerine.
+* **Delete** yalnızca seçili **tek** öğeyi siler: zaman çizelgesindeki klip (bağlı klipler kalır; `Shift+Delete` bağlılarla birlikte), seçili altyazı, ya da kütüphanede odaktaki dosya. Kütüphaneden kaldırma diskteki dosyayı silmez; dosya zaman çizelgesinde kullanılıyorsa önce onay ister (o durumda klipler de kalkar ve geri alınamaz).
 
 ## Arayüz düzeni
 * **Sol panel:** yalnızca **içe aktarma alanı** ve **Medya kütüphanesi**. Bir dosyaya tıklamak onu seçer ve kaynak oynatıcıda **baştan otomatik oynatır** (video, ses, görsel). Dosyayı zaman çizelgesindeki bir ize sürükleyebilirsin.
@@ -45,10 +51,10 @@ Varsayılan şablon (**“YouTube Shorts · Yüz / Davet / Görsel”**, 9:16 = 
 
 | Bölge | Katman (iz) | Varsayılan yer | İçerik |
 |---|---|---|---|
-| Üst | **Yüz (webcam)** `V2` | y 0–41.5 %, tam genişlik, *doldur* | yüz kamerası |
+| Üst | **Video** `V2` | y 0–41.5 %, tam genişlik, *sığdır* (kırpmadan, kaynağın kendi oranında) | normal bir video alanı; **yüz algılama, odaklama, otomatik kırpma/zoom yoktur** |
 | Orta | **Orta alan (görsel)** `I2` | y 34–48 %, *sığdır* | **boş** bir görsel yeri; çağrı/davet yazılarını (görsel olarak ya da *+ Metin* ile) sen eklersin. Hazır yazı yoktur. |
 | Alt | **Konu görseli** `I1` | y 41.5–100 %, tam genişlik, *doldur* | konuyla ilgili fotoğraf / ekran görüntüsü |
-| (kapalı) | **Oyun ekranı** `V1` | alt bölge, *sığdır* | göz simgesiyle açılır; kamera kaynağı yoksa klip eklenirken otomatik açılır |
+| (yok) | **Oyun ekranı** `V1` | — | varsayılan düzende **bulunmaz**; Katmanlar → **+ Oyun ekranı** ile elle eklenir |
 | Ses | **Oyun sesi** `A1`, **Konuşma** `A2` | — | bağımsız seviye (Ses sekmesi) |
 
 **Bir katmanı ayarlamak**

@@ -1,4 +1,6 @@
-import type { Transcript, TranscriptWord } from '@shared/types'
+import type { Timeline, Transcript, TranscriptWord } from '@shared/types'
+import { createDefaultTimeline } from '@shared/timeline/model'
+import { applyTemplate, DEFAULT_TEMPLATE } from '@shared/timeline/templates'
 import { buildSegments } from '@shared/transcript/sentences'
 import { TranscriptIndex } from '@shared/search/engine'
 
@@ -69,4 +71,16 @@ export function makeTranscript(words: TranscriptWord[]): Transcript {
     words,
     segments: buildSegments(words)
   }
+}
+
+
+/**
+ * Eski varsayılan düzeni taklit eder: gerçek varsayılana ek olarak (gizli) oyun ekranı katmanı `V1`.
+ * Gerçek varsayılanda V1 YOKTUR (kullanıcı elle ekler); birçok işlem testi V1'e ihtiyaç duyar.
+ */
+export function createTimelineWithGame(): Timeline {
+  return applyTemplate(createDefaultTimeline(), {
+    ...DEFAULT_TEMPLATE,
+    layers: [...DEFAULT_TEMPLATE.layers, { id: 'V1', name: 'Oyun ekranı', kind: 'video', role: 'screen', placement: { rect: { x: 0, y: 0.415, w: 1, h: 0.585 }, fit: 'contain', visible: false, opacity: 1 } }]
+  })
 }

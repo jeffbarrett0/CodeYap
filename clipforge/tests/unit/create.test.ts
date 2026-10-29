@@ -1,3 +1,4 @@
+import { createTimelineWithGame } from './helpers'
 import { describe, expect, it } from 'vitest'
 import { clipItemsForSource, clipForTrack, clipsForVideoWithAudio } from '@shared/timeline/create'
 import { createDefaultTimeline, findClip } from '@shared/timeline/model'
@@ -46,7 +47,7 @@ describe('sonuçtan klip oluşturma', () => {
   })
 
   it('timeline\'a eklenir, geri alınır', () => {
-    const tl0 = createDefaultTimeline()
+    const tl0 = createTimelineWithGame()
     const items = clipItemsForSource(asset(), { start: 10, end: 40 }, 0)
     const c = cmd.addClips(items)
     const tl1 = c.do(tl0)

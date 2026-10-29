@@ -137,10 +137,11 @@ export function splitClip(tl: Timeline, clipId: ID, time: number): Timeline {
 }
 
 /** Klibi (ve grubunu) siler. `ripple`: sonraki klipleri aynı iz üzerinde sola kaydırır. */
-export function deleteClip(tl: Timeline, clipId: ID, ripple = false): Timeline {
+export function deleteClip(tl: Timeline, clipId: ID, ripple = false, single = false): Timeline {
   const f = findClip(tl, clipId)
   if (!f || f.track.locked) return tl
-  const members = groupMembers(tl, clipId)
+  // single: YALNIZCA seçili klip silinir (bağlı görüntü/ses klipleri kalır); aksi halde bağlı grup birlikte silinir
+  const members = single ? [f.clip] : groupMembers(tl, clipId)
   let out = replaceClips(tl, new Map(members.map((m) => [m.id, null])))
   if (ripple) {
     const ids = new Set(members.map((m) => m.id))
@@ -358,4 +359,9 @@ export function setAllCaptionPos(tl: Timeline, pos: { x: number; y: number } | u
 /** Birden çok aralığı tek işlemde keser (sondan başa uygulanır, böylece kayan zamanlar bozulmaz). */
 export function cutRanges(tl: Timeline, ranges: [number, number][], ripple = true): Timeline {
   return [...ranges].sort((a, b) => b[0] - a[0]).reduce((acc, [a, b]) => cutRange(acc, a, b, ripple), tl)
+}
+
+/** Bir medya dosyasına ait tüm klipleri siler (dosya kütüphaneden kaldırılırken). Kilitli izlere de uygulanır: kaynak artık yok. */
+export function removeClipsOfAsset(tl: Timeline, assetId: ID): Timeline {
+  return { ...tl, tracks: tl.tracks.map((t) => (t.clips.some((c) => c.assetId === assetId) ? { ...t, clips: t.clips.filter((c) => c.assetId !== assetId) } : t)) }
 }

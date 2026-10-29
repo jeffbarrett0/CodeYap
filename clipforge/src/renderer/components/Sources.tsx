@@ -8,7 +8,7 @@ const SLOTS: { key: Slot; label: string; accepts: (a: MediaAsset) => boolean }[]
   { key: 'screen', label: 'Ekran kaydı', accepts: (a) => a.kind === 'video' },
   { key: 'game', label: 'Oyun sesi', accepts: (a) => a.audioStreams.length > 0 },
   { key: 'voice', label: 'Konuşma sesi', accepts: (a) => a.audioStreams.length > 0 },
-  { key: 'cam', label: 'Yüz kamerası', accepts: (a) => a.kind === 'video' }
+  { key: 'cam', label: 'Üst video (kamera)', accepts: (a) => a.kind === 'video' }
 ]
 
 /** Aynı yayının ayrı dosyalarını bağlar: bu dosyadan klip çıkarılınca hepsi aynı aralıkta eklenir. */
@@ -68,9 +68,9 @@ export function SourcesBlock({ asset }: { asset: MediaAsset }) {
       {asset.kind === 'video' && (
         <>
           <label className="field">
-            <span>Yüz kamerası aynı dosyanın içindeyse (OBS birleşik kayıt)</span>
+            <span>Üst video, bu dosyanın bir köşesinden alınacaksa (isteğe bağlı)</span>
             <select aria-label="Kamera bölgesi" value={asset.webcamRegion ? 'region' : 'none'} onChange={(e) => patchAsset(asset.id, { webcamRegion: e.target.value === 'region' ? (asset.webcamRegion ?? { x: 0.72, y: 0.68, w: 0.28, h: 0.32 }) : undefined })}>
-              <option value="none">Kamera bölgesi yok</option>
+              <option value="none">Bölge yok (kendiliğinden kırpma yapılmaz)</option>
               <option value="region">Dosyanın bir köşesinde (bölge gir)</option>
             </select>
           </label>

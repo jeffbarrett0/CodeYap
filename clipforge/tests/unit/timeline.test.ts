@@ -5,7 +5,7 @@ import { History } from '@shared/timeline/history'
 import { cmd } from '@shared/timeline/commands'
 import { captionsForTimeline, captionsFromWords, wrapCaption } from '@shared/timeline/captions'
 import type { Clip, Timeline } from '@shared/types'
-import { wordsFromLines } from './helpers'
+import { wordsFromLines, createTimelineWithGame } from './helpers'
 
 const mk = (id: string, trackId: string, start: number, srcIn: number, srcOut: number, extra: Partial<Clip> = {}): Clip => ({
   id, trackId, assetId: 'a1', start, srcIn, srcOut, volume: 1, label: id, ...extra
@@ -13,7 +13,7 @@ const mk = (id: string, trackId: string, start: number, srcIn: number, srcOut: n
 const clipsOf = (tl: Timeline, trackId: string) => tl.tracks.find((t) => t.id === trackId)!.clips
 
 function base(): Timeline {
-  let tl = createDefaultTimeline()
+  let tl = createTimelineWithGame()
   tl = ops.addClip(tl, TRACK_IDS.screen, mk('v1', TRACK_IDS.screen, 0, 100, 110, { groupId: 'g1' }))
   tl = ops.addClip(tl, TRACK_IDS.game, mk('a1', TRACK_IDS.game, 0, 100, 110, { groupId: 'g1', audioStream: 1 }))
   tl = ops.addClip(tl, TRACK_IDS.screen, mk('v2', TRACK_IDS.screen, 12, 500, 505))
@@ -21,13 +21,17 @@ function base(): Timeline {
 }
 
 describe('zaman çizelgesi işlemleri', () => {
-  it('varsayılan zaman çizelgesi: 9:16, yüz / boş orta görsel yeri / alt görsel şablonu, oyun ekranı katmanı kapalı', () => {
+  it('GERÇEK varsayılan: 9:16, üst video / boş orta görsel yeri / alt görsel; oyun ekranı, hazır yazı ve otomatik doldurma yok', () => {
     const tl = createDefaultTimeline()
     expect(tl.aspect).toBe('9:16')
-    expect(tl.tracks.map((t) => t.id)).toEqual(['I2', 'V2', 'I1', 'V1', 'A1', 'A2'])
-    expect(tl.tracks.some((t) => t.kind === 'text')).toBe(false) // hazır yazı yok: kullanıcı kendisi ekler
-    expect(tl.tracks.find((t) => t.id === 'V1')!.placement!.visible).toBe(false)
-    expect(tl.tracks.find((t) => t.id === 'V2')!.placement!.rect.y).toBe(0)
+    expect(tl.tracks.map((t) => t.id)).toEqual(['I2', 'V2', 'I1', 'A1', 'A2'])
+    expect(tl.tracks.some((t) => t.id === 'V1')).toBe(false) // oyun ekranı katmanı kendiliğinden gelmez
+    expect(tl.tracks.some((t) => t.kind === 'text')).toBe(false)
+    expect(tl.tracks.flatMap((t) => t.clips)).toEqual([]) // hiçbir alan kendiliğinden dolu değil
+    const video = tl.tracks.find((t) => t.id === 'V2')!
+    expect(video.name).toBe('Video') // "webcam" değil, normal video alanı
+    expect(video.placement).toMatchObject({ fit: 'contain', visible: true }) // kırpma/odaklama yok: kaynak oranında sığdırılır
+    expect(video.placement!.rect).toMatchObject({ x: 0, y: 0, w: 1 })
   })
 
   it('ekleme çakışmayı önler', () => {
@@ -165,7 +169,7 @@ describe('altyazılar', () => {
     expect(caps.map((c) => c.text).join(' ')).toContain('Victor Nelson')
   })
   it('zaman çizelgesi zamanına çevirir', () => {
-    let tl = createDefaultTimeline()
+    let tl = createTimelineWithGame()
     tl = ops.addClip(tl, TRACK_IDS.screen, mk('v', TRACK_IDS.screen, 2, 100, 112))
     const caps = captionsForTimeline(tl, { a1: words })
     expect(caps[0].start).toBeGreaterThanOrEqual(2)
@@ -173,16 +177,16 @@ describe('altyazılar', () => {
   })
   it('transkripti olan klibin hangi izde olduğu fark etmez (yüz/webcam, ses izi…)', () => {
     for (const trackId of ['V1', 'V2', 'A1', 'A2']) {
-      let tl = createDefaultTimeline()
+      let tl = createTimelineWithGame()
       tl = ops.addClip(tl, trackId, mk('x', trackId, 0, 100, 112))
       const caps = captionsForTimeline(tl, { a1: words })
       expect(caps.length, trackId).toBeGreaterThan(2)
     }
     // görüntü + ses aynı kaynaktan: satırlar tekrarlanmaz
-    let tl = createDefaultTimeline()
+    let tl = createTimelineWithGame()
     tl = ops.addClip(tl, 'V2', mk('v', 'V2', 0, 100, 112))
     tl = ops.addClip(tl, 'A2', mk('a', 'A2', 0, 100, 112, { audioStream: 0 }))
-    const one = captionsForTimeline(ops.addClip(createDefaultTimeline(), 'V2', mk('v', 'V2', 0, 100, 112)), { a1: words })
+    const one = captionsForTimeline(ops.addClip(createTimelineWithGame(), 'V2', mk('v', 'V2', 0, 100, 112)), { a1: words })
     expect(captionsForTimeline(tl, { a1: words })).toHaveLength(one.length)
     // transkripti olmayan kaynak → boş
     expect(captionsForTimeline(tl, {})).toEqual([])

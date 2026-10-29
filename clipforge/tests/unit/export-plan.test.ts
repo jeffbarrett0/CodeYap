@@ -1,8 +1,9 @@
+import { createTimelineWithGame } from './helpers'
 import { describe, expect, it } from 'vitest'
 import { buildExportPlan } from '@shared/export/plan'
 import { buildAss, assColor } from '@shared/export/ass'
 import { resolveLayout } from '@shared/export/layout'
-import { EXPORT_PRESETS, exportWarnings, optionsFromPreset, COPYRIGHT_NOTICE } from '@shared/export/presets'
+import { EXPORT_PRESETS, exportWarnings, optionsFromPreset, resolveExportFps, COPYRIGHT_NOTICE } from '@shared/export/presets'
 import { createDefaultTimeline, TRACK_IDS } from '@shared/timeline/model'
 import * as ops from '@shared/timeline/ops'
 import type { Clip } from '@shared/types'
@@ -16,7 +17,7 @@ function legacy(tl: ReturnType<typeof createDefaultTimeline>) {
 }
 
 function timeline() {
-  let tl = legacy(createDefaultTimeline())
+  let tl = legacy(createTimelineWithGame())
   tl = ops.addClip(tl, TRACK_IDS.screen, mk('v', TRACK_IDS.screen, 0, 1394, 1424))
   tl = ops.addClip(tl, TRACK_IDS.webcam, mk('c', TRACK_IDS.webcam, 0, 1394, 1424, { crop: { x: 0.75, y: 0.7, w: 0.25, h: 0.3 } }))
   tl = ops.addClip(tl, TRACK_IDS.game, mk('ga', TRACK_IDS.game, 0, 1394, 1424, { audioStream: 1 }))
@@ -101,13 +102,35 @@ describe('dışa aktarma planı', () => {
     expect(missing.warnings.length).toBeGreaterThan(0)
   })
   it('bitrate/crf seçenekleri', () => {
-    expect(plan.args).toEqual(expect.arrayContaining(['-b:v', '8000k']))
-    const crf = buildExportPlan(timeline(), () => asset, { ...o, crf: 20 }, 'x.mp4')
+    // varsayılan: maksimum kalite (CRF 14, bitrate yalnızca üst sınır)
+    expect(plan.args).toEqual(expect.arrayContaining(['-crf', '14', '-maxrate', '150000k', '-bufsize', '300000k']))
+    expect(plan.args).not.toContain('-b:v')
+    expect(plan.args.join(' ')).toContain('-preset slow')
+    expect(plan.args.join(' ')).toContain('-b:a 320k')
+    expect(plan.args.join(' ')).toContain('-colorspace bt709')
+    expect(plan.files.find((x) => x.name === 'filters.txt')!.content).toContain('flags=lanczos')
+    // crf=0: hedef bitrate modu
+    const abr = buildExportPlan(timeline(), () => asset, { ...o, crf: 0 }, 'x.mp4')
+    expect(abr.args).toEqual(expect.arrayContaining(['-b:v', '150000k']))
+    const crf = buildExportPlan(timeline(), () => asset, { ...o, crf: 20, encoderPreset: 'medium' }, 'x.mp4')
     expect(crf.args).toEqual(expect.arrayContaining(['-crf', '20']))
+    expect(crf.args.join(' ')).toContain('-preset medium')
   })
 })
 
 describe('şablonlar', () => {
+  it('tüm şablonlar maksimum kalite: CRF ≤ 16, yavaş ön ayar, 320 kbps ses, kaynak kare hızı; 4K seçenekleri var', () => {
+    for (const p of EXPORT_PRESETS) expect(p.options, p.id).toMatchObject({ crf: 14, encoderPreset: 'slow', audioBitrateKbps: 320, fps: 0 })
+    expect(EXPORT_PRESETS.find((p) => p.id === 'shorts4k')!.options).toMatchObject({ width: 2160, height: 3840, aspect: '9:16' })
+    expect(EXPORT_PRESETS.find((p) => p.id === 'youtube4k')!.options).toMatchObject({ width: 3840, height: 2160 })
+  })
+  it('kare hızı otomatik: kaynağın en yükseği (24–60 arası); kaynak yoksa 30; elle seçim korunur', () => {
+    expect(resolveExportFps(0, [29.97, 59.94])).toBe(60)
+    expect(resolveExportFps(0, [23.976])).toBe(24)
+    expect(resolveExportFps(0, [120])).toBe(60)
+    expect(resolveExportFps(0, [])).toBe(30)
+    expect(resolveExportFps(25, [60])).toBe(25)
+  })
   it('TikTok/Reels/Shorts 9:16 ve 60 sn sınırı; YouTube 16:9', () => {
     const s = EXPORT_PRESETS.find((p) => p.id === 'shorts')!
     expect(s.options).toMatchObject({ aspect: '9:16', width: 1080, height: 1920, maxDurationSec: 60 })

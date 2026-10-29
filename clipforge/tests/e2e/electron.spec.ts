@@ -71,6 +71,8 @@ test('gerçek Electron: preload köprüsü, ffmpeg algılama, içe aktarma, saht
   // içe aktar (IPC ile: yerel dosya diyaloğu otomatikleştirilemez)
   await page.evaluate((p) => window.clipforge!.invoke('media:import', [p]), mkv)
   await expect(page.getByTestId('asset')).toHaveCount(1, { timeout: 30_000 })
+  // dosya kendiliğinden seçilmez: kütüphanede elle seç
+  await page.getByTestId('asset').click()
   await expect(page.getByTestId('asset-detail')).toBeVisible()
   await expect(page.getByTestId('asset-detail')).not.toContainText('Track') // seçili kayıt/track ayrıntıları kaldırıldı
 
@@ -106,7 +108,7 @@ test('gerçek Electron: preload köprüsü, ffmpeg algılama, içe aktarma, saht
   await page.getByTestId('make-clip').click()
   await page.getByLabel('Hedef süre').selectOption('15')
   await page.getByTestId('add-to-timeline').click()
-  await expect(page.getByTestId('lane-V1').getByTestId('clip')).toHaveCount(1)
+  await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(1)
   await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1)
   await expect(page.getByTestId('lane-A2').getByTestId('clip')).toHaveCount(1)
 

@@ -16,7 +16,7 @@ export const cmd = {
   trimEnd: (clipId: ID, end: number, srcDur?: (c: Clip) => number): TimelineCommand =>
     makeCommand('Bitişi kırp', (t) => ops.trimEnd(t, clipId, end, srcDur), `trimE:${clipId}`),
   split: (clipId: ID, time: number): TimelineCommand => makeCommand('Böl', (t) => ops.splitClip(t, clipId, time)),
-  remove: (clipId: ID, ripple = false): TimelineCommand => makeCommand('Sil', (t) => ops.deleteClip(t, clipId, ripple)),
+  remove: (clipId: ID, ripple = false, single = false): TimelineCommand => makeCommand('Sil', (t) => ops.deleteClip(t, clipId, ripple, single)),
   updateClip: (clipId: ID, patch: Partial<Clip>, coalesce = false): TimelineCommand =>
     makeCommand('Klip özelliği', (t) => ops.updateClip(t, clipId, patch), coalesce ? `upd:${clipId}:${Object.keys(patch).join(',')}` : undefined),
   track: (trackId: ID, patch: Parameters<typeof ops.updateTrack>[2], coalesce = false): TimelineCommand =>

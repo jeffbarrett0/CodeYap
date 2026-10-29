@@ -5,14 +5,14 @@ import { createDefaultTimeline } from '@shared/timeline/model'
 import * as ops from '@shared/timeline/ops'
 import { buildSegments } from '@shared/transcript/sentences'
 import type { Clip, Transcript } from '@shared/types'
-import { wordsFromLines } from './helpers'
+import { wordsFromLines, createTimelineWithGame } from './helpers'
 
 const words = wordsFromLines([{ at: 100, text: 'Bir iki üç dört beş altı yedi sekiz.' }], 0.5)
 const tr: Transcript = { id: 't', assetId: 'a1', language: 'tr', model: 'm', provider: 'mock', audioTrack: 0, createdAt: '', durationSec: 200, words, segments: buildSegments(words) }
 const mk = (id: string, trackId: string, start: number, srcIn: number, srcOut: number, extra: Partial<Clip> = {}): Clip => ({ id, trackId, assetId: 'a1', start, srcIn, srcOut, volume: 1, label: id, ...extra })
 
 function tl() {
-  let t = createDefaultTimeline()
+  let t = createTimelineWithGame()
   t = ops.addClip(t, 'V1', mk('v', 'V1', 0, 100, 104, { groupId: 'g' }))
   t = ops.addClip(t, 'A2', mk('a', 'A2', 0, 100, 104, { groupId: 'g', audioStream: 0 }))
   return t

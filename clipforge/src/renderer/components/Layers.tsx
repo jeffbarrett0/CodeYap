@@ -178,7 +178,13 @@ export function LayersPanel() {
   const aspects: AspectRatio[] = ['9:16', '1:1', '16:9']
   const sz = aspectSize(tl.aspect)
   /** Yeni katman ekler ve seçer. Metin katmanı BOŞ başlar (yazıyı kullanıcı kendisi yazar). */
-  const addLayer = (kind: 'image' | 'text' | 'video') => {
+  const addLayer = (kind: 'image' | 'text' | 'video' | 'game') => {
+    if (kind === 'game') {
+      // Oyun ekranı katmanı yalnızca kullanıcı isteyince eklenir (varsayılan düzende yoktur)
+      if (tl.tracks.some((t) => t.id === 'V1')) return selectLayer('V1')
+      exec(cmd.addTrack({ id: 'V1', name: 'Oyun ekranı', kind: 'video', role: 'screen', placement: { rect: { x: 0, y: 0.415, w: 1, h: 0.585 }, fit: 'contain', visible: true, opacity: 1 } }))
+      return selectLayer('V1')
+    }
     const id = newId('L')
     const rect = { x: 0.05, y: 0.45, w: 0.9, h: 0.1 }
     exec(
@@ -233,6 +239,7 @@ export function LayersPanel() {
         <button className="btn sm" onClick={() => addLayer('image')} data-testid="add-image-layer">+ Görsel</button>
         <button className="btn sm" onClick={() => addLayer('text')} data-testid="add-text-layer">+ Metin</button>
         <button className="btn sm" onClick={() => addLayer('video')}>+ Video</button>
+        <button className="btn sm" onClick={() => addLayer('game')} disabled={tl.tracks.some((t) => t.id === 'V1')} data-testid="add-game-layer" title="Oyun ekranı katmanını elle ekler">+ Oyun ekranı</button>
         {sel && !['V1', 'V2', 'I1', 'I2'].includes(sel.id) && <button className="btn sm danger" onClick={() => { exec(cmd.removeTrack(sel.id)); selectLayer(null) }}>Katmanı sil</button>}
       </div>
       {sel ? <LayerDetail track={sel} /> : <div className="hint">Ayarlamak için listeden ya da önizlemeden bir katman seçin; önizlemede sürükleyerek taşıyın, kenar tutamaçlarıyla boyutlandırın.</div>}

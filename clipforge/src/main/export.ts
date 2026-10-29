@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { buildExportPlan } from '../shared/export/plan'
+import { resolveExportFps } from '../shared/export/presets'
 import type { ExportRequest } from '../shared/ipc'
 import { runFfmpeg, ToolError } from './ffmpeg'
 import type { MediaTools } from './media/import'
@@ -38,7 +39,10 @@ async function runExportOnce(
   if (missing.length) throw new ToolError(`Kaynak medya bulunamadı: ${missing.map((m) => m.name).join(', ')}. Dosyaları yeniden bağlayın.`)
 
   const partPath = `${req.outputPath}.part`
-  const plan = buildExportPlan(req.timeline, (id) => byId.get(id), req.options, partPath, req.range)
+  // fps=0: kaynağın kare hızı (kullanılan videoların en yükseği, ≤60)
+  const usedFps = req.timeline.tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips.map((c) => byId.get(c.assetId)?.fps ?? 0))
+  const options = { ...req.options, fps: resolveExportFps(req.options.fps, usedFps) }
+  const plan = buildExportPlan(req.timeline, (id) => byId.get(id), options, partPath, req.range)
   if (plan.durationSec <= 0.1) throw new ToolError('Dışa aktarılacak içerik yok: zaman çizelgesi boş.')
 
   await mkdir(dirname(req.outputPath), { recursive: true })

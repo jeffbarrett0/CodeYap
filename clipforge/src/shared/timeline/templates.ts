@@ -3,21 +3,22 @@ import type { AspectRatio, LayoutTemplate, Placement, Timeline, Track } from '..
 const P = (x: number, y: number, w: number, h: number, fit: Placement['fit'] = 'cover', visible = true): Placement => ({ rect: { x, y, w, h }, fit, visible, opacity: 1 })
 
 /**
- * Varsayılan şablon (referans videodan): 9:16 · üstte yüz (%41), ortada (yüz/görsel birleşiminde) boş bir görsel yeri,
- * altta konuyla ilgili görsel. Hiçbir hazır yazı içermez. Oyun ekranı ayrı bir katmandır, varsayılan olarak KAPALI (göz simgesiyle açılır).
+ * Varsayılan şablon (referans videodan): 9:16 · üstte normal bir video alanı (%41), ortada (video/görsel birleşiminde) boş bir
+ * görsel yeri, altta konuyla ilgili görsel. Hiçbir hazır yazı, otomatik doldurma ya da oyun ekranı katmanı içermez.
  */
 export const DEFAULT_TEMPLATE: LayoutTemplate = {
   id: 'yt-shorts-3zone',
-  name: 'YouTube Shorts · Yüz / Davet / Görsel',
+  name: 'Üst video / Orta görsel / Alt görsel',
   builtin: true,
   aspect: '9:16',
   background: '#000000',
   layers: [
     // Orta alan: yalnızca BOŞ bir görsel yeri. Davet/çağrı yazılarını kullanıcı kendisi ekler (görsel olarak ya da "+ Metin" ile).
     { id: 'I2', name: 'Orta alan (görsel)', kind: 'image', role: 'image', placement: P(0.03, 0.34, 0.94, 0.14, 'contain') },
-    { id: 'V2', name: 'Yüz (webcam)', kind: 'video', role: 'webcam', placement: P(0, 0, 1, 0.415) },
-    { id: 'I1', name: 'Konu görseli', kind: 'image', role: 'image', placement: P(0, 0.415, 1, 0.585) },
-    { id: 'V1', name: 'Oyun ekranı', kind: 'video', role: 'screen', placement: P(0, 0.415, 1, 0.585, 'contain', false) }
+    // Üst alan: NORMAL video alanı (yüz algılama/odaklama/kırpma/zoom yok): video kırpılmadan, kendi oranında sığdırılır
+    { id: 'V2', name: 'Video', kind: 'video', role: 'webcam', placement: P(0, 0, 1, 0.415, 'contain') },
+    { id: 'I1', name: 'Konu görseli', kind: 'image', role: 'image', placement: P(0, 0.415, 1, 0.585) }
+    // Oyun ekranı katmanı varsayılanda YOK: istenirse Katmanlar → "+ Oyun ekranı" ile elle eklenir
   ]
 }
 
@@ -88,7 +89,10 @@ export function applyTemplate(tl: Timeline, tpl: LayoutTemplate): Timeline {
   const inTpl = new Set(tpl.layers.map((l) => l.id))
   const visualKinds = new Set(['video', 'image', 'text'])
   // Şablonda olmayan görsel katmanlar (kullanıcının eklediği) şablon katmanlarının altında kalır
-  const extraVisual = tl.tracks.filter((t) => visualKinds.has(t.kind) && !inTpl.has(t.id))
+  // Eski (v1) projelerden gelen, konumu olmayan görsel izler (ör. oyun ekranı V1) görünür bir varsayılan yer alır
+  const extraVisual = tl.tracks
+    .filter((t) => visualKinds.has(t.kind) && !inTpl.has(t.id))
+    .map((t) => (t.placement ? t : { ...t, placement: { rect: { x: 0, y: 0.415, w: 1, h: 0.585 }, fit: 'contain' as const, visible: true, opacity: 1 } }))
   const rest = tl.tracks.filter((t) => !visualKinds.has(t.kind))
   return { ...tl, aspect: tpl.aspect, background: tpl.background, tracks: [...layerTracks, ...extraVisual, ...rest] }
 }

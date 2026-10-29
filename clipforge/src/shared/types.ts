@@ -375,11 +375,15 @@ export interface ExportOptions {
   aspect: AspectRatio
   width: number
   height: number
+  /** 0 = kaynağın kare hızı (en fazla 60) */
   fps: number
+  /** crf açıkken üst sınır (maxrate), crf=0 iken hedef bitrate */
   videoBitrateKbps: number
   audioBitrateKbps: number
-  /** 0..51; bitrate yerine kalite hedefi (0 = bitrate kullan) */
+  /** 0..51; bitrate yerine kalite hedefi — DÜŞÜK = daha yüksek kalite (0 = yalnızca bitrate kullan) */
   crf: number
+  /** x264 kodlama hızı/verimi: yavaş = aynı boyutta daha yüksek kalite (varsayılan: slow) */
+  encoderPreset?: 'ultrafast' | 'veryfast' | 'fast' | 'medium' | 'slow' | 'slower'
   maxDurationSec?: number
   normalizeAudio: boolean
 }

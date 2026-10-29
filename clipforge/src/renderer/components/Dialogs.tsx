@@ -55,13 +55,22 @@ export function ExportDialog() {
       </div>
       {mismatch && <div className="warnbox">Zaman çizelgesi {tl.aspect}, şablon {opts.aspect}. Dışa aktarma şablonun oranında ({opts.aspect}) üretilir; önizlemeyle birebir olması için Düzen sekmesinden oranı da {opts.aspect} yapın.</div>}
       <div className="grid3">
-        <Field label="Kare hızı"><select value={opts.fps} onChange={(e) => patch({ fps: Number(e.target.value) })} aria-label="Kare hızı">{[24, 30, 60].map((f) => <option key={f} value={f}>{f} fps</option>)}</select></Field>
-        <Field label="Video bitrate (kbps)"><Num value={opts.videoBitrateKbps} step={500} min={500} label="Video bitrate" onChange={(v) => patch({ videoBitrateKbps: v })} /></Field>
+        <Field label="Kare hızı"><select value={opts.fps} onChange={(e) => patch({ fps: Number(e.target.value) })} aria-label="Kare hızı"><option value={0}>Kaynak (otomatik, ≤60)</option>{[24, 30, 60].map((f) => <option key={f} value={f}>{f} fps</option>)}</select></Field>
+        <Field label="Bitrate üst sınırı (kbps)"><Num value={opts.videoBitrateKbps} step={5000} min={1000} label="Video bitrate" onChange={(v) => patch({ videoBitrateKbps: v })} /></Field>
         <Field label="Ses bitrate (kbps)"><Num value={opts.audioBitrateKbps} step={32} min={64} label="Ses bitrate" onChange={(v) => patch({ audioBitrateKbps: v })} /></Field>
       </div>
+      <div className="infobox">Varsayılan şablonlar <b>maksimum kalite</b> içindir: CRF {opts.crf || '—'}, yavaş kodlama, yüksek bitrate sınırı, 320 kbps ses. Dosyalar büyük olabilir ve kodlama zaman alır; kaynağın çözünürlüğü seçilen çıkıştan düşükse ek ayrıntı üretilmez.</div>
       <div className="grid3">
         <Field label="Çözünürlük"><div className="row"><Num value={opts.width} step={2} label="Genişlik" onChange={(v) => patch({ width: Math.round(v / 2) * 2 })} /><span>×</span><Num value={opts.height} step={2} label="Yükseklik" onChange={(v) => patch({ height: Math.round(v / 2) * 2 })} /></div></Field>
-        <Field label="Kalite (CRF, 0 = bitrate kullan)"><Num value={opts.crf} step={1} min={0} max={40} label="CRF" onChange={(v) => patch({ crf: v })} /></Field>
+        <Field label="Kalite (CRF; düşük = yüksek kalite, 0 = bitrate)"><Num value={opts.crf} step={1} min={0} max={40} label="CRF" onChange={(v) => patch({ crf: v })} /></Field>
+        <Field label="Kodlama">
+          <select value={opts.encoderPreset ?? 'slow'} onChange={(e) => patch({ encoderPreset: e.target.value as ExportOptions['encoderPreset'] })} aria-label="Kodlama hızı" data-testid="export-speed">
+            <option value="slower">En yavaş · en yüksek verim</option>
+            <option value="slow">Yavaş · maksimum kalite (önerilen)</option>
+            <option value="medium">Orta</option>
+            <option value="veryfast">Hızlı · daha büyük dosya</option>
+          </select>
+        </Field>
         <label className="check" style={{ alignSelf: 'end' }}><input type="checkbox" checked={opts.normalizeAudio} onChange={(e) => patch({ normalizeAudio: e.target.checked })} /> Sesi dengele (−14 LUFS)</label>
       </div>
       <fieldset style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
@@ -218,8 +227,8 @@ export function SettingsDialog() {
             </select>
           </Field>
           <div className="grid3">
-            <Field label="Kare hızı"><Num value={s.exportDefaults.fps ?? 30} step={1} label="fps" onChange={(v) => set({ exportDefaults: { ...s.exportDefaults, fps: v } })} /></Field>
-            <Field label="Video bitrate (kbps)"><Num value={s.exportDefaults.videoBitrateKbps ?? 8000} step={500} label="bitrate" onChange={(v) => set({ exportDefaults: { ...s.exportDefaults, videoBitrateKbps: v } })} /></Field>
+            <Field label="Kare hızı (0 = kaynak)"><Num value={s.exportDefaults.fps ?? 0} step={1} label="fps (0 = kaynak)" onChange={(v) => set({ exportDefaults: { ...s.exportDefaults, fps: v } })} /></Field>
+            <Field label="Video bitrate (kbps)"><Num value={s.exportDefaults.videoBitrateKbps ?? 150000} step={500} label="bitrate" onChange={(v) => set({ exportDefaults: { ...s.exportDefaults, videoBitrateKbps: v } })} /></Field>
             <Field label="Azami süre (sn, uyarı için)"><Num value={s.exportDefaults.maxDurationSec ?? 60} step={5} label="azami süre" onChange={(v) => set({ exportDefaults: { ...s.exportDefaults, maxDurationSec: v } })} /></Field>
           </div>
         </div>
