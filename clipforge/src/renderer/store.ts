@@ -5,7 +5,7 @@ import { suggestClip, nearestBoundary, type ClipWarning } from '@shared/clip/bou
 import { History } from '@shared/timeline/history'
 import { cmd, type TimelineCommand } from '@shared/timeline/commands'
 import { captionsForTimeline } from '@shared/timeline/captions'
-import { clipForTrack, clipItemsForSource } from '@shared/timeline/create'
+import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio } from '@shared/timeline/create'
 import { clipEnd, createDefaultTimeline, findClip, groupMembers, newId, timelineDuration } from '@shared/timeline/model'
 import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
 import { EXPORT_PRESETS } from '@shared/export/presets'
@@ -127,7 +127,7 @@ interface State {
   commitDraft(): void
   createClipsFromResults(ids: string[]): void
   /** Medya kütüphanesinden bir dosyayı doğrudan bir ize ekler (sürükle-bırak ya da düğme) */
-  addAssetToTrack(assetId: string, trackId: string, opts?: { at?: number; srcIn?: number; duration?: number; audioStream?: number }): void
+  addAssetToTrack(assetId: string, trackId: string, opts?: { at?: number; srcIn?: number; duration?: number; audioStream?: number; withAudio?: boolean }): void
 
   importChat(path?: string): Promise<void>
   runSuggest(sceneDetection: boolean): Promise<void>
@@ -428,14 +428,28 @@ export const useStore = create<State>()((set, get) => {
       const asset = s.project.assets.find((a) => a.id === assetId)
       const track = s.project.timeline.tracks.find((t) => t.id === trackId)
       if (!asset || !track) return
-      const r = clipForTrack(asset, track, { at: opts.at ?? s.playhead, srcIn: opts.srcIn, duration: opts.duration, audioStream: opts.audioStream })
-      if ('error' in r) return get().toast('error', r.error)
-      get().exec(cmd.addClip(trackId, r.clip))
+      const at = opts.at ?? s.playhead
+      let firstId: string
+      let withSound = false
+      if (track.kind === 'video') {
+        // Video katmanına eklenen videonun SESİ de (bağlı klip olarak) ses izine eklenir
+        const r = clipsForVideoWithAudio(asset, track, s.project.timeline.tracks, { at, srcIn: opts.srcIn, duration: opts.duration, withAudio: opts.withAudio })
+        if ('error' in r) return get().toast('error', r.error)
+        get().exec(cmd.addClips(r.items, 'Dosya ekle'))
+        firstId = r.items[0].clip.id
+        withSound = r.items.length > 1
+        if (asset.audioStreams.length === 0) get().toast('info', 'Bu videoda ses yok.')
+      } else {
+        const r = clipForTrack(asset, track, { at, srcIn: opts.srcIn, duration: opts.duration, audioStream: opts.audioStream })
+        if ('error' in r) return get().toast('error', r.error)
+        get().exec(cmd.addClip(trackId, r.clip))
+        firstId = r.clip.id
+      }
       // Kullanıcı bilerek ekledi: kapalı katman görünür olsun
       if (track.placement && !track.placement.visible) get().exec(cmd.placement(trackId, { visible: true }, false))
       get().exec(cmd.fillText())
-      set({ selection: [r.clip.id] })
-      get().toast('success', `"${asset.name}" → ${track.name}`)
+      set({ selection: [firstId] })
+      get().toast('success', `"${asset.name}" → ${track.name}${withSound ? ' (sesiyle birlikte)' : ''}`)
     },
     createClipsFromResults(ids) {
       const s = get()

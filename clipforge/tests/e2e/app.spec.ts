@@ -194,9 +194,10 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('rtab-layout').click()
     await expect(page.getByTestId('layers-panel')).toBeVisible()
 
-    // varsayılan düzen: davet + hatırlatma metni, yüz, görsel, oyun ekranı (kapalı); metin klipleri otomatik oluştu
-    for (const id of ['T1', 'T2', 'V2', 'I1', 'V1']) await expect(page.getByTestId(`layer-${id}`)).toBeVisible()
-    await expect(page.getByTestId('lane-T1').getByTestId('clip')).toHaveCount(1)
+    // varsayılan düzen: orta boş görsel yeri, yüz, alt görsel, oyun ekranı; HAZIR YAZI YOK
+    for (const id of ['I2', 'V2', 'I1', 'V1']) await expect(page.getByTestId(`layer-${id}`)).toBeVisible()
+    await expect(page.getByTestId('layer-list')).not.toContainText('Davet')
+    await expect(page.getByTestId('lane-I2').getByTestId('clip')).toHaveCount(0)
     // Yüz/kamera kaynağı olmayan bir klipte oyun ekranı katmanı otomatik açılır (aksi halde görüntü hiç görünmezdi)
     await expect(page.getByTestId('ly-V1')).toBeVisible()
     await page.getByTestId('eye-V1').click() // gizle
@@ -235,10 +236,11 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.mouse.up()
     expect((await page.getByTestId('ly-V2').boundingBox())!.width).toBeLessThan(b2.width - 30)
 
-    // metin katmanı düzenle
-    await page.getByTestId('layer-T1').click()
+    // kullanıcının kendi eklediği metin katmanı: yazıyı kendisi yazar
+    await page.getByTestId('add-text-layer').click()
+    await expect(page.getByTestId('layer-text')).toHaveValue('') // boş başlar: hazır yazı yok
     await page.getByTestId('layer-text').fill('KANALIMA GEL')
-    await expect(page.getByTestId('lane-T1').locator('[data-testid=clip]').first()).toContainText('KANALIMA GEL')
+    await expect(page.locator('[data-testid^=lane-L] [data-testid=clip]').first()).toContainText('KANALIMA GEL')
 
     // şablon olarak kaydet → yeni projede uygula
     await page.getByTestId('tpl-name').fill('Benim düzenim')
@@ -264,9 +266,12 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('asset').nth(3)).toContainText('Görsel')
     await expect(page.getByTestId('asset').nth(1)).toContainText('Ses')
 
-    // görseli I1'e ekle (düğmeyle)
+    // görseli önce orta alana (varsayılan ilk görsel katmanı), sonra alt görsel katmanına ekle (düğmeyle)
     await page.getByTestId('asset').nth(3).click()
-    await expect(page.getByTestId('target-track')).toContainText('Konu görseli')
+    await expect(page.getByTestId('target-track')).toContainText('Orta alan')
+    await page.getByTestId('add-at-playhead').click()
+    await expect(page.getByTestId('lane-I2').getByTestId('clip')).toHaveCount(1)
+    await page.getByTestId('target-track').selectOption({ label: 'Konu görseli (I1)' })
     await page.getByTestId('add-at-playhead').click()
     await expect(page.getByTestId('lane-I1').getByTestId('clip')).toHaveCount(1)
 
@@ -366,5 +371,23 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('tw-word').nth(8).click({ modifiers: ['Shift'] })
     await page.getByTestId('tw-make-clip').click()
     await expect(page.getByTestId('draft-panel')).toBeVisible()
+  })
+
+  test('video katmanına eklenen videonun sesi de ses izine eklenir (sessiz kalmaz)', async ({ page }) => {
+    await boot(page)
+    await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/kayit/paylasilan video.mp4']))
+    await expect(page.getByTestId('asset')).toHaveCount(1)
+    await page.getByTestId('asset').click()
+    await page.getByTestId('target-track').selectOption({ label: 'Yüz (webcam) (V2)' })
+    await expect(page.getByTestId('with-audio')).toBeChecked()
+    await page.getByTestId('add-at-playhead').click()
+    await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(1)
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1) // sesi A1'e geldi
+    await expect(page.getByTestId('toast').filter({ hasText: 'sesiyle birlikte' })).toBeVisible()
+    // sesi istemeyen: işareti kaldır
+    await page.getByTestId('with-audio').uncheck()
+    await page.getByTestId('add-at-end').click()
+    await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(2)
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1)
   })
 })

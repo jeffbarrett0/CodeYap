@@ -1,32 +1,10 @@
-import type { AspectRatio, LayoutTemplate, Placement, TextSpec, Timeline, Track } from '../types'
+import type { AspectRatio, LayoutTemplate, Placement, Timeline, Track } from '../types'
 
 const P = (x: number, y: number, w: number, h: number, fit: Placement['fit'] = 'cover', visible = true): Placement => ({ rect: { x, y, w, h }, fit, visible, opacity: 1 })
 
-const INVITE: TextSpec = {
-  text: 'VİDEONUN TAMAMI:\nKANAL ADIN KANALINDA',
-  fontFamily: 'Impact',
-  fontSize: 62,
-  color: '#FFFFFF',
-  outlineColor: '#000000',
-  outlineWidth: 6,
-  bold: false,
-  animation: 'pulse'
-}
-const REMINDER: TextSpec = {
-  text: '(VİDEOYU BEĞENİP & BENİ TAKİP ETMEYİ UNUTMAYIN)',
-  fontFamily: 'Impact',
-  fontSize: 32,
-  color: '#FFFFFF',
-  outlineColor: '#000000',
-  outlineWidth: 4,
-  bold: false,
-  italic: true,
-  animation: 'fade'
-}
-
 /**
- * Varsayılan şablon (referans videodan): 9:16 · üstte yüz (%41), ortada davet metni (yüz/görsel birleşiminde),
- * altta konuyla ilgili görsel. Oyun ekranı ayrı bir katmandır, varsayılan olarak KAPALI (göz simgesiyle açılır).
+ * Varsayılan şablon (referans videodan): 9:16 · üstte yüz (%41), ortada (yüz/görsel birleşiminde) boş bir görsel yeri,
+ * altta konuyla ilgili görsel. Hiçbir hazır yazı içermez. Oyun ekranı ayrı bir katmandır, varsayılan olarak KAPALI (göz simgesiyle açılır).
  */
 export const DEFAULT_TEMPLATE: LayoutTemplate = {
   id: 'yt-shorts-3zone',
@@ -35,8 +13,8 @@ export const DEFAULT_TEMPLATE: LayoutTemplate = {
   aspect: '9:16',
   background: '#000000',
   layers: [
-    { id: 'T1', name: 'Davet metni', kind: 'text', role: 'text', placement: P(0.03, 0.385, 0.94, 0.095, 'contain'), textDefault: INVITE },
-    { id: 'T2', name: 'Hatırlatma metni', kind: 'text', role: 'text', placement: P(0.03, 0.335, 0.94, 0.05, 'contain'), textDefault: REMINDER },
+    // Orta alan: yalnızca BOŞ bir görsel yeri. Davet/çağrı yazılarını kullanıcı kendisi ekler (görsel olarak ya da "+ Metin" ile).
+    { id: 'I2', name: 'Orta alan (görsel)', kind: 'image', role: 'image', placement: P(0.03, 0.34, 0.94, 0.14, 'contain') },
     { id: 'V2', name: 'Yüz (webcam)', kind: 'video', role: 'webcam', placement: P(0, 0, 1, 0.415) },
     { id: 'I1', name: 'Konu görseli', kind: 'image', role: 'image', placement: P(0, 0.415, 1, 0.585) },
     { id: 'V1', name: 'Oyun ekranı', kind: 'video', role: 'screen', placement: P(0, 0.415, 1, 0.585, 'contain', false) }

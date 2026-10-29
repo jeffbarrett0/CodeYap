@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,6 +9,7 @@ import { saveProject, openProject, dataDirFor } from '../../src/main/project/io'
 import { CancelledError } from '../../src/main/tasks'
 import { createDefaultTimeline, newId, TRACK_IDS } from '@shared/timeline/model'
 import { applyTemplate, BUILTIN_TEMPLATES } from '@shared/timeline/templates'
+import { clipsForVideoWithAudio } from '@shared/timeline/create'
 import * as ops from '@shared/timeline/ops'
 import { optionsFromPreset } from '@shared/export/presets'
 import { PROJECT_VERSION, type Clip, type MediaAsset, type Project } from '@shared/types'
@@ -96,8 +97,8 @@ d('dışa aktarma (gerçek ffmpeg)', () => {
   })
 })
 
-d('3 bölgeli varsayılan şablon (yüz / davet metni / görsel) — gerçek ffmpeg', () => {
-  it('üstte yüz, ortada beyaz davet metni, altta görsel olarak çıkar; oyun ekranı katmanı kapalıyken görünmez', async () => {
+d('3 bölgeli varsayılan şablon (yüz / orta görsel yeri / alt görsel) — gerçek ffmpeg', () => {
+  it('üstte yüz, ortada kullanıcının koyduğu görsel, altta görsel olarak çıkar; boş orta yer ve kapalı oyun katmanı görünmez', async () => {
     const png = join(root, 'konu görseli.png')
     execFileSync(FFMPEG, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=800x600:d=1', '-frames:v', '1', png])
     const imgAsset: MediaAsset = { ...asset, id: 'img1', name: 'konu görseli.png', path: png, kind: 'image', durationSec: 0, width: 800, height: 600, audioStreams: [], container: 'png' }
@@ -106,9 +107,13 @@ d('3 bölgeli varsayılan şablon (yüz / davet metni / görsel) — gerçek ffm
     tl = ops.addClip(tl, 'V1', mk('V1', 0, 4, 10)) // oyun katmanı kapalı → görünmemeli
     tl = ops.addClip(tl, 'I1', { ...mk('I1', 0, 0, 6), assetId: 'img1' })
     tl = ops.addClip(tl, 'A2', mk('A2', 0, 4, 10, { audioStream: 2 }))
-    tl = ops.fillTextTracks(tl)
+    // orta alan: mavi bir görsel (kullanıcının koyacağı davet görseli yerine)
+    const blue = join(root, 'orta mavi.png')
+    execFileSync(FFMPEG, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=blue:s=1000x200:d=1', '-frames:v', '1', blue])
+    const blueAsset: MediaAsset = { ...imgAsset, id: 'img2', name: 'orta mavi.png', path: blue, width: 1000, height: 200 }
+    tl = ops.addClip(tl, 'I2', { ...mk('I2', 0, 0, 6), assetId: 'img2' })
     const out = join(root, 'uc-bolge.mp4')
-    await runExport({ name: 'k', timeline: tl, assets: [asset, imgAsset], options: optionsFromPreset('shorts'), range: { start: 0, end: 6 }, outputPath: out }, tools)
+    await runExport({ name: 'k', timeline: tl, assets: [asset, imgAsset, blueAsset], options: optionsFromPreset('shorts'), range: { start: 0, end: 6 }, outputPath: out }, tools)
     expect(probeVideo(out)).toMatchObject({ width: 1080, height: 1920, audio: 1 })
     const rgb = (y: number, h = 40, w = 300) => {
       const buf = execFileSync(FFMPEG, ['-v', 'error', '-ss', '2', '-i', out, '-frames:v', '1', '-vf', `crop=${w}:${h}:390:${y}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])
@@ -123,8 +128,35 @@ d('3 bölgeli varsayılan şablon (yüz / davet metni / görsel) — gerçek ffm
     expect(bottom.r).toBeGreaterThan(200) // kırmızı görsel
     expect(bottom.g).toBeLessThan(40)
     expect(bottom.b).toBeLessThan(40)
-    const text = rgb(760, 130, 300)
-    expect(text.max).toBeGreaterThan(240) // beyaz davet metni pikselleri
+    const mid = rgb(740, 100, 300) // y ≈ %34–48: orta alan
+    expect(mid.b).toBeGreaterThan(200) // mavi orta görsel
+    expect(mid.r).toBeLessThan(60)
+  })
+})
+
+d('ses (gerçek ffmpeg)', () => {
+  const meanVolume = (file: string): number => {
+    const r = spawnSync(FFMPEG, ['-hide_banner', '-i', file, '-af', 'volumedetect', '-vn', '-f', 'null', '-'], { encoding: 'utf8' })
+    const m = /mean_volume: (-?[\d.]+) dB/.exec(r.stderr)
+    return m ? Number(m[1]) : -Infinity
+  }
+
+  it('video katmanına eklenen videonun sesi dışa aktarılan dosyada DUYULUR; sesi eklenmezse sessizdir', async () => {
+    const tracks = createDefaultTimeline().tracks
+    const withSound = clipsForVideoWithAudio(asset, tracks.find((t) => t.id === 'V2')!, tracks, { at: 0, srcIn: 2, duration: 6 })
+    if ('error' in withSound) throw new Error(withSound.error)
+    let tl = createDefaultTimeline()
+    for (const it of withSound.items) tl = ops.addClip(tl, it.trackId, it.clip)
+    const out = join(root, 'sesli.mp4')
+    await runExport({ name: 'k', timeline: tl, assets: [asset], options: optionsFromPreset('shorts', { normalizeAudio: false }), range: { start: 0, end: 6 }, outputPath: out }, tools)
+    expect(meanVolume(out)).toBeGreaterThan(-40) // sinüs sesi var
+
+    // yalnızca görüntü: ses izi yok → çıktı sessiz
+    let silent = createDefaultTimeline()
+    silent = ops.addClip(silent, 'V2', mk('V2', 0, 2, 8))
+    const out2 = join(root, 'sessiz.mp4')
+    await runExport({ name: 'k', timeline: silent, assets: [asset], options: optionsFromPreset('shorts', { normalizeAudio: false }), range: { start: 0, end: 6 }, outputPath: out2 }, tools)
+    expect(meanVolume(out2)).toBeLessThan(-70)
   })
 })
 
@@ -172,7 +204,7 @@ describe('proje kaydet / aç', () => {
     writeFileSync(projPath, JSON.stringify({ ...baseProject(fake), version: 1, timeline: legacyTl }))
     const p = await openProject(projPath)
     expect(p.timeline.tracks.every((t) => t.kind === 'audio' || t.placement)).toBe(true)
-    expect(p.timeline.tracks.map((t) => t.id)).toEqual(expect.arrayContaining(['T1', 'V2', 'I1', 'V1', 'A1', 'A2']))
+    expect(p.timeline.tracks.map((t) => t.id)).toEqual(expect.arrayContaining(['I2', 'V2', 'I1', 'V1', 'A1', 'A2']))
     expect(p.timeline.tracks.find((t) => t.id === 'V1')!.clips[0]).toMatchObject({ id: 'c1', srcIn: 5, label: 'eski klip' })
   })
 

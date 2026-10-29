@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { cmd } from '@shared/timeline/commands'
 import { BUILTIN_TEMPLATES } from '@shared/timeline/templates'
-import { aspectSize, clipEnd } from '@shared/timeline/model'
+import { aspectSize, newId } from '@shared/timeline/model'
 import type { AspectRatio, NormRect, TextAnimation, Track } from '@shared/types'
 import { useStore } from '../store'
 import { Field, Num, Slider } from './ui'
@@ -178,7 +178,20 @@ export function LayersPanel() {
   const sel = layers.find((t) => t.id === selectedLayerId)
   const aspects: AspectRatio[] = ['9:16', '1:1', '16:9']
   const sz = aspectSize(tl.aspect)
-  void clipEnd
+  /** Yeni katman ekler ve seçer. Metin katmanı BOŞ başlar (yazıyı kullanıcı kendisi yazar). */
+  const addLayer = (kind: 'image' | 'text' | 'video') => {
+    const id = newId('L')
+    const rect = { x: 0.05, y: 0.45, w: 0.9, h: 0.1 }
+    exec(
+      cmd.addTrack(
+        kind === 'text'
+          ? { id, name: 'Metin katmanı', kind, role: 'text', placement: { rect, fit: 'contain', visible: true, opacity: 1 }, textDefault: { text: '', fontFamily: 'Impact', fontSize: 56, color: '#FFFFFF', outlineColor: '#000000', outlineWidth: 5, bold: false, animation: 'none' } }
+          : { id, name: kind === 'image' ? 'Görsel katmanı' : 'Video katmanı', kind, role: kind === 'image' ? 'image' : 'screen' }
+      )
+    )
+    if (kind === 'text') exec(cmd.fillText())
+    selectLayer(id)
+  }
 
   return (
     <div className="col" data-testid="layers-panel">
@@ -216,10 +229,10 @@ export function LayersPanel() {
         ))}
       </div>
       <div className="row wrap">
-        <button className="btn sm" onClick={() => exec(cmd.addTrack({ name: 'Görsel katmanı', kind: 'image', role: 'image' }))} data-testid="add-image-layer">+ Görsel</button>
-        <button className="btn sm" onClick={() => exec(cmd.addTrack({ name: 'Metin katmanı', kind: 'text', role: 'text', placement: { rect: { x: 0.05, y: 0.45, w: 0.9, h: 0.1 }, fit: 'contain', visible: true, opacity: 1 }, textDefault: { text: 'Metin', fontFamily: 'Impact', fontSize: 56, color: '#FFFFFF', outlineColor: '#000000', outlineWidth: 5, bold: false, animation: 'none' } }))} data-testid="add-text-layer">+ Metin</button>
-        <button className="btn sm" onClick={() => exec(cmd.addTrack({ name: 'Video katmanı', kind: 'video', role: 'screen' }))}>+ Video</button>
-        {sel && !['V1', 'V2', 'I1', 'T1', 'T2'].includes(sel.id) && <button className="btn sm danger" onClick={() => { exec(cmd.removeTrack(sel.id)); selectLayer(null) }}>Katmanı sil</button>}
+        <button className="btn sm" onClick={() => addLayer('image')} data-testid="add-image-layer">+ Görsel</button>
+        <button className="btn sm" onClick={() => addLayer('text')} data-testid="add-text-layer">+ Metin</button>
+        <button className="btn sm" onClick={() => addLayer('video')}>+ Video</button>
+        {sel && !['V1', 'V2', 'I1', 'I2'].includes(sel.id) && <button className="btn sm danger" onClick={() => { exec(cmd.removeTrack(sel.id)); selectLayer(null) }}>Katmanı sil</button>}
       </div>
       {sel ? <LayerDetail track={sel} /> : <div className="hint">Ayarlamak için listeden ya da önizlemeden bir katman seçin; önizlemede sürükleyerek taşıyın, kenar tutamaçlarıyla boyutlandırın.</div>}
     </div>

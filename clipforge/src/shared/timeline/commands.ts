@@ -30,7 +30,7 @@ export const cmd = {
   replace: (label: string, next: Timeline): TimelineCommand => makeCommand(label, () => next),
   placement: (trackId: ID, patch: Partial<Placement>, coalesce = true): TimelineCommand =>
     makeCommand('Katman konumu', (t) => ops.setPlacement(t, trackId, patch), coalesce ? `pl:${trackId}:${Object.keys(patch).join(',')}` : undefined),
-  addTrack: (spec: { name: string; kind: Exclude<TrackKind, 'caption'>; role: TrackRole; placement?: Placement; textDefault?: TextSpec }): TimelineCommand =>
+  addTrack: (spec: { id?: ID; name: string; kind: Exclude<TrackKind, 'caption'>; role: TrackRole; placement?: Placement; textDefault?: TextSpec }): TimelineCommand =>
     makeCommand('Katman ekle', (t) => ops.addTrack(t, spec)),
   removeTrack: (trackId: ID): TimelineCommand => makeCommand('Katmanı sil', (t) => ops.removeTrack(t, trackId)),
   moveTrack: (trackId: ID, dir: 'up' | 'down'): TimelineCommand => makeCommand('Katman sırası', (t) => ops.moveTrackOrder(t, trackId, dir)),
@@ -44,6 +44,6 @@ export const cmd = {
   textSpec: (clipId: ID, patch: Partial<TextSpec>): TimelineCommand =>
     makeCommand('Metin', (t) => {
       const f = t.tracks.flatMap((tr) => tr.clips).find((c) => c.id === clipId)
-      return f?.text ? ops.updateClip(t, clipId, { text: { ...f.text, ...patch }, label: (patch.text ?? f.text.text).split('\n')[0].slice(0, 40) }) : t
+      return f?.text ? ops.updateClip(t, clipId, { text: { ...f.text, ...patch }, label: (patch.text ?? f.text.text).split('\n')[0].slice(0, 40) || 'Metin' }) : t
     }, `txt:${clipId}:${Object.keys(patch).join(',')}`)
 }

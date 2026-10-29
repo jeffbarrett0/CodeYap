@@ -21,10 +21,11 @@ function base(): Timeline {
 }
 
 describe('zaman çizelgesi işlemleri', () => {
-  it('varsayılan zaman çizelgesi: 9:16, yüz/davet/görsel şablonu, oyun ekranı katmanı kapalı', () => {
+  it('varsayılan zaman çizelgesi: 9:16, yüz / boş orta görsel yeri / alt görsel şablonu, oyun ekranı katmanı kapalı', () => {
     const tl = createDefaultTimeline()
     expect(tl.aspect).toBe('9:16')
-    expect(tl.tracks.map((t) => t.id)).toEqual(['T1', 'T2', 'V2', 'I1', 'V1', 'A1', 'A2'])
+    expect(tl.tracks.map((t) => t.id)).toEqual(['I2', 'V2', 'I1', 'V1', 'A1', 'A2'])
+    expect(tl.tracks.some((t) => t.kind === 'text')).toBe(false) // hazır yazı yok: kullanıcı kendisi ekler
     expect(tl.tracks.find((t) => t.id === 'V1')!.placement!.visible).toBe(false)
     expect(tl.tracks.find((t) => t.id === 'V2')!.placement!.rect.y).toBe(0)
   })

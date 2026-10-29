@@ -284,7 +284,9 @@ export class AppService {
     if (kind === 'thumb') return a.thumbnailPath ? join(this.dataDir, a.thumbnailPath) : null
     if (kind === 'audio') {
       const p = a.audioStreams[index]?.proxyPath
-      return p ? join(this.dataDir, p) : null
+      if (p) return join(this.dataDir, p)
+      // Ses önizleme kopyası henüz hazır değilken: tarayıcının doğrudan çalabildiği dosyalarda ilk ses akışı özgün dosyadan çalınır
+      return index === 0 && /\.(mp4|m4v|mov|webm|mp3|wav|m4a|aac|ogg|flac|opus)$/i.test(a.path) ? a.path : null
     }
     if (a.proxyPath) return join(this.dataDir, a.proxyPath)
     return a.kind === 'video' && /\.(mp4|webm|mov)$/i.test(a.path) ? a.path : null

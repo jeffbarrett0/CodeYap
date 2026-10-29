@@ -244,7 +244,7 @@ export function moveTrackOrder(tl: Timeline, trackId: ID, dir: 'up' | 'down'): T
 }
 
 export function makeTextClip(trackId: ID, start: number, duration: number, spec: TextSpec): Clip {
-  return { id: newId('clip'), trackId, assetId: '', start, srcIn: 0, srcOut: duration, volume: 1, label: spec.text.split('\n')[0].slice(0, 40), text: spec }
+  return { id: newId('clip'), trackId, assetId: '', start, srcIn: 0, srcOut: duration, volume: 1, label: spec.text.split('\n')[0].slice(0, 40) || 'Metin', text: spec }
 }
 
 /** Boş metin izlerinde, izin varsayılan metni zaman çizelgesi uzunluğunca bir klip olarak oluşturur. */

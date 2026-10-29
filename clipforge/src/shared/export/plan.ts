@@ -97,7 +97,7 @@ export function buildExportPlan(
         const p = slice(c, t, rs, re)
         if (!p) continue
         if (t.kind === 'text') {
-          if (c.text) textEvents.push({ start: p.at, end: p.at + p.dur, spec: c.text, rect: r })
+          if (c.text && c.text.text.trim()) textEvents.push({ start: p.at, end: p.at + p.dur, spec: c.text, rect: r })
           continue
         }
         const idx = addInput(p, t.kind === 'image')

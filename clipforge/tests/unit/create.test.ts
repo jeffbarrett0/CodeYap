@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clipItemsForSource, clipForTrack } from '@shared/timeline/create'
+import { clipItemsForSource, clipForTrack, clipsForVideoWithAudio } from '@shared/timeline/create'
 import { createDefaultTimeline, findClip } from '@shared/timeline/model'
 import { cmd } from '@shared/timeline/commands'
 import * as ops from '@shared/timeline/ops'
@@ -108,5 +108,31 @@ describe('ayrı dosyalar (ekran / oyun sesi / konuşma / kamera)', () => {
     const multi = asset({})
     expect(clipForTrack(multi, { id: 'A2', kind: 'audio', role: 'voice' }, { at: 0, srcIn: 10, duration: 5 })).toMatchObject({ clip: { audioStream: 2, srcIn: 10, srcOut: 15 } })
     expect(clipForTrack(multi, { id: 'A1', kind: 'audio', role: 'game' }, { at: 0, srcIn: 5000 })).toHaveProperty('error')
+  })
+})
+
+describe('video katmanına eklenen videonun sesi', () => {
+  const tracks = [
+    { id: 'V1', kind: 'video' as const, role: 'screen' as const },
+    { id: 'A1', kind: 'audio' as const, role: 'game' as const },
+    { id: 'A2', kind: 'audio' as const, role: 'voice' as const }
+  ]
+  it('görüntü + ses birlikte (aynı grup) eklenir; konuşma rolü A2, diğerleri A1', () => {
+    const v = asset({ audioStreams: [audio(0)], audioMap: { mix: 0 } })
+    const r = clipsForVideoWithAudio(v, tracks[0], tracks, { at: 4, srcIn: 10, duration: 20 })
+    if ('error' in r) throw new Error(r.error)
+    expect(r.items.map((i) => i.trackId)).toEqual(['V1', 'A1'])
+    expect(r.items[1].clip).toMatchObject({ srcIn: 10, srcOut: 30, start: 4, audioStream: 0 })
+    expect(r.items[0].clip.groupId).toBe(r.items[1].clip.groupId)
+    const voice = clipsForVideoWithAudio({ ...v, role: 'voice' }, tracks[0], tracks, { at: 0 })
+    expect('items' in voice && voice.items.map((i) => i.trackId)).toEqual(['V1', 'A2'])
+  })
+  it('sessiz video ya da "sesi ekleme" seçiliyse yalnızca görüntü; ses izine video eklenemez', () => {
+    const silent = asset({ audioStreams: [], audioMap: { mix: 0 } })
+    const a = clipsForVideoWithAudio(silent, tracks[0], tracks, { at: 0 })
+    expect('items' in a && a.items).toHaveLength(1)
+    const b = clipsForVideoWithAudio(asset(), tracks[0], tracks, { at: 0, withAudio: false })
+    expect('items' in b && b.items).toHaveLength(1)
+    expect(clipsForVideoWithAudio(asset(), tracks[1], tracks, { at: 0 })).toHaveProperty('error')
   })
 })

@@ -141,9 +141,11 @@ Tek dosya (OBS birleşik kayıt): kamera bölgesi normalize dikdörtgen olarak g
 **Karar:** Düzen artık sabit bir "düzen ön ayarı" değil, **iz başına konum** (`Track.placement`: rect, fit, visible, opacity). Şablon = katman konumlarının
 ve metin biçimlerinin bir anlık görüntüsü (`LayoutTemplate`); yerleşik şablonlar kodda, kullanıcı şablonları `templates.json`'da. Eski (v1) projeler açılışta
 varsayılan şablona geçirilir (iz kimlikleri ve klipler korunur; eski "oyun ortada" ön ayarı ayrıca yerleşik şablon olarak duruyor).
+**Hazır yazı yok:** Varsayılan şablonda davet/çağrı/kanal yönlendirmesi gibi hiçbir hazır metin bulunmaz; orta bölgede yalnızca boş bir görsel yeri vardır. Metin katmanı (*+ Metin*) boş başlar. (Kullanıcı kuralı: bu yazıları kullanıcı kendisi ekler.)
 **Metin/animasyon:** Metin katmanları dışa aktarmada **ASS** ile yakılır (altyazıyla aynı yol; `fade`, `pulse`, `slide-up`), video/GIF animasyonu yok.
 **Önizleme farkları:** Canvas önizleme ASS animasyonlarını taklit eder; yazı tipi yerleşimi libass'tan birkaç piksel farklı olabilir. Yazı tipi sistemde yüklü olmalı
-(Impact Windows/macOS'ta var; Linux'ta yedek yazı tipi kullanılır).
+(Impact Windows/macOS'ta var; Linux'ta yedek yazı tipi kullanılır). Eski sürümde oluşturulmuş projelerdeki `T1`/`T2` metin katmanları (hazır yazılı) otomatik silinmez; elle silinebilir.
+**Ses:** Video katmanı kendi sesini çalmaz/dışa aktarmaz; ses her zaman bir ses izindeki klipten gelir. Bu yüzden video bir video katmanına eklenirken sesi bağlı klip olarak otomatik eklenir. Önizleme kopyası hazır olmadan, tarayıcının çalabildiği dosyalarda (MP4/MOV/WEBM/MP3/WAV…) ilk ses akışı özgün dosyadan çalınır; MKV'de proxy bitene kadar kaynak oynatıcıda "Ses önizlemesi hazırlanıyor…" uyarısı görünür.
 **Oyun ekranı** varsayılan kapalı katmandır; kamera/yüz kaynağı olmayan bir klip eklenirken otomatik açılır (aksi halde görüntü hiç görünmezdi).
 **Açık:** (a) "Kısa animasyon" olarak yalnızca metin animasyonu var; hareketli görsel (GIF/WebM kanalı daveti) için video katmanı kullanılabilir ama
 alfa kanallı videolar denenmedi. (b) Katman başına gölge/köşe yuvarlama/kenarlık yok. (c) Şablon uygulamak mevcut metin klibinin içeriğini değiştirmez

@@ -9,6 +9,7 @@ import { buildExportPlan } from '@shared/export/plan'
 import { optionsFromPreset } from '@shared/export/presets'
 import type { Clip, Timeline } from '@shared/types'
 
+const TEXT = { text: 'Kendi yazım', fontFamily: 'Impact', fontSize: 62, color: '#FFFFFF', outlineColor: '#000000', outlineWidth: 6, bold: false, animation: 'pulse' as const }
 const mk = (id: string, trackId: string, start: number, srcIn: number, srcOut: number, extra: Partial<Clip> = {}): Clip => ({ id, trackId, assetId: 'a1', start, srcIn, srcOut, volume: 1, label: id, ...extra })
 const clips = (tl: Timeline, id: string) => tl.tracks.find((t) => t.id === id)!.clips
 
@@ -20,15 +21,16 @@ function base(): Timeline {
 }
 
 describe('şablonlar', () => {
-  it('varsayılan şablon üç bölge: yüz üstte, davet ortada, görsel altta; oyun ekranı kapalı', () => {
+  it('varsayılan şablon üç bölge: yüz üstte, boş görsel yeri ortada, görsel altta; hazır yazı yok; oyun ekranı kapalı', () => {
     const r = (id: string) => DEFAULT_TEMPLATE.layers.find((l) => l.id === id)!
     expect(r('V2').placement.rect).toMatchObject({ x: 0, y: 0, w: 1 })
     expect(r('I1').placement.rect.y).toBeGreaterThan(0.4)
     expect(r('I1').placement.rect.y + r('I1').placement.rect.h).toBeCloseTo(1)
-    const t1 = r('T1').placement.rect
-    expect(t1.y).toBeGreaterThan(r('V2').placement.rect.h - 0.05) // yüz ile görsel birleşiminde
-    expect(t1.y).toBeLessThan(r('I1').placement.rect.y + 0.1)
-    expect(r('T1').textDefault!.text).toContain('VİDEONUN TAMAMI')
+    const mid = r('I2').placement.rect
+    expect(r('I2').kind).toBe('image')
+    expect(mid.y).toBeGreaterThan(r('V2').placement.rect.h - 0.1) // yüz ile alt görsel arasında
+    expect(mid.y).toBeLessThan(r('I1').placement.rect.y + 0.1)
+    expect(DEFAULT_TEMPLATE.layers.some((l) => l.kind === 'text' || l.textDefault)).toBe(false)
     expect(r('V1').placement.visible).toBe(false)
     expect(BUILTIN_TEMPLATES.length).toBeGreaterThanOrEqual(4)
   })
@@ -46,12 +48,13 @@ describe('şablonlar', () => {
   it('katman düzeni şablon olarak yakalanıp tekrar uygulanabilir (konum, görünürlük, metin)', () => {
     let tl = base()
     tl = ops.setPlacement(tl, 'V2', { rect: { x: 0.1, y: 0.2, w: 0.5, h: 0.3 }, visible: false })
+    tl = ops.addTrack(tl, { id: 'TX', name: 'Yazı', kind: 'text', role: 'text', textDefault: TEXT })
     tl = ops.fillTextTracks(tl)
-    tl = cmd.textSpec(clips(tl, 'T1')[0].id, { text: 'BENİ TAKİP ET' }).do(tl)
+    tl = cmd.textSpec(clips(tl, 'TX')[0].id, { text: 'BENİ TAKİP ET' }).do(tl)
     const tpl = templateFromTimeline(tl, 'ozel', 'Özel düzen')
     const fresh = applyTemplate(createDefaultTimeline(), tpl)
     expect(fresh.tracks.find((t) => t.id === 'V2')!.placement).toMatchObject({ visible: false, rect: { x: 0.1, y: 0.2 } })
-    expect(fresh.tracks.find((t) => t.id === 'T1')!.textDefault!.text).toBe('BENİ TAKİP ET')
+    expect(fresh.tracks.find((t) => t.id === 'TX')!.textDefault!.text).toBe('BENİ TAKİP ET')
     // JSON olarak serileştirilebilir
     expect(JSON.parse(JSON.stringify(tpl))).toEqual(tpl)
   })
@@ -80,11 +83,13 @@ describe('katman işlemleri', () => {
     expect(ops.removeTrack(tl, id).tracks.some((t) => t.id === id)).toBe(false)
   })
 
-  it('boş metin izleri timeline uzunluğunca varsayılan metinle dolar', () => {
-    const tl = ops.fillTextTracks(base())
-    expect(clips(tl, 'T1')).toHaveLength(1)
-    expect(clips(tl, 'T1')[0].text!.text).toContain('VİDEONUN TAMAMI')
-    expect(clips(tl, 'T1')[0].srcOut - clips(tl, 'T1')[0].srcIn).toBeCloseTo(30)
+  it('kullanıcının eklediği boş metin izi timeline uzunluğunca kendi varsayılan metniyle dolar; hazır metin üretilmez', () => {
+    expect(ops.fillTextTracks(base()).tracks.some((t) => t.kind === 'text')).toBe(false)
+    expect(base().tracks.some((t) => t.kind === 'text')).toBe(false)
+    const tl = ops.fillTextTracks(ops.addTrack(base(), { id: 'TX', name: 'Yazı', kind: 'text', role: 'text', textDefault: TEXT }))
+    expect(clips(tl, 'TX')).toHaveLength(1)
+    expect(clips(tl, 'TX')[0].text!.text).toBe('Kendi yazım')
+    expect(clips(tl, 'TX')[0].srcOut - clips(tl, 'TX')[0].srcIn).toBeCloseTo(30)
     expect(ops.fillTextTracks(createDefaultTimeline())).toEqual(createDefaultTimeline()) // boş projede klip yok
   })
 })
@@ -133,7 +138,7 @@ describe('kesme, birleştirme, boşluk kapatma', () => {
   })
 
   it('closeGaps: hiçbir izde içerik olmayan boşlukları kapatır; metin izleri sayılmaz', () => {
-    let tl = ops.fillTextTracks(base())
+    let tl = base()
     tl = ops.addClip(tl, 'V2', mk('cam2', 'V2', 50, 200, 210))
     tl = ops.addClip(tl, 'A2', mk('v2', 'A2', 50, 200, 210, { audioStream: 0 }))
     const out = ops.closeGaps(tl)
@@ -145,7 +150,7 @@ describe('kesme, birleştirme, boşluk kapatma', () => {
 
 describe('ASS metin katmanı', () => {
   it('konum, stil, sarma ve animasyonlar', () => {
-    const spec = DEFAULT_TEMPLATE.layers[0].textDefault!
+    const spec = TEXT
     const ass = buildAss([], createDefaultTimeline().captionStyle, 1080, 1920, 0, 10, [
       { start: 1, end: 6, spec, rect: { x: 30, y: 740, w: 1020, h: 180 } },
       { start: 0, end: 3, spec: { ...spec, animation: 'slide-up' }, rect: { x: 0, y: 0, w: 1080, h: 100 } }
@@ -154,7 +159,7 @@ describe('ASS metin katmanı', () => {
     expect(ass).toContain('\\an5\\pos(540,830)')
     expect(ass).toContain('\\t(400,700,\\fscx108\\fscy108)') // pulse
     expect(ass).toContain('\\move(540,')
-    expect(ass).toContain('VİDEONUN TAMAMI:\\NKANAL ADIN KANALINDA')
+    expect(ass).toContain('Kendi yazım')
   })
 })
 
@@ -169,6 +174,7 @@ describe('katman konumlu dışa aktarma planı', () => {
     tl = ops.addClip(tl, 'I1', { ...mk('img', 'I1', 0, 0, 10), assetId: 'img' })
     tl = ops.addClip(tl, 'V1', mk('game', 'V1', 0, 100, 110))
     tl = ops.addClip(tl, 'A2', mk('voice', 'A2', 0, 100, 110, { audioStream: 0 }))
+    tl = ops.addTrack(tl, { id: 'TX', name: 'Yazı', kind: 'text', role: 'text', placement: { rect: { x: 0.03, y: 0.38, w: 0.94, h: 0.1 }, fit: 'contain', visible: true, opacity: 1 }, textDefault: { ...TEXT, text: 'KENDİ YAZIM' } })
     return ops.fillTextTracks(tl)
   }
 
@@ -182,8 +188,7 @@ describe('katman konumlu dışa aktarma planı', () => {
     // oyun klibi (V1) kapalı: yalnızca yüz + görsel + ses girişi
     expect(plan.args.filter((a) => a === '-i')).toHaveLength(3)
     const ass = plan.files.find((x) => x.name === 'captions.ass')!.content
-    expect(ass).toContain('VİDEONUN TAMAMI')
-    expect(ass).toContain('TAKİP ETMEYİ UNUTMAYIN')
+    expect(ass).toContain('KENDİ YAZIM')
     expect(f).toContain('ass=captions.ass')
   })
 

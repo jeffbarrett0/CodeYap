@@ -113,10 +113,11 @@ export function AddToTrack({ asset }: { asset: MediaAsset }) {
   const [stream, setStream] = useState(-1)
   const [srcIn, setSrcIn] = useState(0)
   const [dur, setDur] = useState(asset.kind === 'image' ? 8 : 0)
+  const [withAudio, setWithAudio] = useState(true)
   const tid = tracks.some((t) => t.id === trackId) ? trackId : (tracks[0]?.id ?? '')
   const track = tracks.find((t) => t.id === tid)
   const total = Math.max(0, ...project.timeline.tracks.flatMap((t) => t.clips.map((c) => c.start + (c.srcOut - c.srcIn))))
-  const go = (at: number) => track && addAssetToTrack(asset.id, track.id, { at, srcIn: asset.kind === 'image' ? 0 : srcIn, duration: dur > 0 ? dur : undefined, audioStream: track.kind === 'audio' && stream >= 0 ? stream : undefined })
+  const go = (at: number) => track && addAssetToTrack(asset.id, track.id, { at, srcIn: asset.kind === 'image' ? 0 : srcIn, duration: dur > 0 ? dur : undefined, audioStream: track.kind === 'audio' && stream >= 0 ? stream : undefined, withAudio })
 
   if (tracks.length === 0) return null
   return (
@@ -136,6 +137,9 @@ export function AddToTrack({ asset }: { asset: MediaAsset }) {
             {asset.audioStreams.map((s) => <option key={s.index} value={s.index}>Track {s.index + 1}{s.title ? ` · ${s.title}` : ''}</option>)}
           </select>
         </label>
+      )}
+      {track?.kind === 'video' && asset.audioStreams.length > 0 && (
+        <label className="check"><input type="checkbox" checked={withAudio} onChange={(e) => setWithAudio(e.target.checked)} data-testid="with-audio" /> Videonun sesini de ekle (oyun sesi / konuşma izine)</label>
       )}
       <div className="grid2">
         {asset.kind !== 'image' && <Field label="Kaynakta başlangıç (sn)"><Num value={srcIn} step={1} min={0} label="Kaynak başlangıcı" onChange={setSrcIn} /></Field>}

@@ -122,3 +122,30 @@ export function clipForTrack(
 export function appendPosition(tl: Timeline): number {
   return timelineDuration(tl)
 }
+
+/**
+ * Bir videoyu video katmanına eklerken SESİNİ de ekler (aksi halde video katmanı sessiz kalır):
+ * görüntü + ses aynı grupta; ses, dosyanın rolüne göre konuşma (A2) ya da oyun sesi (A1) izine gider.
+ * Videoda ses akışı yoksa yalnızca görüntü döner.
+ */
+export function clipsForVideoWithAudio(
+  asset: MediaAsset,
+  videoTrack: Pick<Track, 'id' | 'kind' | 'role'>,
+  audioTracks: Pick<Track, 'id' | 'kind' | 'role'>[],
+  opts: { at: number; srcIn?: number; duration?: number; withAudio?: boolean }
+): { items: NewClipItem[] } | { error: string } {
+  if (videoTrack.kind !== 'video') return { error: 'Bu işlev yalnızca video katmanı içindir.' }
+  const v = clipForTrack(asset, videoTrack, opts)
+  if ('error' in v) return v
+  const group = newId('grp')
+  const items: NewClipItem[] = [{ trackId: videoTrack.id, clip: { ...v.clip, groupId: group } }]
+  if (opts.withAudio !== false && asset.audioStreams.length > 0) {
+    const want = asset.role === 'voice' ? 'voice' : 'game'
+    const target = audioTracks.find((t) => t.kind === 'audio' && t.role === want) ?? audioTracks.find((t) => t.kind === 'audio')
+    if (target) {
+      const a = clipForTrack(asset, target, { at: opts.at, srcIn: opts.srcIn, duration: opts.duration, audioStream: asset.audioMap.mix })
+      if (!('error' in a)) items.push({ trackId: target.id, clip: { ...a.clip, groupId: group } })
+    }
+  }
+  return { items }
+}

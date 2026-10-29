@@ -53,6 +53,7 @@ function SourcePlayer() {
   const videoUrl = asset ? api.mediaUrl(asset, 'video') : null
   const audioUrl = asset && asset.audioStreams.length ? api.mediaUrl(asset, 'audio', asset.audioMap.mix) : null
   const markers = (asset && project.markers[asset.id]?.map((m) => m.time)) || []
+  const audioPending = !!asset && !api.isMock && asset.audioStreams.length > 0 && !asset.audioStreams[asset.audioMap.mix]?.proxyPath && !/\.(mp4|m4v|mov|webm|mp3|wav|m4a|aac|ogg|flac|opus)$/i.test(asset.path)
 
   // dışarıdan gelen arama (sonuç tıklama vb.)
   useEffect(() => {
@@ -115,6 +116,7 @@ function SourcePlayer() {
         <button className="btn icon" onClick={toggle} disabled={!asset} aria-label={playing ? 'Duraklat' : 'Oynat'}>{playing ? '⏸' : '▶'}</button>
         <button className="btn icon" onClick={() => setSourceTime(sourceTime - 5)} aria-label="5 sn geri">−5</button>
         <button className="btn icon" onClick={() => setSourceTime(sourceTime + 5)} aria-label="5 sn ileri">+5</button>
+        {audioPending && <span className="badge warn" title="Önizleme kopyası bitince ses de çalar" data-testid="audio-pending">Ses önizlemesi hazırlanıyor…</span>}
         <span className="tc" data-testid="source-tc">{fmt(sourceTime, true)} / {fmt(dur)}</span>
         <Scrubber value={sourceTime} max={dur} onSeek={setSourceTime} range={clipDraft ? [clipDraft.start, clipDraft.end] : undefined} marks={markers} />
         {clipDraft && (

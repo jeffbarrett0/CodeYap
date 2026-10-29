@@ -36,7 +36,7 @@ Varsayılan şablon (**“YouTube Shorts · Yüz / Davet / Görsel”**, 9:16 = 
 | Bölge | Katman (iz) | Varsayılan yer | İçerik |
 |---|---|---|---|
 | Üst | **Yüz (webcam)** `V2` | y 0–41.5 %, tam genişlik, *doldur* | yüz kamerası |
-| Orta | **Davet metni** `T1` + **Hatırlatma metni** `T2` | y 38.5–48 % ve 33.5–38.5 % | “VİDEONUN TAMAMI: KANAL ADIN KANALINDA” (nabız animasyonu) ve “(VİDEOYU BEĞENİP & BENİ TAKİP ETMEYİ UNUTMAYIN)” |
+| Orta | **Orta alan (görsel)** `I2` | y 34–48 %, *sığdır* | **boş** bir görsel yeri; çağrı/davet yazılarını (görsel olarak ya da *+ Metin* ile) sen eklersin. Hazır yazı yoktur. |
 | Alt | **Konu görseli** `I1` | y 41.5–100 %, tam genişlik, *doldur* | konuyla ilgili fotoğraf / ekran görüntüsü |
 | (kapalı) | **Oyun ekranı** `V1` | alt bölge, *sığdır* | göz simgesiyle açılır; kamera kaynağı yoksa klip eklenirken otomatik açılır |
 | Ses | **Oyun sesi** `A1`, **Konuşma** `A2` | — | bağımsız seviye (Ses sekmesi) |
@@ -46,13 +46,13 @@ Varsayılan şablon (**“YouTube Shorts · Yüz / Davet / Görsel”**, 9:16 = 
 2. **Taşı:** önizlemede katmanı sürükle (kare kenarlarına, ortaya ve diğer katmanlara yapışır). **Boyutlandır:** 8 yeşil tutamaçtan çek.
 3. **Sayısal:** seçili katmanın **X / Y / Genişlik / Yükseklik (%)**, *Sığdırma* (doldur ↔ sığdır), *Saydamlık*; “Tam kare / Üst yarı / Alt yarı / Ortala” kısayolları.
 4. **Göster / gizle:** listedeki 👁 (ya da zaman çizelgesinde iz başlığındaki **G**). **Sıra:** ↑ ↓ (üstteki en önde).
-5. **Metin katmanı:** metin, yazı tipi, boyut, renk, kontur, **animasyon** (yok / belirme / nabız / aşağıdan kayma); “Süreyi sona kadar uzat”.
+5. **Metin katmanı** (*+ Metin*, boş başlar): metin, yazı tipi, boyut, renk, kontur, **animasyon** (yok / belirme / nabız / aşağıdan kayma); “Süreyi sona kadar uzat”.
 6. **Katman ekle:** *+ Görsel*, *+ Metin*, *+ Video* (isteğe bağlı logo, ikinci görsel vb.).
 7. **Şablon:** *Düzeni kaydet* ile mevcut düzeni (konumlar, görünürlük, metin biçimi) adlandırıp kaydet; üstteki listeden **Uygula**. Klipler değişmez. Şablon, kullanıcı verisi klasöründe `templates.json` olarak saklanır.
 
 **Kaynakları ayrı yönetmek** (Medya sekmesi)
 * Ekran kaydı, oyun sesi, konuşma sesi, kamera ve görseller **ayrı dosyalar** olarak içe aktarılır (MP4/MKV…, MP3/WAV/M4A…, PNG/JPG/WEBP). Dosyaya **rol** ver.
-* Dosyayı **zaman çizelgesindeki bir ize sürükle** ya da *Zaman çizelgesine ekle → Hedef iz → Oynatma başlığına / Sona ekle*. Ses izine görsel gibi uyumsuz bırakmalar anlaşılır uyarı verir.
+* Dosyayı **zaman çizelgesindeki bir ize sürükle** ya da *Zaman çizelgesine ekle → Hedef iz → Oynatma başlığına / Sona ekle*. Bir **videoyu video katmanına** eklediğinde **sesi de** (oyun sesi `A1` ya da dosya rolü *Konuşma* ise `A2`) otomatik eklenir; istemezsen *Videonun sesini de ekle* işaretini kaldır. Ses izine görsel gibi uyumsuz bırakmalar anlaşılır uyarı verir.
 * **Bağlı kaynaklar:** konuşma kaydını (transkript onda) seçip ekran / oyun sesi / kamera dosyalarını bağla (gerekirse *Sesten bul* ile senkron ofseti). Konuşmadan klip çıkarınca hepsi **aynı aralıkta**, kendi izlerine gelir.
 
 **Kendin kesip birleştirmek**

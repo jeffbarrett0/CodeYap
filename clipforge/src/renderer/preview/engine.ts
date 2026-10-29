@@ -131,8 +131,10 @@ export class PreviewEngine {
         ctx.save()
         ctx.globalAlpha = pl.opacity
         if (track.kind === 'text' && c.text) {
-          this.drawText(ctx, c.text, r, scale, t - c.start, clipDuration(c))
-          drew = true
+          if (c.text.text.trim()) {
+            this.drawText(ctx, c.text, r, scale, t - c.start, clipDuration(c))
+            drew = true
+          }
         } else {
           let src: CanvasImageSource | null = null
           let sw = 0
