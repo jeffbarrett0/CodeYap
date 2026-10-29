@@ -1,0 +1,47 @@
+import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { buildExportPlan } from '../shared/export/plan'
+import type { ExportRequest } from '../shared/ipc'
+import { runFfmpeg, ToolError } from './ffmpeg'
+import type { MediaTools } from './media/import'
+
+/**
+ * Zaman çizelgesini ffmpeg ile dışa aktarır. Çıktı önce `.part` dosyasına yazılır, başarıyla bitince
+ * yeniden adlandırılır; iptal/hata durumunda yarım dosya bırakılmaz.
+ */
+export async function runExport(
+  req: ExportRequest,
+  tools: MediaTools,
+  opts: { signal?: AbortSignal; progress?: (f: number, msg?: string) => void } = {}
+): Promise<{ outputPath: string; warnings: string[] }> {
+  const byId = new Map(req.assets.map((a) => [a.id, a]))
+  const missing = req.assets.filter((a) => a.missing)
+  if (missing.length) throw new ToolError(`Kaynak medya bulunamadı: ${missing.map((m) => m.name).join(', ')}. Dosyaları yeniden bağlayın.`)
+
+  const partPath = `${req.outputPath}.part`
+  const plan = buildExportPlan(req.timeline, (id) => byId.get(id), req.options, partPath, req.range)
+  if (plan.durationSec <= 0.1) throw new ToolError('Dışa aktarılacak içerik yok: zaman çizelgesi boş.')
+
+  await mkdir(dirname(req.outputPath), { recursive: true })
+  const work = await mkdtemp(join(tmpdir(), 'clipforge-export-'))
+  try {
+    for (const f of plan.files) await writeFile(join(work, f.name), f.content, 'utf8')
+    // ffmpeg uzantıdan biçimi çıkarır: `.part` uzantısı bunu bozacağından biçimi açıkça belirt
+    const args = [...plan.args.slice(0, -1), '-f', 'mp4', plan.args.at(-1) as string]
+    opts.progress?.(0, 'Kodlanıyor')
+    await runFfmpeg(tools.ffmpeg, args, {
+      cwd: work,
+      signal: opts.signal,
+      durationSec: plan.durationSec,
+      onProgress: (f) => opts.progress?.(f, `Kodlanıyor %${Math.round(f * 100)}`)
+    })
+    await rename(partPath, req.outputPath)
+  } catch (e) {
+    await rm(partPath, { force: true }).catch(() => undefined)
+    throw e
+  } finally {
+    await rm(work, { recursive: true, force: true }).catch(() => undefined)
+  }
+  return { outputPath: req.outputPath, warnings: plan.warnings }
+}

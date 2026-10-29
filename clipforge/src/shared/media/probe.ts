@@ -83,10 +83,10 @@ function latin1(b: Uint8Array): string {
 }
 
 export function scanEncoderSignature(text: string): { encoder: ObsEncoder; evidence: string } | null {
-  if (/h264_nvenc|hevc_nvenc|av1_nvenc|jim_nvenc|nvenc/i.test(text)) return { encoder: 'nvenc', evidence: 'Kodlayıcı imzası: NVENC' }
-  if (/h264_amf|hevc_amf|av1_amf|\bamf\b/i.test(text)) return { encoder: 'amf', evidence: 'Kodlayıcı imzası: AMF' }
-  if (/h264_qsv|hevc_qsv|av1_qsv|\bqsv\b/i.test(text)) return { encoder: 'qsv', evidence: 'Kodlayıcı imzası: QuickSync' }
-  if (/videotoolbox/i.test(text)) return { encoder: 'apple', evidence: 'Kodlayıcı imzası: VideoToolbox' }
+  if (/(?:h264|hevc|av1)_nvenc|jim_(?:hevc_|av1_)?nvenc|NVIDIA NVENC/i.test(text)) return { encoder: 'nvenc', evidence: 'Kodlayıcı imzası: NVENC' }
+  if (/(?:h264|hevc|av1)_amf|AMD AMF|ffmpeg_amf/i.test(text)) return { encoder: 'amf', evidence: 'Kodlayıcı imzası: AMF' }
+  if (/(?:h264|hevc|av1)_qsv|Intel QuickSync/i.test(text)) return { encoder: 'qsv', evidence: 'Kodlayıcı imzası: QuickSync' }
+  if (/(?:h264|hevc)_videotoolbox/i.test(text)) return { encoder: 'apple', evidence: 'Kodlayıcı imzası: VideoToolbox' }
   if (/x264 - core \d+|libx264/i.test(text)) return { encoder: 'x264', evidence: 'Kodlayıcı imzası: x264' }
   return null
 }

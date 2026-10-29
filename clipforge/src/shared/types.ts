@@ -75,6 +75,8 @@ export interface MediaAsset {
   /** Oyun ve konuşma sesi için ayrı ses akışı eşlemesi (yoksa karışım kullanılır) */
   audioMap: { mix: number; game?: number; voice?: number }
   importedAt: string
+  /** Proje açılırken dosya bulunamadıysa true */
+  missing?: boolean
 }
 
 export interface NormRect {
