@@ -12,6 +12,8 @@ const FONTS = [
   '/System/Library/Fonts/Supplemental/Arial Bold.ttf', 'C:/Windows/Fonts/arialbd.ttf',
 ]
 const font = () => FONTS.find((p) => fs.existsSync(p))
+/** Escape a file path for an ffmpeg filter option (Windows drive colons and backslashes). */
+const ffPath = (p: string) => p.replace(/\\/g, '/').replace(/:/g, '\\:')
 
 export interface ExportOptions {
   /** Burn the clip title into the first seconds of each segment. */
@@ -46,7 +48,7 @@ function encodeSegment(seg: Segment, audio: boolean, out: string, titles: boolea
   ]
   const f = font()
   if (titles && f && dt(seg.title)) {
-    vf.push(`drawtext=fontfile='${f}':text='${dt(seg.title)}':fontcolor=white:fontsize=34:box=1:boxcolor=black@0.55:boxborderw=10:x=40:y=h-th-50:enable='lt(t,3.5)'`)
+    vf.push(`drawtext=fontfile='${ffPath(f)}':text='${dt(seg.title)}':fontcolor=white:fontsize=34:box=1:boxcolor=black@0.55:boxborderw=10:x=40:y=h-th-50:enable='lt(t,3.5)'`)
   }
   const fd = Math.min(0.5, seg.duration / 3)
   if (seg.fadeIn) vf.push(`fade=t=in:st=0:d=${fd}`)

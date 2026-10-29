@@ -10,6 +10,10 @@ Dark, dense, pro-tool UI. Light theme available.
 
 ## Quick start
 
+**Windows (PowerShell):** install Node 20+ and ffmpeg (`winget install OpenJS.NodeJS.LTS Gyan.FFmpeg`), reopen the terminal, then if `npm` is blocked
+by the execution policy run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once (or use `npm.cmd run …` instead of `npm run …`).
+
+
 Requirements: **Node 20+** and **ffmpeg** on your `PATH`
 (thumbnails, metadata probing, the generated demo video and MP4 export all use it; without it the app still runs).
 

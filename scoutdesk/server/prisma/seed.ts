@@ -23,6 +23,9 @@ type Outcome = 'success' | 'fail' | 'neutral'
 
 // ── Demo video ──────────────────────────────────────────────────────────────
 
+/** Escape a file path for an ffmpeg filter option (Windows drive colons and backslashes). */
+const ffPath = (p: string) => p.replace(/\\/g, '/').replace(/:/g, '\\:')
+
 const FONTS = [
   '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
   '/usr/share/fonts/dejavu/DejaVuSansMono.ttf',
@@ -82,7 +85,7 @@ async function generateDemoVideo(dest: string, format: 'mp4' | 'webm'): Promise<
   const g = playersGraph()
   let text = ''
   if (font) {
-    const common = `fontfile='${font}':fontcolor=white:fontsize=34:box=1:boxcolor=black@0.6:boxborderw=8`
+    const common = `fontfile='${ffPath(font)}':fontcolor=white:fontsize=34:box=1:boxcolor=black@0.6:boxborderw=8`
     text =
       `,drawtext=${common}:text='%{pts\\:hms}  F%{frame_num}':x=70:y=52` +
       `,drawtext=${common}:fontsize=26:text='NORTHBRIDGE FC  v  RIVERMOUTH UNITED  (demo footage)':x=70:y=640`
