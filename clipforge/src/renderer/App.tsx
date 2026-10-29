@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { MediaPanel } from './components/MediaPanel'
 import { SearchPanel } from './components/SearchPanel'
 import { SuggestPanel } from './components/SuggestPanel'
+import { TranscriptPanel } from './components/TranscriptPanel'
 import { Preview } from './components/Preview'
 import { Timeline } from './components/Timeline'
 import { RightPanel } from './components/RightPanel'
@@ -59,7 +60,7 @@ export function App() {
   useEffect(() => { void init() }, [init])
   useShortcuts()
   if (!ready) return <div style={{ padding: 24 }}>Yükleniyor…</div>
-  const tabs: [typeof leftTab, string][] = [['media', 'Medya'], ['search', 'Arama'], ['suggest', 'Öneriler']]
+  const tabs: [typeof leftTab, string][] = [['media', 'Medya'], ['search', 'Arama'], ['transcript', 'Transkript'], ['suggest', 'Öneriler']]
   return (
     <div className="app">
       <TopBar />
@@ -69,6 +70,7 @@ export function App() {
         </div>
         {leftTab === 'media' && <MediaPanel />}
         {leftTab === 'search' && <SearchPanel />}
+        {leftTab === 'transcript' && <TranscriptPanel />}
         {leftTab === 'suggest' && <SuggestPanel />}
       </aside>
       <Preview />

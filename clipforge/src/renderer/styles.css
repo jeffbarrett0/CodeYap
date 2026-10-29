@@ -204,3 +204,10 @@ kbd { background: var(--panel3); border: 1px solid var(--border); border-bottom-
 .tl-clip.text { background: #b2562c; }
 .tl-label .tn > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 78px; }
 .tl-label .hint { display: none; }
+.tw { line-height: 1.9; user-select: none; }
+.tw p { margin: 0 0 10px; }
+.tw-time { background: none; border: 0; color: var(--accent); font: 11px ui-monospace, monospace; padding: 0 6px 0 0; cursor: pointer; }
+.tw-word { cursor: pointer; border-radius: 3px; padding: 1px 0; }
+.tw-word:hover { background: #ffffff14; }
+.tw-word.cur { background: #53fc1830; color: #d6ffc2; }
+.tw-word.sel { background: #5aa9ff40; color: #fff; }

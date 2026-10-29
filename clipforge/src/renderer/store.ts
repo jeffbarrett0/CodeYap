@@ -14,7 +14,7 @@ import { BUILTIN_TEMPLATES, templateFromTimeline } from '@shared/timeline/templa
 import type { ChatLog, ClipCandidate, ExportOptions, LayoutTemplate, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
 import { requireApi } from './api'
 
-export type LeftTab = 'media' | 'search' | 'suggest'
+export type LeftTab = 'media' | 'search' | 'transcript' | 'suggest'
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions'
 export type Dialog = null | 'settings' | 'export' | 'clip' | 'help'
 
@@ -161,6 +161,13 @@ interface State {
   deleteLayoutTemplate(id: string): Promise<void>
   /** Katmanı (iz) kare içinde gösterir/gizler */
   toggleLayerVisible(trackId: string): void
+  /** Zaman damgasına atla: zaman çizelgesi modunda oynatma başlığı, kaynak modunda kaynak oynatıcı */
+  jumpTo(sec: number): void
+  /** Transkriptten kesme: çizelge zamanında [a, b) aralığını tüm izlerden siler (ripple: sonrası kayar) */
+  cutTimelineRange(a: number, b: number, ripple: boolean): void
+  openDraftFromRange(assetId: string, start: number, end: number, firstWord: number, lastWord: number): void
+  joinSelected(): void
+  closeGaps(): void
   /** Klip eklendikten sonra: metin katmanlarını doldurur; kamera yoksa oyun ekranı katmanını açar */
   afterClipsAdded(trackIds: string[]): void
 }
@@ -639,6 +646,33 @@ export const useStore = create<State>()((set, get) => {
       if (trackIds.includes('V1') && !trackIds.includes('V2') && screen?.placement && !screen.placement.visible && !tl.tracks.find((t) => t.id === 'V2')?.clips.length) {
         get().exec(cmd.placement('V1', { visible: true }, false))
       }
+    },
+    jumpTo(sec) {
+      if (get().viewMode === 'timeline') get().setPlayhead(sec)
+      else get().setSourceTime(sec)
+    },
+    cutTimelineRange(a, b, ripple) {
+      get().exec(cmd.cutRange(a, b, ripple))
+      set({ selection: [] })
+      get().toast('success', `${(b - a).toFixed(1)} sn kesildi${ripple ? '' : ' (boşluk bırakıldı)'}. Geri almak için Ctrl+Z.`)
+    },
+    openDraftFromRange(assetId, start, end, firstWord, lastWord) {
+      const { settings } = get()
+      set({ clipDraft: null })
+      get().recomputeDraft({ assetId, hitStart: start, hitEnd: end, firstWord, lastWord, preRoll: settings.preRollSec, postRoll: settings.postRollSec, targetSec: settings.targetDurationSec, title: 'Transkript seçimi' })
+      set({ viewMode: 'source' })
+    },
+    joinSelected() {
+      const { selection, project } = get()
+      if (selection.length === 0) return get().toast('info', 'Birleştirmek için önce bir klip seçin (hemen sonraki klibiyle birleşir).')
+      const before = project.timeline
+      get().exec(cmd.join(selection[0]))
+      if (get().project.timeline === before) get().toast('info', 'Birleştirilemedi: iki klip yan yana, aynı kaynaktan ve kaynakta kesintisiz devam eden parçalar olmalı.')
+    },
+    closeGaps() {
+      const before = get().project.timeline
+      get().exec(cmd.closeGaps())
+      get().toast(get().project.timeline === before ? 'info' : 'success', get().project.timeline === before ? 'Kapatılacak boşluk yok.' : 'Boşluklar kapatıldı.')
     },
     toggleLayerVisible(trackId) {
       const t = get().project.timeline.tracks.find((x) => x.id === trackId)

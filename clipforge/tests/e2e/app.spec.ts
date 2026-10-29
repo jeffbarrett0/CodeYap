@@ -298,4 +298,73 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(2)
     await expect(page.getByTestId('lane-A2').getByTestId('clip')).toHaveCount(1)
   })
+
+  test('transkript: kelimeden kesme, zaman damgasına atlama, birleştirme, boşluk kapatma, geri alma', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await page.getByTestId('tab-search').click()
+    await page.getByTestId('search-input').fill('Victor Nelson')
+    await page.getByTestId('search-btn').click()
+    await page.getByTestId('make-clip').first().click()
+    await page.getByTestId('add-to-timeline').click()
+    const v1 = page.getByTestId('lane-V1').getByTestId('clip')
+    await expect(v1).toHaveCount(1)
+
+    await page.getByTestId('tab-transcript').click()
+    await expect(page.getByTestId('tw-word').first()).toBeVisible()
+    const words = page.getByTestId('tw-word')
+    const n0 = await words.count()
+    expect(n0).toBeGreaterThan(5)
+
+    // kelime aralığı seç (tıkla + Shift+tıkla) ve kes
+    const dur = async () => Number((await page.getByTestId('tl-tc').textContent().catch(() => null))?.split('/')[1]?.trim().split(':').reduce((a, b) => a * 60 + Number(b), 0) ?? 0)
+    await page.getByTestId('mode-timeline').click()
+    const total0 = await dur()
+    await words.nth(2).click()
+    await words.nth(4).click({ modifiers: ['Shift'] })
+    await expect(page.getByTestId('tw-selection')).toContainText('Seçili')
+    await page.getByTestId('tw-cut').click()
+    await expect(v1).toHaveCount(2) // klip ikiye bölündü, aradaki kısım silindi
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(2) // bağlı ses de
+    expect(await page.getByTestId('tw-word').count()).toBe(n0 - 3)
+    expect(await dur()).toBeLessThan(total0)
+
+    // geri al → yeniden tek klip
+    await page.keyboard.press('Control+z')
+    await expect(v1).toHaveCount(1)
+    expect(await page.getByTestId('tw-word').count()).toBe(n0)
+
+    // zaman damgasına atla
+    await page.getByTestId('tw-jump-input').fill('0:03')
+    await page.getByTestId('tw-jump-go').click()
+    await expect(page.getByTestId('tl-tc')).toContainText('00:03')
+    await page.getByTestId('tw-jump-input').fill('abc')
+    await page.getByTestId('tw-jump-go').click()
+    await expect(page.getByTestId('toast').filter({ hasText: 'Zaman biçimi' })).toBeVisible()
+
+    // böl → birleştir
+    await v1.first().click()
+    await page.keyboard.press('s')
+    await expect(v1).toHaveCount(2)
+    await v1.first().click()
+    await page.getByTestId('join').click()
+    await expect(v1).toHaveCount(1)
+
+    // boşluk kapat: klibi uzağa taşı, sonra boşlukları kapat
+    const b = (await v1.first().boundingBox())!
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(b.x + b.width / 2 + 200, b.y + b.height / 2, { steps: 6 })
+    await page.mouse.up()
+    expect((await v1.first().boundingBox())!.x).toBeGreaterThan(b.x + 100)
+    await page.getByTestId('close-gaps').click()
+    expect(Math.abs((await v1.first().boundingBox())!.x - b.x)).toBeLessThan(3)
+
+    // kaynak modu: seçimden klip taslağı
+    await page.getByTestId('tw-mode-source').click()
+    await page.getByTestId('tw-word').nth(3).click()
+    await page.getByTestId('tw-word').nth(8).click({ modifiers: ['Shift'] })
+    await page.getByTestId('tw-make-clip').click()
+    await expect(page.getByTestId('draft-panel')).toBeVisible()
+  })
 })

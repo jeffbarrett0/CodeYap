@@ -136,3 +136,25 @@ Tek dosya (OBS birleşik kayıt): kamera bölgesi normalize dikdörtgen olarak g
 * **macOS ve Windows'ta çalıştırılmadı.** Kod yol/kabuk açısından platform bağımsız yazıldı (argv ile alt süreç, `path` modülü), testler
   Linux'ta koştu. Kurulum dosyaları ilgili işletim sisteminde derlenmelidir (`ffmpeg-static` derlemeyi yapan platformun ikilisini indirir).
 * Çoklu proje/çoklu kayıt arama (yalnızca seçili kayıt aranır), sohbet kelime-bulutu, çevrimiçi VOD içe aktarma (kapsam dışı).
+
+## 16. Katman modeli ve şablonlar (v2)
+**Karar:** Düzen artık sabit bir "düzen ön ayarı" değil, **iz başına konum** (`Track.placement`: rect, fit, visible, opacity). Şablon = katman konumlarının
+ve metin biçimlerinin bir anlık görüntüsü (`LayoutTemplate`); yerleşik şablonlar kodda, kullanıcı şablonları `templates.json`'da. Eski (v1) projeler açılışta
+varsayılan şablona geçirilir (iz kimlikleri ve klipler korunur; eski "oyun ortada" ön ayarı ayrıca yerleşik şablon olarak duruyor).
+**Metin/animasyon:** Metin katmanları dışa aktarmada **ASS** ile yakılır (altyazıyla aynı yol; `fade`, `pulse`, `slide-up`), video/GIF animasyonu yok.
+**Önizleme farkları:** Canvas önizleme ASS animasyonlarını taklit eder; yazı tipi yerleşimi libass'tan birkaç piksel farklı olabilir. Yazı tipi sistemde yüklü olmalı
+(Impact Windows/macOS'ta var; Linux'ta yedek yazı tipi kullanılır).
+**Oyun ekranı** varsayılan kapalı katmandır; kamera/yüz kaynağı olmayan bir klip eklenirken otomatik açılır (aksi halde görüntü hiç görünmezdi).
+**Açık:** (a) "Kısa animasyon" olarak yalnızca metin animasyonu var; hareketli görsel (GIF/WebM kanalı daveti) için video katmanı kullanılabilir ama
+alfa kanallı videolar denenmedi. (b) Katman başına gölge/köşe yuvarlama/kenarlık yok. (c) Şablon uygulamak mevcut metin klibinin içeriğini değiştirmez
+(yalnızca konum ve boş izlerin varsayılan metni). (d) Katman konumu klip bazında değil iz bazındadır (aynı izdeki tüm klipler aynı yerdedir).
+
+## 17. Bağlı kaynaklar ve senkron
+Ayrı ekran/oyun sesi/konuşma/kamera dosyaları `MediaAsset.sources` ile bağlanır; ofset **bağlı dosyada** (`syncOffsetSec`: bağlı dosya zamanı = birincil dosya zamanı + ofset)
+tutulur. Ofset ses zarfı çapraz ilişkisiyle (ilk 120 sn) önerilir; güven düşükse elle girilir. Birden çok kamera/oturum ya da dosya başına farklı
+zaman tabanı (hız sapması) desteklenmez.
+
+## 18. Transkriptten kesme
+Kesim, seçili kelimelerin çevresindeki sessizliği ikiye bölerek (yarısı komşu kelimeye) yapılır; **tüm kilitsiz izlerden** aynı anda ripple. Zaman çizelgesi
+transkripti, kliplerin kaynaklarının transkriptlerinden türetilir (yalnızca kullanılan aralık). Kelime düzeyindeki zaman damgası hataları (bkz. §1)
+kesimde duyulabilir bir kayma yaratabilir; gerçek kayıtla denenmedi.

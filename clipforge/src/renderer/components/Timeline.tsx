@@ -134,6 +134,8 @@ export function Timeline() {
         <span style={{ width: 8 }} />
         <button className="btn sm" onClick={splitAtPlayhead} title="Oynatma başlığında böl (S)" data-testid="split">✂ Böl</button>
         <button className="btn sm danger" onClick={deleteSelection} disabled={selection.length === 0} title="Sil (Delete)" data-testid="delete">Sil</button>
+        <button className="btn sm" onClick={() => useStore.getState().joinSelected()} title="Seçili klibi hemen sonraki, kaynakta kesintisiz devam eden klibiyle birleştirir" data-testid="join">⇄ Birleştir</button>
+        <button className="btn sm" onClick={() => useStore.getState().closeGaps()} title="Hiçbir izde içerik olmayan boşlukları siler" data-testid="close-gaps">Boşlukları kapat</button>
         <span style={{ width: 8 }} />
         <button className="btn sm" onClick={() => { setViewMode('timeline'); setPlaying(!playing) }} aria-label="Oynat/duraklat (Space)">{playing ? '⏸' : '▶'} <kbd>Space</kbd></button>
         <span className="tc" style={{ marginLeft: 6 }}>{fmt(playhead, true)}</span>

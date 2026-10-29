@@ -57,7 +57,7 @@ clipforge/
 │  │  ├─ search/              # engine (tam/bulanık/pencere), semantic, service
 │  │  ├─ transcript/          # sentences (cümle bölütleme), chunking (örtüşen pencereler + birleştirme)
 │  │  ├─ clip/boundaries.ts   # Pre/post-roll, hedef süre, cümleye yapışma, uyarılar
-│  │  ├─ timeline/            # model, ops (saf işlemler), history+commands (geri al/yinele), captions, create
+│  │  ├─ timeline/            # model, ops (katman/kesme/birleştirme), history+commands, captions, create, templates, transcript
 │  │  ├─ export/              # presets, layout (9:16 düzenleri), ass (altyazı), plan (ffmpeg filtre grafiği)
 │  │  ├─ chat/parse.ts        # CSV/TSV/JSON/metin sohbet günlüğü + mesaj hızı serisi
 │  │  ├─ suggest/score.ts     # Ses, sohbet, anahtar kelime, sahne, işaretçi → aday skoru + gerekçe
@@ -93,9 +93,10 @@ Tüm zamanlar **saniye**; hepsi düz JSON (class/Map/Date yok).
 | `MediaAsset` | `path`/`relativePath`, `container`, `durationSec`, `width/height/fps`, `videoCodec`, `audioStreams[]` (Track 1…N), `obs` {isObs, version, encoder, evidence}, `chapters`, `proxyPath`, `thumbnailPath`, `transcriptionTrack`, `audioMap` {mix, game, voice}, `webcamRegion`/`webcamAssetId`/`syncOffsetSec` |
 | `Transcript` | `words[]` (`TranscriptWord`: text/start/end/confidence), `segments[]` (`Segment`: cümle, kelime aralığı), `language`, `model`, `provider`, `audioTrack` |
 | `SearchResult` | `start/end`, `sentence`, `before[]/after[]`, `score`, `kind` (exact/fuzzy/window/semantic), `matchCount`, `matchedWords[]`, `missingTerms?` |
-| `Timeline` | `aspect`, `layout`, `tracks[]`, `captions[]`, `captionStyle`, `webcamOverlay` |
-| `Track` | `kind` (video/audio/caption), `role` (screen/webcam/game/voice/mix), `clips[]`, `muted/locked/volume` |
-| `Clip` | `start`, `srcIn/srcOut`, `assetId`, `audioStream?`, `groupId?`, `origin` (**kaynak zaman damgası meta verisi**: sorgu, eşleşme anı), `overlay?`, `crop?` |
+| `Timeline` | `aspect`, `background`, `tracks[]`, `captions[]`, `captionStyle` (`layout`/`webcamOverlay` yalnızca eski projeler için yedek) |
+| `Track` | `kind` (video/audio/image/text), `role`, `clips[]`, `muted/locked/volume`, **`placement`** (katmanın kare içindeki rect/fit/visible/opacity), `textDefault` |
+| `LayoutTemplate` | kaydedilebilir düzen: aspect, arka plan, katman listesi (konum + metin biçimi) |
+| `Clip` | `text?` (metin klibi), `start`, `srcIn/srcOut`, `assetId`, `audioStream?`, `groupId?`, `origin` (**kaynak zaman damgası meta verisi**: sorgu, eşleşme anı), `overlay?`, `crop?` |
 | `Caption` / `CaptionStyle` | zamanlı metin / yazı tipi, renk, kontur, konum, büyük harf |
 | `ChatLog` / `ChatMessage` | `t` (kayıt başından sn), `user`, `text` |
 | `ClipCandidate` | `start/end/peak`, `score`, `reasons[]` (signal, strength, label), `status` |

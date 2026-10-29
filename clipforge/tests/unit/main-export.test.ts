@@ -162,6 +162,20 @@ describe('proje kaydet / aç', () => {
     expect((await openProject(join(b, 'Benim Projem.clipforge'))).assets[0].missing).toBe(true)
   })
 
+  it('v1 proje (katman konumu yok) açılınca varsayılan şablona geçirilir; klipler ve iz kimlikleri korunur', async () => {
+    const dir = join(root, 'v1proje')
+    mkdirSync(dir, { recursive: true })
+    const old = createDefaultTimeline()
+    const legacyTl = { ...old, tracks: old.tracks.filter((t) => ['V1', 'V2', 'A1', 'A2'].includes(t.id)).map(({ placement: _p, textDefault: _t, ...t }) => t) }
+    legacyTl.tracks[1].clips = [{ id: 'c1', trackId: 'V1', assetId: 'a1', start: 0, srcIn: 5, srcOut: 9, volume: 1, label: 'eski klip' }]
+    const projPath = join(dir, 'eski.clipforge')
+    writeFileSync(projPath, JSON.stringify({ ...baseProject(fake), version: 1, timeline: legacyTl }))
+    const p = await openProject(projPath)
+    expect(p.timeline.tracks.every((t) => t.kind === 'audio' || t.placement)).toBe(true)
+    expect(p.timeline.tracks.map((t) => t.id)).toEqual(expect.arrayContaining(['T1', 'V2', 'I1', 'V1', 'A1', 'A2']))
+    expect(p.timeline.tracks.find((t) => t.id === 'V1')!.clips[0]).toMatchObject({ id: 'c1', srcIn: 5, label: 'eski klip' })
+  })
+
   it('bozuk / yabancı dosyada anlaşılır hata', async () => {
     const bad = join(root, 'bozuk.clipforge')
     writeFileSync(bad, '{bozuk')

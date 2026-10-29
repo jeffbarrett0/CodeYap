@@ -103,3 +103,15 @@ export function formatTime(sec: number, withMs = false): string {
     : `${String(m).padStart(2, '0')}:${String(Math.floor(r)).padStart(2, '0')}`
   return h > 0 ? `${h}:${body}` : body
 }
+
+/** "754", "754.5", "12:34", "1:02:03(.5)" → saniye; tanınmazsa null */
+export function parseTimecode(input: string): number | null {
+  const s = input.trim().replace(',', '.')
+  if (!s) return null
+  if (/^\d+(\.\d+)?$/.test(s)) return Number(s)
+  const m = /^(?:(\d+):)?(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/.exec(s)
+  if (!m) return null
+  const [, h, mi, sec] = m
+  if (Number(mi) > 59 || Number(sec) >= 60) return null
+  return Number(h ?? 0) * 3600 + Number(mi) * 60 + Number(sec)
+}

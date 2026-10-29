@@ -16,15 +16,49 @@ Belirsiz kalan kararlar: [`DECISIONS.md`](DECISIONS.md).
 |---|---|
 | **İçe aktarma** | Sürükle-bırak / dosya seçici; MP4·MOV·MKV·FLV. OBS sürümü, codec (x264/NVENC/AMF), container ve **ses track sayısı** algılanır. Her ses track'i ayrı okunur; transkripsiyon varsayılan **Track 1** (oyun+mikrofon karışımı), değiştirilebilir. Arka planda işleme, ilerleme çubuğu, iptal. Proje kaydet/aç (JSON, **göreli medya yolları**). Küçük resim, süre, çözünürlük. |
 | **Transkripsiyon** | Kelime düzeyinde zaman damgası; kayıt 10 dk + 15 sn **örtüşen** parçalarla işlenir (sınırda kelime kaybı yok); sonuç projeye kaydedilir ve **yeniden kullanılır**; dil varsayılanı Türkçe. |
+| **Transkriptten düzenleme** | Transkript sekmesi: kelimeye tıkla → atla; aralık seçip **kes** (ripple), zaman damgasına git, seçimden klip. |
 | **Konuşmada arama** | Tek kelime / isim / serbest cümle. **Tam** (ı/i, ş/s, ğ/g, ç/c, ö/o, ü/u duyarsız) · **bulanık** (“Viktor Nelsen” → “Victor Nelson”, eşik ayarlı) · **yakınlık penceresi** (“Victor” ve “Nelson” 10 sn içinde) · isteğe bağlı **anlamsal** arama. Sonuç: zaman, cümle, önceki/sonraki bağlam, skor; zamana göre sıralı; aynı konuşmadaki tekrarlar tek sonuç; tıklayınca oynatıcı o ana gider; son 10 sorgu. |
 | **Klip oluşturma** | Başlangıç/bitiş **cümle sınırına** yapışır; pre-roll (5 sn) / post-roll (10 sn) ayarlı; hedef 15/30/60 sn; sınır aşımı uyarısı; oynatıcıdan ince ayar; kaynak zaman damgası klipte saklanır; tek tek ya da toplu. |
 | **Otomatik öneri** | Ses enerjisi sıçramaları, **sohbet hızı** (CSV/JSON/metin; sütun eşlemesi), tepki sözcükleri, isteğe bağlı sahne yoğunluğu, OBS işaretçileri → skor + **gerekçe**; kabul/red/süre ayarı. İşaretçi yoksa sessizce kapalı. |
+| **Katmanlar & şablonlar** | Yüz / davet metni / görsel / oyun ekranı **ayrı katmanlar**: önizlemede sürükle-bırak + sayısal konum/boyut/görünürlük; metin animasyonları; düzenleri **şablon olarak kaydet**; ekran, oyun sesi, konuşma, kamera ve görsel ayrı dosyalarla çalışma. |
 | **Zaman çizelgesi** | Çoklu video/ses izi, yakınlaştırma, taşı / kenardan kırp / böl / sil, bağlı (grup) klipler, kare kare oynatma başlığı, **geri al/yinele** (komut deseni), otomatik altyazı (yazı tipi/renk/konum), yüz kamerası overlay'i (ayrı dosya + senkron ya da tek dosyada bölge). |
-| **Önizleme & dışa aktarma** | Gerçek zamanlı canvas önizleme; 9:16 · 1:1 · 16:9; 9:16'da **oyun ortada, kamera alt/üstte** düzeni; oyun/konuşma **ayrı ses seviyesi**; H.264, çözünürlük/fps/bitrate/CRF; kuyruk, ilerleme, iptal; TikTok/Reels/Shorts (9:16, 60 sn) ve YouTube şablonları; **telif hatırlatması**. |
+| **Önizleme & dışa aktarma** | Gerçek zamanlı canvas önizleme (katman konumları dışa aktarmayla aynı); 9:16 · 1:1 · 16:9; hazır şablonlar (3 bölgeli, oyun ortada + kamera alt/üstte, tam kare + köşe kamera); oyun/konuşma **ayrı ses seviyesi**; H.264, çözünürlük/fps/bitrate/CRF; kuyruk, ilerleme, iptal; TikTok/Reels/Shorts (9:16, 60 sn) ve YouTube şablonları; **telif hatırlatması**. |
 
 ### Klavye kısayolları
 `Space` oynat/durdur · `S` böl · `Delete` sil · `J/K/L` geri/dur/ileri (tekrar basınca hızlanır) · `←/→` kare (Shift: 1 sn) ·
 `Ctrl/Cmd+Z` geri al · `Ctrl/Cmd+Shift+Z` yinele · `Ctrl/Cmd+S` kaydet · `Ctrl/Cmd+E` dışa aktar · `Ctrl + tekerlek` yakınlaştır.
+
+## Katmanlı düzen (YouTube Shorts) — kullanım notu
+
+Kare artık **katmanlardan** oluşur. Her katman zaman çizelgesinde bir izdir ve kendi **konumu, boyutu, görünürlüğü, saydamlığı** vardır.
+Varsayılan şablon (**“YouTube Shorts · Yüz / Davet / Görsel”**, 9:16 = 1080×1920):
+
+| Bölge | Katman (iz) | Varsayılan yer | İçerik |
+|---|---|---|---|
+| Üst | **Yüz (webcam)** `V2` | y 0–41.5 %, tam genişlik, *doldur* | yüz kamerası |
+| Orta | **Davet metni** `T1` + **Hatırlatma metni** `T2` | y 38.5–48 % ve 33.5–38.5 % | “VİDEONUN TAMAMI: KANAL ADIN KANALINDA” (nabız animasyonu) ve “(VİDEOYU BEĞENİP & BENİ TAKİP ETMEYİ UNUTMAYIN)” |
+| Alt | **Konu görseli** `I1` | y 41.5–100 %, tam genişlik, *doldur* | konuyla ilgili fotoğraf / ekran görüntüsü |
+| (kapalı) | **Oyun ekranı** `V1` | alt bölge, *sığdır* | göz simgesiyle açılır; kamera kaynağı yoksa klip eklenirken otomatik açılır |
+| Ses | **Oyun sesi** `A1`, **Konuşma** `A2` | — | bağımsız seviye (Ses sekmesi) |
+
+**Bir katmanı ayarlamak**
+1. Sağ panel → **Katmanlar** sekmesi. Katmanı listeden ya da **önizlemeden** seç.
+2. **Taşı:** önizlemede katmanı sürükle (kare kenarlarına, ortaya ve diğer katmanlara yapışır). **Boyutlandır:** 8 yeşil tutamaçtan çek.
+3. **Sayısal:** seçili katmanın **X / Y / Genişlik / Yükseklik (%)**, *Sığdırma* (doldur ↔ sığdır), *Saydamlık*; “Tam kare / Üst yarı / Alt yarı / Ortala” kısayolları.
+4. **Göster / gizle:** listedeki 👁 (ya da zaman çizelgesinde iz başlığındaki **G**). **Sıra:** ↑ ↓ (üstteki en önde).
+5. **Metin katmanı:** metin, yazı tipi, boyut, renk, kontur, **animasyon** (yok / belirme / nabız / aşağıdan kayma); “Süreyi sona kadar uzat”.
+6. **Katman ekle:** *+ Görsel*, *+ Metin*, *+ Video* (isteğe bağlı logo, ikinci görsel vb.).
+7. **Şablon:** *Düzeni kaydet* ile mevcut düzeni (konumlar, görünürlük, metin biçimi) adlandırıp kaydet; üstteki listeden **Uygula**. Klipler değişmez. Şablon, kullanıcı verisi klasöründe `templates.json` olarak saklanır.
+
+**Kaynakları ayrı yönetmek** (Medya sekmesi)
+* Ekran kaydı, oyun sesi, konuşma sesi, kamera ve görseller **ayrı dosyalar** olarak içe aktarılır (MP4/MKV…, MP3/WAV/M4A…, PNG/JPG/WEBP). Dosyaya **rol** ver.
+* Dosyayı **zaman çizelgesindeki bir ize sürükle** ya da *Zaman çizelgesine ekle → Hedef iz → Oynatma başlığına / Sona ekle*. Ses izine görsel gibi uyumsuz bırakmalar anlaşılır uyarı verir.
+* **Bağlı kaynaklar:** konuşma kaydını (transkript onda) seçip ekran / oyun sesi / kamera dosyalarını bağla (gerekirse *Sesten bul* ile senkron ofseti). Konuşmadan klip çıkarınca hepsi **aynı aralıkta**, kendi izlerine gelir.
+
+**Kendin kesip birleştirmek**
+* **Transkript** sekmesi: kelimeye tıkla → oraya atla; sürükle / Shift+tıkla → aralık seç; **✂ Seçimi kes** o aralığı tüm izlerden siler (sonrası kayar, bağlı ses/görüntü/altyazı birlikte; `Ctrl+Z` geri alır). *Sil, boşluk kalsın* seçeneği de var. **Zamana git:** `23:14`, `1:02:03`, `754`.
+* Kaynak modunda aralık seçip **Seçimden klip oluştur**.
+* Zaman çizelgesi: **S** böl · **⇄ Birleştir** (klip + hemen sonraki, kaynakta kesintisiz parça) · **Boşlukları kapat** · sürükleyerek taşı · kenardan kırp.
 
 ## Kurulum ve çalıştırma
 
