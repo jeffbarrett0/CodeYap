@@ -3,7 +3,7 @@ import { resolveLayout } from '@shared/export/layout'
 import { aspectSize, clipDuration, clipEnd } from '@shared/timeline/model'
 import { clipsAt, timelineToSource } from '@shared/timeline/ops'
 import { wrapCaption } from '@shared/timeline/captions'
-import { wrapTextForRect } from '@shared/export/ass'
+import { captionLayout, wrapTextForRect } from '@shared/export/ass'
 import type { Clip, MediaAsset, NormRect, TextSpec, Timeline, Track } from '@shared/types'
 
 /** Kaynak karenin hedefi dolduracak (cover) bölgesi */
@@ -33,6 +33,8 @@ export class PreviewEngine {
   private videos = new Map<string, HTMLVideoElement>()
   private audios = new Map<string, HTMLAudioElement>()
   private images = new Map<string, HTMLImageElement>()
+  /** Kırpma modunda düzenlenen klip: tamamı (kırpmasız, sığdırılmış) gösterilir */
+  cropClipId: string | null = null
 
   constructor(private api: ClipforgeApi) {}
 
@@ -149,12 +151,19 @@ export class PreviewEngine {
             if (img && img.complete && img.naturalWidth) (src = img, sw = img.naturalWidth, sh = img.naturalHeight)
           }
           if (src) {
-            if (pl.fit === 'cover') {
-              const s = coverSource(sw, sh, r.w, r.h, c.crop)
+            const cropping = c.id === this.cropClipId
+            const crop = cropping ? undefined : c.crop
+            if (pl.fit === 'cover' && !cropping) {
+              const s = coverSource(sw, sh, r.w, r.h, crop)
               ctx.drawImage(src, s.sx, s.sy, s.sw, s.sh, r.x, r.y, r.w, r.h)
             } else {
-              const d = containRect(sw, sh, r)
-              ctx.drawImage(src, d.x, d.y, d.w, d.h)
+              // sığdır: kırpma varsa yalnızca kırpılmış bölge sığdırılır
+              const bx = crop ? crop.x * sw : 0
+              const by = crop ? crop.y * sh : 0
+              const bw = crop ? crop.w * sw : sw
+              const bh = crop ? crop.h * sh : sh
+              const d = containRect(bw, bh, r)
+              ctx.drawImage(src, bx, by, bw, bh, d.x, d.y, d.w, d.h)
             }
             drew = true
           }
@@ -253,11 +262,9 @@ export class PreviewEngine {
     const cap = tl.captions.find((c) => t >= c.start && t < c.end)
     if (!cap) return
     const scale = Math.min(W, H) / 1080
-    const fs = st.fontSize * scale
-    const lines = wrapCaption(st.uppercase ? cap.text.toLocaleUpperCase('tr-TR') : cap.text, st.maxCharsPerLine)
-    const y = H * (0.88 - 0.76 * st.positionY)
+    const { lines, fontPx, cx, cy } = captionLayout(st, cap, W, H)
     ctx.save()
-    ctx.font = `${st.bold ? '700' : '400'} ${fs}px "${st.fontFamily}", Arial, sans-serif`
+    ctx.font = `${st.bold ? '700' : '400'} ${fontPx}px "${st.fontFamily}", Arial, sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.lineJoin = 'round'
@@ -265,9 +272,9 @@ export class PreviewEngine {
     ctx.strokeStyle = st.outlineColor
     ctx.fillStyle = st.color
     lines.forEach((l, i) => {
-      const ly = y + (i - (lines.length - 1) / 2) * fs * 1.15
-      ctx.strokeText(l, W / 2, ly)
-      ctx.fillText(l, W / 2, ly)
+      const ly = cy + (i - (lines.length - 1) / 2) * fontPx * 1.15
+      ctx.strokeText(l, cx, ly)
+      ctx.fillText(l, cx, ly)
     })
     ctx.restore()
   }

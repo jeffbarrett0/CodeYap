@@ -1,8 +1,5 @@
 import { useEffect } from 'react'
-import { MediaPanel } from './components/MediaPanel'
-import { SearchPanel } from './components/SearchPanel'
-import { SuggestPanel } from './components/SuggestPanel'
-import { TranscriptPanel } from './components/TranscriptPanel'
+import { MediaLibrary } from './components/MediaPanel'
 import { Preview } from './components/Preview'
 import { Timeline } from './components/Timeline'
 import { RightPanel } from './components/RightPanel'
@@ -56,22 +53,16 @@ function useShortcuts() {
 }
 
 export function App() {
-  const { init, ready, leftTab, setLeftTab, dialog } = useStore()
+  const { init, ready, dialog } = useStore()
   useEffect(() => { void init() }, [init])
   useShortcuts()
   if (!ready) return <div style={{ padding: 24 }}>Yükleniyor…</div>
-  const tabs: [typeof leftTab, string][] = [['media', 'Medya'], ['search', 'Arama'], ['transcript', 'Transkript'], ['suggest', 'Öneriler']]
   return (
     <div className="app">
       <TopBar />
-      <aside className="panel" aria-label="Sol panel">
-        <div className="tabs" role="tablist">
-          {tabs.map(([id, n]) => <button key={id} role="tab" aria-selected={leftTab === id} className={`tab${leftTab === id ? ' active' : ''}`} onClick={() => setLeftTab(id)} data-testid={`tab-${id}`}>{n}</button>)}
-        </div>
-        {leftTab === 'media' && <MediaPanel />}
-        {leftTab === 'search' && <SearchPanel />}
-        {leftTab === 'transcript' && <TranscriptPanel />}
-        {leftTab === 'suggest' && <SuggestPanel />}
+      {/* Sol panel: yalnızca içe aktarma alanı ve medya kütüphanesi */}
+      <aside className="panel" aria-label="Medya kütüphanesi">
+        <MediaLibrary />
       </aside>
       <Preview />
       <RightPanel />

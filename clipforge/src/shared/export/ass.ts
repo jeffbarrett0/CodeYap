@@ -29,6 +29,24 @@ export interface TextEvent {
   rect: { x: number; y: number; w: number; h: number }
 }
 
+/**
+ * Bir altyazının çıkış karesindeki yerleşimi (merkez, yaklaşık kutu, satırlar). Dışa aktarma, önizleme ve
+ * sürükleme katmanı AYNI hesabı kullanır; böylece görülen konum çıktıdakiyle eşleşir.
+ */
+export function captionLayout(style: CaptionStyle, cap: Caption, W: number, H: number) {
+  const scale = Math.min(W, H) / 1080
+  const fontPx = Math.round(style.fontSize * scale)
+  const text = style.uppercase ? cap.text.toLocaleUpperCase('tr-TR') : cap.text
+  const lines = wrapCaption(text, style.maxCharsPerLine)
+  const cx = Math.round(cap.pos ? cap.pos.x * W : W / 2)
+  const cy = Math.round(cap.pos ? cap.pos.y * H : H * (0.88 - 0.76 * style.positionY))
+  const pad = style.outlineWidth * scale
+  const longest = Math.max(1, ...lines.map((l) => l.length))
+  const w = Math.min(W, longest * fontPx * 0.55 + pad * 2)
+  const h = lines.length * fontPx * 1.15 + pad * 2
+  return { cx, cy, w, h, lines, fontPx }
+}
+
 /** Metni dikdörtgen genişliğine göre sarar (satır sonları korunur). Önizleme ve dışa aktarma aynı kuralı kullanır. */
 export function wrapTextForRect(spec: TextSpec, rectW: number, scale: number): { lines: string[]; fontPx: number } {
   const fontPx = Math.max(8, Math.round(spec.fontSize * scale))
@@ -96,9 +114,9 @@ export function buildAss(captions: Caption[], style: CaptionStyle, W: number, H:
     const start = c.start - rangeStart
     const end = Math.min(c.end, rangeEnd) - rangeStart
     if (end <= 0 || start >= end) continue
-    const text = style.uppercase ? c.text.toLocaleUpperCase('tr-TR') : c.text
-    const body = escapeAss(wrapCaption(text, style.maxCharsPerLine).join('\n'))
-    lines.push(`Dialogue: 0,${assTime(Math.max(0, start))},${assTime(end)},Default,,0,0,0,,{\\an5\\pos(${Math.round(W / 2)},${y})}${body}`)
+    const lay = captionLayout(style, c, W, H)
+    const body = escapeAss(lay.lines.join('\n'))
+    lines.push(`Dialogue: 0,${assTime(Math.max(0, start))},${assTime(end)},Default,,0,0,0,,{\\an5\\pos(${lay.cx},${lay.cy})}${body}`)
   }
   texts.forEach((t, i) => {
     const start = Math.max(0, t.start)

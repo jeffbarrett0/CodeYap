@@ -343,3 +343,14 @@ export function closeGaps(tl: Timeline): Timeline {
   }
   return gaps.reverse().reduce((acc, [a, b]) => cutRange(acc, a, b, true), tl)
 }
+
+/** Bir altyazının konumunu (merkez, 0..1) ayarlar; `undefined` varsayılan konuma döndürür. */
+export function setCaptionPos(tl: Timeline, id: ID, pos: { x: number; y: number } | undefined): Timeline {
+  const clamp = (v: number) => Math.min(1, Math.max(0, v))
+  return { ...tl, captions: tl.captions.map((c) => (c.id === id ? (pos ? { ...c, pos: { x: clamp(pos.x), y: clamp(pos.y) } } : { id: c.id, start: c.start, end: c.end, text: c.text }) : c)) }
+}
+
+/** Tüm altyazılara aynı konumu uygular (ya da hepsini varsayılana döndürür). */
+export function setAllCaptionPos(tl: Timeline, pos: { x: number; y: number } | undefined): Timeline {
+  return tl.captions.reduce((acc, c) => setCaptionPos(acc, c.id, pos), tl)
+}

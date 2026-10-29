@@ -11,11 +11,11 @@ import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
 import { EXPORT_PRESETS } from '@shared/export/presets'
 import { PROJECT_VERSION } from '@shared/types'
 import { BUILTIN_TEMPLATES, templateFromTimeline } from '@shared/timeline/templates'
-import type { ChatLog, ClipCandidate, ExportOptions, LayoutTemplate, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
+import type { ChatLog, ClipCandidate, ExportOptions, LayoutTemplate, NormRect, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
 import { requireApi } from './api'
 
-export type LeftTab = 'media' | 'search' | 'transcript' | 'suggest'
-export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions'
+/** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
+export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'suggest'
 export type Dialog = null | 'settings' | 'export' | 'clip' | 'help'
 
 export interface Toast {
@@ -74,7 +74,6 @@ interface State {
   dirty: boolean
   historyVersion: number
 
-  leftTab: LeftTab
   rightTab: RightTab
   dialog: Dialog
   viewMode: 'source' | 'timeline'
@@ -86,6 +85,9 @@ interface State {
   zoom: number
 
   selectedLayerId: string | null
+  selectedCaptionId: string | null
+  /** Kırpma modunda düzenlenen klip */
+  cropClipId: string | null
   userTemplates: LayoutTemplate[]
   transcripts: Record<string, Transcript>
   tasks: Record<string, TaskInfo>
@@ -105,7 +107,10 @@ interface State {
   init(): Promise<void>
   toast(kind: Toast['kind'], text: string): void
   dismissToast(id: string): void
-  setLeftTab(t: LeftTab): void
+  /** Kütüphanede bir dosyaya tıklama: seçer, kaynak oynatıcıda açar ve oynatmayı başlatır */
+  playAsset(id: string): void
+  /** Her artışta kaynak oynatıcı oynatmayı başlatır */
+  playRequest: number
   setRightTab(t: RightTab): void
   openDialog(d: Dialog): void
   setViewMode(m: 'source' | 'timeline'): void
@@ -155,6 +160,12 @@ interface State {
   cancelTask(id: string): void
 
   selectLayer(id: string | null): void
+  startCrop(clipId: string): void
+  endCrop(): void
+  /** Klibin kırpmasını ayarlar (kaynak karesine göre 0..1); undefined = kırpmayı kaldır */
+  setCrop(clipId: string, crop: NormRect | undefined, coalesce?: boolean): void
+  /** Altyazı seç: Altyazı sekmesini açar; `seek` ile oynatma başlığı altyazının başına gider (önizlemede görünür olsun) */
+  selectCaption(id: string | null, seek?: boolean): void
   loadTemplates(): Promise<void>
   applyLayoutTemplate(tpl: LayoutTemplate): void
   saveLayoutTemplate(name: string): Promise<void>
@@ -187,7 +198,7 @@ export const useStore = create<State>()((set, get) => {
     projectPath: null,
     dirty: false,
     historyVersion: 0,
-    leftTab: 'media',
+    playRequest: 0,
     rightTab: 'layout',
     dialog: null,
     viewMode: 'source',
@@ -198,6 +209,8 @@ export const useStore = create<State>()((set, get) => {
     playing: false,
     zoom: 40,
     selectedLayerId: null,
+    selectedCaptionId: null,
+    cropClipId: null,
     userTemplates: [],
     transcripts: {},
     tasks: {},
@@ -225,7 +238,7 @@ export const useStore = create<State>()((set, get) => {
       })
       a.on('asset:added', (asset) => {
         mutateProject((p) => ({ ...p, assets: [...p.assets.filter((x) => x.id !== asset.id), asset] }))
-        set((s) => ({ selectedAssetId: s.selectedAssetId ?? asset.id }))
+        set((s) => ({ selectedAssetId: s.selectedAssetId ?? asset.id, rightTab: s.selectedAssetId ? s.rightTab : 'source' }))
         void a.invoke('media:markers', asset.id).then((m) => mutateProject((p) => ({ ...p, markers: { ...p.markers, [asset.id]: m } })))
       })
       a.on('asset:updated', (asset) => mutateProject((p) => ({ ...p, assets: p.assets.map((x) => (x.id === asset.id ? { ...x, proxyPath: asset.proxyPath, proxyHeight: asset.proxyHeight, audioStreams: asset.audioStreams } : x)) })))
@@ -258,7 +271,7 @@ export const useStore = create<State>()((set, get) => {
       if (kind !== 'error') setTimeout(() => get().dismissToast(id), 5000)
     },
     dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-    setLeftTab: (leftTab) => set({ leftTab }),
+    playAsset: (id) => set((s) => ({ selectedAssetId: id, rightTab: 'source', viewMode: 'source', sourceTime: 0, playRequest: s.playRequest + 1 })),
     setRightTab: (rightTab) => set({ rightTab }),
     openDialog: (dialog) => set({ dialog }),
     setViewMode: (viewMode) => set({ viewMode }),
@@ -275,7 +288,6 @@ export const useStore = create<State>()((set, get) => {
       if (paths.length === 0) return
       try {
         await api().invoke('media:import', paths)
-        set({ leftTab: 'media' })
       } catch (e) {
         get().toast('error', errText(e))
       }
@@ -516,7 +528,8 @@ export const useStore = create<State>()((set, get) => {
     },
     canUndo: () => history.canUndo,
     canRedo: () => history.canRedo,
-    select: (ids) => set({ selection: ids, rightTab: ids.length ? 'inspector' : get().rightTab }),
+    // Klip seçilince "Klip" sekmesine yalnızca düzenleme sekmelerindeyken geçilir; arama/transkript/kaynak sekmesindeki çalışma bölünmez
+    select: (ids) => set((st) => ({ selection: ids, rightTab: ids.length && !['source', 'search', 'transcript', 'suggest'].includes(st.rightTab) ? 'inspector' : st.rightTab })),
     splitAtPlayhead() {
       const { project, selection, playhead } = get()
       const tl = project.timeline
@@ -627,7 +640,29 @@ export const useStore = create<State>()((set, get) => {
     },
     cancelTask: (id) => void api().invoke('task:cancel', id),
 
-    selectLayer: (id) => set({ selectedLayerId: id, ...(id ? { rightTab: 'layout' as RightTab } : {}) }),
+    selectCaption(id, seek = false) {
+      set({ selectedCaptionId: id, ...(id ? { selectedLayerId: null, rightTab: 'captions' as RightTab } : {}) })
+      const cap = id ? get().project.timeline.captions.find((c) => c.id === id) : undefined
+      if (cap && seek) {
+        set({ viewMode: 'timeline' })
+        get().setPlayhead(cap.start + 0.01)
+      }
+    },
+    startCrop(clipId) {
+      set({ cropClipId: clipId, viewMode: 'timeline', playing: false, selectedCaptionId: null })
+    },
+    endCrop: () => set({ cropClipId: null }),
+    setCrop(clipId, crop, coalesce = true) {
+      const f = findClip(get().project.timeline, clipId)
+      if (!f) return
+      if (crop) {
+        const c = { x: Math.min(0.95, Math.max(0, crop.x)), y: Math.min(0.95, Math.max(0, crop.y)), w: Math.max(0.05, Math.min(1, crop.w)), h: Math.max(0.05, Math.min(1, crop.h)) }
+        c.w = Math.min(c.w, 1 - c.x)
+        c.h = Math.min(c.h, 1 - c.y)
+        get().exec(cmd.updateClip(clipId, { crop: c }, coalesce))
+      } else get().exec(cmd.updateClip(clipId, { crop: undefined }, false))
+    },
+    selectLayer: (id) => set({ selectedLayerId: id, ...(id ? { selectedCaptionId: null, rightTab: 'layout' as RightTab } : {}) }),
     async loadTemplates() {
       try {
         set({ userTemplates: await api().invoke('templates:list') })

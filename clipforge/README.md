@@ -28,6 +28,16 @@ Belirsiz kalan kararlar: [`DECISIONS.md`](DECISIONS.md).
 `Space` oynat/durdur · `S` böl · `Delete` sil · `J/K/L` geri/dur/ileri (tekrar basınca hızlanır) · `←/→` kare (Shift: 1 sn) ·
 `Ctrl/Cmd+Z` geri al · `Ctrl/Cmd+Shift+Z` yinele · `Ctrl/Cmd+S` kaydet · `Ctrl/Cmd+E` dışa aktar · `Ctrl + tekerlek` yakınlaştır.
 
+## Arayüz düzeni
+* **Sol panel:** yalnızca **içe aktarma alanı** ve **Medya kütüphanesi**. Bir dosyaya tıklamak onu seçer ve kaynak oynatıcıda **baştan otomatik oynatır** (video, ses, görsel). Dosyayı zaman çizelgesindeki bir ize sürükleyebilirsin.
+* **Orta:** önizleme. *Zaman çizelgesi* görünümünde **sağ tık → Crop / Kırp** (aşağıda); katmanları ve altyazıları doğrudan sürükleyebilirsin.
+* **Sağ panel**, iki sıra sekme: **Düzenleme** — Klip · Katmanlar · Ses · Altyazı; **Bul / kaynak** — **Kaynak** (seçili dosyanın ayrıntıları: transkripsiyon, rol, bağlı kaynaklar, ize ekleme) · **Arama** · **Transkript** · **Öneriler**.
+* **Alt:** zaman çizelgesi.
+
+**Kırpma (Crop):** Önizlemede sağ tık → *Crop / Kırp* (sağ tıkladığın noktadaki video/görsel katmanı kırpılır; yoksa seçili klip). Klibin tamamı gösterilir; yeşil kırpma dikdörtgeninin **alt kenarını yukarı** çekerek (ya da üst/sol/sağ kenar ve köşe tutamaçlarıyla) serbestçe kırp, ortadan sürükleyerek kaydır. *Alttan %* kutusundan sayısal gir; **Sıfırla** / **Bitti**; `Esc` çıkar. Kırpma klipte saklanır, geri alınabilir ve dışa aktarmaya aynen yansır. Klip sekmesinde de *Crop / Kırp* düğmesi ve sayısal değerler var.
+
+**Altyazı konumu:** Altyazıya (önizlemede ya da zaman çizelgesindeki altyazı şeridinde) tıkla → seçilir (turuncu kutu). Önizlemede **sürükleyerek** istediğin yere taşı; Altyazı sekmesinde X/Y (%) sayısal girilir, *Varsayılan konuma dön*, *Bu konumu tüm altyazılara uygula*. Konum yalnızca seçili altyazıyı etkiler ve dışa aktarmada aynen uygulanır.
+
 ## Katmanlı düzen (YouTube Shorts) — kullanım notu
 
 Kare artık **katmanlardan** oluşur. Her katman zaman çizelgesinde bir izdir ve kendi **konumu, boyutu, görünürlüğü, saydamlığı** vardır.
@@ -88,8 +98,8 @@ npm run dev:web      # http://localhost:5199 — sahte ana süreç + demo medya 
 ```
 
 ### Hızlı kullanım
-1. **Medya → Kayıt içe aktar** (ya da dosyayı pencereye bırak). Önizleme kopyası arka planda hazırlanır.
-2. **Transkripsiyonu başlat** (Track 1 varsayılan). İlerleme alttaki *Görevler* çubuğunda; iptal edilebilir.
+1. Soldaki **Kayıt içe aktar** (ya da dosyayı pencereye bırak). Önizleme kopyası arka planda hazırlanır; dosyaya tıklayınca oynar.
+2. Sağ panel **Kaynak** sekmesi → **Transkripsiyonu başlat** (Track 1 varsayılan). İlerleme alttaki *Görevler* çubuğunda; iptal edilebilir.
 3. **Arama** sekmesi: `Victor Nelson` (ya da `Victor Nelson ile ilgili konuştuğum yer`, `Viktor Nelsen`) → sonuçlar zaman damgasıyla listelenir.
 4. **Klip oluştur** → sağ panelde pre/post-roll ya da hedef süre (30 sn), oynatıcıda `[ Baş` / `Son ]` ile ince ayar → **Zaman çizelgesine ekle**.
 5. **Düzen** sekmesi: 9:16 + “Oyun ortada · kamera altta”. **Altyazı** sekmesi: *Transkriptten altyazı üret*.

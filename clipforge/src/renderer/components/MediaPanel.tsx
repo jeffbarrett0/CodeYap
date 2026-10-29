@@ -20,19 +20,16 @@ function ObsBadges({ a }: { a: MediaAsset }) {
   )
 }
 
-export function MediaPanel() {
-  const { project, selectedAssetId, selectAsset, importPaths, pickAndImport, transcripts, patchAsset, startTranscription, settings, tasks } = useStore()
+/**
+ * Sol panel: YALNIZCA içe aktarma alanı ve medya kütüphanesi.
+ * Bir dosyaya tıklamak onu seçer ve kaynak oynatıcıda hemen oynatmaya başlar.
+ */
+export function MediaLibrary() {
+  const { project, selectedAssetId, playAsset, pickAndImport, transcripts } = useStore()
   const [over, setOver] = useState(false)
-  const asset = project.assets.find((a) => a.id === selectedAssetId)
   const api = requireApi()
-  const transcribing = Object.values(tasks).some((t) => t.kind === 'transcribe' && (t.status === 'running' || t.status === 'queued'))
-  const proxying = Object.values(tasks).filter((t) => t.kind === 'proxy' && t.status === 'running')
-  const tr = asset ? transcripts[asset.id] : undefined
-
   // Bırakma işlemini pencere düzeyindeki dinleyici (main.tsx) yapar; burada yalnızca görsel geri bildirim var.
   const onDrop = () => setOver(false)
-  const cams = project.assets.filter((a) => a.id !== asset?.id && a.kind === 'video')
-
   return (
     <div className="panel-body">
       <div
@@ -50,19 +47,12 @@ export function MediaPanel() {
         <button className="btn primary" onClick={() => void pickAndImport()} data-testid="import-btn">Kayıt içe aktar…</button>
       </div>
 
-      {proxying.map((t) => (
-        <div key={t.id} className="col" style={{ gap: 3 }}>
-          <span className="hint">Önizleme kopyası hazırlanıyor… {Math.round(t.progress * 100)}%</span>
-          <Progress value={t.progress} />
-        </div>
-      ))}
-
       <div>
         <div className="section-title">Medya kütüphanesi ({project.assets.length})</div>
         <div className="col">
           {project.assets.length === 0 && <div className="empty">Henüz medya yok.</div>}
           {project.assets.map((a) => (
-            <div key={a.id} className={`asset${a.id === selectedAssetId ? ' sel' : ''}`} draggable onDragStart={(e) => e.dataTransfer.setData('application/x-clipforge-asset', a.id)} title="Zaman çizelgesindeki bir ize sürükleyip bırakabilirsiniz" onClick={() => selectAsset(a.id)} data-testid="asset" role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && selectAsset(a.id)}>
+            <div key={a.id} className={`asset${a.id === selectedAssetId ? ' sel' : ''}`} draggable onDragStart={(e) => e.dataTransfer.setData('application/x-clipforge-asset', a.id)} title="Zaman çizelgesindeki bir ize sürükleyip bırakabilirsiniz" onClick={() => playAsset(a.id)} data-testid="asset" role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && playAsset(a.id)}>
               <div className="thumb" style={api.mediaUrl(a, 'thumb') ? { backgroundImage: `url(${api.mediaUrl(a, 'thumb')})` } : undefined}>{!api.mediaUrl(a, 'thumb') && 'önizleme yok'}</div>
               <div className="meta">
                 <div className="name" title={a.path}>{a.name}</div>
@@ -75,6 +65,24 @@ export function MediaPanel() {
         </div>
       </div>
 
+    </div>
+  )
+}
+
+/** Sağ panel "Kaynak" sekmesi: seçili dosyanın ayrıntıları, transkripsiyon, rol, bağlı kaynaklar, ize ekleme. */
+export function MediaDetail() {
+  const { project, selectedAssetId, transcripts, patchAsset, startTranscription, settings, tasks } = useStore()
+  const asset = project.assets.find((a) => a.id === selectedAssetId)
+  const api = requireApi()
+  const transcribing = Object.values(tasks).some((t) => t.kind === 'transcribe' && (t.status === 'running' || t.status === 'queued'))
+  const tr = asset ? transcripts[asset.id] : undefined
+  const cams = project.assets.filter((a) => a.id !== asset?.id && a.kind === 'video')
+  void api
+  void cams
+
+  return (
+    <div className="col">
+      {!asset && <div className="empty">Soldaki kütüphaneden bir dosya seçin.</div>}
       {asset && (
         <div className="col" data-testid="asset-detail">
           <div className="section-title">Seçili kayıt</div>

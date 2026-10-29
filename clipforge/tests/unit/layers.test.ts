@@ -4,10 +4,10 @@ import * as ops from '@shared/timeline/ops'
 import { applyTemplate, BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, templateFromTimeline } from '@shared/timeline/templates'
 import { cmd } from '@shared/timeline/commands'
 import { History } from '@shared/timeline/history'
-import { buildAss } from '@shared/export/ass'
+import { buildAss, captionLayout } from '@shared/export/ass'
 import { buildExportPlan } from '@shared/export/plan'
 import { optionsFromPreset } from '@shared/export/presets'
-import type { Clip, Timeline } from '@shared/types'
+import type { Caption, Clip, Timeline } from '@shared/types'
 
 const TEXT = { text: 'Kendi yazım', fontFamily: 'Impact', fontSize: 62, color: '#FFFFFF', outlineColor: '#000000', outlineWidth: 6, bold: false, animation: 'pulse' as const }
 const mk = (id: string, trackId: string, start: number, srcIn: number, srcOut: number, extra: Partial<Clip> = {}): Clip => ({ id, trackId, assetId: 'a1', start, srcIn, srcOut, volume: 1, label: id, ...extra })
@@ -201,6 +201,17 @@ describe('katman konumlu dışa aktarma planı', () => {
     expect(inputs).toEqual(['/rec/k.mkv', '/img/görsel çğ.png', '/rec/k.mkv', '/rec/k.mkv'])
   })
 
+  it('kırpma (alttan yukarı) video katmanında kırp filtresi olarak, kapak ve sığdır modunda uygulanır', () => {
+    let tl = createDefaultTimeline()
+    tl = ops.addClip(tl, 'V2', mk('cam', 'V2', 0, 100, 110, { crop: { x: 0, y: 0, w: 1, h: 0.6 } }))
+    for (const fit of ['cover', 'contain'] as const) {
+      const t = ops.setPlacement(tl, 'V2', { fit })
+      const f = buildExportPlan(t, lookup, optionsFromPreset('shorts'), 'x.mp4').files.find((x) => x.name === 'filters.txt')!.content
+      expect(f).toContain('crop=iw*1.00000:ih*0.60000:iw*0.00000:ih*0.00000') // alt %40 kesildi
+      expect(f.indexOf('ih*0.60000')).toBeLessThan(f.indexOf('scale=')) // önce kırp, sonra yerleştir
+    }
+  })
+
   it('şeffaflık ve arka plan rengi', () => {
     let tl = ops.setPlacement(tl3(), 'V2', { opacity: 0.5 })
     tl = { ...tl, background: '#112233' }
@@ -212,3 +223,43 @@ describe('katman konumlu dışa aktarma planı', () => {
 
 void findClip
 void TRACK_IDS
+
+describe('altyazı konumu (sürükleyerek taşıma)', () => {
+  const tl = (): Timeline => ({ ...createDefaultTimeline(), captions: [{ id: 'c1', start: 1, end: 3, text: 'Birinci satır' }, { id: 'c2', start: 4, end: 6, text: 'İkinci' }] as Caption[] })
+
+  it('konum yalnızca seçilen altyazıyı değiştirir; sınırlar 0..1; varsayılana dönülebilir', () => {
+    const t1 = ops.setCaptionPos(tl(), 'c1', { x: 0.3, y: 1.4 })
+    expect(t1.captions[0].pos).toEqual({ x: 0.3, y: 1 })
+    expect(t1.captions[1].pos).toBeUndefined()
+    const t2 = ops.setCaptionPos(t1, 'c1', undefined)
+    expect(t2.captions[0]).toEqual({ id: 'c1', start: 1, end: 3, text: 'Birinci satır' })
+    const all = ops.setAllCaptionPos(tl(), { x: 0.5, y: 0.2 })
+    expect(all.captions.every((c) => c.pos?.y === 0.2)).toBe(true)
+  })
+
+  it('konum komutu sürüklemede tek adımda geri alınır', () => {
+    let t = 0
+    const h = new History(tl(), 200, () => t)
+    for (const y of [0.5, 0.52, 0.55, 0.6]) {
+      t += 40
+      h.execute(cmd.captionPos('c1', { x: 0.5, y }))
+    }
+    expect(h.present.captions[0].pos!.y).toBe(0.6)
+    h.undo()
+    expect(h.present.captions[0].pos).toBeUndefined()
+  })
+
+  it('önizleme/sürükleme yerleşimi ile dışa aktarma (ASS \\pos) aynı hesabı kullanır', () => {
+    const t = ops.setCaptionPos(tl(), 'c2', { x: 0.25, y: 0.4 })
+    const lay = captionLayout(t.captionStyle, t.captions[1], 1080, 1920)
+    expect([lay.cx, lay.cy]).toEqual([270, 768])
+    const ass = buildAss(t.captions, t.captionStyle, 1080, 1920)
+    expect(ass).toContain('\\pos(270,768)')
+    // konumsuz altyazı stildeki varsayılan konumda
+    const def = captionLayout(t.captionStyle, t.captions[0], 1080, 1920)
+    expect(def.cx).toBe(540)
+    expect(ass).toContain(`\\pos(540,${def.cy})`)
+    expect(lay.w).toBeGreaterThan(0)
+    expect(lay.h).toBeGreaterThan(0)
+  })
+})

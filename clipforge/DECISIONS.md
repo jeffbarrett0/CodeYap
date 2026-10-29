@@ -160,3 +160,13 @@ zaman tabanı (hız sapması) desteklenmez.
 Kesim, seçili kelimelerin çevresindeki sessizliği ikiye bölerek (yarısı komşu kelimeye) yapılır; **tüm kilitsiz izlerden** aynı anda ripple. Zaman çizelgesi
 transkripti, kliplerin kaynaklarının transkriptlerinden türetilir (yalnızca kullanılan aralık). Kelime düzeyindeki zaman damgası hataları (bkz. §1)
 kesimde duyulabilir bir kayma yaratabilir; gerçek kayıtla denenmedi.
+
+## 19. Arayüz sadeleştirme: sol panel yalnızca kütüphane
+**Karar:** İstek doğrultusunda sol panelde yalnızca içe aktarma alanı ve medya kütüphanesi var. Daha önce solda olan **Arama, Transkript, Öneriler** ve seçili dosyanın
+ayrıntıları (**Kaynak**: transkripsiyon başlatma, rol, bağlı kaynaklar, ize ekleme) özellik kaybı olmasın diye **sağ panele ikinci bir sekme sırası olarak taşındı**
+(sekmelerin test kimlikleri korundu). Kütüphane kartlarında "Transkript hazır" rozeti kalır; önizleme kopyası ilerleme çubuğu sol panelden kaldırıldı (alttaki
+Görevler çubuğunda görünür). Bu bir yorumdur: istenirse sekmeler başka bir yere (alt panel, açılır pencere) taşınabilir.
+**Oynatma:** Tarayıcılar kullanıcı etkileşimi olmadan sesli oynatmayı engeller; kütüphane tıklaması bir etkileşim olduğu için otomatik oynatma çalışır.
+**Kırpma:** klibin kaynak karesine göre normalize dikdörtgendir (`Clip.crop`), katman yerleşiminden önce uygulanır; kırpma sırasında klibin tamamı gösterilir.
+Kırpma klip bazındadır (aynı izdeki diğer klipleri etkilemez); kaynak görünümünde sağ tık yalnızca zaman çizelgesindeki klibe yönlendirir.
+**Altyazı konumu** altyazı bazında (`Caption.pos`); stildeki genel konum varsayılan kalır. Kutu boyutu yaklaşık hesaplanır (karakter genişliği tahmini), libass ile birkaç piksel fark olabilir.

@@ -34,6 +34,7 @@ export function LayerOverlay() {
   const layers = tl.tracks.filter((t) => t.placement && (t.placement.visible || t.id === selected))
 
   const down = (e: React.PointerEvent, t: Track, mode: Mode) => {
+    if (e.button !== 0) return // sağ tık bağlam menüsü içindir
     e.stopPropagation()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     selectLayer(t.id)
@@ -71,7 +72,7 @@ export function LayerOverlay() {
   }
 
   return (
-    <div className="layer-overlay" ref={ref} onPointerDown={() => selectLayer(null)} data-testid="layer-overlay">
+    <div className="layer-overlay" ref={ref} onPointerDown={(e) => e.button === 0 && selectLayer(null)} data-testid="layer-overlay">
       {[...layers].reverse().map((t) => {
         const r = t.placement!.rect
         const sel = t.id === selected

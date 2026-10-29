@@ -23,6 +23,7 @@ interface DragState {
 export function Timeline() {
   const { project, selection, select, playhead, setPlayhead, zoom, setZoom, exec, undo, redo, historyVersion, splitAtPlayhead, deleteSelection, playing, setPlaying, viewMode, setViewMode } = useStore()
   const tl = project.timeline
+  const selectedCaptionId = useStore((s) => s.selectedCaptionId)
   const scrollRef = useRef<HTMLDivElement>(null)
   const drag = useRef<DragState | null>(null)
   const total = timelineDuration(tl)
@@ -219,7 +220,7 @@ export function Timeline() {
             ))}
             <div className="tl-lane" data-testid="lane-CC">
               {tl.captions.map((c) => (
-                <div key={c.id} className="tl-clip cap" style={{ left: c.start * zoom, width: Math.max(4, (c.end - c.start) * zoom) }} title={c.text}>{c.text}</div>
+                <div key={c.id} className={`tl-clip cap${selectedCaptionId === c.id ? ' sel' : ''}`} style={{ left: c.start * zoom, width: Math.max(4, (c.end - c.start) * zoom), cursor: 'pointer' }} title={`${c.text}\n(tıkla: seç ve önizlemede göster)`} onPointerDown={(e) => { e.stopPropagation(); useStore.getState().selectCaption(c.id, true) }} data-testid="cap-clip">{c.text}</div>
               ))}
             </div>
             <div className="tl-playhead" style={{ left: playhead * zoom }} data-testid="playhead" />

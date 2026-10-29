@@ -24,6 +24,9 @@ export const cmd = {
   captions: (captions: Caption[]): TimelineCommand => makeCommand('Altyazıları güncelle', (t) => ops.setCaptions(t, captions)),
   captionStyle: (patch: Partial<CaptionStyle>, coalesce = true): TimelineCommand =>
     makeCommand('Altyazı stili', (t) => ({ ...t, captionStyle: { ...t.captionStyle, ...patch } }), coalesce ? `cap:${Object.keys(patch).join(',')}` : undefined),
+  captionPos: (id: ID, pos: { x: number; y: number } | undefined, coalesce = true): TimelineCommand =>
+    makeCommand('Altyazı konumu', (t) => ops.setCaptionPos(t, id, pos), coalesce ? `cpos:${id}` : undefined),
+  allCaptionPos: (pos: { x: number; y: number } | undefined): TimelineCommand => makeCommand('Tüm altyazı konumu', (t) => ops.setAllCaptionPos(t, pos)),
   aspect: (aspect: AspectRatio): TimelineCommand => makeCommand('En-boy oranı', (t) => ({ ...t, aspect })),
   layout: (layout: LayoutPreset): TimelineCommand => makeCommand('Düzen', (t) => ({ ...t, layout })),
   webcamOverlay: (r: NormRect): TimelineCommand => makeCommand('Kamera konumu', (t) => ({ ...t, webcamOverlay: r }), 'webcam'),

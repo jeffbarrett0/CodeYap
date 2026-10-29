@@ -406,4 +406,131 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('tw-gen-captions').click()
     await expect(page.getByTestId('toast').filter({ hasText: 'altyazı satırı üretildi' }).first()).toBeVisible()
   })
+
+  test('altyazı: tıklayıp seçme, önizlemede sürükleyerek taşıma, zaman çizelgesinden seçme, sıfırlama', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await page.getByTestId('add-at-playhead').click()
+    await page.getByTestId('rtab-captions').click()
+    await page.getByTestId('gen-captions').click()
+    await expect(page.getByTestId('cap-clip').first()).toBeVisible()
+    // zaman çizelgesindeki altyazıya tıkla: seçilir ve önizlemede görünür
+    await page.getByTestId('cap-clip').first().click()
+    await expect(page.getByTestId('caption-detail')).toContainText('varsayılan konum')
+    const box = page.getByTestId('cap-box').first()
+    await expect(box).toBeVisible()
+    const b0 = (await box.boundingBox())!
+    // sürükle: yukarı ve sola
+    await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(b0.x + b0.width / 2 - 60, b0.y + b0.height / 2 - 150, { steps: 8 })
+    await page.mouse.up()
+    const b1 = (await page.getByTestId('cap-box').first().boundingBox())!
+    expect(b1.y).toBeLessThan(b0.y - 100)
+    expect(b1.x).toBeLessThan(b0.x - 30)
+    await expect(page.getByTestId('caption-detail')).toContainText('özel konum')
+    // yalnızca o altyazı taşındı: sayısal değerler yazılıdır
+    const y = Number(await page.getByLabel('Altyazı Y').inputValue())
+    expect(y).toBeLessThan(75)
+    // sayısal giriş
+    await page.getByLabel('Altyazı Y').fill('20')
+    expect(Number(await page.getByLabel('Altyazı Y').inputValue())).toBe(20)
+    // tek geri alma (sayısal değişiklik) → önceki konuma, sıfırlama → varsayılan
+    await page.getByTestId('cap-reset').click()
+    await expect(page.getByTestId('caption-detail')).toContainText('varsayılan konum')
+    // tümüne uygula
+    await page.getByLabel('Altyazı Y').fill('30')
+    await page.getByTestId('cap-apply-all').click()
+    await page.getByTestId('cap-clip').nth(1).click()
+    expect(Number(await page.getByLabel('Altyazı Y').inputValue())).toBe(30)
+  })
+
+  test('sol panel yalnızca medya kütüphanesi; dosyaya tıklayınca otomatik oynar; diğer sekmeler sağ panelde', async ({ page }) => {
+    await boot(page)
+    const left = page.getByRole('complementary', { name: 'Medya kütüphanesi' })
+    await expect(left.getByTestId('dropzone')).toBeVisible()
+    await expect(left.getByRole('tab')).toHaveCount(0) // sekme yok
+    await page.getByTestId('import-btn').click()
+    await expect(left.getByTestId('asset')).toHaveCount(1)
+    // sol panelde kütüphane + içe aktarma dışında hiçbir kontrol yok
+    await expect(left.getByTestId('asset-detail')).toHaveCount(0)
+    await expect(left.getByTestId('transcribe-btn')).toHaveCount(0)
+    // arama / transkript / öneriler / kaynak sağ panelde
+    const right = page.getByRole('complementary', { name: 'Özellikler' })
+    for (const id of ['tab-source', 'tab-search', 'tab-transcript', 'tab-suggest']) await expect(right.getByTestId(id)).toBeVisible()
+
+    // tıklayınca otomatik oynatma
+    await page.getByTestId('mode-timeline').click()
+    await left.getByTestId('asset').click()
+    await expect(page.getByTestId('mode-source')).toHaveClass(/active/)
+    await expect(right.getByTestId('asset-detail')).toBeVisible()
+    await expect.poll(() => page.evaluate(() => { const v = document.querySelector('[data-testid=source-video]') as HTMLVideoElement | null; return !!v && !v.paused && v.currentTime > 0.1 }), { timeout: 8000 }).toBe(true)
+    // ikinci tıklama baştan yeniden oynatır
+    await page.getByTestId('source-play').click() // duraklat
+    await expect.poll(() => page.evaluate(() => (document.querySelector('[data-testid=source-video]') as HTMLVideoElement).paused)).toBe(true)
+    await left.getByTestId('asset').click()
+    await expect.poll(() => page.evaluate(() => !(document.querySelector('[data-testid=source-video]') as HTMLVideoElement).paused), { timeout: 8000 }).toBe(true)
+  })
+
+  test('sağ tık → Crop / Kırp: alt kenardan yukarı serbest kırpma, tutamaçlar, sıfırlama, geri alma', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('import-btn').click()
+    await expect(page.getByTestId('asset')).toHaveCount(1)
+    await page.getByTestId('asset').click()
+    await page.getByTestId('target-track').selectOption({ label: 'Yüz (webcam) (V2)' })
+    await page.getByTestId('add-at-playhead').click()
+    await page.getByTestId('mode-timeline').click()
+    await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(1)
+
+    // sağ tık: menüde Crop / Kırp görünür
+    const canvas = (await page.getByTestId('timeline-canvas').boundingBox())!
+    await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height * 0.15, { button: 'right' })
+    await expect(page.getByTestId('ctx-menu')).toBeVisible()
+    await expect(page.getByTestId('ctx-crop')).toContainText('Crop')
+    await page.getByTestId('ctx-crop').click()
+    await expect(page.getByTestId('crop-overlay')).toBeVisible()
+    await expect(page.getByTestId('crop-rect')).toBeVisible()
+
+    // alt kenar tutamacını yukarı sürükle
+    const rect0 = (await page.getByTestId('crop-rect').boundingBox())!
+    const hd = (await page.getByTestId('crop-hd-s').boundingBox())!
+    await page.mouse.move(hd.x + hd.width / 2, hd.y + hd.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(hd.x + hd.width / 2, hd.y + hd.height / 2 - rect0.height * 0.4, { steps: 8 })
+    await page.mouse.up()
+    const rect1 = (await page.getByTestId('crop-rect').boundingBox())!
+    expect(rect1.height).toBeLessThan(rect0.height * 0.7)
+    expect(Math.abs(rect1.y - rect0.y)).toBeLessThan(2) // üst kenar yerinde
+    const cut = Number(await page.getByLabel('Alttan kırp (%)').inputValue())
+    expect(cut).toBeGreaterThan(25)
+
+    // üstten de serbestçe kırp (sol-üst köşe)
+    const nw = (await page.getByTestId('crop-hd-nw').boundingBox())!
+    await page.mouse.move(nw.x + nw.width / 2, nw.y + nw.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(nw.x + 40, nw.y + 30, { steps: 5 })
+    await page.mouse.up()
+    expect((await page.getByTestId('crop-rect').boundingBox())!.width).toBeLessThan(rect1.width - 20)
+
+    // Bitti: mod kapanır, klip kırpılmış kalır (Klip sekmesinde sayısal değerler)
+    await page.getByTestId('crop-done').click()
+    await expect(page.getByTestId('crop-overlay')).toHaveCount(0)
+    await page.getByTestId('lane-V2').getByTestId('clip').click()
+    await page.getByTestId('rtab-inspector').click()
+    await expect(page.getByTestId('inspector')).toContainText('Kırpma H')
+    // sağ tık menüsünde "Kırpmayı sıfırla" çıkar ve çalışır
+    await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height * 0.15, { button: 'right' })
+    await page.getByTestId('ctx-crop-reset').click()
+    await expect(page.getByTestId('inspector')).not.toContainText('Kırpma H')
+    // geri al: kırpma geri gelir
+    await page.keyboard.press('Control+z')
+    await expect(page.getByTestId('inspector')).toContainText('Kırpma H')
+
+    // kaynak görünümünde sağ tık da menüyü gösterir
+    await page.getByTestId('mode-source').click()
+    await page.mouse.click(canvas.x + 50, canvas.y + 50, { button: 'right' })
+    await expect(page.getByTestId('ctx-crop')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('ctx-menu')).toHaveCount(0)
+  })
 })

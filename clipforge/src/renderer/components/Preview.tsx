@@ -5,6 +5,8 @@ import { PreviewEngine, previewSize } from '../preview/engine'
 import { useStore } from '../store'
 import { fmt } from './ui'
 import { LayerOverlay } from './Layers'
+import { CaptionOverlay } from './CaptionOverlay'
+import { CropOverlay, findCropTarget, PreviewContextMenu, type MenuState } from './CropTools'
 
 function Scrubber({ value, max, onSeek, range, marks }: { value: number; max: number; onSeek: (t: number) => void; range?: [number, number]; marks?: number[] }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -43,79 +45,130 @@ function Scrubber({ value, max, onSeek, range, marks }: { value: number; max: nu
 
 /** Kaynak kaydı oynatır (proxy); klip taslağı varken sınırlar üzerinden ince ayar yapılır. */
 function SourcePlayer() {
-  const { project, selectedAssetId, sourceTime, setSourceTime, clipDraft, patchDraft, snapDraft } = useStore()
+  const { project, selectedAssetId, sourceTime, setSourceTime, clipDraft, patchDraft, snapDraft, playRequest } = useStore()
   const asset = project.assets.find((a) => a.id === (clipDraft?.assetId ?? selectedAssetId))
   const api = requireApi()
   const vref = useRef<HTMLVideoElement>(null)
   const aref = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
+  const [menu, setMenu] = useState<MenuState | null>(null)
   const selfSet = useRef(0)
-  const videoUrl = asset ? api.mediaUrl(asset, 'video') : null
+  const isVideo = asset?.kind === 'video'
+  const isImage = asset?.kind === 'image'
+  const videoUrl = asset && isVideo ? api.mediaUrl(asset, 'video') : null
   const audioUrl = asset && asset.audioStreams.length ? api.mediaUrl(asset, 'audio', asset.audioMap.mix) : null
+  const imageUrl = asset && isImage ? api.mediaUrl(asset, 'image') : null
   const markers = (asset && project.markers[asset.id]?.map((m) => m.time)) || []
   const audioPending = !!asset && !api.isMock && asset.audioStreams.length > 0 && !asset.audioStreams[asset.audioMap.mix]?.proxyPath && !/\.(mp4|m4v|mov|webm|mp3|wav|m4a|aac|ogg|flac|opus)$/i.test(asset.path)
+  /** Zamanı yöneten öğe: video varsa video (ses ayrı <audio>'dan), ses dosyasında <audio>'nun kendisi */
+  const master = () => (isVideo ? vref.current : aref.current)
 
   // dışarıdan gelen arama (sonuç tıklama vb.)
   useEffect(() => {
-    const v = vref.current
-    if (!v) return
-    if (Math.abs(v.currentTime - sourceTime) > 0.25 && Math.abs(selfSet.current - sourceTime) > 0.01) {
-      v.currentTime = sourceTime
-      if (aref.current) aref.current.currentTime = sourceTime
+    const m = master()
+    if (!m) return
+    if (Math.abs(m.currentTime - sourceTime) > 0.25 && Math.abs(selfSet.current - sourceTime) > 0.01) {
+      m.currentTime = sourceTime
+      if (isVideo && aref.current) aref.current.currentTime = sourceTime
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceTime])
 
   useEffect(() => {
     let raf = 0
     const tick = () => {
-      const v = vref.current
-      if (v && !v.paused) {
-        selfSet.current = v.currentTime
-        setSourceTime(v.currentTime)
+      const m = master()
+      if (m && !m.paused) {
+        selfSet.current = m.currentTime
+        setSourceTime(m.currentTime)
         const a = aref.current
-        if (a && Math.abs(a.currentTime - v.currentTime) > 0.2) a.currentTime = v.currentTime
-        if (clipDraft && v.currentTime >= clipDraft.end) {
-          v.pause()
+        if (isVideo && a && Math.abs(a.currentTime - m.currentTime) > 0.2) a.currentTime = m.currentTime
+        if (clipDraft && m.currentTime >= clipDraft.end) {
+          m.pause()
           aref.current?.pause()
           setPlaying(false)
         }
-      }
+      } else if (m && m.paused && playing && m.ended) setPlaying(false)
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [setSourceTime, clipDraft])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setSourceTime, clipDraft, isVideo, playing])
+
+  const play = useCallback(() => {
+    const m = master()
+    if (!m) return
+    if (clipDraft && (m.currentTime >= clipDraft.end - 0.05 || m.currentTime < clipDraft.start)) m.currentTime = clipDraft.start
+    void m.play().catch(() => undefined)
+    if (isVideo) void aref.current?.play().catch(() => undefined)
+    setPlaying(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clipDraft, isVideo])
 
   const toggle = useCallback(() => {
-    const v = vref.current
-    if (!v) return
-    if (v.paused) {
-      if (clipDraft && (v.currentTime >= clipDraft.end - 0.05 || v.currentTime < clipDraft.start)) v.currentTime = clipDraft.start
-      void v.play().catch(() => undefined)
-      void aref.current?.play().catch(() => undefined)
-      setPlaying(true)
-    } else {
-      v.pause()
+    const m = master()
+    if (!m) return
+    if (m.paused) play()
+    else {
+      m.pause()
       aref.current?.pause()
       setPlaying(false)
     }
-  }, [clipDraft])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [play, isVideo])
+
+  // Kütüphanede bir dosyaya tıklanınca (playRequest artar) seçilen dosya BAŞTAN otomatik oynatılır
+  useEffect(() => {
+    if (playRequest === 0 || !asset || isImage) return
+    let cancelled = false
+    const start = () => {
+      if (cancelled) return
+      const m = master()
+      if (!m) return
+      m.currentTime = 0
+      if (aref.current) aref.current.currentTime = 0
+      play()
+    }
+    // öğenin kaynağı yeni atanmış olabilir: hazır olunca (ya da hemen) başlat
+    const m = master()
+    if (m && m.readyState >= 2) start()
+    else {
+      const t = setTimeout(() => {
+        const mm = master()
+        if (!mm) return
+        if (mm.readyState >= 2) start()
+        else mm.addEventListener('canplay', start, { once: true })
+      }, 0)
+      return () => (cancelled = true, clearTimeout(t))
+    }
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playRequest])
 
   const dur = asset?.durationSec ?? 0
   return (
     <>
-      <div className="stage-area">
-        {asset ? (
-          <video ref={vref} src={videoUrl ?? undefined} muted playsInline preload="auto" data-testid="source-video" />
-        ) : (
-          <div className="empty">Bir kayıt içe aktarın ve seçin.</div>
-        )}
-        {audioUrl && <audio ref={aref} src={audioUrl} preload="auto" />}
+      <div
+        className="stage-area"
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setMenu({ x: e.clientX, y: e.clientY, clipId: null })
+        }}
+      >
+        {asset && isVideo && <video ref={vref} src={videoUrl ?? undefined} muted playsInline preload="auto" data-testid="source-video" />}
+        {asset && isImage && <img src={imageUrl ?? undefined} alt={asset.name} className="source-image" data-testid="source-image" />}
+        {asset && asset.kind === 'audio' && <div className="empty" data-testid="source-audio">Ses dosyası: {asset.name}</div>}
+        {!asset && <div className="empty">Soldaki kütüphaneden bir dosya seçin.</div>}
+        {audioUrl && <audio ref={aref} src={audioUrl} preload="auto" onEnded={() => !isVideo && setPlaying(false)} />}
+        {menu && <SourceCropMenu menu={menu} onClose={() => setMenu(null)} />}
       </div>
       <div className="transport">
-        <button className="btn icon" onClick={toggle} disabled={!asset} aria-label={playing ? 'Duraklat' : 'Oynat'}>{playing ? '⏸' : '▶'}</button>
-        <button className="btn icon" onClick={() => setSourceTime(sourceTime - 5)} aria-label="5 sn geri">−5</button>
-        <button className="btn icon" onClick={() => setSourceTime(sourceTime + 5)} aria-label="5 sn ileri">+5</button>
+        <button className="btn icon" onClick={toggle} disabled={!asset || isImage} aria-label={playing ? 'Duraklat' : 'Oynat'} data-testid="source-play">{playing ? '⏸' : '▶'}</button>
+        <button className="btn icon" onClick={() => setSourceTime(sourceTime - 5)} disabled={isImage} aria-label="5 sn geri">−5</button>
+        <button className="btn icon" onClick={() => setSourceTime(sourceTime + 5)} disabled={isImage} aria-label="5 sn ileri">+5</button>
         {audioPending && <span className="badge warn" title="Önizleme kopyası bitince ses de çalar" data-testid="audio-pending">Ses önizlemesi hazırlanıyor…</span>}
         <span className="tc" data-testid="source-tc">{fmt(sourceTime, true)} / {fmt(dur)}</span>
         <Scrubber value={sourceTime} max={dur} onSeek={setSourceTime} range={clipDraft ? [clipDraft.start, clipDraft.end] : undefined} marks={markers} />
@@ -145,7 +198,10 @@ function TimelinePreview() {
   const { width, height } = previewSize(tl)
   // Canvas, alanı en-boy oranını koruyarak doldurur; katman tutamaçları aynı kutuya oturur
   const areaRef = useRef<HTMLDivElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState({ w: 0, h: 0 })
+  const [menu, setMenu] = useState<MenuState | null>(null)
+  const cropClipId = useStore((s) => s.cropClipId)
   useEffect(() => {
     const el = areaRef.current
     if (!el) return
@@ -202,10 +258,11 @@ function TimelinePreview() {
     const c = canvasRef.current
     if (!eng || !c) return
     const st = useStore.getState()
+    eng.cropClipId = st.cropClipId
     eng.sync(tl, st.project.assets, playhead, playing && rateRef.current > 0, Math.abs(rateRef.current) || 1)
     const ctx = c.getContext('2d')
     if (ctx) eng.draw(ctx, c.width, c.height, tl, st.project.assets, playhead, !st.playing)
-  }, [playhead, tl, playing, width, height])
+  }, [playhead, tl, playing, width, height, cropClipId])
 
   // video kareleri sonradan yüklenince de çiz
   useEffect(() => {
@@ -235,11 +292,31 @@ function TimelinePreview() {
   const { setPlayhead, setPlaying } = useStore.getState()
   return (
     <>
-      <div className="stage-area" ref={areaRef}>
-        <div className="canvas-box" style={{ width: box.w, height: box.h }}>
+      <div
+        className="stage-area"
+        ref={areaRef}
+        onContextMenu={(e) => {
+          // Orta düzenleme alanında sağ tık: "Crop / Kırp" menüsü
+          e.preventDefault()
+          const st = useStore.getState()
+          const r = boxRef.current?.getBoundingClientRect()
+          const pt = r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom ? { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height } : undefined
+          const target = findCropTarget(st.project.timeline, st.playhead, st.selection, pt)
+          setMenu({ x: e.clientX, y: e.clientY, clipId: target?.id ?? null })
+        }}
+      >
+        <div className="canvas-box" ref={boxRef} style={{ width: box.w, height: box.h }}>
           <canvas ref={canvasRef} width={width} height={height} data-testid="timeline-canvas" aria-label="Zaman çizelgesi önizlemesi" />
-          <LayerOverlay />
+          {cropClipId ? (
+            <CropOverlay boxW={box.w} boxH={box.h} />
+          ) : (
+            <>
+              <LayerOverlay />
+              <CaptionOverlay />
+            </>
+          )}
         </div>
+        {menu && <PreviewContextMenu menu={menu} onClose={() => setMenu(null)} />}
       </div>
       <div className="transport">
         <button className="btn icon" onClick={() => { rateRef.current = 1; setRate(1); setPlaying(!playing) }} aria-label={playing ? 'Duraklat' : 'Oynat'} data-testid="tl-play">{playing ? '⏸' : '▶'}</button>
@@ -266,5 +343,36 @@ export function Preview() {
       </div>
       {viewMode === 'source' ? <SourcePlayer /> : <TimelinePreview />}
     </section>
+  )
+}
+
+/** Kaynak görünümünde sağ tık: kırpma zaman çizelgesindeki klip üzerinde yapıldığı için oraya yönlendirir. */
+function SourceCropMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const close = (e: Event) => (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) && onClose()
+    window.addEventListener('pointerdown', close, true)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('pointerdown', close, true)
+      window.removeEventListener('keydown', close)
+    }
+  }, [onClose])
+  return (
+    <div className="ctx-menu" ref={ref} style={{ left: menu.x, top: menu.y }} role="menu" data-testid="ctx-menu">
+      <button
+        role="menuitem"
+        data-testid="ctx-crop"
+        onClick={() => {
+          onClose()
+          const st = useStore.getState()
+          const target = findCropTarget(st.project.timeline, st.playhead, st.selection)
+          if (!target) return st.toast('info', 'Kırpmak için önce klibi zaman çizelgesine ekleyin; kırpma zaman çizelgesindeki klip üzerinde yapılır.')
+          st.startCrop(target.id)
+        }}
+      >
+        ✂ Crop / Kırp
+      </button>
+    </div>
   )
 }

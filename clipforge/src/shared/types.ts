@@ -260,6 +260,8 @@ export interface Caption {
   start: number
   end: number
   text: string
+  /** Bu altyazının merkezi (0..1, kareye göre). Yoksa stildeki varsayılan konum kullanılır. */
+  pos?: { x: number; y: number }
 }
 
 export interface CaptionStyle {
