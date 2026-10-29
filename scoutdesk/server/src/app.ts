@@ -14,6 +14,13 @@ import { clipRoutes } from './routes/clips.js'
 import { referenceRoutes } from './routes/reference.js'
 import { taxonomyRoutes } from './routes/taxonomy.js'
 import { videoRoutes } from './routes/videos.js'
+import { commentRoutes } from './routes/comments.js'
+import { exportRoutes } from './routes/exports.js'
+import { profileRoutes } from './routes/profile.js'
+import { playlistRoutes } from './routes/playlists.js'
+import { reportRoutes } from './routes/reports.js'
+import { shareRoutes } from './routes/shares.js'
+import { snapshotRoutes } from './routes/snapshots.js'
 import { HttpError } from './validate.js'
 
 export async function buildApp({ logger = false }: { logger?: boolean | { level: string } } = {}) {
@@ -55,6 +62,13 @@ export async function buildApp({ logger = false }: { logger?: boolean | { level:
   await app.register(taxonomyRoutes)
   await app.register(videoRoutes)
   await app.register(clipRoutes)
+  await app.register(playlistRoutes)
+  await app.register(exportRoutes)
+  await app.register(commentRoutes)
+  await app.register(snapshotRoutes)
+  await app.register(profileRoutes)
+  await app.register(shareRoutes)
+  await app.register(reportRoutes)
 
   // Serve the built client (production). In dev, Vite serves it and proxies /api here.
   if (fs.existsSync(path.join(CLIENT_DIST, 'index.html'))) {

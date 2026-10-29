@@ -9,13 +9,14 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  email     String   @unique
-  role      String   @default("analyst") // admin | analyst | viewer
-  color     String   @default("#a3e635")
-  createdAt DateTime @default(now())
+  email     String    @unique
+  role      String    @default("analyst") // admin | analyst | viewer
+  color     String    @default("#a3e635")
+  createdAt DateTime  @default(now())
   clips     Clip[]
+  comments  Comment[]
 }
 
 model Team {
@@ -39,7 +40,7 @@ model Player {
   name        String
   photoUrl    String?
   jersey      Int?
-  positions   Json      // string[]
+  positions   Json // string[]
   foot        String? // left | right | both
   heightCm    Int?
   age         Int?
@@ -63,7 +64,7 @@ model Match {
   homeScore   Int?
   awayScore   Int?
   tagStatus   String   @default("untagged") // untagged | in_progress | complete
-  lineups     Json      // { home: string[], away: string[] } player ids
+  lineups     Json // { home: string[], away: string[] } player ids
   notes       String   @default("")
   createdAt   DateTime @default(now())
   videos      Video[]
@@ -86,7 +87,7 @@ model Video {
   thumbnailPath String?
   angle         String   @default("Main")
   syncOffset    Float    @default(0) // seconds, relative to the match's main angle
-  tags          Json      // string[]
+  tags          Json // string[]
   matchId       String?
   match         Match?   @relation(fields: [matchId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
@@ -113,34 +114,118 @@ model TagType {
 }
 
 model Clip {
-  id          String   @id @default(cuid())
-  matchId     String
-  match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  videoId     String?
-  video       Video?   @relation(fields: [videoId], references: [id], onDelete: SetNull)
-  tagTypeId   String
-  tagType     TagType  @relation(fields: [tagTypeId], references: [id])
-  startSec    Float
-  endSec      Float
-  timeSec     Float // the moment the tag was pressed
-  playerId    String?
-  player      Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
-  teamId      String?
-  team        Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  jersey      Int?
-  outcome     String   @default("neutral") // success | fail | neutral
-  zone        String? // "3x3:5" | "6x4:11"
-  x           Float? // pitch coords 0..100, left→right = own goal → opponent goal
-  y           Float?
-  endX        Float?
-  endY        Float?
-  notes       String   @default("")
-  labels      Json      // string[]
-  createdById String?
-  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String         @id @default(cuid())
+  matchId       String
+  match         Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  videoId       String?
+  video         Video?         @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  tagTypeId     String
+  tagType       TagType        @relation(fields: [tagTypeId], references: [id])
+  startSec      Float
+  endSec        Float
+  timeSec       Float // the moment the tag was pressed
+  playerId      String?
+  player        Player?        @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  teamId        String?
+  team          Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  jersey        Int?
+  outcome       String         @default("neutral") // success | fail | neutral
+  zone          String? // "3x3:5" | "6x4:11"
+  x             Float? // pitch coords 0..100, left→right = own goal → opponent goal
+  y             Float?
+  endX          Float?
+  endY          Float?
+  notes         String         @default("")
+  labels        Json // string[]
+  createdById   String?
+  createdBy     User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  comments      Comment[]
+  playlistItems PlaylistItem[]
 
   @@index([matchId])
   @@index([playerId])
+}
+
+model Playlist {
+  id          String         @id @default(cuid())
+  title       String
+  description String         @default("")
+  createdById String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  items       PlaylistItem[]
+}
+
+model PlaylistItem {
+  id         String   @id @default(cuid())
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  clipId     String
+  clip       Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  position   Int
+  title      String? // overrides the auto title (tag · player)
+  transition String   @default("cut") // transition INTO this item: cut | fade
+
+  @@index([playlistId, position])
+}
+
+model ExportJob {
+  id          String    @id @default(cuid())
+  kind        String // clip | playlist
+  refId       String
+  label       String
+  status      String    @default("queued") // queued | running | done | failed
+  progress    Float     @default(0)
+  error       String?
+  filePath    String?
+  fileName    String?
+  sizeBytes   BigInt    @default(0)
+  options     Json
+  createdById String?
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+}
+
+model ShareLink {
+  id           String    @id @default(cuid())
+  token        String    @unique
+  kind         String // playlist | match
+  refId        String
+  label        String
+  passwordHash String?
+  expiresAt    DateTime?
+  revoked      Boolean   @default(false)
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  views        Int       @default(0)
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  clipId    String
+  clip      Clip      @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment?  @relation("Thread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("Thread")
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime  @default(now())
+
+  @@index([clipId])
+}
+
+model Snapshot {
+  id          String   @id @default(cuid())
+  matchId     String?
+  videoId     String?
+  clipId      String?
+  playerId    String?
+  timeSec     Float    @default(0)
+  caption     String   @default("")
+  filePath    String
+  createdById String?
+  createdAt   DateTime @default(now())
 }
