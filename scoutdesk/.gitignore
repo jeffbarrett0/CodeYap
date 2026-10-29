@@ -8,3 +8,4 @@ server/prisma/*.db
 server/prisma/*.db-journal
 client/.vite
 coverage
+e2e-out

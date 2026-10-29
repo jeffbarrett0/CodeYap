@@ -119,20 +119,36 @@ export function useHotkeys(bindings: Binding[]) {
   }, [id, signature])
 }
 
-/** Single global listener; later-registered owners (deeper components) win ties. */
+const INTERACTIVE = 'button, a[href], summary, [role="button"], [role="radio"], [role="checkbox"], [role="tab"], [role="menuitem"]'
+
+/**
+ * Single global listener, registered in the *capture* phase so shortcuts like
+ * Space work even when focus rests on a button the mouse just clicked (the
+ * button would otherwise swallow Space/Enter). We step aside when:
+ *  - a dialog, popover or menu is open (they own the keyboard),
+ *  - the user is typing in a field, or
+ *  - Enter is pressed on a button/link (Enter keeps activating focused controls).
+ * Space is deliberately *always* the transport toggle outside text fields — as in
+ * every NLE/analysis tool — so a stray focused button can never eat it or, worse,
+ * re-fire (e.g. re-create a tag) when the user means "play/pause".
+ * Later-registered owners (deeper components) win ties.
+ */
 export function dispatchKeydown(e: KeyboardEvent) {
-  if (e.defaultPrevented || e.isComposing) return
+  if (e.isComposing) return
+  const target = e.target
+  if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"][data-state="open"]')) return
   const combo = comboFromEvent(e)
-  const typing = isTypingTarget(e.target)
-  const dialogOpen = !!document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')
+  const typing = isTypingTarget(target)
+  if (combo === 'enter' && target instanceof HTMLElement && target.matches(INTERACTIVE)) return
+
   const lists = [...owners.values()].reverse()
   for (const get of lists) {
     for (const b of get()) {
       if (b.enabled === false || normalizeCombo(b.combo) !== combo) continue
       if (typing && !b.allowInInput) continue
-      if (dialogOpen && combo !== 'escape' && !b.allowInInput) continue
       if (e.repeat && !b.repeat) continue
       e.preventDefault()
+      e.stopPropagation()
       b.handler(e)
       return
     }

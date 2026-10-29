@@ -17,7 +17,7 @@ import { ensureStorage } from '../src/lib/storage.js'
 import { DEFAULT_TAXONOMY } from './taxonomy.js'
 
 const run = promisify(execFile)
-const DEMO_SECONDS = 180
+const DEMO_SECONDS = Number(process.env.SEED_DEMO_SECONDS ?? 180)
 const FPS = 25
 type Outcome = 'success' | 'fail' | 'neutral'
 
@@ -31,41 +31,63 @@ const FONTS = [
   'C:/Windows/Fonts/consola.ttf',
 ]
 
+/** Static pitch markings (drawbox is evaluated once per stream, so only static shapes go here). */
 function pitchFilter(): string {
   const f: string[] = []
-  // mowing stripes
   for (let i = 0; i < 10; i++) {
-    if (i % 2) f.push(`drawbox=x=${60 + 116 * i}:y=40:w=116:h=640:color=0x276b3d:t=fill`)
+    if (i % 2) f.push(`drawbox=x=${60 + 116 * i}:y=40:w=116:h=640:color=0x276b3d:t=fill`) // mowing stripes
   }
   const line = 'color=white@0.85'
   f.push(`drawbox=x=60:y=40:w=1160:h=640:${line}:t=3`) // touchlines
   f.push(`drawbox=x=638:y=40:w=3:h=640:${line}:t=fill`) // halfway
   f.push(`drawbox=x=60:y=190:w=190:h=340:${line}:t=3`, `drawbox=x=1030:y=190:w=190:h=340:${line}:t=3`)
   f.push(`drawbox=x=60:y=290:w=70:h=140:${line}:t=3`, `drawbox=x=1150:y=290:w=70:h=140:${line}:t=3`)
-  f.push(`drawbox=x=610:y=330:w=60:h=60:${line}:t=3`) // centre mark (square — keeps the filter cheap)
+  f.push(`drawbox=x=610:y=330:w=60:h=60:${line}:t=3`)
+  return f.join(',')
+}
 
-  // 4-3-3 (home, blue) v 4-4-2 (away, red); positions in pitch px, jittered by sin/cos
+/**
+ * Moving players + ball. `overlay` evaluates x/y per frame (unlike drawbox), so each
+ * dot is its own tiny colour source overlaid on the pitch with a sin/cos path.
+ * 4-3-3 (home, blue) v 4-4-2 (away, red).
+ */
+function playersGraph(): { sources: string; chain: string; last: string } {
   const home: [number, number][] = [[110, 360], [250, 190], [250, 300], [250, 420], [250, 530], [420, 240], [420, 360], [420, 480], [560, 190], [580, 360], [560, 530]]
   const away: [number, number][] = [[1170, 360], [1030, 190], [1030, 300], [1030, 420], [1030, 530], [860, 190], [860, 300], [860, 420], [860, 530], [720, 300], [720, 420]]
-  const dot = (p: [number, number], i: number, color: string) => {
-    const a = 14 + (i % 4) * 7
-    const w = 0.35 + (i % 5) * 0.11
-    return `drawbox=x='${p[0]}+${a}*sin(t*${w.toFixed(2)}+${i})':y='${p[1]}+${a}*cos(t*${(w * 0.8).toFixed(2)}+${i * 2})':w=18:h=18:color=${color}:t=fill`
+  const dots = [
+    ...home.map((p, i) => ({ p, i, color: '0x3b82f6', size: 18 })),
+    ...away.map((p, i) => ({ p, i: i + 11, color: '0xdc2626', size: 18 })),
+  ]
+  const sources: string[] = []
+  const chain: string[] = []
+  let prev = 'bg'
+  const make = (n: number, color: string, size: number, label: string) => {
+    sources.push(`color=c=${color}:s=${size}x${size}:r=${FPS}:d=${DEMO_SECONDS}[${label}]`)
   }
-  home.forEach((p, i) => f.push(dot(p, i, '0x3b82f6')))
-  away.forEach((p, i) => f.push(dot(p, i + 11, '0xdc2626')))
-  f.push(`drawbox=x='640+420*sin(t*0.7)':y='360+200*cos(t*0.45)':w=12:h=12:color=white:t=fill`) // ball
-  return f.join(',')
+  dots.forEach((d, k) => {
+    make(k, d.color, d.size, `d${k}`)
+    const a = 14 + (d.i % 4) * 7
+    const w = 0.35 + (d.i % 5) * 0.11
+    const next = `o${k}`
+    chain.push(`[${prev}][d${k}]overlay=x='${d.p[0]}+${a}*sin(t*${w.toFixed(2)}+${d.i})':y='${d.p[1]}+${a}*cos(t*${(w * 0.8).toFixed(2)}+${d.i * 2})':shortest=1[${next}]`)
+    prev = next
+  })
+  make(99, 'white', 12, 'ball')
+  chain.push(`[${prev}][ball]overlay=x='640+420*sin(t*0.7)':y='360+200*cos(t*0.45)':shortest=1[pitch]`)
+  return { sources: sources.join(';'), chain: chain.join(';'), last: 'pitch' }
 }
 
 async function generateDemoVideo(dest: string, format: 'mp4' | 'webm'): Promise<boolean> {
   const font = FONTS.find((p) => fs.existsSync(p))
-  let vf = pitchFilter()
+  const g = playersGraph()
+  let text = ''
   if (font) {
     const common = `fontfile='${font}':fontcolor=white:fontsize=34:box=1:boxcolor=black@0.6:boxborderw=8`
-    vf += `,drawtext=${common}:text='%{pts\\:hms}  F%{frame_num}':x=70:y=52`
-    vf += `,drawtext=${common}:fontsize=26:text='NORTHBRIDGE FC  v  RIVERMOUTH UNITED  (demo footage)':x=70:y=640`
+    text =
+      `,drawtext=${common}:text='%{pts\\:hms}  F%{frame_num}':x=70:y=52` +
+      `,drawtext=${common}:fontsize=26:text='NORTHBRIDGE FC  v  RIVERMOUTH UNITED  (demo footage)':x=70:y=640`
   }
+  const graph = `[0:v]${pitchFilter()}[bg];${g.sources};${g.chain};[${g.last}]null${text}[out]`
   const enc =
     format === 'mp4'
       ? ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27', '-g', String(FPS), '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
@@ -73,7 +95,7 @@ async function generateDemoVideo(dest: string, format: 'mp4' | 'webm'): Promise<
   try {
     await run(
       'ffmpeg',
-      ['-y', '-v', 'error', '-f', 'lavfi', '-i', `color=c=0x1f5a35:s=1280x720:r=${FPS}:d=${DEMO_SECONDS}`, '-vf', vf, ...enc, dest],
+      ['-y', '-v', 'error', '-f', 'lavfi', '-i', `color=c=0x1f5a35:s=1280x720:r=${FPS}:d=${DEMO_SECONDS}`, '-filter_complex', graph, '-map', '[out]', ...enc, dest],
       { maxBuffer: 1024 * 1024 * 16 },
     )
     return true
@@ -244,7 +266,9 @@ async function main() {
     console.warn('  ! ffmpeg not found — skipping demo video. Upload any match video from the Library instead.')
   }
 
-  console.log('Seeding 30 clips…')
+  // A shortened demo video (SEED_DEMO_SECONDS) can only hold the clips that fit inside it.
+  const clipSeeds = CLIPS.filter((c) => c.t + 1 < DEMO_SECONDS)
+  console.log(`Seeding ${clipSeeds.length} clips…`)
   const rnd = mulberry(7)
   const playerMeta: Record<string, { id: string; teamId: string; jersey: number }> = {
     hale: { id: 'p_hale', teamId: 't_nbfc', jersey: 9 },
@@ -253,7 +277,7 @@ async function main() {
   }
   const defaults = new Map(DEFAULT_TAXONOMY.flatMap((c) => c.tags).map((t) => [t.name, t.outcome ?? 'neutral'] as const))
   await prisma.clip.createMany({
-    data: CLIPS.map((c, i) => {
+    data: clipSeeds.map((c, i) => {
       const pm = c.p ? playerMeta[c.p] : null
       return {
         id: `c_seed_${String(i + 1).padStart(2, '0')}`,
@@ -279,7 +303,7 @@ async function main() {
     }),
   })
 
-  console.log(`Done. ${CLIPS.length} clips${videoId ? ' + demo video' : ''} ready.`)
+  console.log(`Done. ${clipSeeds.length} clips${videoId ? ' + demo video' : ''} ready.`)
 }
 
 main()

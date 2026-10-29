@@ -8,6 +8,7 @@ import { EmptyState, Spinner } from '@/components/ui/misc'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { dispatchKeydown } from '@/lib/hotkeys'
 import { LibraryPage } from '@/features/library/LibraryPage'
+import { MatchAnalysisPage } from '@/features/match/MatchAnalysisPage'
 import { MatchesPage } from '@/features/matches/MatchesPage'
 import { useApp } from '@/store/app'
 import { useData } from '@/store/data'
@@ -24,8 +25,8 @@ export default function App() {
 
   // One global key listener; components register bindings via useHotkeys().
   useEffect(() => {
-    window.addEventListener('keydown', dispatchKeydown)
-    return () => window.removeEventListener('keydown', dispatchKeydown)
+    window.addEventListener('keydown', dispatchKeydown, true)
+    return () => window.removeEventListener('keydown', dispatchKeydown, true)
   }, [])
 
   // First run (or a stale id after re-seeding): sign in as the analyst demo user.
@@ -64,6 +65,7 @@ export default function App() {
           <Route index element={<Navigate to="/library" replace />} />
           <Route path="library" element={<LibraryPage />} />
           <Route path="matches" element={<MatchesPage />} />
+          <Route path="match/:matchId" element={<MatchAnalysisPage />} />
           <Route path="players" element={<Placeholder icon={User} title="Players" phase={6} description="Player database, profiles, heatmaps and comparison." />} />
           <Route path="teams" element={<Placeholder icon={Shield} title="Teams" phase={6} description="Teams, formations and match history." />} />
           <Route path="playlists" element={<Placeholder icon={ListVideo} title="Playlists" phase={7} description="Build, reorder and play back clip playlists; export as MP4." />} />

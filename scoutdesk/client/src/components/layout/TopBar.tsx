@@ -25,14 +25,13 @@ export function TopBar() {
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex min-w-0 flex-[1.4] items-center gap-3">
         {match && home && away ? (
           <div className="flex min-w-0 items-center gap-2 text-xs" aria-label="Current match">
-            <span className="label">Match</span>
             <span className="truncate font-semibold">{home.name}</span>
-            <span className="timecode rounded bg-raised px-1.5 py-0.5 font-semibold">{match.homeScore ?? '–'} – {match.awayScore ?? '–'}</span>
+            <span className="timecode shrink-0 whitespace-nowrap rounded bg-raised px-1.5 py-0.5 font-semibold">{match.homeScore ?? '–'} – {match.awayScore ?? '–'}</span>
             <span className="truncate font-semibold">{away.name}</span>
-            <span className="hidden truncate text-muted xl:inline">· {match.competition}</span>
+            <span className="hidden truncate text-muted 2xl:inline">· {match.competition}</span>
           </div>
         ) : (
           <label className="flex items-center gap-2 text-xs">

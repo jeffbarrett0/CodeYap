@@ -65,7 +65,7 @@ export function GlobalSearch() {
 
   let lastGroup = ''
   return (
-    <div className="relative w-full max-w-md">
+    <div className="relative w-full max-w-sm">
       <Search aria-hidden className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-muted" />
       <input
         ref={inputRef}
