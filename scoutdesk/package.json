@@ -1,0 +1,21 @@
+{
+  "name": "scoutdesk",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Football video scouting & match analysis workstation",
+  "workspaces": ["server", "client"],
+  "scripts": {
+    "setup": "npm install && npm run db:setup -w server && npm run seed -w server",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "seed": "npm run seed -w server",
+    "seed:reset": "npm run seed -w server -- --reset",
+    "test": "npm run test -w server && npm run test -w client",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": { "node": ">=22.5" }
+}
