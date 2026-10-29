@@ -1,7 +1,13 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { adminOnly, canWrite } from '../auth.js'
+import { PHOTO_DIR } from '../config.js'
 import { prisma } from '../db.js'
+import { playerDTO } from '../dto.js'
+import { verifyResource } from '../lib/sign.js'
 import { HttpError, parse } from '../validate.js'
 
 const teamBody = z.object({
@@ -62,17 +68,51 @@ export async function referenceRoutes(app: FastifyInstance) {
   })
 
   // ── Players ──────────────────────────────────────────────────────────────
-  app.get('/api/players', async () => prisma.player.findMany({ orderBy: { name: 'asc' } }))
+  app.get('/api/players', async () => (await prisma.player.findMany({ orderBy: { name: 'asc' } })).map(playerDTO))
   app.post('/api/players', { preHandler: canWrite }, async (req, reply) => {
     const player = await prisma.player.create({ data: parse(playerBody, req.body) })
-    return reply.code(201).send(player)
+    return reply.code(201).send(playerDTO(player))
   })
-  app.patch<{ Params: { id: string } }>('/api/players/:id', { preHandler: canWrite }, async (req) =>
-    prisma.player.update({ where: { id: req.params.id }, data: parse(playerBody.partial(), req.body) }),
-  )
+  app.patch<{ Params: { id: string } }>('/api/players/:id', { preHandler: canWrite }, async (req) => {
+    const { photoUrl, ...data } = parse(playerBody.partial(), req.body)
+    // The stored photo path is managed by the upload endpoint; only allow clearing or external URLs here.
+    const photo = photoUrl === null || (typeof photoUrl === 'string' && /^https?:\/\//.test(photoUrl)) ? { photoUrl } : {}
+    return playerDTO(await prisma.player.update({ where: { id: req.params.id }, data: { ...data, ...photo } }))
+  })
   app.delete<{ Params: { id: string } }>('/api/players/:id', { preHandler: adminOnly }, async (req, reply) => {
+    const p = await prisma.player.findUnique({ where: { id: req.params.id } })
     await prisma.player.delete({ where: { id: req.params.id } })
+    if (p?.photoUrl && !p.photoUrl.startsWith('http')) fs.rmSync(path.join(PHOTO_DIR, path.basename(p.photoUrl.split('?')[0]!)), { force: true })
     return reply.code(204).send()
+  })
+
+  const IMAGE_EXT: Record<string, string> = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' }
+  app.post<{ Params: { id: string } }>('/api/players/:id/photo', { preHandler: canWrite }, async (req, reply) => {
+    const player = await prisma.player.findUnique({ where: { id: req.params.id } })
+    if (!player) throw new HttpError(404, 'Player not found')
+    const part = await req.file({ limits: { fileSize: 5 * 1024 * 1024 } })
+    if (!part) throw new HttpError(400, 'No file in request')
+    const ext = path.extname(part.filename).toLowerCase()
+    if (!IMAGE_EXT[ext]) throw new HttpError(415, 'Use a JPG, PNG or WebP image')
+    const file = `${player.id}${ext}`
+    const dest = path.join(PHOTO_DIR, file)
+    await pipeline(part.file, fs.createWriteStream(dest))
+    if (part.file.truncated) {
+      fs.rmSync(dest, { force: true })
+      throw new HttpError(413, 'Image exceeds 5 MB')
+    }
+    // Remove a previous photo that had a different extension.
+    for (const e of Object.keys(IMAGE_EXT)) if (e !== ext) fs.rmSync(path.join(PHOTO_DIR, `${player.id}${e}`), { force: true })
+    const updated = await prisma.player.update({ where: { id: player.id }, data: { photoUrl: `photos/${file}?${Date.now()}` } })
+    return reply.code(201).send(playerDTO(updated))
+  })
+  app.get<{ Params: { id: string }; Querystring: { exp?: string; sig?: string } }>('/api/players/:id/photo', async (req, reply) => {
+    if (!verifyResource(`photo:${req.params.id}`, req.query.exp, req.query.sig)) throw new HttpError(403, 'Invalid or expired link')
+    const p = await prisma.player.findUnique({ where: { id: req.params.id } })
+    if (!p?.photoUrl || p.photoUrl.startsWith('http')) throw new HttpError(404, 'No photo')
+    const file = path.join(PHOTO_DIR, path.basename(p.photoUrl.split('?')[0]!))
+    if (!fs.existsSync(file)) throw new HttpError(404, 'No photo')
+    return reply.header('Content-Type', IMAGE_EXT[path.extname(file)] ?? 'image/jpeg').header('Cache-Control', 'private, max-age=86400').send(fs.createReadStream(file))
   })
 
   // ── Matches ──────────────────────────────────────────────────────────────

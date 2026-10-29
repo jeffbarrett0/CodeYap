@@ -15,6 +15,7 @@ import type { Clip } from '@/types'
 import { ClipInspector } from './ClipInspector'
 import { ClipTable } from './ClipTable'
 import { EventLog } from './EventLog'
+import { PitchView } from './PitchView'
 import { TaggingPanel } from './TaggingPanel'
 import { Timeline } from './Timeline'
 import { VideoPlayer } from './VideoPlayer'
@@ -195,9 +196,11 @@ export function MatchAnalysisPage() {
               <TabsList>
                 <TabsTrigger value="clips">Clips <span className="timecode text-2xs text-muted">{clipTotal}</span></TabsTrigger>
                 <TabsTrigger value="log">Event log</TabsTrigger>
+                <TabsTrigger value="pitch">Pitch</TabsTrigger>
               </TabsList>
               <TabsContent value="clips" forceMount><ClipTable canWrite={canWrite} onPlayClip={playClip} /></TabsContent>
               <TabsContent value="log"><EventLog /></TabsContent>
+              <TabsContent value="pitch"><PitchView canWrite={canWrite} /></TabsContent>
             </Tabs>
           </Panel>
         </PanelGroup>

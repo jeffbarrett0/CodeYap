@@ -1,4 +1,4 @@
-import type { Video } from '@prisma/client'
+import type { Player, Video } from '@prisma/client'
 import { signResource } from './lib/sign.js'
 
 export function videoDTO(v: Video) {
@@ -24,4 +24,14 @@ export function videoDTO(v: Video) {
       ? `/api/videos/${v.id}/thumbnail?${signResource(`thumb:${v.id}`)}`
       : null,
   }
+}
+
+/** Uploaded photos are stored as `photos/<file>` and served through a signed URL; external http(s) URLs pass through. */
+export function playerDTO(p: Player) {
+  const photoUrl = !p.photoUrl
+    ? null
+    : /^https?:\/\//.test(p.photoUrl)
+      ? p.photoUrl
+      : `/api/players/${p.id}/photo?${signResource(`photo:${p.id}`)}&v=${encodeURIComponent(p.photoUrl.split('?')[1] ?? '')}`
+  return { ...p, positions: p.positions as string[], photoUrl }
 }

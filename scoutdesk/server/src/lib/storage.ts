@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { EXPORT_DIR, SNAPSHOT_DIR, STORAGE_DIR, THUMB_DIR, VIDEO_DIR } from '../config.js'
+import { EXPORT_DIR, PHOTO_DIR, SNAPSHOT_DIR, STORAGE_DIR, THUMB_DIR, VIDEO_DIR } from '../config.js'
 
 export function ensureStorage() {
-  for (const dir of [STORAGE_DIR, VIDEO_DIR, THUMB_DIR, SNAPSHOT_DIR, EXPORT_DIR]) {
+  for (const dir of [STORAGE_DIR, PHOTO_DIR, VIDEO_DIR, THUMB_DIR, SNAPSHOT_DIR, EXPORT_DIR]) {
     fs.mkdirSync(dir, { recursive: true })
   }
 }

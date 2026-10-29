@@ -88,6 +88,22 @@ export const api = {
   createMatch: (m: Partial<Match>) => request<Match>('POST', '/matches', m),
   patchMatch: (id: string, m: Partial<Match>) => request<Match>('PATCH', `/matches/${id}`, m),
 
+  createPlayer: (p: Partial<Player>) => request<Player>('POST', '/players', p),
+  patchPlayer: (id: string, p: Partial<Player>) => request<Player>('PATCH', `/players/${id}`, p),
+  deletePlayer: (id: string) => request<void>('DELETE', `/players/${id}`),
+  uploadPlayerPhoto: async (id: string, file: File): Promise<Player> => {
+    const form = new FormData()
+    form.append('file', file, file.name)
+    const res = await fetch(`/api/players/${id}/photo`, { method: 'POST', headers: userId ? { 'x-user-id': userId } : {}, body: form })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new ApiError(res.status, (data as { error?: string }).error ?? 'Photo upload failed')
+    return data as Player
+  },
+  createTeam: (t: Partial<Team>) => request<Team>('POST', '/teams', t),
+  patchTeam: (id: string, t: Partial<Team>) => request<Team>('PATCH', `/teams/${id}`, t),
+  deleteTeam: (id: string) => request<void>('DELETE', `/teams/${id}`),
+  deleteMatch: (id: string) => request<void>('DELETE', `/matches/${id}`),
+
   videos: () => request<Video[]>('GET', '/videos'),
   patchVideo: (id: string, v: Partial<Video>) => request<Video>('PATCH', `/videos/${id}`, v),
   deleteVideo: (id: string) => request<void>('DELETE', `/videos/${id}`),

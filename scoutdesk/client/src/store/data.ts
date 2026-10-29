@@ -17,6 +17,11 @@ interface DataState {
   upsertVideo: (v: Video) => void
   removeVideo: (id: string) => void
   upsertMatch: (m: Match) => void
+  upsertPlayer: (p: Player) => void
+  removePlayer: (id: string) => void
+  upsertTeam: (t: Team) => void
+  removeTeam: (id: string) => void
+  removeMatch: (id: string) => void
 }
 
 export const useData = create<DataState>((set) => ({
@@ -47,6 +52,12 @@ export const useData = create<DataState>((set) => ({
   removeVideo: (id) => set((s) => ({ videos: s.videos.filter((v) => v.id !== id) })),
   upsertMatch: (m) =>
     set((s) => ({ matches: s.matches.some((x) => x.id === m.id) ? s.matches.map((x) => (x.id === m.id ? m : x)) : [m, ...s.matches] })),
+  upsertPlayer: (p) =>
+    set((s) => ({ players: (s.players.some((x) => x.id === p.id) ? s.players.map((x) => (x.id === p.id ? p : x)) : [...s.players, p]).sort((a, b) => a.name.localeCompare(b.name)) })),
+  removePlayer: (id) => set((s) => ({ players: s.players.filter((p) => p.id !== id) })),
+  upsertTeam: (t) => set((s) => ({ teams: s.teams.some((x) => x.id === t.id) ? s.teams.map((x) => (x.id === t.id ? t : x)) : [...s.teams, t] })),
+  removeTeam: (id) => set((s) => ({ teams: s.teams.filter((t) => t.id !== id) })),
+  removeMatch: (id) => set((s) => ({ matches: s.matches.filter((m) => m.id !== id) })),
 }))
 
 // ── Lookups ───────────────────────────────────────────────────────────────────

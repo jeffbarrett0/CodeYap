@@ -213,3 +213,41 @@ describe('real video processing', () => {
     expect(thumb.headers['content-type']).toBe('image/jpeg')
   })
 })
+
+describe('players + photos', () => {
+  let id: string
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+  afterAll(async () => {
+    if (id) await prisma.player.deleteMany({ where: { id } })
+    fs.rmSync(path.join(VIDEO_DIR, '..', 'photos', `${id}.png`), { force: true })
+  })
+
+  it('creates, validates and patches a player', async () => {
+    expect((await app.inject({ method: 'POST', url: '/api/players', payload: { name: '' }, headers: analyst })).statusCode).toBe(400)
+    const r = await app.inject({ method: 'POST', url: '/api/players', payload: { name: 'Test Player', jersey: 77, positions: ['LW'], teamId: 't_nbfc' }, headers: analyst })
+    expect(r.statusCode).toBe(201)
+    id = r.json().id
+    expect(r.json()).toMatchObject({ positions: ['LW'], photoUrl: null })
+    const p = await app.inject({ method: 'PATCH', url: `/api/players/${id}`, payload: { age: 21, foot: 'left' }, headers: analyst })
+    expect(p.json()).toMatchObject({ age: 21, foot: 'left', jersey: 77 })
+  })
+
+  it('stores an uploaded photo and serves it via a signed URL', async () => {
+    const m = multipart({}, { name: 'face.png', data: png, type: 'image/png' })
+    const r = await app.inject({ method: 'POST', url: `/api/players/${id}/photo`, headers: { ...analyst, ...m.headers }, payload: m.payload })
+    expect(r.statusCode).toBe(201)
+    const url = r.json().photoUrl as string
+    expect(url).toContain('/photo?exp=')
+    const img = await app.inject(url)
+    expect(img.statusCode).toBe(200)
+    expect(img.headers['content-type']).toBe('image/png')
+    expect((await app.inject(`/api/players/${id}/photo`)).statusCode).toBe(403)
+  })
+
+  it('rejects non-images and viewer uploads', async () => {
+    const bad = multipart({}, { name: 'x.gif', data: png, type: 'image/gif' })
+    expect((await app.inject({ method: 'POST', url: `/api/players/${id}/photo`, headers: { ...analyst, ...bad.headers }, payload: bad.payload })).statusCode).toBe(415)
+    const ok = multipart({}, { name: 'x.png', data: png, type: 'image/png' })
+    expect((await app.inject({ method: 'POST', url: `/api/players/${id}/photo`, headers: { ...viewer, ...ok.headers }, payload: ok.payload })).statusCode).toBe(403)
+  })
+})

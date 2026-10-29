@@ -1,4 +1,4 @@
-import { AlertTriangle, FileText, ListVideo, Shield, User } from 'lucide-react'
+import { AlertTriangle, FileText, ListVideo } from 'lucide-react'
 import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
@@ -9,6 +9,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { dispatchKeydown } from '@/lib/hotkeys'
 import { LibraryPage } from '@/features/library/LibraryPage'
 import { MatchAnalysisPage } from '@/features/match/MatchAnalysisPage'
+import { PlayersPage } from '@/features/players/PlayersPage'
+import { TeamsPage } from '@/features/teams/TeamsPage'
 import { MatchesPage } from '@/features/matches/MatchesPage'
 import { useApp } from '@/store/app'
 import { useData } from '@/store/data'
@@ -66,8 +68,8 @@ export default function App() {
           <Route path="library" element={<LibraryPage />} />
           <Route path="matches" element={<MatchesPage />} />
           <Route path="match/:matchId" element={<MatchAnalysisPage />} />
-          <Route path="players" element={<Placeholder icon={User} title="Players" phase={6} description="Player database, profiles, heatmaps and comparison." />} />
-          <Route path="teams" element={<Placeholder icon={Shield} title="Teams" phase={6} description="Teams, formations and match history." />} />
+          <Route path="players" element={<PlayersPage />} />
+          <Route path="teams" element={<TeamsPage />} />
           <Route path="playlists" element={<Placeholder icon={ListVideo} title="Playlists" phase={7} description="Build, reorder and play back clip playlists; export as MP4." />} />
           <Route path="reports" element={<Placeholder icon={FileText} title="Reports" phase={9} description="Printable PDF scouting reports for players and teams." />} />
           <Route path="settings" element={<SettingsPage />} />

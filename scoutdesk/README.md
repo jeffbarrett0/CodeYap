@@ -6,7 +6,7 @@ timeline, and (in later phases) build playlists, profile players and export repo
 
 Dark, dense, pro-tool UI. Light theme available.
 
-> **Status: phases 1–5 of 10 are built and verified** (see [Roadmap](#roadmap)). Phases 6–10 are not started.
+> **Status: phases 1–6 of 10 are built and verified** (see [Roadmap](#roadmap)). Phases 7–10 are not started.
 
 ## Quick start
 
@@ -50,7 +50,10 @@ Environment variables (all optional): `PORT` (4000), `STORAGE_DIR` (`server/stor
 background ffprobe + thumbnail, grid/list views, filter/sort, rename, attach to a match, delete (admin).
 Video is delivered through **signed URLs with HTTP Range support**, so seeking works on multi-GB files.
 
-**Matches** — list with score, video/clip counts and tagging status; create a match.
+**Matches** — list with score, video/clip counts and tagging status; create/edit a match (score, status, venue, **lineups**).
+
+**Players** — database with photo upload, jersey, multiple positions, foot, height, age, nationality, team, notes; filters by team/position.
+**Teams** — own team vs opponents, colour, formation field (indicative placement by position), roster, match history and W/D/L record.
 
 **Match analysis** (resizable panels, layout is remembered)
 - *Player*: play/pause, **frame step ±1 (←/→)**, ±5 s, ±10 s, speed 0.25×–2×, volume, fullscreen,
@@ -65,6 +68,8 @@ Video is delivered through **signed URLs with HTTP Range support**, so seeking w
   (click / Shift / Ctrl), filters (text, category, tag, player, team, outcome, zone, label), **saved filter presets**,
   bulk actions (change tag, outcome, team/player, add label, delete).
 - *Event log*: play-by-play list that follows the video.
+- *Pitch*: SVG pitch (attack → right) plotting event locations and pass/shot arrows, coloured by category with an outcome ring;
+  Events/Heatmap modes, honours the clip filters plus a time-range slider, and **click (or drag, for an end point) to place an event** (undoable).
 - **Undo / redo** (`Ctrl/⌘Z`, `Ctrl/⌘⇧Z`) for every clip edit — create, edit, bulk edit, trim, delete — kept in sync with the server.
 - **Roles**: admin, analyst (can tag), viewer (read-only). Enforced in the UI *and* on the server (401/403).
 
@@ -85,6 +90,8 @@ Video is delivered through **signed URLs with HTTP Range support**, so seeking w
 | `Enter` | open the clip inspector · `Delete` delete selection · `Esc` stop clip / close drawing / deselect |
 | `Ctrl/⌘A` | select all visible clips |
 | `=` `-` | zoom timeline in / out |
+
+Coordinates are stored per clip as `x,y` (0–100, always oriented in the *tagging team's* attacking direction) plus optional `endX,endY`.
 
 Deep links: `/match/:id?tag=<tagTypeId>`, `?clip=<clipId>`, `?t=<seconds>`.
 
@@ -129,7 +136,7 @@ Design notes
 3. ✅ Match analysis: player, frame stepping, speed, zoom/pan, drawing
 4. ✅ Timeline, tagging panel with hotkeys, clip creation
 5. ✅ Clip list with filtering and bulk actions
-6. ⏳ Pitch visualisation, player & team database
+6. ✅ Pitch visualisation, player & team database
 7. ⏳ Playlists, playback, FFmpeg clip export + job queue
 8. ⏳ Player profiles (stats, heatmap, radar), comparison
 9. ⏳ PDF reports, share links
