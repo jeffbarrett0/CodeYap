@@ -126,3 +126,77 @@ describe.skipIf(!online)('Hudl open data (live)', () => {
     expect((await app.inject({ method: 'POST', url: '/api/import/preview', headers: { 'x-user-id': 'u_viewer' }, payload: { url: '8650' } })).statusCode).toBe(403)
   }, 120_000)
 })
+
+describe('JSON files the user already has', () => {
+  let app: FastifyInstance
+  beforeAll(async () => { app = await buildApp() })
+  afterAll(async () => {
+    await prisma.player.deleteMany({ where: { name: { in: ['Ada One', 'Bob Two'] } } })
+    await prisma.team.deleteMany({ where: { name: { in: ['Alpha FC', 'Beta United'] } } })
+    await app.close()
+  })
+  const post = (body: unknown) => app.inject({ method: 'POST', url: '/api/import/preview-json', headers: analyst, payload: body as object })
+
+  const simple = {
+    date: '2025-03-02', competition: 'Test League', venue: 'Test Park', homeScore: 2, awayScore: 1,
+    home: { name: 'Alpha FC', formation: '4-4-2', players: [{ name: 'Ada One', jersey: 9, position: 'st' }, 'Bob Two'] },
+    away: 'Beta United',
+    events: [
+      { minute: 12, second: 5, team: 'home', player: 'Ada One', tag: 'Goal', outcome: 'success' },
+      { minute: 63, second: 30, team: 'Beta United', tag: 'Shot' },
+    ],
+  }
+
+  it('reads the simple format, including events, and imports it', async () => {
+    const r = await post({ files: [{ name: 'match.json', data: simple }] })
+    expect(r.statusCode).toBe(200)
+    const b = json(r)
+    expect(b.preview.home.name).toBe('Alpha FC')
+    expect(b.preview.away.name).toBe('Beta United')
+    expect(b.preview.home.players[0]).toMatchObject({ name: 'Ada One', jersey: 9, position: 'ST' })
+    expect(b.events.summary.map((s: any) => s.tag).sort()).toEqual(['Goal', 'Shot'])
+    const a = await app.inject({ method: 'POST', url: '/api/import/apply', headers: analyst, payload: { previewId: b.previewId, importEvents: true } })
+    expect(a.statusCode).toBe(200)
+    const out = json(a)
+    expect(out.clipsCreated).toBe(2)
+    const clips = json(await app.inject({ method: 'GET', url: `/api/clips?matchId=${out.matchId}`, headers: analyst }))
+    // 63:30 on the match clock is 18:30 into the second half
+    expect(clips.some((c: any) => c.timeSec === 3600 + 18 * 60 + 30)).toBe(true)
+    await prisma.match.delete({ where: { id: out.matchId } })
+  })
+
+  it('can swap home and away', async () => {
+    const b = json(await post({ files: [{ name: 'match.json', data: simple }], swap: true }))
+    expect(b.preview.home.name).toBe('Beta United')
+    expect(b.preview.homeScore).toBe(1)
+  })
+
+  it('combines StatsBomb-style match, lineups and events files', async () => {
+    const match = [{ match_id: 1, match_date: '2024-05-01', competition: { competition_name: 'Cup' }, season: { season_name: '2024' }, home_team: { home_team_name: 'Reds' }, away_team: { away_team_name: 'Blues' }, home_score: 1, away_score: 0, stadium: { name: 'Arena' } }]
+    const lineups = [
+      { team_name: 'Reds', lineup: [{ player_name: 'Rita Red', player_nickname: null, jersey_number: 10, positions: [{ position: 'Striker', start_reason: 'Starting XI' }] }] },
+      { team_name: 'Blues', lineup: [] },
+    ]
+    const events = [{ type: { name: 'Shot' }, period: 1, timestamp: '00:10:00.000', minute: 10, second: 0, team: { name: 'Reds' }, player: { name: 'Rita Red' }, shot: { outcome: { name: 'Goal' } } }]
+    const b = json(await post({ files: [{ name: 'matches.json', data: match }, { name: 'lineups.json', data: lineups }, { name: 'events.json', data: events }] }))
+    expect(b.preview).toMatchObject({ date: '2024-05-01', venue: 'Arena', homeScore: 1, source: 'file' })
+    expect(b.preview.home.players[0]).toMatchObject({ name: 'Rita Red', position: 'ST', starter: true })
+    expect(b.events.summary).toEqual([{ tag: 'Goal', count: 1 }])
+    expect(b.recognised.map((x: any) => x.kind)).toEqual(['Match info (StatsBomb / Hudl)', 'Lineups (StatsBomb / Hudl)', 'Events (StatsBomb / Hudl)'])
+  })
+
+  it('reads SofaScore event + lineups JSON', async () => {
+    const event = { event: { homeTeam: { name: 'Lions' }, awayTeam: { name: 'Tigers' }, startTimestamp: 1700000000, homeScore: { current: 3 }, awayScore: { current: 3 }, tournament: { name: 'Liga' } } }
+    const lineups = { home: { formation: '4-3-3', players: [{ player: { name: 'Leo Lion', position: 'F' }, jerseyNumber: 9, substitute: false }] }, away: { players: [] } }
+    const b = json(await post({ files: [{ name: 'e.json', data: event }, { name: 'l.json', data: lineups }] }))
+    expect(b.preview).toMatchObject({ date: '2023-11-14', homeScore: 3 })
+    expect(b.preview.home).toMatchObject({ name: 'Lions', formation: '4-3-3' })
+    expect(b.preview.home.players[0]).toMatchObject({ name: 'Leo Lion', position: 'ST', jersey: 9 })
+  })
+
+  it('explains unrecognised files', async () => {
+    const r = await post({ files: [{ name: 'junk.json', data: { hello: 'world' } }] })
+    expect(r.statusCode).toBe(400)
+    expect(json(r).error ?? json(r).message).toMatch(/recognise/)
+  })
+})

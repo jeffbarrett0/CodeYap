@@ -26,7 +26,7 @@ export async function listCompetitions() {
     .sort((a, b) => a.name.localeCompare(b.name) || b.season.localeCompare(a.season))
 }
 
-interface RawMatch {
+export interface RawMatch {
   match_id: number; match_date: string; kick_off?: string
   competition: { competition_name: string }; season: { season_name: string }
   home_team: { home_team_name: string; country?: { name: string } }; away_team: { away_team_name: string; country?: { name: string } }
@@ -68,10 +68,10 @@ export function positionCode(name: string | undefined): string | null {
   return null
 }
 
-interface RawLineupPlayer { player_name: string; player_nickname: string | null; jersey_number: number | null; country?: { name: string }; positions: { position: string; start_reason: string }[] }
-interface RawLineup { team_name: string; lineup: RawLineupPlayer[] }
+export interface RawLineupPlayer { player_name: string; player_nickname: string | null; jersey_number: number | null; country?: { name: string }; positions: { position: string; start_reason: string }[] }
+export interface RawLineup { team_name: string; lineup: RawLineupPlayer[] }
 
-function teamFrom(name: string, country: string | undefined, lineup: RawLineup | undefined, formation: string | null): ImportTeam {
+export function teamFrom(name: string, country: string | undefined, lineup: RawLineup | undefined, formation: string | null): ImportTeam {
   const players: ImportPlayer[] = (lineup?.lineup ?? [])
     .filter((p) => p.positions.length > 0) // squad members who never entered the pitch have no positions
     .map((p) => {
@@ -97,7 +97,7 @@ export interface RawEvent {
   goalkeeper?: { type?: { name: string }; outcome?: { name: string } }
 }
 
-const fmtFormation = (n: number | undefined) => (n ? String(n).split('').join('-') : null)
+export const fmtFormation = (n: number | undefined) => (n ? String(n).split('').join('-') : null)
 
 export async function hudlPreview(matchId: number): Promise<{ preview: MatchPreview; events: RawEvent[] }> {
   const m = await findMatch(matchId)

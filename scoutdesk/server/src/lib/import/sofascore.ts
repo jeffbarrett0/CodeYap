@@ -10,7 +10,7 @@ export function parseSofaScoreId(url: string): number | null {
   return m ? Number(m[1]) : null
 }
 
-interface SofaEvent {
+export interface SofaEvent {
   event: {
     homeTeam: { name: string; country?: { name?: string } }; awayTeam: { name: string; country?: { name?: string } }
     startTimestamp?: number; homeScore?: { current?: number }; awayScore?: { current?: number }
@@ -18,7 +18,7 @@ interface SofaEvent {
     roundInfo?: { round?: number; name?: string }
   }
 }
-interface SofaLineups {
+export interface SofaLineups {
   home?: { formation?: string; players?: SofaPlayer[] }
   away?: { formation?: string; players?: SofaPlayer[] }
 }
@@ -38,7 +38,7 @@ async function api<T>(path: string): Promise<T> {
   }
 }
 
-const players = (list: SofaPlayer[] | undefined): ImportPlayer[] =>
+export const sofaPlayers = (list: SofaPlayer[] | undefined): ImportPlayer[] =>
   (list ?? [])
     // Unused substitutes have no minutes; SofaScore marks used ones through `statistics`, which we don't fetch — keep starters + bench.
     .map((p) => ({
@@ -64,8 +64,8 @@ export async function sofaScorePreview(id: number, sourceUrl: string): Promise<M
     venue: e.venue?.stadium?.name ?? e.venue?.name ?? null,
     homeScore: e.homeScore?.current ?? null,
     awayScore: e.awayScore?.current ?? null,
-    home: { name: e.homeTeam.name, country: e.homeTeam.country?.name ?? null, formation: lineups.home?.formation ?? null, players: players(lineups.home?.players) },
-    away: { name: e.awayTeam.name, country: e.awayTeam.country?.name ?? null, formation: lineups.away?.formation ?? null, players: players(lineups.away?.players) },
+    home: { name: e.homeTeam.name, country: e.homeTeam.country?.name ?? null, formation: lineups.home?.formation ?? null, players: sofaPlayers(lineups.home?.players) },
+    away: { name: e.awayTeam.name, country: e.awayTeam.country?.name ?? null, formation: lineups.away?.formation ?? null, players: sofaPlayers(lineups.away?.players) },
     missing,
   }
 }

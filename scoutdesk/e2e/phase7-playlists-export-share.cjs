@@ -1,4 +1,5 @@
 // Phase 7/9: playlists (drag/drop, reorder, fade), continuous playback, FFmpeg export via the tray, and public share links.
+require('./_pro.cjs')
 const { chromium } = require('playwright')
 const SP = process.argv[2] || './e2e-out'
 const API = 'http://localhost:4000/api'

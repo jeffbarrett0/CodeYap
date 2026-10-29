@@ -1,5 +1,6 @@
 // Frame tools: arrow, circle, line, link, run arrow, area, number, player, spotlight; select + move by the middle,
 // resize handles, delete, drawing duration, region zoom, seek bar, Screenshot.
+require('./_pro.cjs')
 const { chromium } = require('playwright')
 const SP = process.argv[2] || './e2e-out'
 require('fs').mkdirSync(SP, { recursive: true })

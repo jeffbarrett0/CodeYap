@@ -1,4 +1,5 @@
 // Phase 6: pitch tab, players, teams, match lineups. See e2e/library.cjs for prerequisites.
+require('./_pro.cjs')
 const { chromium } = require('playwright')
 const SP = process.argv[2] || './e2e-out'
 const FACE = process.argv[3] || `${SP}/face.png`

@@ -22,6 +22,7 @@ import { Timeline } from './Timeline'
 import { VideoPlayer } from './VideoPlayer'
 import { deleteClips, patchClips, useClips } from './clips'
 import { useAngles } from './angles'
+import { useMode } from '@/store/mode'
 import { useDrawing } from './drawing'
 import { useFilters } from './filters'
 import { useHistory } from './history'
@@ -48,6 +49,7 @@ export function MatchAnalysisPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [rightTab, setRightTab] = useState('tag')
   const [bottomTab, setBottomTab] = useState('clips')
+  const mode = useMode((s) => s.mode)
 
   const videos = useMemo(() => allVideos.filter((v) => v.matchId === matchId), [allVideos, matchId])
   const primaryId = useAngles((s) => s.primaryId)
@@ -193,6 +195,22 @@ export function MatchAnalysisPage() {
         )}
         <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} defaultMatchId={matchId} />
       </>
+    )
+  }
+
+  // Simple mode: just the footage, the frame tools and a timeline to move around / edit in.
+  if (mode === 'simple') {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <MatchHeader match={match} />
+        <div className="min-h-0 flex-1">
+          <PanelGroup direction="vertical" autoSaveId="sd-simple-v1">
+            <Panel id="pnl-video" defaultSize={72} minSize={35} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
+            <Handle dir="h" />
+            <Panel id="pnl-timeline" defaultSize={28} minSize={14} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+          </PanelGroup>
+        </div>
+      </div>
     )
   }
 

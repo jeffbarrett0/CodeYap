@@ -1,4 +1,5 @@
 // Phases 8-10: profile, compare, reports + snapshots, comments, multi-angle sync, taxonomy editor, viewer limits.
+require('./_pro.cjs')
 const { chromium } = require('playwright')
 const { execFileSync } = require('child_process')
 const fs = require('fs')
@@ -30,7 +31,7 @@ const H = { 'x-user-id': 'u_admin' }
   await p.locator('a.timecode').first().click()
   await p.waitForURL(/\/match\/m_demo/)
   await p.waitForFunction(() => document.querySelector('video')?.readyState >= 2)
-  await p.waitForTimeout(500)
+  await p.locator('[role=row][aria-selected=true]').first().waitFor({ timeout: 8000 }).catch(() => {})
   assert((await p.locator('[role=row][aria-selected=true]').count()) === 1, 'clip link opens the match with that clip selected')
 
   console.log('Compare')

@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, ExternalLink, Globe, Loader2, Search } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ExternalLink, FileJson, Globe, Loader2, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { MatchBanner } from '@/components/MatchBanner'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,18 @@ const refreshAll = async () => {
   const [teams, players, matches] = await Promise.all([api.teams(), api.players(), api.matches()])
   useData.setState({ teams, players, matches })
 }
-const SOURCE_NAME = { hudl: 'Hudl open data', sofascore: 'SofaScore', generic: 'web page' } as const
+const SOURCE_NAME = { hudl: 'Hudl open data', sofascore: 'SofaScore', generic: 'web page', file: 'Your JSON file' } as const
+
+const EXAMPLE = `{
+  "date": "2026-10-24",
+  "competition": "Friendly",
+  "venue": "Northbridge Stadium",
+  "homeScore": 2, "awayScore": 1,
+  "home": { "name": "Northbridge FC", "formation": "4-3-3",
+    "players": [ { "name": "Luca Ferreira", "jersey": 8, "position": "CM" } ] },
+  "away": { "name": "Rivermouth United", "formation": "4-2-3-1", "players": [] },
+  "events": [ { "minute": 12, "second": 5, "team": "home", "player": "Luca Ferreira", "tag": "Goal", "outcome": "success" } ]
+}`
 
 /**
  * "Which match is this?" — paste a SofaScore / Transfermarkt / other link (or pick from the free Hudl
@@ -39,6 +50,9 @@ export function ImportMatchDialog({ targetMatchId, initialUrl, onClose, onDone }
   const [pressures, setPressures] = useState(false)
   const [fh, setFh] = useState('0:00')
   const [sh, setSh] = useState('')
+  const [jsonFiles, setJsonFiles] = useState<{ name: string; data: unknown }[] | null>(null)
+  const [swap, setSwap] = useState(false)
+  const [recognised, setRecognised] = useState<{ file: string; kind: string }[]>([])
 
   const lookup = async (body: { url?: string; hudlMatchId?: number }) => {
     setBusy(true)
@@ -56,6 +70,38 @@ export function ImportMatchDialog({ targetMatchId, initialUrl, onClose, onDone }
     } finally {
       setBusy(false)
     }
+  }
+  /** JSON the user already has: read in the browser, then previewed like a link. */
+  const lookupJson = async (files: { name: string; data: unknown }[], swapSides = false) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await api.importPreviewJson({ files, swap: swapSides })
+      if (r.kind !== 'preview') return
+      setJsonFiles(files)
+      setSwap(swapSides)
+      setRecognised(r.recognised ?? [])
+      setPv({ id: r.previewId, preview: r.preview, events: r.events })
+      setDate(r.preview.date ?? '')
+      setStep('preview')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not read those files')
+      setStep('link')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const onFiles = async (list: FileList | null) => {
+    if (!list?.length) return
+    const files: { name: string; data: unknown }[] = []
+    for (const f of Array.from(list)) {
+      try {
+        files.push({ name: f.name, data: JSON.parse(await f.text()) })
+      } catch {
+        return setError(`“${f.name}” isn’t valid JSON (check it opens as text and has no stray commas).`)
+      }
+    }
+    await lookupJson(files)
   }
   useEffect(() => { if (initialUrl?.trim()) void lookup({ url: initialUrl }) /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
 
@@ -92,7 +138,7 @@ export function ImportMatchDialog({ targetMatchId, initialUrl, onClose, onDone }
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title="Import a match from a link" description="Paste a link and I’ll fill in the date, teams, league, lineups and more." className="max-w-2xl">
+      <DialogContent title="Import a match from a link" description="Paste a link or use your own JSON files — I’ll fill in the date, teams, league, lineups and more." className="max-w-2xl">
         <DialogBody className="space-y-4">
           {step === 'link' && (
             <>
@@ -113,6 +159,19 @@ export function ImportMatchDialog({ targetMatchId, initialUrl, onClose, onDone }
                 <p className="mt-2 text-muted">Open the match page there, then copy its address from your browser and paste it above.</p>
               </div>
               <div className="rounded-lg border border-border bg-background p-3 text-xs">
+                <p className="mb-1 font-medium">I already have JSON files</p>
+                <p className="mb-2 text-muted">Pick one or several files (match info, lineups, events). Works with StatsBomb / Hudl open data, SofaScore JSON, or the simple format below. Nothing is uploaded anywhere but your own ScoutDesk.</p>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded border border-border px-3 py-1.5 font-medium hover:bg-raised">
+                  <FileJson className="h-3.5 w-3.5" /> Choose JSON file(s)
+                  <input type="file" accept=".json,application/json" multiple className="sr-only" aria-label="Choose JSON files" onChange={(e) => { void onFiles(e.target.files); e.target.value = '' }} />
+                </label>
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-muted">Simple format example</summary>
+                  <pre className="mt-1 overflow-x-auto rounded bg-raised p-2 text-2xs leading-snug">{EXAMPLE}</pre>
+                  <p className="mt-1 text-muted">Only <code>home</code> and <code>away</code> are needed; everything else is optional. <code>minute</code> is the match clock (63 = 63rd minute); <code>team</code> is <code>home</code>, <code>away</code> or the team name.</p>
+                </details>
+              </div>
+              <div className="rounded-lg border border-border bg-background p-3 text-xs">
                 <p className="mb-1 font-medium">Want full event data for free?</p>
                 <p className="mb-2 text-muted">The Hudl open data has lineups plus every shot, pass, duel and more for hundreds of matches (World Cups, Euros, some league seasons). It can fill your clip list automatically.</p>
                 <Button size="sm" onClick={() => setStep('browse')}><Globe className="h-3.5 w-3.5" /> Browse Hudl open data</Button>
@@ -125,6 +184,12 @@ export function ImportMatchDialog({ targetMatchId, initialUrl, onClose, onDone }
           {step === 'preview' && pv && (
             <>
               <MatchBanner compact competition={pv.preview.competition} date={date || null} venue={pv.preview.venue} home={{ name: pv.preview.home.name, formation: pv.preview.home.formation }} away={{ name: pv.preview.away.name, formation: pv.preview.away.formation }} homeScore={pv.preview.homeScore} awayScore={pv.preview.awayScore} status={{ label: SOURCE_NAME[pv.preview.source], tone: 'muted' }} />
+              {pv.preview.source === 'file' && (
+                <div className="space-y-1 rounded border border-border bg-background p-2 text-xs">
+                  {recognised.map((r) => <p key={r.file}><strong>{r.file}</strong> <span className="text-muted">→ {r.kind}</span></p>)}
+                  {jsonFiles && <label className="flex items-center gap-2 pt-1"><input type="checkbox" checked={swap} disabled={busy} onChange={(e) => void lookupJson(jsonFiles, e.target.checked)} /> Swap home and away (if the sides came out the wrong way round)</label>}
+                </div>
+              )}
               <p className="text-xs text-muted">
                 Found: {pv.preview.home.players.length + pv.preview.away.players.length > 0 ? `${pv.preview.home.players.length + pv.preview.away.players.length} players in the lineups` : 'no lineups on this page'}
                 {pv.events.available ? ` · ${pv.events.summary.reduce((a, s) => a + s.count, 0)} tagged-worthy events` : ''}.

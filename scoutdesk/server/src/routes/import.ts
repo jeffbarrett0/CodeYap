@@ -6,21 +6,27 @@ import { applyImport } from '../lib/import/apply.js'
 import { genericPreview } from '../lib/import/generic.js'
 import { hudlPreview, listCompetitions, listMatches, mapHudlEvents, parseHudlRef, type RawEvent } from '../lib/import/hudl.js'
 import { parseSofaScoreId, sofaScorePreview } from '../lib/import/sofascore.js'
-import { ImportError, type EventsInfo, type MatchPreview } from '../lib/import/types.js'
+import { jsonPreview } from '../lib/import/json.js'
+import { ImportError, type EventsInfo, type ImportClip, type MatchPreview } from '../lib/import/types.js'
 import { HttpError, parse } from '../validate.js'
 
-interface Cached { at: number; preview: MatchPreview; events: RawEvent[] | null }
+interface Cached { at: number; preview: MatchPreview; events: RawEvent[] | null; clips?: ImportClip[] | null }
 const previews = new Map<string, Cached>()
 const TTL = 30 * 60_000
 
-function remember(preview: MatchPreview, events: RawEvent[] | null) {
+function remember(preview: MatchPreview, events: RawEvent[] | null, clips: ImportClip[] | null = null) {
   for (const [k, v] of previews) if (Date.now() - v.at > TTL) previews.delete(k)
   const id = randomUUID()
-  previews.set(id, { at: Date.now(), preview, events })
+  previews.set(id, { at: Date.now(), preview, events, clips })
   return id
 }
 
 const eventsInfo = (c: Cached): EventsInfo => {
+  if (c.clips?.length) {
+    const count = new Map<string, number>()
+    for (const x of c.clips) count.set(x.tag, (count.get(x.tag) ?? 0) + 1)
+    return { available: true, summary: [...count].map(([tag, n]) => ({ tag, count: n })).sort((a, b) => b.count - a.count), pressureCount: 0, outsideTwoHalves: 0 }
+  }
   if (!c.events) return { available: false, summary: [], pressureCount: 0, outsideTwoHalves: 0 }
   const m = mapHudlEvents(c.events, c.preview.home.name, { includePressures: false })
   const count = new Map<string, number>()
@@ -72,6 +78,20 @@ export async function importRoutes(app: FastifyInstance) {
     })
   })
 
+  /** Preview from JSON files the user already has (read in the browser): StatsBomb/Hudl, SofaScore or the simple format. */
+  app.post('/api/import/preview-json', { preHandler: canWrite, bodyLimit: 80 * 1024 * 1024 }, async (req) => {
+    const { files, swap } = parse(
+      z.object({ files: z.array(z.object({ name: z.string().max(300), data: z.unknown() })).min(1).max(8), swap: z.boolean().optional() }),
+      req.body,
+    )
+    return guarded(async () => {
+      const r = jsonPreview(files, { swap })
+      const cached: Cached = { at: Date.now(), preview: r.preview, events: r.events, clips: r.clips }
+      const previewId = remember(r.preview, r.events, r.clips)
+      return { kind: 'preview' as const, previewId, preview: r.preview, events: eventsInfo(cached), recognised: r.recognised }
+    })
+  })
+
   app.post('/api/import/apply', { preHandler: canWrite }, async (req) => {
     const b = parse(
       z.object({
@@ -95,7 +115,7 @@ export async function importRoutes(app: FastifyInstance) {
     const c = previews.get(b.previewId)
     if (!c) throw new HttpError(410, 'That preview expired. Paste the link again.')
     const preview: MatchPreview = { ...c.preview, ...(b.overrides ?? {}), venue: b.overrides?.venue ?? c.preview.venue, date: b.overrides?.date ?? c.preview.date }
-    const clips = b.importEvents && c.events ? mapHudlEvents(c.events, preview.home.name, { includePressures: b.includePressures }).clips : null
+    const clips = !b.importEvents ? null : c.clips?.length ? c.clips : c.events ? mapHudlEvents(c.events, preview.home.name, { includePressures: b.includePressures }).clips : null
     return guarded(async () => {
       try {
         return await applyImport(preview, {

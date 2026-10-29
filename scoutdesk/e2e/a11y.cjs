@@ -1,5 +1,6 @@
 // Accessibility audit: axe-core (WCAG 2.0/2.1 A + AA) on every screen, dark and light.
 // Usage: node e2e/a11y.cjs   (app on :4000, seeded DB)
+require('./_pro.cjs')
 const { chromium } = require('playwright')
 const path = require('path')
 const fs = require('fs')

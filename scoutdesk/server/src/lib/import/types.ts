@@ -15,7 +15,7 @@ export interface ImportTeam {
 }
 
 export interface MatchPreview {
-  source: 'hudl' | 'sofascore' | 'generic'
+  source: 'hudl' | 'sofascore' | 'generic' | 'file'
   sourceUrl: string
   /** YYYY-MM-DD, or null when the page didn't say. */
   date: string | null

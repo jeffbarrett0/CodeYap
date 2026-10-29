@@ -1,6 +1,7 @@
 // Browser-level check for ScoutDesk. Needs: `npm i -g playwright && npx playwright install chromium`,
 // the app running on http://localhost:4000 (`npm run build && npm start`) and a freshly seeded DB
 // (`SEED_VIDEO_FORMAT=webm npm run seed:reset` if your Chromium build lacks H.264).
+require('./_pro.cjs')
 const { chromium } = require('playwright')
 const SP = process.argv[2] || './e2e-out'
 require('fs').mkdirSync(SP, { recursive: true })

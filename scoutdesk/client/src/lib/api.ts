@@ -154,6 +154,7 @@ export const api = {
   },
 
   importPreview: (b: { url?: string; hudlMatchId?: number }) => request<ImportPreviewResponse>('POST', '/import/preview', b),
+  importPreviewJson: (b: { files: { name: string; data: unknown }[]; swap?: boolean }) => request<ImportPreviewResponse>('POST', '/import/preview-json', b),
   importApply: (b: Record<string, unknown>) => request<ImportResult>('POST', '/import/apply', b),
   hudlCompetitions: () => request<HudlCompetition[]>('GET', '/import/hudl/competitions'),
   hudlMatches: (competitionId: number, seasonId: number) => request<HudlMatch[]>('GET', `/import/hudl/matches?competitionId=${competitionId}&seasonId=${seasonId}`),

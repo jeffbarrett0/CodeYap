@@ -1,5 +1,6 @@
 // "Which match is this video from?": upload → paste link → preview → import (teams, lineups, events as clips) → match header.
 // Uses the free Hudl open data, so it needs internet access to raw.githubusercontent.com.
+require('./_pro.cjs')
 const { chromium } = require('playwright')
 const { execFileSync } = require('child_process')
 const fs = require('fs')

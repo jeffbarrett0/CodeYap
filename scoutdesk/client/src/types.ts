@@ -257,7 +257,7 @@ export type SharePayload =
 export interface ImportPlayer { name: string; jersey: number | null; position: string | null; starter: boolean; country?: string | null }
 export interface ImportTeam { name: string; country?: string | null; formation?: string | null; players: ImportPlayer[] }
 export interface MatchPreview {
-  source: 'hudl' | 'sofascore' | 'generic'
+  source: 'hudl' | 'sofascore' | 'generic' | 'file'
   sourceUrl: string
   date: string | null
   competition: string
@@ -269,7 +269,7 @@ export interface MatchPreview {
   missing: string[]
 }
 export interface EventsInfo { available: boolean; summary: { tag: string; count: number }[]; pressureCount: number; outsideTwoHalves: number }
-export type ImportPreviewResponse = { kind: 'preview'; previewId: string; preview: MatchPreview; events: EventsInfo } | { kind: 'browse'; competitionId?: number; seasonId?: number }
+export type ImportPreviewResponse = { kind: 'preview'; previewId: string; preview: MatchPreview; events: EventsInfo; recognised?: { file: string; kind: string }[] } | { kind: 'browse'; competitionId?: number; seasonId?: number }
 export interface ImportResult { matchId: string; createdTeams: string[]; createdPlayers: number; matchedPlayers: number; clipsCreated: number; clipsSkipped: number; unknownTags: string[] }
 export interface HudlCompetition { competitionId: number; seasonId: number; name: string; season: string; country: string; gender: string }
 export interface HudlMatch { matchId: number; date: string; home: string; away: string; homeScore: number | null; awayScore: number | null; stage: string | null }

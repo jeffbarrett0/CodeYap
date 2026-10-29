@@ -97,6 +97,8 @@ saved snapshots, and a written-notes section (ruled lines when left empty). Live
 
 ### Drawing, seek bar and match import
 
+- **Simple / Pro mode** (button top right). Simple (default): the footage, frame tools, screenshot and the timeline. Pro: also tagging, clip inspector, clips table, event log and pitch map. The choice is remembered.
+- **Your own JSON files**: Matches → *Import from link* (or the upload dialog) → *Choose JSON file(s)*. Reads StatsBomb / Hudl open data (matches, lineups, events), SofaScore JSON (event, lineups) and a simple format (see the example in the dialog). Several files can be combined; a swap box fixes home/away.
 - **Frame tools** (Turkish labels, under the video): Seç, Ok, Daire, Çizgi, Bağlantı (two players), Koşu oku (run arrow), Alan (click corners, double-click to finish), Numara (1, 2, 3…), Oyuncu (name tag; press it twice quickly to rename), Aydınlat (spotlight), Kaydır (pan), delete, colour, zoom to region, zoom −/+. Pause, pick a tool, drag or click on the video. Press any drawing to move it; drag the white dots to resize; `Delete` removes it. *Çizim süresi* keeps a drawing on screen for 2–10 s while playing (default: only on its frame). *Video boyutu* resizes the picture, *Ortala* recentres it.
 - **Ekran görüntüsü al** (top right of the video panel) saves only the match footage, without drawings or interface.
 - **Timeline** is a simple CapCut-style strip: time ruler, the match video as a filmstrip, tagged clips as coloured markers (click one to open it). Click or drag anywhere to jump; `+`/`-` zoom.

@@ -1,4 +1,4 @@
-import { Check, HelpCircle, Moon, Sun } from 'lucide-react'
+import { Check, HelpCircle, Moon, Sun, Wrench } from 'lucide-react'
 import { useMatch } from 'react-router-dom'
 import { Select } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { initials } from '@/lib/utils'
 import { useApp } from '@/store/app'
 import { useData } from '@/store/data'
 import { useLookups } from '@/store/hooks'
+import { useMode } from '@/store/mode'
 import { useUi } from '@/store/ui'
 import { GlobalSearch } from './GlobalSearch'
 
@@ -18,6 +19,7 @@ export function TopBar() {
   const setCheatSheetOpen = useUi((s) => s.setCheatSheetOpen)
   const { matchById } = useLookups()
   const user = users.find((u) => u.id === userId)
+  const { mode, setMode } = useMode()
   const matchRoute = useMatch('/match/:matchId')
   const match = matchRoute ? matchById.get(matchRoute.params.matchId!) : undefined
 
@@ -42,6 +44,11 @@ export function TopBar() {
       <GlobalSearch />
 
       <div className="flex flex-1 items-center justify-end gap-1">
+        <Tip label={mode === 'simple' ? 'Etiketleme, klip listesi, olay günlüğü ve saha haritası' : 'Sadece video, çizim araçları ve zaman çizelgesi'}>
+          <Button variant={mode === 'pro' ? 'primary' : 'secondary'} size="sm" aria-pressed={mode === 'pro'} onClick={() => setMode(mode === 'simple' ? 'pro' : 'simple')} className="mr-1 gap-1.5">
+            <Wrench className="h-3.5 w-3.5" /> {mode === 'simple' ? 'Profesyonel moda geç' : 'Basit moda dön'}
+          </Button>
+        </Tip>
         <Tip label="Keyboard shortcuts" hotkey="?">
           <Button variant="ghost" size="icon" aria-label="Keyboard shortcuts" onClick={() => setCheatSheetOpen(true)}>
             <HelpCircle className="h-4 w-4" />
@@ -55,7 +62,7 @@ export function TopBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" className="ml-1 flex h-7 items-center gap-2 rounded pl-1 pr-2 hover:bg-raised">
+            <button type="button" className="ml-1 flex h-7 items-center gap-2 whitespace-nowrap rounded pl-1 pr-2 hover:bg-raised">
               <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded-full text-2xs font-bold text-black" style={{ background: user?.color ?? '#64748b' }}>
                 {user ? initials(user.name) : '?'}
               </span>
