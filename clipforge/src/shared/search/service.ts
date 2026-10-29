@@ -24,6 +24,10 @@ export class SearchService {
     return this.entries.has(assetId)
   }
 
+  clear(): void {
+    this.entries.clear()
+  }
+
   unload(assetId: string): void {
     this.entries.delete(assetId)
   }

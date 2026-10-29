@@ -70,6 +70,8 @@ export interface MediaAsset {
   syncOffsetSec?: number
   /** Kayıtta ekran ve kamera tek dosyada ise kamera bölgesi (0..1 normalize) */
   webcamRegion?: NormRect
+  /** Ayrı kamera dosyası kullanılıyorsa ona işaret eder (kamera varlığında syncOffsetSec ayarlıdır) */
+  webcamAssetId?: ID
   /** Transkripsiyon için seçilen ses track'i (varsayılan 0 = Track 1) */
   transcriptionTrack: number
   /** Oyun ve konuşma sesi için ayrı ses akışı eşlemesi (yoksa karışım kullanılır) */

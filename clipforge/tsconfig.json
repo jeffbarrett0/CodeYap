@@ -14,8 +14,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "types": ["node"],
-    "baseUrl": ".",
-    "paths": { "@shared/*": ["src/shared/*"] }
+    "paths": { "@shared/*": ["./src/shared/*"] }
   },
   "include": ["src", "tests", "scripts/**/*.ts", "*.config.ts", "*.config.mts"]
 }
