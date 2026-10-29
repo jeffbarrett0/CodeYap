@@ -104,6 +104,11 @@ export function TranscriptPanel() {
         <button className="btn" type="submit" data-testid="tw-jump-go">Git</button>
       </form>
 
+      {mode === 'timeline' && all.length > 0 && (
+        <button className="btn" onClick={() => useStore.getState().generateCaptions()} data-testid="tw-gen-captions" title="Zaman çizelgesindeki içeriğin transkriptinden altyazı satırları üretir (Altyazı sekmesinden biçimlenir)">
+          Bu transkriptten altyazı üret
+        </button>
+      )}
       {mode === 'source' && !tr && <div className="infobox">Kaynak transkripti için Medya sekmesinden bir kayıt seçip transkripsiyonu başlatın.</div>}
       {mode === 'timeline' && all.length === 0 && <div className="empty">Zaman çizelgesinde transkripti olan içerik yok. Aramadan klip ekleyin ya da transkribe edilmiş bir kaydı ize ekleyin.</div>}
 

@@ -390,4 +390,20 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(2)
     await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1)
   })
+
+  test('altyazı: transkripti olan video yüz/webcam katmanında olsa da altyazı üretilir', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    // videoyu doğrudan "Yüz (webcam)" katmanına ekle (ekran katmanına değil)
+    await page.getByTestId('target-track').selectOption({ label: 'Yüz (webcam) (V2)' })
+    await page.getByTestId('add-at-playhead').click()
+    await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(1)
+    await page.getByTestId('rtab-captions').click()
+    await page.getByTestId('gen-captions').click()
+    await expect(page.getByTestId('lane-CC').locator('.tl-clip').first()).toBeVisible()
+    // aynı işlem transkript sekmesinden de yapılır ve altyazı görünür duruma gelir
+    await page.getByTestId('tab-transcript').click()
+    await page.getByTestId('tw-gen-captions').click()
+    await expect(page.getByTestId('toast').filter({ hasText: 'altyazı satırı üretildi' }).first()).toBeVisible()
+  })
 })

@@ -546,8 +546,12 @@ export const useStore = create<State>()((set, get) => {
       const s = get()
       const words = Object.fromEntries(Object.entries(s.transcripts).map(([id, t]) => [id, t.words]))
       const caps = captionsForTimeline(s.project.timeline, words, { maxCharsPerLine: s.project.timeline.captionStyle.maxCharsPerLine })
-      if (caps.length === 0) return get().toast('info', 'Altyazı üretilemedi: zaman çizelgesindeki kayıtların transkripti yok.')
+      if (caps.length === 0) {
+        const hasClips = s.project.timeline.tracks.some((t) => (t.kind === 'video' || t.kind === 'audio') && t.clips.length > 0)
+        return get().toast('info', hasClips ? 'Altyazı üretilemedi: zaman çizelgesindeki kliplerin kaynağı henüz transkribe edilmemiş. Medya sekmesinden "Transkripsiyonu başlat"a basın.' : 'Altyazı üretilemedi: zaman çizelgesi boş.')
+      }
       get().exec(cmd.captions(caps))
+      if (!s.project.timeline.captionStyle.enabled) get().exec(cmd.captionStyle({ enabled: true }, false)) // üretilen altyazı görünür olsun
       get().toast('success', `${caps.length} altyazı satırı üretildi.`)
     },
     setPlayhead: (t) => set({ playhead: Math.max(0, t) }),

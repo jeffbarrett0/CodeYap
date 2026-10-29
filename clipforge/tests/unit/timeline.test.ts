@@ -171,6 +171,22 @@ describe('altyazılar', () => {
     expect(caps[0].start).toBeGreaterThanOrEqual(2)
     expect(caps.at(-1)!.end).toBeLessThanOrEqual(14 + 1e-6)
   })
+  it('transkripti olan klibin hangi izde olduğu fark etmez (yüz/webcam, ses izi…)', () => {
+    for (const trackId of ['V1', 'V2', 'A1', 'A2']) {
+      let tl = createDefaultTimeline()
+      tl = ops.addClip(tl, trackId, mk('x', trackId, 0, 100, 112))
+      const caps = captionsForTimeline(tl, { a1: words })
+      expect(caps.length, trackId).toBeGreaterThan(2)
+    }
+    // görüntü + ses aynı kaynaktan: satırlar tekrarlanmaz
+    let tl = createDefaultTimeline()
+    tl = ops.addClip(tl, 'V2', mk('v', 'V2', 0, 100, 112))
+    tl = ops.addClip(tl, 'A2', mk('a', 'A2', 0, 100, 112, { audioStream: 0 }))
+    const one = captionsForTimeline(ops.addClip(createDefaultTimeline(), 'V2', mk('v', 'V2', 0, 100, 112)), { a1: words })
+    expect(captionsForTimeline(tl, { a1: words })).toHaveLength(one.length)
+    // transkripti olmayan kaynak → boş
+    expect(captionsForTimeline(tl, {})).toEqual([])
+  })
   it('wrapCaption kelime ortasında bölmez', () => {
     expect(wrapCaption('Merhaba arkadaşlar bugün sizlere', 14)).toEqual(['Merhaba', 'arkadaşlar', 'bugün sizlere'])
   })

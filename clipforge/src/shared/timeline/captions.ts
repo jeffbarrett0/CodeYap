@@ -1,5 +1,5 @@
-import type { Caption, Clip, ID, Timeline, TranscriptWord } from '../types'
-import { clipDuration } from './model'
+import type { Caption, ID, Timeline, Transcript, TranscriptWord } from '../types'
+import { timelineWords } from './transcript'
 
 export interface CaptionOptions {
   maxCharsPerLine: number
@@ -44,31 +44,18 @@ export function captionsFromWords(words: TranscriptWord[], from: number, to: num
 }
 
 /**
- * Zaman çizelgesindeki video kliplerinin kaynak transkriptlerinden altyazı üretir ve
- * kaynak zamanlarını zaman çizelgesi zamanına çevirir.
+ * Zaman çizelgesindeki, transkripti olan TÜM video/ses kliplerinden (hangi izde olursa olsun: ekran, yüz, oyun/konuşma sesi)
+ * altyazı üretir. Kaynak zamanları zaman çizelgesi zamanına çevrilir; aynı kaynağın görüntü + ses olarak
+ * birden çok izde kullanılması satırları tekrarlamaz.
  */
 export function captionsForTimeline(
   tl: Timeline,
   wordsByAsset: Record<ID, TranscriptWord[]>,
   opts: Partial<CaptionOptions> = {}
 ): Caption[] {
-  const out: Caption[] = []
-  const seen = new Set<string>()
-  const clips: Clip[] = tl.tracks.filter((t) => t.role === 'screen').flatMap((t) => t.clips)
-  for (const c of clips.sort((a, b) => a.start - b.start)) {
-    const words = wordsByAsset[c.assetId]
-    if (!words) continue
-    const caps = captionsFromWords(words, c.srcIn, c.srcOut, { maxCharsPerLine: tl.captionStyle.maxCharsPerLine, ...opts })
-    for (const cap of caps) {
-      const start = c.start + (cap.start - c.srcIn)
-      const end = Math.min(c.start + clipDuration(c), c.start + (cap.end - c.srcIn))
-      const key = `${start.toFixed(3)}|${cap.text}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push({ id: `cap_${out.length}`, start, end, text: cap.text })
-    }
-  }
-  return out
+  const fake = Object.fromEntries(Object.entries(wordsByAsset).map(([id, words]) => [id, { words } as unknown as Transcript]))
+  const words = timelineWords(tl, fake)
+  return captionsFromWords(words, 0, Infinity, { maxCharsPerLine: tl.captionStyle.maxCharsPerLine, ...opts })
 }
 
 /** Satırı `maxChars` genişlikte sarar (kelime ortasında bölmez). */
