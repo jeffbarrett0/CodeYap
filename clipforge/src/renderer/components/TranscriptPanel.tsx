@@ -10,6 +10,20 @@ interface W {
   end: number
 }
 
+function SilenceSettings() {
+  const { settings, updateSettings } = useStore()
+  return (
+    <details>
+      <summary className="hint" style={{ cursor: 'pointer' }}>Kesme ayarları</summary>
+      <div className="col" style={{ marginTop: 6 }}>
+        <label className="field"><span>Şundan uzun sessizlik kesilsin: {settings.silenceMinGapSec.toFixed(2)} sn</span><input type="range" min={0.3} max={3} step={0.05} value={settings.silenceMinGapSec} onChange={(e) => void updateSettings({ silenceMinGapSec: Number(e.target.value) })} aria-label="Sessizlik eşiği" /></label>
+        <label className="field"><span>Kesimden sonra kalan boşluk (her yanda): {settings.silenceKeepSec.toFixed(2)} sn</span><input type="range" min={0} max={0.5} step={0.01} value={settings.silenceKeepSec} onChange={(e) => void updateSettings({ silenceKeepSec: Number(e.target.value) })} aria-label="Kalan boşluk" /></label>
+        <label className="check"><input type="checkbox" checked={settings.cutFillers} onChange={(e) => void updateSettings({ cutFillers: e.target.checked })} /> ııı, eee, hımm gibi dolgu seslerini de kes</label>
+      </div>
+    </details>
+  )
+}
+
 /** Kaynakta bir kerede gösterilen süre penceresi (çok uzun kayıtlarda arayüzü hafif tutar) */
 const WINDOW_SEC = 600
 
@@ -104,6 +118,14 @@ export function TranscriptPanel() {
         <button className="btn" type="submit" data-testid="tw-jump-go">Git</button>
       </form>
 
+      {mode === 'timeline' && all.length > 0 && (
+        <div className="col" style={{ gap: 6 }}>
+          <button className="btn primary" onClick={() => useStore.getState().cutSilence()} data-testid="cut-silence" title="Konuşma olmayan sessiz aralıkları ve ııı / eee gibi dolgu seslerini tek tıkla keser (Ctrl+Z geri alır)">
+            ✂ Sessizlikleri ve ııı/eee'leri kes
+          </button>
+          <SilenceSettings />
+        </div>
+      )}
       {mode === 'timeline' && all.length > 0 && (
         <button className="btn" onClick={() => useStore.getState().generateCaptions()} data-testid="tw-gen-captions" title="Zaman çizelgesindeki içeriğin transkriptinden altyazı satırları üretir (Altyazı sekmesinden biçimlenir)">
           Bu transkriptten altyazı üret

@@ -136,6 +136,7 @@ export function Timeline() {
         <button className="btn sm" onClick={splitAtPlayhead} title="Oynatma başlığında böl (S)" data-testid="split">✂ Böl</button>
         <button className="btn sm danger" onClick={deleteSelection} disabled={selection.length === 0} title="Sil (Delete)" data-testid="delete">Sil</button>
         <button className="btn sm" onClick={() => useStore.getState().joinSelected()} title="Seçili klibi hemen sonraki, kaynakta kesintisiz devam eden klibiyle birleştirir" data-testid="join">⇄ Birleştir</button>
+        <button className="btn sm" onClick={() => useStore.getState().cutSilence()} title="Konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini tek tıkla keser" data-testid="cut-silence-tb">✂ Sessizleri kes</button>
         <button className="btn sm" onClick={() => useStore.getState().closeGaps()} title="Hiçbir izde içerik olmayan boşlukları siler" data-testid="close-gaps">Boşlukları kapat</button>
         <span style={{ width: 8 }} />
         <button className="btn sm" onClick={() => { setViewMode('timeline'); setPlaying(!playing) }} aria-label="Oynat/duraklat (Space)">{playing ? '⏸' : '▶'} <kbd>Space</kbd></button>
@@ -195,7 +196,7 @@ export function Timeline() {
                   if (!id) return
                   e.preventDefault()
                   e.stopPropagation()
-                  useStore.getState().addAssetToTrack(id, t.id, { at: timeFromEvent(e.clientX) })
+                  useStore.getState().addAssetToTrack(id, t.id, { at: timeFromEvent(e.clientX), withAudio: !e.altKey }) // Alt: videonun sesini ekleme
                 }}
               >
                 {t.clips.map((c) => (

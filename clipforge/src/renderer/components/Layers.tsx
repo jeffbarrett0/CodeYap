@@ -1,6 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { cmd } from '@shared/timeline/commands'
-import { BUILTIN_TEMPLATES } from '@shared/timeline/templates'
 import { aspectSize, newId } from '@shared/timeline/model'
 import type { AspectRatio, NormRect, TextAnimation, Track } from '@shared/types'
 import { useStore } from '../store'
@@ -172,9 +171,8 @@ export function LayersPanel() {
   const { project, exec, selectedLayerId, selectLayer, userTemplates, applyLayoutTemplate, saveLayoutTemplate, deleteLayoutTemplate, toggleLayerVisible } = useStore()
   const tl = project.timeline
   const [name, setName] = useState('')
-  const [tplId, setTplId] = useState(BUILTIN_TEMPLATES[0].id)
-  const all = useMemo(() => [...BUILTIN_TEMPLATES, ...userTemplates], [userTemplates])
-  const tpl = all.find((t) => t.id === tplId) ?? all[0]
+  const [tplId, setTplId] = useState('')
+  const tpl = userTemplates.find((t) => t.id === tplId) ?? userTemplates[0]
   const layers = tl.tracks.filter((t) => t.placement)
   const sel = layers.find((t) => t.id === selectedLayerId)
   const aspects: AspectRatio[] = ['9:16', '1:1', '16:9']
@@ -196,20 +194,22 @@ export function LayersPanel() {
 
   return (
     <div className="col" data-testid="layers-panel">
-      <div className="section-title">Şablon</div>
-      <select value={tplId} onChange={(e) => setTplId(e.target.value)} aria-label="Şablon seç" data-testid="tpl-select">
-        <optgroup label="Hazır">{BUILTIN_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup>
-        {userTemplates.length > 0 && <optgroup label="Benim şablonlarım">{userTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup>}
-      </select>
+      <div className="section-title">Kayıtlı düzenlerim</div>
+      {userTemplates.length > 0 && (
+        <>
+          <select value={tpl?.id ?? ''} onChange={(e) => setTplId(e.target.value)} aria-label="Kayıtlı düzen seç" data-testid="tpl-select">
+            {userTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <div className="row">
+            <button className="btn grow" onClick={() => tpl && applyLayoutTemplate(tpl)} data-testid="tpl-apply">Uygula</button>
+            <button className="btn danger" onClick={() => tpl && void deleteLayoutTemplate(tpl.id)} data-testid="tpl-delete">Sil</button>
+          </div>
+        </>
+      )}
       <div className="row">
-        <button className="btn grow" onClick={() => applyLayoutTemplate(tpl)} data-testid="tpl-apply">Uygula</button>
-        {tpl && !tpl.builtin && <button className="btn danger" onClick={() => void deleteLayoutTemplate(tpl.id)} data-testid="tpl-delete">Sil</button>}
-      </div>
-      <div className="row">
-        <input type="text" placeholder="Şablon adı" value={name} onChange={(e) => setName(e.target.value)} aria-label="Şablon adı" data-testid="tpl-name" />
+        <input type="text" placeholder="Düzen adı" value={name} onChange={(e) => setName(e.target.value)} aria-label="Düzen adı" data-testid="tpl-name" />
         <button className="btn" onClick={() => { void saveLayoutTemplate(name); setName('') }} data-testid="tpl-save">Düzeni kaydet</button>
       </div>
-      <div className="hint">Şablon: katmanların konumu, boyutu, görünürlüğü ve metin biçimi. Klipler değişmez.</div>
 
       <div className="section-title">En-boy oranı</div>
       <div className="row">

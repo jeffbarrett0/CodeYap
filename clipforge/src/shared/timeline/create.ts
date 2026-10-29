@@ -79,7 +79,9 @@ export function clipItemsForSource(
       if (!voiceAsset) push(TRACK_IDS.voice, asset, { audioStream: m.voice })
     } else {
       // tek karışım: dosyanın rolü ses izini belirler (konuşma kaydı → A2; aksi halde A1)
-      const track = asset.role === 'voice' ? TRACK_IDS.voice : TRACK_IDS.game
+      // rol belirtilmemiş SADECE-SES dosyası başka kaynaklara (ekran/oyun sesi) bağlıysa konuşma kaydı sayılır
+      const looksVoice = asset.role === 'voice' || (!asset.role && asset.kind === 'audio' && !!(src.screen || src.game || src.cam))
+      const track = looksVoice ? TRACK_IDS.voice : TRACK_IDS.game
       const overridden = track === TRACK_IDS.voice ? !!voiceAsset : !!gameAsset
       if (!overridden) push(track, asset, { audioStream: Math.min(m.mix, n - 1) })
     }

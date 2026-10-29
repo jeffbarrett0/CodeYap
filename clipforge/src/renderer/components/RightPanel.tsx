@@ -7,7 +7,6 @@ import { captionLayout } from '@shared/export/ass'
 import { LayersPanel } from './Layers'
 import { MediaDetail } from './MediaPanel'
 import { SearchPanel } from './SearchPanel'
-import { SuggestPanel } from './SuggestPanel'
 import { TranscriptPanel } from './TranscriptPanel'
 import { fmt, Field, Num, Slider } from './ui'
 
@@ -183,7 +182,7 @@ export function RightPanel() {
   const { rightTab, setRightTab, clipDraft } = useStore()
   // İki sıra: düzenleme araçları / bulma ve kaynak (sol panel yalnızca kütüphane olduğu için buraya taşındı)
   const edit: [typeof rightTab, string][] = [['inspector', 'Klip'], ['layout', 'Katmanlar'], ['audio', 'Ses'], ['captions', 'Altyazı']]
-  const find: [typeof rightTab, string][] = [['source', 'Kaynak'], ['search', 'Arama'], ['transcript', 'Transkript'], ['suggest', 'Öneriler']]
+  const find: [typeof rightTab, string][] = [['source', 'Kaynak'], ['search', 'Arama'], ['transcript', 'Transkript']]
   const tab = (id: typeof rightTab, name: string) => (
     <button key={id} role="tab" aria-selected={rightTab === id} className={`tab${rightTab === id ? ' active' : ''}`} onClick={() => setRightTab(id)} data-testid={id === 'inspector' || id === 'layout' || id === 'audio' || id === 'captions' ? `rtab-${id}` : `tab-${id}`}>{name}</button>
   )
@@ -202,7 +201,6 @@ export function RightPanel() {
           {rightTab === 'source' && <div className="panel-body"><MediaDetail /></div>}
           {rightTab === 'search' && <SearchPanel />}
           {rightTab === 'transcript' && <TranscriptPanel />}
-          {rightTab === 'suggest' && <SuggestPanel />}
         </>
       )}
     </aside>

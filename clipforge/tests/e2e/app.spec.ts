@@ -5,11 +5,16 @@ async function boot(page: Page) {
   await expect(page.locator('.brand')).toContainText('ClipForge')
 }
 
+
+/** Kütüphanedeki n. dosyayı zaman çizelgesindeki bir ize sürükleyip bırakır (şeridin başına: klip ~0. sn'de başlar) */
+async function dropAsset(page: Page, index: number, laneId: string) {
+  await page.getByTestId('asset').nth(index).dragTo(page.getByTestId(`lane-${laneId}`), { targetPosition: { x: 8, y: 20 } })
+}
+
 async function importAndTranscribe(page: Page) {
   await page.getByTestId('import-btn').click()
   await expect(page.getByTestId('asset')).toHaveCount(1)
-  await expect(page.getByTestId('asset-detail')).toContainText('OBS 30.1.2')
-  await expect(page.getByTestId('asset-detail')).toContainText('3 ses track')
+  await expect(page.getByTestId('asset-detail')).toBeVisible()
   await page.getByTestId('transcribe-btn').click()
   await expect(page.getByText('Transkript hazır')).toBeVisible()
 }
@@ -140,21 +145,6 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     expect(Math.abs(b3.x - b1.x)).toBeLessThan(2)
   })
 
-  test('sohbet günlüğü tanınmazsa açık hata ve beklenen şema gösterilir; öneri adayları listelenir', async ({ page }) => {
-    await boot(page)
-    await importAndTranscribe(page)
-    await page.getByTestId('tab-suggest').click()
-    await page.evaluate(() => ((window as unknown as { __mock: { nextChat: string } }).__mock.nextChat = 'bad'))
-    await page.getByTestId('chat-btn').click()
-    await expect(page.getByTestId('chat-error')).toContainText('time,user,message')
-    await page.evaluate(() => ((window as unknown as { __mock: { nextChat?: string } }).__mock.nextChat = undefined))
-    await page.getByTestId('chat-btn').click()
-    await expect(page.getByText('mesaj ·')).toBeVisible()
-    await page.getByTestId('suggest-btn').click()
-    await expect(page.getByTestId('candidate').first()).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByTestId('candidate').first()).toContainText(/Ses seviyesi|Sohbet hızı/)
-  })
-
   test('transkript yokken arama yönlendirir; ayarlar kaydedilir; görev paneli', async ({ page }) => {
     await boot(page)
     await page.getByTestId('import-btn').click()
@@ -242,20 +232,21 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('layer-text').fill('KANALIMA GEL')
     await expect(page.locator('[data-testid^=lane-L] [data-testid=clip]').first()).toContainText('KANALIMA GEL')
 
-    // şablon olarak kaydet → yeni projede uygula
+    // hazır şablon listesi ("YouTube Shorts · Yüz / Davet / Görsel" vb.) yok; yalnızca kullanıcının kayıtlı düzenleri
+    await expect(page.getByTestId('layers-panel')).not.toContainText('YouTube Shorts')
+    await expect(page.getByTestId('tpl-select')).toHaveCount(0)
+    // düzeni kaydet → değiştir → kayıtlı düzeni uygula
+    await page.getByTestId('layer-V2').click()
+    const savedH = await page.getByTestId('layer-detail').getByLabel('Yükseklik').inputValue()
     await page.getByTestId('tpl-name').fill('Benim düzenim')
     await page.getByTestId('tpl-save').click()
     await expect(page.getByTestId('tpl-select')).toContainText('Benim düzenim')
-    await page.getByTestId('tpl-select').selectOption({ label: 'Benim düzenim' })
+    await page.getByTestId('layer-detail').getByLabel('Yükseklik').fill('55')
+    await expect(page.getByTestId('layer-detail').getByLabel('Yükseklik')).toHaveValue('55')
+    await page.getByTestId('tpl-apply').click()
+    await page.getByTestId('layer-V2').click()
+    await expect(page.getByTestId('layer-detail').getByLabel('Yükseklik')).toHaveValue(savedH)
     await expect(page.getByTestId('tpl-delete')).toBeVisible()
-    await page.getByTestId('tpl-select').selectOption({ index: 0 })
-    await page.getByTestId('tpl-apply').click()
-    await page.getByTestId('layer-V2').click()
-    await expect(page.getByTestId('layer-detail').getByLabel('Yükseklik')).not.toHaveValue('30')
-    await page.getByTestId('tpl-select').selectOption({ label: 'Benim düzenim' })
-    await page.getByTestId('tpl-apply').click()
-    await page.getByTestId('layer-V2').click()
-    await expect(page.getByTestId('layer-detail').getByLabel('Yükseklik')).toHaveValue(/^(2[0-9]|3[0-9])/)
   })
 
   test('ayrı kaynaklar: ekran, oyun sesi, konuşma ve görsel ayrı içe aktarılır; ize eklenir; bağlı kaynaklarla klip çıkar', async ({ page }) => {
@@ -266,13 +257,10 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('asset').nth(3)).toContainText('Görsel')
     await expect(page.getByTestId('asset').nth(1)).toContainText('Ses')
 
-    // görseli önce orta alana (varsayılan ilk görsel katmanı), sonra alt görsel katmanına ekle (düğmeyle)
-    await page.getByTestId('asset').nth(3).click()
-    await expect(page.getByTestId('target-track')).toContainText('Orta alan')
-    await page.getByTestId('add-at-playhead').click()
+    // görseli önce orta alana, sonra alt görsel katmanına sürükle-bırak
+    await dropAsset(page, 3, 'I2')
     await expect(page.getByTestId('lane-I2').getByTestId('clip')).toHaveCount(1)
-    await page.getByTestId('target-track').selectOption({ label: 'Konu görseli (I1)' })
-    await page.getByTestId('add-at-playhead').click()
+    await dropAsset(page, 3, 'I1')
     await expect(page.getByTestId('lane-I1').getByTestId('clip')).toHaveCount(1)
 
     // oyun sesini A1'e sürükle-bırak
@@ -287,7 +275,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
 
     // konuşma dosyası: rol + bağlı kaynaklar
     await page.getByTestId('asset').nth(2).click()
-    await page.getByTestId('role-select').selectOption('voice')
+    await expect(page.getByTestId('role-select')).toHaveCount(0) // rol bölümü kaldırıldı
     await page.getByTestId('src-screen').selectOption({ label: 'ekran kaydi.mp4' })
     await page.getByTestId('src-game').selectOption({ label: 'oyun sesi.wav' })
     // konuşma dosyasını transkribe et ve ara
@@ -373,30 +361,22 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('draft-panel')).toBeVisible()
   })
 
-  test('video katmanına eklenen videonun sesi de ses izine eklenir (sessiz kalmaz)', async ({ page }) => {
+  test('video katmanına bırakılan videonun sesi de ses izine eklenir (sessiz kalmaz)', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/kayit/paylasilan video.mp4']))
     await expect(page.getByTestId('asset')).toHaveCount(1)
-    await page.getByTestId('asset').click()
-    await page.getByTestId('target-track').selectOption({ label: 'Yüz (webcam) (V2)' })
-    await expect(page.getByTestId('with-audio')).toBeChecked()
-    await page.getByTestId('add-at-playhead').click()
+    await expect(page.getByTestId('add-to-track')).toHaveCount(0) // "Zaman çizelgesine ekle" bölümü kaldırıldı
+    await dropAsset(page, 0, 'V2')
     await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(1)
     await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1) // sesi A1'e geldi
     await expect(page.getByTestId('toast').filter({ hasText: 'sesiyle birlikte' })).toBeVisible()
-    // sesi istemeyen: işareti kaldır
-    await page.getByTestId('with-audio').uncheck()
-    await page.getByTestId('add-at-end').click()
-    await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(2)
-    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1)
   })
 
   test('altyazı: transkripti olan video yüz/webcam katmanında olsa da altyazı üretilir', async ({ page }) => {
     await boot(page)
     await importAndTranscribe(page)
-    // videoyu doğrudan "Yüz (webcam)" katmanına ekle (ekran katmanına değil)
-    await page.getByTestId('target-track').selectOption({ label: 'Yüz (webcam) (V2)' })
-    await page.getByTestId('add-at-playhead').click()
+    // videoyu doğrudan "Yüz (webcam)" katmanına bırak (ekran katmanına değil)
+    await dropAsset(page, 0, 'V2')
     await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(1)
     await page.getByTestId('rtab-captions').click()
     await page.getByTestId('gen-captions').click()
@@ -410,7 +390,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
   test('altyazı: tıklayıp seçme, önizlemede sürükleyerek taşıma, zaman çizelgesinden seçme, sıfırlama', async ({ page }) => {
     await boot(page)
     await importAndTranscribe(page)
-    await page.getByTestId('add-at-playhead').click()
+    await dropAsset(page, 0, 'V2')
     await page.getByTestId('rtab-captions').click()
     await page.getByTestId('gen-captions').click()
     await expect(page.getByTestId('cap-clip').first()).toBeVisible()
@@ -455,9 +435,10 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     // sol panelde kütüphane + içe aktarma dışında hiçbir kontrol yok
     await expect(left.getByTestId('asset-detail')).toHaveCount(0)
     await expect(left.getByTestId('transcribe-btn')).toHaveCount(0)
-    // arama / transkript / öneriler / kaynak sağ panelde
+    // arama / transkript / kaynak sağ panelde; Öneriler sekmesi kaldırıldı
     const right = page.getByRole('complementary', { name: 'Özellikler' })
-    for (const id of ['tab-source', 'tab-search', 'tab-transcript', 'tab-suggest']) await expect(right.getByTestId(id)).toBeVisible()
+    await expect(right.getByTestId('tab-suggest')).toHaveCount(0)
+    for (const id of ['tab-source', 'tab-search', 'tab-transcript']) await expect(right.getByTestId(id)).toBeVisible()
 
     // tıklayınca otomatik oynatma
     await page.getByTestId('mode-timeline').click()
@@ -476,9 +457,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await boot(page)
     await page.getByTestId('import-btn').click()
     await expect(page.getByTestId('asset')).toHaveCount(1)
-    await page.getByTestId('asset').click()
-    await page.getByTestId('target-track').selectOption({ label: 'Yüz (webcam) (V2)' })
-    await page.getByTestId('add-at-playhead').click()
+    await dropAsset(page, 0, 'V2')
     await page.getByTestId('mode-timeline').click()
     await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(1)
 
@@ -532,5 +511,35 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('ctx-crop')).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('ctx-menu')).toHaveCount(0)
+  })
+
+  test('tek tıkla sessizlik ve ııı/eee kesme: süre kısalır, dolgu sesleri gider, tek geri alma', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V2')
+    await page.getByTestId('mode-timeline').click()
+    await page.getByTestId('tab-transcript').click()
+    await expect(page.getByTestId('cut-silence')).toBeVisible()
+    const durOf = async () => (await page.getByTestId('tl-tc').textContent())!.split('/')[1].trim()
+    const toSec = (t: string) => t.split(':').reduce((a, b) => a * 60 + Number(b), 0)
+    const before = toSec(await durOf())
+    const wordsBefore = await page.getByTestId('tw-word').allTextContents()
+    expect(wordsBefore.join(' ')).toContain('ııı')
+    await page.getByTestId('cut-silence').click()
+    await expect(page.getByTestId('toast').filter({ hasText: 'kesim yapıldı' })).toBeVisible()
+    const after = toSec(await durOf())
+    expect(after).toBeLessThan(before - 5)
+    const wordsAfter = await page.getByTestId('tw-word').allTextContents()
+    expect(wordsAfter.join(' ')).not.toContain('ııı')
+    expect(wordsAfter.join(' ')).not.toContain('eee')
+    expect(wordsAfter.length).toBeLessThan(wordsBefore.length)
+    expect(wordsAfter.join(' ')).toContain('Victor') // gerçek konuşma korunur
+    // tek geri alma her şeyi geri getirir
+    await page.keyboard.press('Control+z')
+    expect(toSec(await durOf())).toBe(before)
+    expect((await page.getByTestId('tw-word').allTextContents()).length).toBe(wordsBefore.length)
+    // araç çubuğundaki düğme de aynı işi yapar
+    await page.getByTestId('cut-silence-tb').click()
+    await expect(page.getByTestId('toast').filter({ hasText: 'kesim yapıldı' }).first()).toBeVisible()
   })
 })

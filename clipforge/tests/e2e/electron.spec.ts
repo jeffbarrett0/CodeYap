@@ -71,9 +71,8 @@ test('gerçek Electron: preload köprüsü, ffmpeg algılama, içe aktarma, saht
   // içe aktar (IPC ile: yerel dosya diyaloğu otomatikleştirilemez)
   await page.evaluate((p) => window.clipforge!.invoke('media:import', [p]), mkv)
   await expect(page.getByTestId('asset')).toHaveCount(1, { timeout: 30_000 })
-  await expect(page.getByTestId('asset-detail')).toContainText('OBS')
-  await expect(page.getByTestId('asset-detail')).toContainText('3 ses track')
-  await expect(page.getByTestId('asset-detail')).toContainText('MKV')
+  await expect(page.getByTestId('asset-detail')).toBeVisible()
+  await expect(page.getByTestId('asset-detail')).not.toContainText('Track') // seçili kayıt/track ayrıntıları kaldırıldı
 
   // önizleme kopyası arka planda hazırlanır; bitince cf-media:// üzerinden oynatılabilir
   await expect(async () => {

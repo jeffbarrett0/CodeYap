@@ -24,7 +24,10 @@ export const DEFAULT_SETTINGS: Settings = {
   chatColumns: {},
   exportDefaults: { presetId: 'shorts' },
   suggestKeywords: [],
-  proxyHeight: 540
+  proxyHeight: 540,
+  silenceMinGapSec: 0.7,
+  silenceKeepSec: 0.15,
+  cutFillers: true
 }
 
 export const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium'] as const
@@ -55,5 +58,7 @@ export function normalizeSettings(raw: unknown): Settings {
   s.preRollSec = Math.max(0, s.preRollSec)
   s.postRollSec = Math.max(0, s.postRollSec)
   s.windowSec = Math.max(1, s.windowSec)
+  s.silenceMinGapSec = Math.min(10, Math.max(0.2, s.silenceMinGapSec))
+  s.silenceKeepSec = Math.min(1, Math.max(0, s.silenceKeepSec))
   return s
 }

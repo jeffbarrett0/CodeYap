@@ -354,3 +354,8 @@ export function setCaptionPos(tl: Timeline, id: ID, pos: { x: number; y: number 
 export function setAllCaptionPos(tl: Timeline, pos: { x: number; y: number } | undefined): Timeline {
   return tl.captions.reduce((acc, c) => setCaptionPos(acc, c.id, pos), tl)
 }
+
+/** Birden çok aralığı tek işlemde keser (sondan başa uygulanır, böylece kayan zamanlar bozulmaz). */
+export function cutRanges(tl: Timeline, ranges: [number, number][], ripple = true): Timeline {
+  return [...ranges].sort((a, b) => b[0] - a[0]).reduce((acc, [a, b]) => cutRange(acc, a, b, ripple), tl)
+}

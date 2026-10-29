@@ -1,16 +1,7 @@
-import { useState } from 'react'
 import type { MediaAsset } from '@shared/types'
 import { requireApi } from '../api'
 import { useStore } from '../store'
-import { Field, Num } from './ui'
-
-const ROLES: [NonNullable<MediaAsset['role']> | '', string][] = [
-  ['', 'Belirtilmedi'],
-  ['screen', 'Ekran kaydı'],
-  ['game', 'Oyun sesi'],
-  ['voice', 'Konuşma sesi'],
-  ['cam', 'Yüz kamerası']
-]
+import { Num } from './ui'
 
 type Slot = 'screen' | 'game' | 'voice' | 'cam'
 const SLOTS: { key: Slot; label: string; accepts: (a: MediaAsset) => boolean }[] = [
@@ -35,12 +26,6 @@ export function SourcesBlock({ asset }: { asset: MediaAsset }) {
 
   return (
     <div className="col" data-testid="sources-block">
-      <div className="section-title" style={{ marginTop: 6 }}>Bu dosyanın rolü</div>
-      <select aria-label="Dosya rolü" value={asset.role ?? ''} onChange={(e) => patchAsset(asset.id, { role: (e.target.value || undefined) as MediaAsset['role'] })} data-testid="role-select">
-        {ROLES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
-      </select>
-      <div className="hint">Rol, bu dosyadan klip çıkarılırken sesin hangi ize (oyun / konuşma) ve görüntünün hangi katmana (ekran / yüz) gideceğini belirler.</div>
-
       <div className="section-title" style={{ marginTop: 6 }}>Bağlı kaynaklar (aynı yayının ayrı dosyaları)</div>
       {SLOTS.map((slot) => {
         const linked = project.assets.find((a) => a.id === sources[slot.key] || (slot.key === 'cam' && a.id === camId))
@@ -101,55 +86,6 @@ export function SourcesBlock({ asset }: { asset: MediaAsset }) {
           )}
         </>
       )}
-    </div>
-  )
-}
-
-/** Dosyayı doğrudan bir ize ekler (aynı işi zaman çizelgesine sürükle-bırak da yapar). */
-export function AddToTrack({ asset }: { asset: MediaAsset }) {
-  const { project, addAssetToTrack, playhead } = useStore()
-  const tracks = project.timeline.tracks.filter((t) => (asset.kind === 'image' ? t.kind === 'image' : asset.kind === 'video' ? t.kind === 'video' || t.kind === 'audio' : t.kind === 'audio'))
-  const [trackId, setTrackId] = useState('')
-  const [stream, setStream] = useState(-1)
-  const [srcIn, setSrcIn] = useState(0)
-  const [dur, setDur] = useState(asset.kind === 'image' ? 8 : 0)
-  const [withAudio, setWithAudio] = useState(true)
-  const tid = tracks.some((t) => t.id === trackId) ? trackId : (tracks[0]?.id ?? '')
-  const track = tracks.find((t) => t.id === tid)
-  const total = Math.max(0, ...project.timeline.tracks.flatMap((t) => t.clips.map((c) => c.start + (c.srcOut - c.srcIn))))
-  const go = (at: number) => track && addAssetToTrack(asset.id, track.id, { at, srcIn: asset.kind === 'image' ? 0 : srcIn, duration: dur > 0 ? dur : undefined, audioStream: track.kind === 'audio' && stream >= 0 ? stream : undefined, withAudio })
-
-  if (tracks.length === 0) return null
-  return (
-    <div className="col" data-testid="add-to-track">
-      <div className="section-title" style={{ marginTop: 6 }}>Zaman çizelgesine ekle</div>
-      <label className="field">
-        <span>Hedef iz / katman</span>
-        <select aria-label="Hedef iz" value={tid} onChange={(e) => setTrackId(e.target.value)} data-testid="target-track">
-          {tracks.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}
-        </select>
-      </label>
-      {track?.kind === 'audio' && asset.audioStreams.length > 1 && (
-        <label className="field">
-          <span>Ses akışı</span>
-          <select aria-label="Ses akışı" value={stream} onChange={(e) => setStream(Number(e.target.value))}>
-            <option value={-1}>Otomatik (role göre)</option>
-            {asset.audioStreams.map((s) => <option key={s.index} value={s.index}>Track {s.index + 1}{s.title ? ` · ${s.title}` : ''}</option>)}
-          </select>
-        </label>
-      )}
-      {track?.kind === 'video' && asset.audioStreams.length > 0 && (
-        <label className="check"><input type="checkbox" checked={withAudio} onChange={(e) => setWithAudio(e.target.checked)} data-testid="with-audio" /> Videonun sesini de ekle (oyun sesi / konuşma izine)</label>
-      )}
-      <div className="grid2">
-        {asset.kind !== 'image' && <Field label="Kaynakta başlangıç (sn)"><Num value={srcIn} step={1} min={0} label="Kaynak başlangıcı" onChange={setSrcIn} /></Field>}
-        <Field label={asset.kind === 'image' ? 'Süre (sn)' : 'Süre (sn, 0 = tamamı)'}><Num value={dur} step={1} min={0} label="Süre" onChange={setDur} /></Field>
-      </div>
-      <div className="row wrap">
-        <button className="btn" onClick={() => go(playhead)} data-testid="add-at-playhead">Oynatma başlığına ekle</button>
-        <button className="btn" onClick={() => go(total)} data-testid="add-at-end">Sona ekle</button>
-      </div>
-      <div className="hint">İpucu: kütüphanedeki dosyayı doğrudan zaman çizelgesindeki bir ize sürükleyebilirsiniz.</div>
     </div>
   )
 }

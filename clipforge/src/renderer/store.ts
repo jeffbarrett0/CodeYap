@@ -5,6 +5,8 @@ import { suggestClip, nearestBoundary, type ClipWarning } from '@shared/clip/bou
 import { History } from '@shared/timeline/history'
 import { cmd, type TimelineCommand } from '@shared/timeline/commands'
 import { captionsForTimeline } from '@shared/timeline/captions'
+import { planSilenceCuts } from '@shared/timeline/silence'
+import { timelineWords } from '@shared/timeline/transcript'
 import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio } from '@shared/timeline/create'
 import { clipEnd, createDefaultTimeline, findClip, groupMembers, newId, timelineDuration } from '@shared/timeline/model'
 import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
@@ -15,7 +17,7 @@ import type { ChatLog, ClipCandidate, ExportOptions, LayoutTemplate, NormRect, M
 import { requireApi } from './api'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
-export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'suggest'
+export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript'
 export type Dialog = null | 'settings' | 'export' | 'clip' | 'help'
 
 export interface Toast {
@@ -179,6 +181,8 @@ interface State {
   openDraftFromRange(assetId: string, start: number, end: number, firstWord: number, lastWord: number): void
   joinSelected(): void
   closeGaps(): void
+  /** Tek tıkla: konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini zaman çizelgesinden keser */
+  cutSilence(): void
   /** Klip eklendikten sonra: metin katmanlarını doldurur; kamera yoksa oyun ekranı katmanını açar */
   afterClipsAdded(trackIds: string[]): void
 }
@@ -529,7 +533,7 @@ export const useStore = create<State>()((set, get) => {
     canUndo: () => history.canUndo,
     canRedo: () => history.canRedo,
     // Klip seçilince "Klip" sekmesine yalnızca düzenleme sekmelerindeyken geçilir; arama/transkript/kaynak sekmesindeki çalışma bölünmez
-    select: (ids) => set((st) => ({ selection: ids, rightTab: ids.length && !['source', 'search', 'transcript', 'suggest'].includes(st.rightTab) ? 'inspector' : st.rightTab })),
+    select: (ids) => set((st) => ({ selection: ids, rightTab: ids.length && !['source', 'search', 'transcript'].includes(st.rightTab) ? 'inspector' : st.rightTab })),
     splitAtPlayhead() {
       const { project, selection, playhead } = get()
       const tl = project.timeline
@@ -650,6 +654,10 @@ export const useStore = create<State>()((set, get) => {
     },
     startCrop(clipId) {
       set({ cropClipId: clipId, viewMode: 'timeline', playing: false, selectedCaptionId: null })
+      // Kırpma klibin karesi üzerinde yapılır: başlık klibin dışındaysa klibin başına atla
+      const f = findClip(get().project.timeline, clipId)
+      const t = get().playhead
+      if (f && (t < f.clip.start || t >= clipEnd(f.clip))) get().setPlayhead(f.clip.start + 0.01)
     },
     endCrop: () => set({ cropClipId: null }),
     setCrop(clipId, crop, coalesce = true) {
@@ -721,6 +729,18 @@ export const useStore = create<State>()((set, get) => {
       const before = project.timeline
       get().exec(cmd.join(selection[0]))
       if (get().project.timeline === before) get().toast('info', 'Birleştirilemedi: iki klip yan yana, aynı kaynaktan ve kaynakta kesintisiz devam eden parçalar olmalı.')
+    },
+    cutSilence() {
+      const { project, transcripts, settings } = get()
+      const tl = project.timeline
+      const words = timelineWords(tl, transcripts)
+      if (words.length === 0) return get().toast('info', 'Sessizlikleri kesmek için zaman çizelgesindeki içeriğin transkripti gerekir. Kaynak sekmesinden transkripsiyonu başlatın.')
+      const total = tl.tracks.filter((t) => t.kind !== 'text').flatMap((t) => t.clips).reduce((m, c) => Math.max(m, clipEnd(c)), 0)
+      const plan = planSilenceCuts(words, total, { minGapSec: settings.silenceMinGapSec, keepSec: settings.silenceKeepSec, cutFillers: settings.cutFillers })
+      if (plan.cuts.length === 0) return get().toast('info', 'Kesilecek sessizlik ya da dolgu sesi bulunamadı.')
+      get().exec(cmd.cutRanges(plan.cuts))
+      set({ selection: [] })
+      get().toast('success', `${plan.cuts.length} kesim yapıldı, ${plan.removedSec.toFixed(1)} sn kısaldı${plan.fillerCount ? ` (${plan.fillerCount} dolgu sesi)` : ''}. Geri almak için Ctrl+Z.`)
     },
     closeGaps() {
       const before = get().project.timeline

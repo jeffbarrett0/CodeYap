@@ -41,6 +41,7 @@ export const cmd = {
   fillText: (): TimelineCommand => makeCommand('Metin katmanlarını doldur', (t) => ops.fillTextTracks(t)),
   extendToEnd: (clipId: ID): TimelineCommand => makeCommand('Sona kadar uzat', (t) => ops.extendToEnd(t, clipId)),
   cutRange: (a: number, b: number, ripple = true): TimelineCommand => makeCommand('Aralığı kes', (t) => ops.cutRange(t, a, b, ripple)),
+  cutRanges: (ranges: [number, number][], label = 'Sessizlikleri kes'): TimelineCommand => makeCommand(label, (t) => ops.cutRanges(t, ranges)),
   join: (clipId: ID): TimelineCommand => makeCommand('Birleştir', (t) => ops.joinWithNext(t, clipId)),
   closeGaps: (): TimelineCommand => makeCommand('Boşlukları kapat', (t) => ops.closeGaps(t)),
   updateTrackText: (trackId: ID, spec: TextSpec): TimelineCommand => makeCommand('Varsayılan metin', (t) => ops.updateTrack(t, trackId, { textDefault: spec }), `tdef:${trackId}`),

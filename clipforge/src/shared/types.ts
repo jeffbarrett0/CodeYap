@@ -422,6 +422,12 @@ export interface Settings {
   exportDefaults: Partial<ExportOptions> & { presetId: string }
   suggestKeywords: string[]
   proxyHeight: number
+  /** Sessizlik kesme: bu süreden uzun kelime arası boşluklar (sn) */
+  silenceMinGapSec: number
+  /** Kesimden sonra her iki yanda bırakılan pay (sn) */
+  silenceKeepSec: number
+  /** ııı / eee gibi dolgu seslerini de kes */
+  cutFillers: boolean
 }
 
 // ───────────────────────────── Proje ─────────────────────────────

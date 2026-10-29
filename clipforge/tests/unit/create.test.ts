@@ -90,6 +90,14 @@ describe('ayrı dosyalar (ekran / oyun sesi / konuşma / kamera)', () => {
     expect(items.find((i) => i.trackId === 'A1')!.clip).toMatchObject({ srcIn: 0, start: 2 })
   })
 
+  it('rol belirtilmemiş ses dosyası başka kaynaklara bağlıysa konuşma (A2) sayılır', () => {
+    const game = aud('g2')
+    const voice = aud('v2', { sources: { game: 'g2' } })
+    const items = clipItemsForSource(voice, { start: 0, end: 10 }, 0, {}, (id) => (id === 'g2' ? game : undefined))
+    expect(items.map((i) => i.trackId).sort()).toEqual(['A1', 'A2'])
+    expect(items.find((i) => i.trackId === 'A2')!.clip.assetId).toBe('v2')
+  })
+
   it('rol: konuşma dosyası A2, oyun sesi dosyası A1; kamera rolündeki video V2', () => {
     const v = clipItemsForSource(aud('v', { role: 'voice' }), { start: 0, end: 10 }, 0)
     expect(v.map((i) => i.trackId)).toEqual(['A2'])

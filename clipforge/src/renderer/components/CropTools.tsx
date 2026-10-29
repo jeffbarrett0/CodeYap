@@ -24,7 +24,11 @@ export function findCropTarget(tl: Timeline, t: number, selection: string[], poi
     if (hit) return hit.clip
   }
   const sel = list.find(({ clip }) => selection.includes(clip.id))
-  return sel?.clip ?? list[0]?.clip ?? null
+  if (sel) return sel.clip
+  if (list[0]) return list[0].clip
+  // Oynatma başlığının altında görünür klip yoksa: seçili klip, o da yoksa ilk video/görsel klibi
+  const all = tl.tracks.filter((tr) => (tr.kind === 'video' || tr.kind === 'image') && tr.placement?.visible).flatMap((tr) => tr.clips)
+  return all.find((c) => selection.includes(c.id)) ?? all.sort((a, b) => a.start - b.start)[0] ?? null
 }
 
 export interface MenuState {

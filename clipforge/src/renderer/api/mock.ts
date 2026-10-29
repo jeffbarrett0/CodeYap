@@ -30,7 +30,8 @@ const INJECT: { at: number; text: string }[] = [
   { at: 14, text: "Geçen sene Victor Nelson'dan bahsetmiştim hatırlıyor musunuz." },
   { at: 20, text: 'Adam gerçekten çok komik bir tipti.' },
   { at: 61, text: 'Viktor Nelsen diye bir yayıncı vardı ya.' },
-  { at: 97, text: 'Victor Nelson yine geldi.' }
+  { at: 97, text: 'Victor Nelson yine geldi.' },
+  { at: 34, text: 'Şimdi ııı eee yani hımm bakalım.' }
 ]
 
 export function demoTranscript(assetId: string, duration: number, lang: string): Transcript {
