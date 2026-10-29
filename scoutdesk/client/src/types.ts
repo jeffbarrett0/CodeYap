@@ -71,6 +71,8 @@ export interface Video {
   createdAt: string
   streamUrl: string
   thumbnailUrl: string | null
+  /** 24 evenly spaced frames side by side, for the timeline's video track. */
+  filmstripUrl: string
 }
 
 export interface TagType {

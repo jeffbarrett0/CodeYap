@@ -83,17 +83,18 @@ const assert = (c, m) => { if (!c) throw new Error('ASSERT: ' + m); console.log(
 
   console.log('Timeline')
   const box = await p.getByTestId('timeline-canvas').boundingBox()
-  const x = box.x + 104 + (box.width - 104) * (90 / 180)
-  await p.mouse.click(x, box.y + 40) // density area => scrub
+  const x = box.x + 16 + (box.width - 16 - 24) * (90 / 180)
+  await p.mouse.click(x, box.y + 12) // ruler => scrub
   await p.waitForTimeout(300)
   assert(Math.abs((await vt()) - 90) < 2.5, `click on timeline seeks (~90s, got ${(await vt()).toFixed(1)})`)
   const px = await p.getByTestId('playhead').evaluate(e => e.getBoundingClientRect().left)
   assert(Math.abs(px - x) < 4, `playhead drawn at the click position (${px.toFixed(0)} vs ${x.toFixed(0)})`)
-  await p.mouse.move(x, box.y + 40); await p.mouse.down(); await p.mouse.move(x + 150, box.y + 40, { steps: 5 }); await p.mouse.up()
+  await p.mouse.move(x, box.y + 12); await p.mouse.down(); await p.mouse.move(x + 150, box.y + 12, { steps: 5 }); await p.mouse.up()
   await p.waitForTimeout(300)
   assert((await vt()) > 105, `drag scrubs (now ${(await vt()).toFixed(1)}s)`)
+  const wBefore = (await p.getByTestId('timeline-canvas').boundingBox()).width
   await p.keyboard.press('='); await p.keyboard.press('='); await p.waitForTimeout(200)
-  console.log('  zoomed:', (await p.locator('text=/\\(\\d+s\\)/').first().innerText()))
+  assert((await p.getByTestId('timeline-canvas').boundingBox()).width > wBefore * 1.5, 'zoom keys widen the timeline')
   await p.screenshot({ path: `${SP}/p4-zoomed.png` })
 
   console.log('Errors:', JSON.stringify(errs))

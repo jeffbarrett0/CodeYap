@@ -27,14 +27,14 @@ const assert = (c, m) => { if (!c) throw new Error('ASSERT: ' + m); console.log(
   const tb = p.getByRole('toolbar', { name: 'Frame tools' })
   const stage = await p.locator('svg[aria-label="Drawing overlay"]').boundingBox()
   const shapesN = () => p.locator('svg[aria-label="Drawing overlay"] g[data-shape]').count()
-  await tb.getByRole('button', { name: 'Arrow' }).click()
-  await p.mouse.move(stage.x + 100, stage.y + 100); await p.mouse.down(); await p.mouse.move(stage.x + 300, stage.y + 160, { steps: 6 }); await p.mouse.up()
-  await tb.getByRole('button', { name: 'Circle' }).click()
-  await p.mouse.move(stage.x + 400, stage.y + 150); await p.mouse.down(); await p.mouse.move(stage.x + 450, stage.y + 200, { steps: 4 }); await p.mouse.up()
+  await tb.getByRole('button', { name: 'Ok', exact: true }).click()
+  await p.mouse.move(stage.x + stage.width * 0.1, stage.y + stage.height * 0.2); await p.mouse.down(); await p.mouse.move(stage.x + stage.width * 0.4, stage.y + stage.height * 0.35, { steps: 6 }); await p.mouse.up()
+  await tb.getByRole('button', { name: 'Daire', exact: true }).click()
+  await p.mouse.move(stage.x + stage.width * 0.6, stage.y + stage.height * 0.5); await p.mouse.down(); await p.mouse.move(stage.x + stage.width * 0.75, stage.y + stage.height * 0.8, { steps: 4 }); await p.mouse.up()
   assert(await shapesN() === 2, 'arrow + circle drawn on the paused frame')
   await p.screenshot({ path: `${SP}/p3-drawing.png` })
   const dl = p.waitForEvent('download')
-  await tb.getByRole('button', { name: 'Screenshot' }).click()
+  await p.getByRole('button', { name: 'Ekran görüntüsü al' }).click()
   const d = await dl
   await d.saveAs(`${SP}/snapshot.png`)
   assert(fs.statSync(`${SP}/snapshot.png`).size > 20000, `screenshot PNG downloaded (${d.suggestedFilename()}, ${fs.statSync(`${SP}/snapshot.png`).size} bytes)`)
@@ -49,10 +49,10 @@ const assert = (c, m) => { if (!c) throw new Error('ASSERT: ' + m); console.log(
   const pitch = await p.locator('video').boundingBox()
   await p.mouse.move(pitch.x + pitch.width / 2, pitch.y + pitch.height / 2)
   await p.mouse.wheel(0, -300); await p.waitForTimeout(150)
-  const z = await tb.getByRole('button', { name: /Reset zoom/ }).innerText()
+  const z = await tb.getByRole('button', { name: /Zoom'u sıfırla/ }).innerText()
   assert(parseFloat(z) > 1, 'wheel zooms the video (' + z + ')')
-  await tb.getByRole('button', { name: /Reset zoom/ }).click()
-  assert(parseFloat(await tb.getByRole('button', { name: /Reset zoom/ }).innerText()) === 1, 'reset zoom')
+  await tb.getByRole('button', { name: /Zoom'u sıfırla/ }).click()
+  assert(parseFloat(await tb.getByRole('button', { name: /Zoom'u sıfırla/ }).innerText()) === 1, 'reset zoom')
 
   console.log('Clip table: select, sort, filter')
   assert(await rowsInDom() === 30, '30 rows initially'); assert(await domRows() < 30, `virtualized: only ${await domRows()} of 30 rows are in the DOM`)
@@ -141,22 +141,14 @@ const assert = (c, m) => { if (!c) throw new Error('ASSERT: ' + m); console.log(
   assert(c10.notes === 'Edited via inspector', 'notes saved on blur')
   await p.screenshot({ path: `${SP}/p4-inspector.png` })
 
-  // drag the end edge of the selected clip on the timeline
-  const box = await p.getByTestId('timeline-canvas').boundingBox()
-  const W = box.width - 104
-  const xEnd = box.x + 104 + (c10.endSec / 180) * W
-  const laneY = box.y + 22 + 48 + 5 + 8 // first lane centre (lane index per category computed below)
-  const cats = await (await p.request.get(`${API}/taxonomy`)).json()
-  const lane = cats.findIndex(c => c.tagTypes.some(t => t.id === c10.tagTypeId))
-  const laneH = await p.evaluate(() => 0)
-  const laneH2 = Math.min(26, Math.max(12, Math.floor((box.height + 26 - 26 - 20 - 38 - 22 - 16) / cats.length) - 3)) // mirrors Timeline.tsx lane sizing
-  const y = box.y + 20 + 38 + 4 + lane * (laneH2 + 3) + laneH2 / 2
-  await p.mouse.move(xEnd - 1, y); await p.mouse.down(); await p.mouse.move(xEnd + 45, y, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(600)
-  const after = (await clips()).find(c => c.id === active.id)
-  console.log(`  end ${c10.endSec} -> ${after.endSec} (lane ${lane})`)
-  assert(after.endSec > c10.endSec + 2, 'dragging the clip end edge on the timeline extends it (server updated)')
-  await p.keyboard.press('Control+z'); await p.waitForTimeout(500)
-  assert(Math.abs((await clips()).find(c => c.id === active.id).endSec - c10.endSec) < 0.05, 'the whole drag undoes in one step')
+  // clicking a clip marker on the timeline selects that clip and jumps to it
+  await p.evaluate(() => { document.querySelector('video').currentTime = 1 }); await p.waitForTimeout(300)
+  const marker = p.locator(`[data-clip-marker="${active.id}"]`)
+  await marker.scrollIntoViewIfNeeded()
+  const mb = await marker.boundingBox()
+  await p.mouse.click(mb.x + 2, mb.y + mb.height / 2); await p.waitForTimeout(400)
+  assert(Math.abs((await vt()) - c10.startSec) < 0.2, `clicking a clip marker seeks to its start (${c10.startSec}s)`)
+  assert(await p.locator('[role=row][aria-selected=true]').count() === 1, 'and selects that clip')
 
   console.log('Cheat sheet')
   await p.keyboard.press('Escape')

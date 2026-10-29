@@ -114,7 +114,11 @@ export function ClipTable({ canWrite, onPlayClip }: { canWrite: boolean; onPlayC
   // Keep the active row in view when selection changes from the timeline / hotkeys.
   const activeIndex = useMemo(() => rows.findIndex((r) => r.clip.id === activeId), [rows, activeId])
   useEffect(() => {
-    if (activeIndex >= 0) virt.scrollToIndex(activeIndex, { align: 'auto' })
+    if (activeIndex < 0) return
+    virt.scrollToIndex(activeIndex, { align: 'auto' })
+    // The panel can still be laying out when a deep link selects a clip: try once more after it settles.
+    const t = window.setTimeout(() => virt.scrollToIndex(activeIndex, { align: 'auto' }), 350)
+    return () => window.clearTimeout(t)
   }, [activeIndex, virt])
 
   const select = useClips.getState().select

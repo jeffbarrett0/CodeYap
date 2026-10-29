@@ -8,7 +8,7 @@ import { adminOnly, canWrite } from '../auth.js'
 import { THUMB_DIR, VIDEO_DIR } from '../config.js'
 import { prisma } from '../db.js'
 import { videoDTO } from '../dto.js'
-import { processVideo } from '../lib/ffmpeg.js'
+import { makeFilmstrip, processVideo } from '../lib/ffmpeg.js'
 import { parseRange } from '../lib/range.js'
 import { verifyResource } from '../lib/sign.js'
 import { HttpError, parse } from '../validate.js'
@@ -140,6 +140,7 @@ export async function videoRoutes(app: FastifyInstance) {
     await prisma.video.delete({ where: { id: v.id } })
     fs.rmSync(path.join(VIDEO_DIR, path.basename(v.filePath)), { force: true })
     fs.rmSync(path.join(THUMB_DIR, `${v.id}.jpg`), { force: true })
+    fs.rmSync(path.join(THUMB_DIR, `${v.id}-strip.jpg`), { force: true })
     return reply.code(204).send()
   })
 
@@ -189,6 +190,27 @@ export async function videoRoutes(app: FastifyInstance) {
       const abs = path.join(THUMB_DIR, `${id}.jpg`)
       if (!fs.existsSync(abs)) throw new HttpError(404, 'No thumbnail')
       return reply.header('Content-Type', 'image/jpeg').header('Cache-Control', 'private, max-age=86400').send(fs.createReadStream(abs))
+    },
+  )
+
+  // Filmstrip for the timeline's video track: generated on first request, then cached next to the thumbnails.
+  app.get<{ Params: { id: string }; Querystring: { exp?: string; sig?: string } }>(
+    '/api/videos/:id/filmstrip',
+    async (req, reply) => {
+      const { id } = req.params
+      if (!verifyResource(`strip:${id}`, req.query.exp, req.query.sig)) throw new HttpError(403, 'Invalid or expired link')
+      const v = await prisma.video.findUnique({ where: { id } })
+      if (!v) throw new HttpError(404, 'Video not found')
+      const out = path.join(THUMB_DIR, `${id}-strip.jpg`)
+      if (!fs.existsSync(out)) {
+        try {
+          fs.mkdirSync(THUMB_DIR, { recursive: true })
+          await makeFilmstrip(path.join(VIDEO_DIR, path.basename(v.filePath)), out, v.durationSec)
+        } catch {
+          throw new HttpError(404, 'Filmstrip unavailable')
+        }
+      }
+      return reply.header('Content-Type', 'image/jpeg').header('Cache-Control', 'private, max-age=86400').send(fs.createReadStream(out))
     },
   )
 }

@@ -23,6 +23,7 @@ export function videoDTO(v: Video) {
     thumbnailUrl: v.thumbnailPath
       ? `/api/videos/${v.id}/thumbnail?${signResource(`thumb:${v.id}`)}`
       : null,
+    filmstripUrl: `/api/videos/${v.id}/filmstrip?${signResource(`strip:${v.id}`)}`,
   }
 }
 

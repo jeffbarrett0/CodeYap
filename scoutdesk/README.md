@@ -97,8 +97,9 @@ saved snapshots, and a written-notes section (ruled lines when left empty). Live
 
 ### Drawing, seek bar and match import
 
-- **Frame tools** bar above the video: Select/move, Arrow, Circle, Line, Spotlight, Box, delete, colour/thickness, zoom to region, zoom −/+/reset. Pause, pick a tool, drag on the video. Click any drawing and drag its middle to move it; drag the white dots to resize. Circles/boxes fill the box you drag (hold Shift for a perfect circle). `Delete` removes the selected drawing. Drawings belong to the frame they were drawn on.
-- **Screenshot** (top right of the tools bar) saves only the match footage (no UI), with your drawings burned in.
+- **Frame tools** (Turkish labels, under the video): Seç, Ok, Daire, Çizgi, Bağlantı (two players), Koşu oku (run arrow), Alan (click corners, double-click to finish), Numara (1, 2, 3…), Oyuncu (name tag; press it twice quickly to rename), Aydınlat (spotlight), Kaydır (pan), delete, colour, zoom to region, zoom −/+. Pause, pick a tool, drag or click on the video. Press any drawing to move it; drag the white dots to resize; `Delete` removes it. *Çizim süresi* keeps a drawing on screen for 2–10 s while playing (default: only on its frame). *Video boyutu* resizes the picture, *Ortala* recentres it.
+- **Ekran görüntüsü al** (top right of the video panel) saves only the match footage, without drawings or interface.
+- **Timeline** is a simple CapCut-style strip: time ruler, the match video as a filmstrip, tagged clips as coloured markers (click one to open it). Click or drag anywhere to jump; `+`/`-` zoom.
 - **Seek bar** under the video with minute ticks and hover preview; type a time in *Go to* (`3` = minute 3, `4:30` = 4 min 30 s).
 - **Match header** at the top of the analysis screen (teams, crests, score, competition, venue, formations, status).
 - **Import from a link**: when uploading a video you are asked which match it is. Paste a link and the match (teams, date, competition, venue, score, lineups, formations, optionally events as clips) is filled in. Also under Matches → *Import from link*.

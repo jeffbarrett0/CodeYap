@@ -202,12 +202,12 @@ export function MatchAnalysisPage() {
     <div className="min-h-0 flex-1">
     <PanelGroup direction="horizontal" autoSaveId="sd-analysis-h" className="h-full">
       <Panel id="pnl-main" defaultSize={74} minSize={45} order={1}>
-        <PanelGroup direction="vertical" autoSaveId="sd-analysis-v3">
+        <PanelGroup direction="vertical" autoSaveId="sd-analysis-v5">
           <Panel id="pnl-video" defaultSize={52} minSize={26} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
           <Handle dir="h" />
-          <Panel id="pnl-timeline" defaultSize={22} minSize={12} order={2}><Timeline visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+          <Panel id="pnl-timeline" defaultSize={18} minSize={12} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
           <Handle dir="h" />
-          <Panel id="pnl-bottom" defaultSize={26} minSize={8} order={3}>
+          <Panel id="pnl-bottom" defaultSize={30} minSize={8} order={3}>
             <Tabs value={bottomTab} onValueChange={setBottomTab} className="flex h-full flex-col bg-surface">
               <TabsList>
                 <TabsTrigger value="clips">Clips <span className="timecode text-2xs text-muted">{clipTotal}</span></TabsTrigger>

@@ -13,12 +13,12 @@ const STATUS = { untagged: { label: 'Untagged', tone: 'muted' }, in_progress: { 
 export function MatchHeader({ match }: { match: Match }) {
   const { teamById } = useLookups()
   const { canWrite } = useCan()
-  const [open, setOpen] = useState(() => { try { return localStorage.getItem('scoutdesk.header') !== 'closed' } catch { return true } })
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem('scoutdesk.header2') === 'open' } catch { return false } })
   const [importing, setImporting] = useState(false)
   const home = teamById.get(match.homeTeamId)
   const away = teamById.get(match.awayTeamId)
   if (!home || !away) return null
-  const toggle = () => { setOpen((o) => { try { localStorage.setItem('scoutdesk.header', o ? 'closed' : 'open') } catch { /* ignore */ } return !o }) }
+  const toggle = () => { setOpen((o) => { try { localStorage.setItem('scoutdesk.header2', o ? 'closed' : 'open') } catch { /* ignore */ } return !o }) }
 
   return (
     <div className="relative shrink-0 border-b border-border bg-background px-3 py-2">

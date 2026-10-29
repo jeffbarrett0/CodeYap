@@ -1,4 +1,4 @@
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle, Camera } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Spinner } from '@/components/ui/misc'
@@ -14,7 +14,7 @@ import { SecondaryPane } from './SecondaryPane'
 import { PlayerControls } from './PlayerControls'
 import { FrameTools } from './FrameTools'
 import { SeekBar } from './SeekBar'
-import { useDrawing } from './drawing'
+import { isVisible, useDrawing } from './drawing'
 import { player, usePlayback } from './playback'
 import { captureSnapshot, downloadBlob } from './snapshot'
 
@@ -38,12 +38,12 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
   const error = usePlayback((s) => s.error)
   const ready = usePlayback((s) => s.ready)
   const clipRange = usePlayback((s) => s.clipRange)
-  const drawing = useDrawing((s) => s.tool !== 'select')
+  const drawing = useDrawing((s) => s.tool !== 'select' && s.tool !== 'pan')
+  const panTool = useDrawing((s) => s.tool === 'pan')
+  const hold = useDrawing((s) => s.hold)
+  const setHold = useDrawing((s) => s.setHold)
+  const [sizePct, setSizePct] = useState(100)
   const retried = useRef(false)
-  // One-time beginner tip for the drawing tools (remembered per browser).
-  const [tip, setTip] = useState(() => { try { return localStorage.getItem('scoutdesk.drawtip') !== '1' } catch { return true } })
-  const dismissTip = () => { setTip(false); try { localStorage.setItem('scoutdesk.drawtip', '1') } catch { /* private mode */ } }
-
   // Controller wiring ───────────────────────────────────────────────────────
   useEffect(() => {
     const el = videoRef.current!
@@ -64,7 +64,8 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
     return () => ro.disconnect()
   }, [])
   const aspect = native.w / native.h
-  const fit = stage.w / stage.h > aspect ? { w: stage.h * aspect, h: stage.h } : { w: stage.w, h: stage.w / aspect }
+  const full = stage.w / stage.h > aspect ? { w: stage.h * aspect, h: stage.h } : { w: stage.w, h: stage.w / aspect }
+  const fit = { w: full.w * (sizePct / 100), h: full.h * (sizePct / 100) }
 
   // Zoom around a stage point, keeping that point fixed under the cursor ────
   const zoomAt = useCallback((factor: number, cx?: number, cy?: number) => {
@@ -141,7 +142,7 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
     try {
       const { fps } = usePlayback.getState()
       const frame = frameAt(el.currentTime, fps)
-      const shapes = clean ? [] : useDrawing.getState().shapes.filter((s) => s.frame === frame)
+      const shapes = clean ? [] : useDrawing.getState().shapes.filter((s) => isVisible(s, frame, fps, false))
       const blob = await captureSnapshot(el, shapes)
       if (save) {
         const ctx = useTagging.getState()
@@ -181,11 +182,19 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
 
   return (
     <div ref={containerRef} className="flex h-full min-h-0 flex-col bg-black">
-      <FrameTools zoom={zoom.s} onZoom={(f) => zoomAt(f)} onResetZoom={() => setZoom({ s: 1, x: 0, y: 0 })} onScreenshot={() => void snapshot(false, true)} />
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
+        <h2 className="text-sm font-semibold">Match footage</h2>
+        <div className="flex items-center gap-3">
+          <span className="text-2xs text-muted">Video analysis</span>
+          <button type="button" aria-label="Ekran görüntüsü al" onClick={() => void snapshot(false, true)} className="flex h-7 items-center gap-1.5 rounded border border-accent/50 px-2.5 text-xs font-medium text-accent transition-colors hover:bg-accent/10">
+            <Camera className="h-3.5 w-3.5" /> Ekran görüntüsü al
+          </button>
+        </div>
+      </div>
       <div className="flex min-h-0 flex-1">
       <div
         ref={stageRef}
-        className={cn('relative min-h-0 min-w-0 flex-1 touch-none select-none overflow-hidden', zoom.s > 1 && !drawing && 'cursor-grab active:cursor-grabbing')}
+        className={cn('relative min-h-0 min-w-0 flex-1 touch-none select-none overflow-hidden', (zoom.s > 1 || panTool) && !drawing && 'cursor-grab active:cursor-grabbing')}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -223,18 +232,6 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
           <DrawingLayer w={native.w} h={native.h} unit={native.w / Math.max(1, fit.w * zoom.s)} onZoomRect={zoomToRect} />
         </div>
 
-        {tip && (
-          <div data-overlay className="absolute left-2 top-2 w-56 rounded-md border border-white/15 bg-black/80 p-2 text-[11px] leading-snug text-white shadow-lg">
-            <button type="button" aria-label="Dismiss tip" onClick={dismissTip} className="absolute right-1 top-1 text-white/60 hover:text-white"><X className="h-3.5 w-3.5" /></button>
-            <p className="mb-0.5 pr-4 font-semibold">How to draw</p>
-            <ol className="list-decimal space-y-0.5 pl-4 text-white/85">
-              <li>Pause, pick a tool above, drag on the video.</li>
-              <li>Click a drawing to move it; drag the white dots to resize.</li>
-              <li><kbd className="rounded bg-white/15 px-1">Delete</kbd> removes it.</li>
-            </ol>
-            <button type="button" onClick={dismissTip} className="mt-1 rounded bg-white/15 px-2 py-0.5 font-medium hover:bg-white/25">Got it</button>
-          </div>
-        )}
         {clipRange && (
           <div data-overlay className="pointer-events-none absolute left-2 top-2 rounded bg-accent px-2 py-0.5 text-2xs font-semibold text-accent-foreground">Playing clip · Esc to stop</div>
         )}
@@ -250,8 +247,23 @@ export function VideoPlayer({ video, secondary, angles }: { video: Video; second
       </div>
       {secondary && <SecondaryPane key={secondary.id} video={secondary} />}
       </div>
-      <SeekBar />
       <PlayerControls fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen} onSnapshot={(save) => void snapshot(save)} canSave={canWrite} angles={angles} primaryId={video.id} />
+      <SeekBar />
+      <FrameTools zoom={zoom.s} onZoom={(f) => zoomAt(f)} onResetZoom={() => setZoom({ s: 1, x: 0, y: 0 })} />
+      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-border bg-surface px-4 py-1 text-xs text-muted">
+        <p className="min-w-[12rem] flex-1 truncate" title="Çizimin üzerine tıklayıp taşı; köşelerinden büyüt veya küçült. Oynatınca gizlenir. Videoda devam etmesini istersen çizim süresini uzat.">Çizimi tıklayıp taşı, köşelerinden büyüt. Oynatınca gizlenir; kalsın istersen süreyi uzat.</p>
+        <label className="flex items-center gap-1.5 whitespace-nowrap">Çizim süresi
+          <select value={hold} onChange={(e) => setHold(Number(e.target.value))} aria-label="Çizim süresi" className="h-6 rounded border border-border bg-raised px-1 text-foreground">
+            <option value={0}>Sadece bu kare</option>
+            {[2, 3, 5, 10].map((n) => <option key={n} value={n}>{n} sn</option>)}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 whitespace-nowrap">Video boyutu
+          <input type="range" min={40} max={100} step={5} value={sizePct} onChange={(e) => setSizePct(Number(e.target.value))} aria-label="Video boyutu" className="h-1 w-24" />
+          <span className="timecode w-9 text-foreground">{sizePct}%</span>
+        </label>
+        <button type="button" onClick={() => setZoom((z) => ({ ...z, x: 0, y: 0 }))} className="rounded border border-border px-2 py-0.5 text-foreground hover:bg-raised">Ortala</button>
+      </div>
     </div>
   )
 }

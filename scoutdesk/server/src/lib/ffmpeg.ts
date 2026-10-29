@@ -54,6 +54,19 @@ export async function makeThumbnail(file: string, out: string, durationSec: numb
   ])
 }
 
+export const FILMSTRIP_FRAMES = 24
+export const FILMSTRIP_CELL = { w: 160, h: 90 }
+
+/** One JPEG with FILMSTRIP_FRAMES evenly spaced frames side by side (the timeline's video track). */
+export async function makeFilmstrip(file: string, out: string, durationSec: number): Promise<void> {
+  const rate = (FILMSTRIP_FRAMES / Math.max(durationSec, 1)).toFixed(6)
+  await run('ffmpeg', [
+    '-y', '-v', 'error', '-i', file, '-an',
+    '-vf', `fps=${rate},scale=${FILMSTRIP_CELL.w}:${FILMSTRIP_CELL.h}:force_original_aspect_ratio=increase,crop=${FILMSTRIP_CELL.w}:${FILMSTRIP_CELL.h},tile=${FILMSTRIP_FRAMES}x1`,
+    '-frames:v', '1', '-q:v', '6', out,
+  ], { maxBuffer: 1 << 24 })
+}
+
 /**
  * Background post-upload step: probe metadata, extract a thumbnail, flip the row
  * to `ready` (or `failed` with the reason). Never throws.
