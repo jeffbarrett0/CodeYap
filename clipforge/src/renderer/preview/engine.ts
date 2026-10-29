@@ -1,9 +1,10 @@
 import type { ClipforgeApi } from '@shared/ipc'
 import { resolveLayout } from '@shared/export/layout'
-import { aspectSize, clipDuration } from '@shared/timeline/model'
+import { aspectSize, clipDuration, clipEnd } from '@shared/timeline/model'
 import { clipsAt, timelineToSource } from '@shared/timeline/ops'
 import { wrapCaption } from '@shared/timeline/captions'
-import type { Clip, MediaAsset, NormRect, Timeline, Track } from '@shared/types'
+import { wrapTextForRect } from '@shared/export/ass'
+import type { Clip, MediaAsset, NormRect, TextSpec, Timeline, Track } from '@shared/types'
 
 /** Kaynak karenin hedefi dolduracak (cover) bölgesi */
 export function coverSource(sw: number, sh: number, dw: number, dh: number, crop?: NormRect) {
@@ -31,6 +32,7 @@ export function containRect(sw: number, sh: number, r: { x: number; y: number; w
 export class PreviewEngine {
   private videos = new Map<string, HTMLVideoElement>()
   private audios = new Map<string, HTMLAudioElement>()
+  private images = new Map<string, HTMLImageElement>()
 
   constructor(private api: ClipforgeApi) {}
 
@@ -47,9 +49,14 @@ export class PreviewEngine {
 
     for (const c of active) {
       const track = trackOf(c)
-      if (!track || track.muted) continue
+      if (!track || (track.muted && track.kind === 'audio')) continue
       const target = timelineToSource(c, t)
-      if (track.kind === 'video') {
+      if (track.kind === 'image') {
+        const a = assets.find((x) => x.id === c.assetId)
+        const url = a ? this.api.mediaUrl(a, 'image') : null
+        if (url) this.imageFor(url)
+      } else if (track.kind === 'video') {
+        if (track.placement && !track.placement.visible) continue // kapalı katman çözülmez (CPU tasarrufu)
         want.add(c.id)
         let v = this.videos.get(c.id)
         const src = this.mediaFor(c, assets, 'video')
@@ -99,7 +106,114 @@ export class PreviewEngine {
     }
   }
 
-  draw(ctx: CanvasRenderingContext2D, W: number, H: number, tl: Timeline, assets: MediaAsset[], t: number) {
+  private imageFor(url: string): HTMLImageElement {
+    let img = this.images.get(url)
+    if (!img) {
+      img = new Image()
+      img.src = url
+      this.images.set(url, img)
+    }
+    return img
+  }
+
+  /** Katman konumlu (yeni) projeler: alttan üste çizer. `guides` açıkken içeriği olmayan katmanlar kesik çizgili yer tutucu gösterir. */
+  private drawLayers(ctx: CanvasRenderingContext2D, W: number, H: number, tl: Timeline, assets: MediaAsset[], t: number, guides: boolean) {
+    ctx.fillStyle = tl.background ?? '#000'
+    ctx.fillRect(0, 0, W, H)
+    const scale = Math.min(W, H) / 1080
+    for (const track of [...tl.tracks].reverse()) {
+      const pl = track.placement
+      if (!pl || !pl.visible) continue
+      const r = { x: pl.rect.x * W, y: pl.rect.y * H, w: pl.rect.w * W, h: pl.rect.h * H }
+      let drew = false
+      for (const c of track.clips) {
+        if (t < c.start || t >= clipEnd(c)) continue
+        ctx.save()
+        ctx.globalAlpha = pl.opacity
+        if (track.kind === 'text' && c.text) {
+          this.drawText(ctx, c.text, r, scale, t - c.start, clipDuration(c))
+          drew = true
+        } else {
+          let src: CanvasImageSource | null = null
+          let sw = 0
+          let sh = 0
+          if (track.kind === 'video') {
+            const v = this.videos.get(c.id)
+            if (v && v.readyState >= 2 && v.videoWidth) (src = v, sw = v.videoWidth, sh = v.videoHeight)
+          } else if (track.kind === 'image') {
+            const a = assets.find((x) => x.id === c.assetId)
+            const url = a ? this.api.mediaUrl(a, 'image') : null
+            const img = url ? this.imageFor(url) : null
+            if (img && img.complete && img.naturalWidth) (src = img, sw = img.naturalWidth, sh = img.naturalHeight)
+          }
+          if (src) {
+            if (pl.fit === 'cover') {
+              const s = coverSource(sw, sh, r.w, r.h, c.crop)
+              ctx.drawImage(src, s.sx, s.sy, s.sw, s.sh, r.x, r.y, r.w, r.h)
+            } else {
+              const d = containRect(sw, sh, r)
+              ctx.drawImage(src, d.x, d.y, d.w, d.h)
+            }
+            drew = true
+          }
+        }
+        ctx.restore()
+      }
+      if (guides && !drew) {
+        ctx.save()
+        ctx.setLineDash([10 * scale, 8 * scale])
+        ctx.strokeStyle = 'rgba(83,252,24,.55)'
+        ctx.lineWidth = Math.max(1, 2 * scale)
+        ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2)
+        ctx.setLineDash([])
+        ctx.fillStyle = 'rgba(255,255,255,.55)'
+        ctx.font = `${Math.round(22 * scale)}px sans-serif`
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'top'
+        ctx.fillText(track.name, r.x + 10 * scale, r.y + 8 * scale)
+        ctx.restore()
+      }
+    }
+  }
+
+  /** Dışa aktarmadaki ASS animasyonlarının (fade / pulse / slide-up) canvas karşılığı */
+  private drawText(ctx: CanvasRenderingContext2D, spec: TextSpec, r: { x: number; y: number; w: number; h: number }, scale: number, local: number, dur: number) {
+    const { lines, fontPx } = wrapTextForRect(spec, r.w, scale)
+    let alpha = 1
+    let zoom = 1
+    let dy = 0
+    if (spec.animation === 'fade') alpha = Math.max(0, Math.min(1, local / 0.35, (dur - local) / 0.35))
+    else if (spec.animation === 'slide-up') {
+      const k = Math.min(1, local / 0.35)
+      dy = 48 * scale * (1 - k)
+      alpha = Math.min(1, local / 0.25)
+    } else if (spec.animation === 'pulse' && local > 0.4) {
+      const ph = (local - 0.4) % 1.2
+      zoom = ph < 0.3 ? 1 + 0.08 * (ph / 0.3) : ph < 0.6 ? 1.08 - 0.08 * ((ph - 0.3) / 0.3) : 1
+    }
+    ctx.globalAlpha *= alpha
+    ctx.translate(r.x + r.w / 2, r.y + r.h / 2 + dy)
+    ctx.scale(zoom, zoom)
+    ctx.font = `${spec.italic ? 'italic ' : ''}${spec.bold ? '700' : '400'} ${fontPx}px "${spec.fontFamily}", Impact, Arial, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.lineJoin = 'round'
+    ctx.lineWidth = spec.outlineWidth * scale * 2
+    ctx.strokeStyle = spec.outlineColor
+    ctx.fillStyle = spec.color
+    lines.forEach((l, i) => {
+      const y = (i - (lines.length - 1) / 2) * fontPx * 1.12
+      if (spec.outlineWidth > 0) ctx.strokeText(l, 0, y)
+      ctx.fillText(l, 0, y)
+    })
+  }
+
+  draw(ctx: CanvasRenderingContext2D, W: number, H: number, tl: Timeline, assets: MediaAsset[], t: number, guides = false) {
+    if (tl.tracks.some((x) => x.placement)) {
+      this.drawLayers(ctx, W, H, tl, assets, t, guides)
+      this.drawCaption(ctx, W, H, tl, t)
+      return
+    }
     ctx.fillStyle = '#000'
     ctx.fillRect(0, 0, W, H)
     const layout = resolveLayout(tl.aspect, tl.layout, W, H, tl.webcamOverlay)
@@ -159,6 +273,7 @@ export class PreviewEngine {
   dispose() {
     for (const v of this.videos.values()) (v.pause(), v.removeAttribute('src'))
     for (const a of this.audios.values()) (a.pause(), a.removeAttribute('src'))
+    this.images.clear()
     this.videos.clear()
     this.audios.clear()
   }

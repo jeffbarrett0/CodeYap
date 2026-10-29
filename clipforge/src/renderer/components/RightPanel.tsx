@@ -3,6 +3,7 @@ import { clipDuration, findClip, groupMembers, TRACK_IDS } from '@shared/timelin
 import type { AspectRatio, LayoutPreset } from '@shared/types'
 import { aspectSize } from '@shared/timeline/model'
 import { useStore } from '../store'
+import { LayersPanel } from './Layers'
 import { fmt, Field, Num, Slider } from './ui'
 
 const FONTS = ['Arial', 'Impact', 'Verdana', 'Tahoma', 'Georgia', 'Trebuchet MS', 'Courier New']
@@ -88,45 +89,6 @@ function Inspector() {
   )
 }
 
-function Layout() {
-  const { project, exec } = useStore()
-  const tl = project.timeline
-  const aspects: AspectRatio[] = ['9:16', '1:1', '16:9']
-  const layouts: { id: LayoutPreset; name: string; desc: string }[] = [
-    { id: 'game-center-cam-bottom', name: 'Oyun ortada · kamera altta', desc: '9:16 için' },
-    { id: 'game-center-cam-top', name: 'Oyun ortada · kamera üstte', desc: '9:16 için' },
-    { id: 'fill', name: 'Tam kare (ortadan kırp)', desc: 'Ekran kareyi doldurur, kamera köşede' },
-    { id: 'cam-overlay-corner', name: 'Oyun ortada · kamera köşede', desc: '9:16 için' }
-  ]
-  const o = tl.webcamOverlay
-  const sz = aspectSize(tl.aspect)
-  return (
-    <div className="col">
-      <div className="section-title">En-boy oranı</div>
-      <div className="row">
-        {aspects.map((a) => <button key={a} className={`btn grow${tl.aspect === a ? ' active' : ''}`} onClick={() => exec(cmd.aspect(a))} data-testid={`aspect-${a}`} aria-pressed={tl.aspect === a}>{a}</button>)}
-      </div>
-      <div className="hint">Çıkış: {sz.width}×{sz.height}</div>
-      <div className="section-title">Düzen</div>
-      <div className="col">
-        {layouts.map((l) => (
-          <button key={l.id} className={`btn${tl.layout === l.id ? ' active' : ''}`} style={{ justifyContent: 'space-between' }} onClick={() => exec(cmd.layout(l.id))} aria-pressed={tl.layout === l.id} disabled={tl.aspect !== '9:16' && l.id !== 'fill'} data-testid={`layout-${l.id}`}>
-            <span>{l.name}</span><span className="hint">{l.desc}</span>
-          </button>
-        ))}
-      </div>
-      {tl.aspect !== '9:16' && <div className="hint">9:16 dışındaki oranlarda ekran kareyi doldurur, kamera aşağıdaki konum ayarıyla yerleşir.</div>}
-      <div className="section-title">Kamera overlay (köşe düzenleri)</div>
-      <div className="row wrap">
-        {([['↖', 0.02, 0.04], ['↗', 0.68, 0.04], ['↙', 0.02, 0.66], ['↘', 0.68, 0.66]] as const).map(([n, x, y]) => <button key={n} className="btn sm" onClick={() => exec(cmd.webcamOverlay({ ...o, x, y }))} aria-label={`Kamera köşesi ${n}`}>{n}</button>)}
-      </div>
-      <Slider label="Boyut" value={o.w} min={0.1} max={0.6} onChange={(v) => exec(cmd.webcamOverlay({ ...o, w: v, h: tl.aspect === '9:16' ? v * (9 / 16) * 1.1 : v }))} format={(v) => `${Math.round(v * 100)}%`} />
-      <Slider label="Yatay konum" value={o.x} min={0} max={1 - o.w} onChange={(v) => exec(cmd.webcamOverlay({ ...o, x: v }))} format={(v) => `${Math.round(v * 100)}%`} />
-      <Slider label="Dikey konum" value={o.y} min={0} max={1 - o.h} onChange={(v) => exec(cmd.webcamOverlay({ ...o, y: v }))} format={(v) => `${Math.round(v * 100)}%`} />
-    </div>
-  )
-}
-
 function AudioMixer() {
   const { project, exec } = useStore()
   const tl = project.timeline
@@ -184,7 +146,7 @@ function Captions() {
 
 export function RightPanel() {
   const { rightTab, setRightTab, clipDraft } = useStore()
-  const tabs: [typeof rightTab, string][] = [['inspector', 'Klip'], ['layout', 'Düzen'], ['audio', 'Ses'], ['captions', 'Altyazı']]
+  const tabs: [typeof rightTab, string][] = [['inspector', 'Klip'], ['layout', 'Katmanlar'], ['audio', 'Ses'], ['captions', 'Altyazı']]
   return (
     <aside className="panel right" aria-label="Özellikler">
       {clipDraft ? (
@@ -196,7 +158,7 @@ export function RightPanel() {
           </div>
           <div className="panel-body">
             {rightTab === 'inspector' && <Inspector />}
-            {rightTab === 'layout' && <Layout />}
+            {rightTab === 'layout' && <LayersPanel />}
             {rightTab === 'audio' && <AudioMixer />}
             {rightTab === 'captions' && <Captions />}
           </div>

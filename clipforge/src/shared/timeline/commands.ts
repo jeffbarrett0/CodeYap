@@ -40,6 +40,7 @@ export const cmd = {
   cutRange: (a: number, b: number, ripple = true): TimelineCommand => makeCommand('Aralığı kes', (t) => ops.cutRange(t, a, b, ripple)),
   join: (clipId: ID): TimelineCommand => makeCommand('Birleştir', (t) => ops.joinWithNext(t, clipId)),
   closeGaps: (): TimelineCommand => makeCommand('Boşlukları kapat', (t) => ops.closeGaps(t)),
+  updateTrackText: (trackId: ID, spec: TextSpec): TimelineCommand => makeCommand('Varsayılan metin', (t) => ops.updateTrack(t, trackId, { textDefault: spec }), `tdef:${trackId}`),
   textSpec: (clipId: ID, patch: Partial<TextSpec>): TimelineCommand =>
     makeCommand('Metin', (t) => {
       const f = t.tracks.flatMap((tr) => tr.clips).find((c) => c.id === clipId)

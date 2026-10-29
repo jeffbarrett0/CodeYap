@@ -62,6 +62,9 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     'task:list': () => app.queue.list(),
     'model:download': (size) => app.downloadModel(size),
     'shell:reveal': (p) => shell.showItemInFolder(p),
+    'templates:list': () => app.templates.value,
+    'templates:save': (t) => app.templates.save(t),
+    'templates:delete': (id) => app.templates.remove(id),
     'dev:openDevTools': () => getWindow()?.webContents.openDevTools({ mode: 'detach' })
   }
 

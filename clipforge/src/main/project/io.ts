@@ -1,6 +1,7 @@
 import { access, cp, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { PROJECT_VERSION, type Project } from '../../shared/types'
+import { applyTemplate, DEFAULT_TEMPLATE } from '../../shared/timeline/templates'
 
 /** Proje dosyasının türetilmiş verileri (proxy, küçük resim, transkript) için yan klasör */
 export function dataDirFor(projectPath: string): string {
@@ -77,6 +78,8 @@ export async function openProject(projectPath: string): Promise<Project> {
     } else if (a.path && isAbsolute(a.path) && (await exists(a.path))) a.missing = undefined
     else a.missing = true
   }
+  // v1 projelerinde katman konumu yoktur: varsayılan şablon uygulanır (klipler ve iz kimlikleri korunur)
+  if (!p.timeline.tracks.some((t) => t.placement)) p.timeline = applyTemplate(p.timeline, { ...DEFAULT_TEMPLATE, aspect: p.timeline.aspect })
   p.chatLogs ??= []
   p.candidates ??= []
   p.markers ??= {}

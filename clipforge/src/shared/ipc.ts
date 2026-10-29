@@ -11,6 +11,7 @@ import type {
   ChatLog,
   ClipCandidate,
   ExportOptions,
+  LayoutTemplate,
   MediaAsset,
   Marker,
   Project,
@@ -109,6 +110,9 @@ export interface IpcInvoke {
   'task:list': [[], TaskInfo[]]
   'model:download': [[WhisperModelSize], string]
   'shell:reveal': [[string], void]
+  'templates:list': [[], LayoutTemplate[]]
+  'templates:save': [[LayoutTemplate], LayoutTemplate[]]
+  'templates:delete': [[string], LayoutTemplate[]]
   'dev:openDevTools': [[], void]
 }
 
@@ -135,7 +139,7 @@ export interface ClipforgeApi {
   /** Sürükle-bırak ile gelen dosyanın mutlak yolu (Electron: webUtils.getPathForFile) */
   pathForFile(file: File): string
   /** Önizleme medyası için URL (Electron: cf-media://, mock: statik dosya) */
-  mediaUrl(asset: MediaAsset, kind: 'video' | 'audio' | 'thumb', audioIndex?: number): string | null
+  mediaUrl(asset: MediaAsset, kind: 'video' | 'audio' | 'thumb' | 'image', audioIndex?: number): string | null
 }
 
 declare global {

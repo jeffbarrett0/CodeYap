@@ -182,4 +182,77 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('toast').first()).toContainText('Dosya bozuk')
     await expect(page.locator('.brand')).toBeVisible()
   })
+
+  test('katmanlar: varsayılan 3 bölgeli şablon, sürükle-bırak, sayısal giriş, görünürlük, şablon kaydet/uygula', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await page.getByTestId('tab-search').click()
+    await page.getByTestId('search-input').fill('Victor Nelson')
+    await page.getByTestId('search-btn').click()
+    await page.getByTestId('make-clip').first().click()
+    await page.getByTestId('add-to-timeline').click()
+    await page.getByTestId('rtab-layout').click()
+    await expect(page.getByTestId('layers-panel')).toBeVisible()
+
+    // varsayılan düzen: davet + hatırlatma metni, yüz, görsel, oyun ekranı (kapalı); metin klipleri otomatik oluştu
+    for (const id of ['T1', 'T2', 'V2', 'I1', 'V1']) await expect(page.getByTestId(`layer-${id}`)).toBeVisible()
+    await expect(page.getByTestId('lane-T1').getByTestId('clip')).toHaveCount(1)
+    // Yüz/kamera kaynağı olmayan bir klipte oyun ekranı katmanı otomatik açılır (aksi halde görüntü hiç görünmezdi)
+    await expect(page.getByTestId('ly-V1')).toBeVisible()
+    await page.getByTestId('eye-V1').click() // gizle
+    await expect(page.getByTestId('ly-V1')).toHaveCount(0)
+    await page.getByTestId('eye-V1').click() // göster
+    await expect(page.getByTestId('ly-V1')).toBeVisible()
+
+    // sayısal giriş: yüz katmanının yüksekliği
+    await page.getByTestId('layer-V2').click()
+    const detail = page.getByTestId('layer-detail')
+    await detail.getByLabel('Yükseklik').fill('30')
+    await expect(page.getByTestId('ly-V2')).toBeVisible()
+    const h = await page.getByTestId('ly-V2').evaluate((el) => (el as HTMLElement).style.height)
+    expect(h).toBe('30%')
+
+    // önizlemede sürükle: katman aşağı kayar
+    await page.getByTestId('mode-timeline').click()
+    const box = (await page.getByTestId('ly-V2').boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 120, { steps: 6 })
+    await page.mouse.up()
+    const top = await page.getByTestId('ly-V2').evaluate((el) => parseFloat((el as HTMLElement).style.top))
+    expect(top).toBeGreaterThan(5)
+    // tek geri alma sürüklemeyi geri alır
+    await page.keyboard.press('Control+z')
+    const top2 = await page.getByTestId('ly-V2').evaluate((el) => parseFloat((el as HTMLElement).style.top))
+    expect(top2).toBeLessThan(1)
+
+    // sağ-alt tutamaçla boyutlandır
+    const b2 = (await page.getByTestId('ly-V2').boundingBox())!
+    const hd = (await page.getByTestId('hd-V2-se').boundingBox())!
+    await page.mouse.move(hd.x + hd.width / 2, hd.y + hd.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(hd.x - 60, hd.y - 20, { steps: 5 })
+    await page.mouse.up()
+    expect((await page.getByTestId('ly-V2').boundingBox())!.width).toBeLessThan(b2.width - 30)
+
+    // metin katmanı düzenle
+    await page.getByTestId('layer-T1').click()
+    await page.getByTestId('layer-text').fill('KANALIMA GEL')
+    await expect(page.getByTestId('lane-T1').locator('[data-testid=clip]').first()).toContainText('KANALIMA GEL')
+
+    // şablon olarak kaydet → yeni projede uygula
+    await page.getByTestId('tpl-name').fill('Benim düzenim')
+    await page.getByTestId('tpl-save').click()
+    await expect(page.getByTestId('tpl-select')).toContainText('Benim düzenim')
+    await page.getByTestId('tpl-select').selectOption({ label: 'Benim düzenim' })
+    await expect(page.getByTestId('tpl-delete')).toBeVisible()
+    await page.getByTestId('tpl-select').selectOption({ index: 0 })
+    await page.getByTestId('tpl-apply').click()
+    await page.getByTestId('layer-V2').click()
+    await expect(page.getByTestId('layer-detail').getByLabel('Yükseklik')).not.toHaveValue('30')
+    await page.getByTestId('tpl-select').selectOption({ label: 'Benim düzenim' })
+    await page.getByTestId('tpl-apply').click()
+    await page.getByTestId('layer-V2').click()
+    await expect(page.getByTestId('layer-detail').getByLabel('Yükseklik')).toHaveValue(/^(2[0-9]|3[0-9])/)
+  })
 })

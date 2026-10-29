@@ -21,4 +21,5 @@ if (!existsSync(join(out, 'sample.mp4'))) {
   const file = join(out, `audio_${i}.m4a`)
   if (!existsSync(file)) run(['-f', 'lavfi', '-i', `sine=frequency=${f}:sample_rate=32000:duration=120`, '-ac', '1', '-c:a', 'aac', '-b:a', '32k', file])
 })
+if (!existsSync(join(out, 'image.png'))) run(['-f', 'lavfi', '-i', 'testsrc2=size=900x700:duration=1', '-frames:v', '1', join(out, 'image.png')])
 console.log('Demo medya hazır:', out)

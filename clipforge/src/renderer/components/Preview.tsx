@@ -4,6 +4,7 @@ import { requireApi } from '../api'
 import { PreviewEngine, previewSize } from '../preview/engine'
 import { useStore } from '../store'
 import { fmt } from './ui'
+import { LayerOverlay } from './Layers'
 
 function Scrubber({ value, max, onSeek, range, marks }: { value: number; max: number; onSeek: (t: number) => void; range?: [number, number]; marks?: number[] }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -140,6 +141,24 @@ function TimelinePreview() {
   const tl = useStore((s) => s.project.timeline)
   const total = timelineDuration(tl)
   const { width, height } = previewSize(tl)
+  // Canvas, alanı en-boy oranını koruyarak doldurur; katman tutamaçları aynı kutuya oturur
+  const areaRef = useRef<HTMLDivElement>(null)
+  const [box, setBox] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    const el = areaRef.current
+    if (!el) return
+    const fit = () => {
+      const cw = el.clientWidth - 20
+      const ch = el.clientHeight - 20
+      const ar = width / height
+      const w = Math.max(0, Math.min(cw, ch * ar))
+      setBox({ w, h: w / ar })
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [width, height])
 
   useEffect(() => {
     engineRef.current = new PreviewEngine(requireApi())
@@ -183,7 +202,7 @@ function TimelinePreview() {
     const st = useStore.getState()
     eng.sync(tl, st.project.assets, playhead, playing && rateRef.current > 0, Math.abs(rateRef.current) || 1)
     const ctx = c.getContext('2d')
-    if (ctx) eng.draw(ctx, c.width, c.height, tl, st.project.assets, playhead)
+    if (ctx) eng.draw(ctx, c.width, c.height, tl, st.project.assets, playhead, !st.playing)
   }, [playhead, tl, playing, width, height])
 
   // video kareleri sonradan yüklenince de çiz
@@ -194,7 +213,7 @@ function TimelinePreview() {
         const c = canvasRef.current
         const st = useStore.getState()
         const ctx = c?.getContext('2d')
-        if (eng && c && ctx) eng.draw(ctx, c.width, c.height, st.project.timeline, st.project.assets, st.playhead)
+        if (eng && c && ctx) eng.draw(ctx, c.width, c.height, st.project.timeline, st.project.assets, st.playhead, true)
       }, 250)
       return () => clearInterval(id)
     }
@@ -214,8 +233,11 @@ function TimelinePreview() {
   const { setPlayhead, setPlaying } = useStore.getState()
   return (
     <>
-      <div className="stage-area">
-        <canvas ref={canvasRef} width={width} height={height} data-testid="timeline-canvas" aria-label="Zaman çizelgesi önizlemesi" />
+      <div className="stage-area" ref={areaRef}>
+        <div className="canvas-box" style={{ width: box.w, height: box.h }}>
+          <canvas ref={canvasRef} width={width} height={height} data-testid="timeline-canvas" aria-label="Zaman çizelgesi önizlemesi" />
+          <LayerOverlay />
+        </div>
       </div>
       <div className="transport">
         <button className="btn icon" onClick={() => { rateRef.current = 1; setRate(1); setPlaying(!playing) }} aria-label={playing ? 'Duraklat' : 'Oynat'} data-testid="tl-play">{playing ? '⏸' : '▶'}</button>

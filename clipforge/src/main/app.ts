@@ -14,7 +14,7 @@ import { audioLevelSeries, detectScenes } from './media/audio'
 import { importMedia, loadMarkers, type MediaTools } from './media/import'
 import { makeProxy } from './media/proxy'
 import { copyDataDir, dataDirFor, openProject, saveProject } from './project/io'
-import { SettingsStore } from './settings-store'
+import { SettingsStore, TemplateStore } from './settings-store'
 import { TaskQueue, userMessage } from './tasks'
 import { createEmbeddingProvider } from './embeddings'
 import { downloadModel, modelInstalled } from './transcribe/models'
@@ -35,6 +35,7 @@ export interface AppDeps {
  */
 export class AppService {
   readonly settings: SettingsStore
+  readonly templates: TemplateStore
   readonly queue = new TaskQueue()
   readonly assets = new Map<string, MediaAsset>()
   readonly search: SearchService
@@ -43,6 +44,7 @@ export class AppService {
 
   constructor(readonly deps: AppDeps) {
     this.settings = new SettingsStore(join(deps.userDataDir, 'settings.json'))
+    this.templates = new TemplateStore(join(deps.userDataDir, 'templates.json'))
     this.search = new SearchService(() => createEmbeddingProvider(this.settings.value))
     this.dataDir = join(deps.userDataDir, 'projects', `session-${Date.now().toString(36)}`)
     this.queue.onUpdate((t) => deps.emit('task:update', t))
@@ -50,6 +52,7 @@ export class AppService {
 
   async init(): Promise<void> {
     await this.settings.load()
+    await this.templates.load()
     await mkdir(this.dataDir, { recursive: true })
   }
 
@@ -277,6 +280,7 @@ export class AppService {
   resolveMediaPath(assetId: string, kind: string, index = 0): string | null {
     const a = this.assets.get(assetId)
     if (!a) return null
+    if (kind === 'image') return a.kind === 'image' ? a.path : null
     if (kind === 'thumb') return a.thumbnailPath ? join(this.dataDir, a.thumbnailPath) : null
     if (kind === 'audio') {
       const p = a.audioStreams[index]?.proxyPath

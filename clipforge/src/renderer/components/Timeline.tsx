@@ -6,7 +6,7 @@ import type { Clip, Track } from '@shared/types'
 import { useStore } from '../store'
 import { fmt } from './ui'
 
-const ROLE_CLASS: Record<string, string> = { screen: 'screen', webcam: 'webcam', game: 'game', voice: 'voice', mix: 'mix' }
+const ROLE_CLASS: Record<string, string> = { screen: 'screen', webcam: 'webcam', game: 'game', voice: 'voice', mix: 'mix', image: 'image', text: 'text' }
 
 function tickStep(zoom: number): number {
   const steps = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600]
@@ -152,7 +152,11 @@ export function Timeline() {
               <div className="tn">
                 <span>{t.name}</span>
                 <span className="row" style={{ gap: 3 }}>
-                  <button className={t.muted ? 'on' : ''} title={t.kind === 'video' ? 'Gizle' : 'Sustur'} aria-label={`${t.name} ${t.kind === 'video' ? 'gizle' : 'sustur'}`} onClick={() => exec(cmd.track(t.id, { muted: !t.muted }))}>{t.kind === 'video' ? 'G' : 'M'}</button>
+                  {t.placement ? (
+                    <button className={t.placement.visible ? '' : 'on'} title={t.placement.visible ? 'Gizle' : 'Göster'} aria-label={`${t.name} ${t.placement.visible ? 'gizle' : 'göster'}`} onClick={() => useStore.getState().toggleLayerVisible(t.id)} data-testid={`vis-${t.id}`}>{t.placement.visible ? 'G' : '⊘'}</button>
+                  ) : (
+                    <button className={t.muted ? 'on' : ''} title="Sustur" aria-label={`${t.name} sustur`} onClick={() => exec(cmd.track(t.id, { muted: !t.muted }))}>M</button>
+                  )}
                   <button className={t.locked ? 'on' : ''} title="Kilitle" aria-label={`${t.name} kilitle`} onClick={() => exec(cmd.track(t.id, { locked: !t.locked }))}>K</button>
                 </span>
               </div>

@@ -10,7 +10,8 @@ import { clipEnd, createDefaultTimeline, findClip, groupMembers, newId, timeline
 import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
 import { EXPORT_PRESETS } from '@shared/export/presets'
 import { PROJECT_VERSION } from '@shared/types'
-import type { ChatLog, ClipCandidate, ExportOptions, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
+import { BUILTIN_TEMPLATES, templateFromTimeline } from '@shared/timeline/templates'
+import type { ChatLog, ClipCandidate, ExportOptions, LayoutTemplate, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
 import { requireApi } from './api'
 
 export type LeftTab = 'media' | 'search' | 'suggest'
@@ -84,6 +85,8 @@ interface State {
   playing: boolean
   zoom: number
 
+  selectedLayerId: string | null
+  userTemplates: LayoutTemplate[]
   transcripts: Record<string, Transcript>
   tasks: Record<string, TaskInfo>
   toasts: Toast[]
@@ -148,6 +151,16 @@ interface State {
   saveProject(saveAs?: boolean): Promise<void>
   startExport(opts: { options: ExportOptions; name: string; mode: 'all' | 'each' | 'selection' }): Promise<void>
   cancelTask(id: string): void
+
+  selectLayer(id: string | null): void
+  loadTemplates(): Promise<void>
+  applyLayoutTemplate(tpl: LayoutTemplate): void
+  saveLayoutTemplate(name: string): Promise<void>
+  deleteLayoutTemplate(id: string): Promise<void>
+  /** Katmanı (iz) kare içinde gösterir/gizler */
+  toggleLayerVisible(trackId: string): void
+  /** Klip eklendikten sonra: metin katmanlarını doldurur; kamera yoksa oyun ekranı katmanını açar */
+  afterClipsAdded(trackIds: string[]): void
 }
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -175,6 +188,8 @@ export const useStore = create<State>()((set, get) => {
     sourceTime: 0,
     playing: false,
     zoom: 40,
+    selectedLayerId: null,
+    userTemplates: [],
     transcripts: {},
     tasks: {},
     toasts: [],
@@ -194,6 +209,7 @@ export const useStore = create<State>()((set, get) => {
       const a = api()
       const [settings, appInfo, tasks] = await Promise.all([a.invoke('settings:get'), a.invoke('app:info'), a.invoke('task:list')])
       set({ settings, appInfo, tasks: Object.fromEntries(tasks.map((t) => [t.id, t])), ready: true })
+      void get().loadTemplates()
       a.on('task:update', (t) => {
         set((s) => ({ tasks: { ...s.tasks, [t.id]: t } }))
         if (t.status === 'failed') get().toast('error', `${t.title}: ${t.error ?? 'Bilinmeyen hata'}`)
@@ -393,6 +409,7 @@ export const useStore = create<State>()((set, get) => {
       const items = clipItemsForSource(asset, { start: d.start, end: d.end }, timelineDuration(s.project.timeline), { query: d.query, resultId: d.resultId, matchTime: d.matchTime, candidateId: d.candidateId }, cam)
       const at = timelineDuration(s.project.timeline)
       get().exec(cmd.addClips(items.map((i) => ({ ...i, clip: { ...i.clip, start: at + (i.clip.start - items[0].clip.start) } }))))
+      get().afterClipsAdded(items.map((i) => i.trackId))
       if (d.candidateId) get().setCandidateStatus(d.candidateId, 'accepted')
       set({ clipDraft: null, dialog: null, selection: items.slice(0, 1).map((i) => i.clip.id), viewMode: 'timeline', rightTab: 'inspector' })
       get().setPlayhead(at)
@@ -416,6 +433,7 @@ export const useStore = create<State>()((set, get) => {
       }
       if (items.length === 0) return
       get().exec(cmd.addClips(items, 'Toplu klip oluştur'))
+      get().afterClipsAdded(items.map((i) => i.trackId))
       set({ selectedResults: [], viewMode: 'timeline' })
       get().toast(warned ? 'info' : 'success', `${ids.length} klip eklendi${warned ? ` (${warned} klipte uyarı var: süre/sınır kontrolü önerilir)` : ''}.`)
     },
@@ -567,7 +585,50 @@ export const useStore = create<State>()((set, get) => {
         get().toast('error', errText(e))
       }
     },
-    cancelTask: (id) => void api().invoke('task:cancel', id)
+    cancelTask: (id) => void api().invoke('task:cancel', id),
+
+    selectLayer: (id) => set({ selectedLayerId: id, ...(id ? { rightTab: 'layout' as RightTab } : {}) }),
+    async loadTemplates() {
+      try {
+        set({ userTemplates: await api().invoke('templates:list') })
+      } catch (e) {
+        get().toast('error', errText(e))
+      }
+    },
+    applyLayoutTemplate(tpl) {
+      get().exec(cmd.applyTemplate(tpl))
+      get().toast('success', `Şablon uygulandı: ${tpl.name}`)
+    },
+    async saveLayoutTemplate(name) {
+      const id = `user-${newId('t')}`
+      const tpl = templateFromTimeline(get().project.timeline, id, name.trim() || 'Şablonum')
+      try {
+        set({ userTemplates: await api().invoke('templates:save', tpl) })
+        get().toast('success', `Şablon kaydedildi: ${tpl.name}`)
+      } catch (e) {
+        get().toast('error', errText(e))
+      }
+    },
+    async deleteLayoutTemplate(id) {
+      try {
+        set({ userTemplates: await api().invoke('templates:delete', id) })
+      } catch (e) {
+        get().toast('error', errText(e))
+      }
+    },
+    afterClipsAdded(trackIds) {
+      get().exec(cmd.fillText())
+      const tl = get().project.timeline
+      const screen = tl.tracks.find((t) => t.id === 'V1')
+      // Şablonda oyun ekranı katmanı kapalıdır; yüz/kamera kaynağı yoksa görüntü hiç görünmezdi → aç
+      if (trackIds.includes('V1') && !trackIds.includes('V2') && screen?.placement && !screen.placement.visible && !tl.tracks.find((t) => t.id === 'V2')?.clips.length) {
+        get().exec(cmd.placement('V1', { visible: true }, false))
+      }
+    },
+    toggleLayerVisible(trackId) {
+      const t = get().project.timeline.tracks.find((x) => x.id === trackId)
+      if (t?.placement) get().exec(cmd.placement(trackId, { visible: !t.placement.visible }, false))
+    }
   }
 })
 

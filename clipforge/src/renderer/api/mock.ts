@@ -77,6 +77,7 @@ export function createMockApi(): ClipforgeApi {
   const search = new SearchService()
   const queue = new TaskQueue()
   queue.onUpdate((t) => emit('task:update', t))
+  let userTemplates: import('@shared/types').LayoutTemplate[] = []
   const w = window as unknown as { __mock?: { nextChat?: string; fail?: Record<string, string> } }
   w.__mock = w.__mock ?? {}
 
@@ -156,6 +157,9 @@ export function createMockApi(): ClipforgeApi {
     'task:cancel': (id) => queue.cancel(id),
     'task:list': () => queue.list(),
     'model:download': () => queue.add({ kind: 'model-download', title: 'Model indiriliyor', run: async () => { await sleep(100) } }).id,
+    'templates:list': () => userTemplates,
+    'templates:save': (t) => (userTemplates = [...userTemplates.filter((x) => x.id !== t.id), { ...t, builtin: false }]),
+    'templates:delete': (id) => (userTemplates = userTemplates.filter((x) => x.id !== id)),
     'shell:reveal': () => undefined,
     'dev:openDevTools': () => undefined
   }
@@ -178,6 +182,6 @@ export function createMockApi(): ClipforgeApi {
       return () => set.delete(cb as never)
     },
     pathForFile: (f) => `/demo/${f.name}`,
-    mediaUrl: (asset, kind, idx = 0) => (kind === 'video' ? '/demo/sample.mp4' : kind === 'audio' ? (asset.audioStreams[idx] ? `/demo/audio_${idx}.m4a` : null) : null)
+    mediaUrl: (asset, kind, idx = 0) => (kind === 'image' ? (asset.kind === 'image' ? '/demo/image.png' : null) : kind === 'video' ? '/demo/sample.mp4' : kind === 'audio' ? (asset.audioStreams[idx] ? `/demo/audio_${idx}.m4a` : null) : null)
   }
 }
