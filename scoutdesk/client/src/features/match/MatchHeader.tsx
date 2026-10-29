@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Download } from 'lucide-react'
+import { ChevronDown, ChevronUp, Download, LayoutPanelTop } from 'lucide-react'
 import { useState } from 'react'
 import { MatchBanner } from '@/components/MatchBanner'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,7 @@ import { ImportMatchDialog } from '../matches/ImportMatchDialog'
 const STATUS = { untagged: { label: 'Untagged', tone: 'muted' }, in_progress: { label: 'In review', tone: 'warning' }, complete: { label: 'Tagged', tone: 'success' } } as const
 
 /** Match info strip at the top of the analysis screen (collapsible to win back vertical space). */
-export function MatchHeader({ match }: { match: Match }) {
+export function MatchHeader({ match, onResetLayout }: { match: Match; onResetLayout?: () => void }) {
   const { teamById } = useLookups()
   const { canWrite } = useCan()
   const [open, setOpen] = useState(() => { try { return localStorage.getItem('scoutdesk.header2') === 'open' } catch { return false } })
@@ -28,6 +28,7 @@ export function MatchHeader({ match }: { match: Match }) {
         <p className="flex items-center justify-center gap-3 text-xs"><strong>{home.name}</strong><span className="timecode rounded bg-raised px-1.5">{match.homeScore ?? '–'} : {match.awayScore ?? '–'}</span><strong>{away.name}</strong><span className="text-muted">{match.competition} · {match.date.slice(0, 10)}</span></p>
       )}
       <div className="absolute right-4 top-3 flex items-center gap-1" style={{ top: open ? 38 : 6 }}>
+        {onResetLayout && <Button variant="ghost" size="xs" onClick={onResetLayout} title="Video, zaman çizelgesi ve panellerin boyutlarını varsayılana döndür. Boyutları ayırıcıları sürükleyerek değiştirebilirsin; seçimin hatırlanır."><LayoutPanelTop className="h-3 w-3" /> Düzeni sıfırla</Button>}
         {canWrite && open && <Button variant="ghost" size="xs" onClick={() => setImporting(true)} title="Fill in this match from a SofaScore / Transfermarkt / other link"><Download className="h-3 w-3" /> Import from link</Button>}
         <Button variant="ghost" size="icon-sm" aria-label={open ? 'Collapse match header' : 'Expand match header'} aria-expanded={open} onClick={toggle}>{open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}</Button>
       </div>

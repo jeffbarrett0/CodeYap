@@ -3,10 +3,10 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select } from '@/components/ui/input'
 import { frameAt } from '@/lib/timecode'
-import { cn } from '@/lib/utils'
 import { useData } from '@/store/data'
 import type { Match } from '@/types'
-import { DRAW_COLORS, isVisible, useDrawing, type Shape } from './drawing'
+import { ColorPicker } from './ColorPicker'
+import { isVisible, useDrawing, type Shape } from './drawing'
 import { usePlayback } from './playback'
 
 const NAME: Record<Shape['type'], string> = {
@@ -96,11 +96,29 @@ export function DrawingInspector({ match }: { match: Match }) {
         <Field label="Numara"><Input value={sel.text ?? ''} maxLength={3} onChange={(e) => update(sel.id, { text: e.target.value })} aria-label="Numara" className="w-24" /></Field>
       )}
 
+      {(sel.type === 'player' || sel.type === 'number') && (
+        <label className="flex items-center gap-2">
+          <span className="w-20 shrink-0 text-muted">{sel.type === 'player' ? 'Yazı boyutu' : 'Numara boyutu'}</span>
+          <input type="range" min={0.5} max={4} step={0.1} value={sel.size ?? 1} onChange={(e) => update(sel.id, { size: Number(e.target.value) })} aria-label={sel.type === 'player' ? 'Yazı boyutu' : 'Numara boyutu'} className="h-1 flex-1" />
+          <span className="timecode w-9 text-right">{Math.round((sel.size ?? 1) * 100)}%</span>
+        </label>
+      )}
+      {sel.type === 'zoom' && (
+        <div className="space-y-2">
+          <p className="text-muted">Close-up penceresinde sürükle: kaydır. Tekerlek: yakınlaştır/uzaklaştır. Kenardaki nokta: boyutu değiştir.</p>
+          <label className="flex items-center gap-2"><span className="w-20 shrink-0 text-muted">Yakınlaştırma</span>
+            <input type="range" min={0.4} max={8} step={0.1} value={sel.zk ?? 1} onChange={(e) => update(sel.id, { zk: Number(e.target.value) })} aria-label="Close-up yakınlaştırma" className="h-1 flex-1" />
+            <span className="timecode w-9 text-right">{(sel.zk ?? 1).toFixed(1)}×</span></label>
+          <label className="flex items-center gap-2"><span className="w-20 shrink-0 text-muted">Pencere</span>
+            <input type="range" min={0.5} max={2} step={0.05} value={sel.zs ?? 1} onChange={(e) => update(sel.id, { zs: Number(e.target.value) })} aria-label="Close-up pencere boyutu" className="h-1 flex-1" />
+            <span className="timecode w-9 text-right">{Math.round((sel.zs ?? 1) * 100)}%</span></label>
+          <Button size="sm" variant="secondary" onClick={() => update(sel.id, { zdx: 0, zdy: 0, zk: 1 })}>Kaydırmayı sıfırla</Button>
+        </div>
+      )}
+
       <div>
         <p className="label mb-1">Renk</p>
-        <div className="flex gap-1.5">
-          {DRAW_COLORS.map((c) => <button key={c} type="button" aria-label={`Renk ${c}`} aria-pressed={sel.color === c} onClick={() => setColor(c)} className={cn('h-6 w-6 rounded-full border-2', sel.color === c ? 'border-foreground' : 'border-transparent')} style={{ background: c }} />)}
-        </div>
+        <ColorPicker value={sel.color} onChange={setColor} />
       </div>
       <label className="flex items-center gap-2 text-muted">Kalınlık
         <input type="range" min={2} max={14} value={Math.min(14, Math.max(2, Math.round(sel.width)))} onChange={(e) => setWidth(Number(e.target.value))} aria-label="Çizgi kalınlığı" className="h-1 flex-1" />

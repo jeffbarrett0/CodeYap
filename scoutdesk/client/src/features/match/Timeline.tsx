@@ -13,23 +13,23 @@ import { player, usePlayback } from './playback'
 const PAD_L = 16
 const PAD_R = 24
 const RULER_H = 24
-const TRACK_H = 56
-const ROW_H = 14
-const MAX_ROWS = 4
+const TRACK_H = 44
+const TICK_H = 14
 const MAX_WIDTH = 8000
 const STRIP_FRAMES = 24
 const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
 
 /**
- * Simple timeline: a time ruler, the match video as one filmstrip track, and the tagged clips as small
- * coloured markers underneath. Click or drag anywhere to jump to that moment; click a marker to open that clip.
+ * Simple timeline: a time ruler, the match video as one filmstrip track, and the tagged events as thin ticks
+ * underneath. Only three tones are used: neutral grey (events), the accent (goals and the selected event) and
+ * the playhead. Click or drag anywhere to jump to that moment; click a tick to open that clip.
  */
 export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<string>; canEdit?: boolean }) {
   const clips = useClips((s) => s.clips)
   const selectedIds = useClips((s) => s.selectedIds)
   const duration = usePlayback((s) => s.duration)
   const fps = usePlayback((s) => s.fps)
-  const { categoryOfTag, tagById, playerById } = useLookups()
+  const { tagById, playerById } = useLookups()
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLDivElement>(null)
@@ -84,20 +84,8 @@ export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<
     return out
   }, [pps, duration])
 
-  // Clip markers, packed into rows so overlapping clips do not hide each other ─
-  const markers = useMemo(() => {
-    const rows: number[] = []
-    return [...clips]
-      .filter((c) => visibleIds.has(c.id))
-      .sort((a, b) => a.startSec - b.startSec)
-      .map((clip) => {
-        let row = rows.findIndex((end) => end <= clip.startSec)
-        if (row === -1) row = Math.min(rows.length, MAX_ROWS - 1)
-        rows[row] = Math.max(rows[row] ?? 0, clip.endSec)
-        return { clip, row, color: categoryOfTag.get(clip.tagTypeId)?.color ?? '#94a3b8' }
-      })
-  }, [clips, visibleIds, categoryOfTag])
-  const rowCount = Math.max(1, Math.min(MAX_ROWS, markers.reduce((m, x) => Math.max(m, x.row + 1), 1)))
+  // Event ticks: one lane, sorted by time (hovering a tick tells what it is).
+  const markers = useMemo(() => [...clips].filter((c) => visibleIds.has(c.id)).sort((a, b) => a.timeSec - b.timeSec), [clips, visibleIds])
   const selected = useMemo(() => new Set(selectedIds), [selectedIds])
 
   // Seek by pointer ─────────────────────────────────────────────────────────
@@ -124,7 +112,7 @@ export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<
     player.seek(start)
   }
 
-  const contentH = RULER_H + 6 + TRACK_H + 8 + rowCount * ROW_H + 8
+  const contentH = RULER_H + 6 + TRACK_H + 8 + TICK_H + 8
   const cells = Math.max(1, Math.ceil(trackW / ((TRACK_H * 16) / 9)))
 
   return (
@@ -153,7 +141,7 @@ export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<
             </div>
 
             {/* the match video as one track */}
-            <div className="absolute overflow-hidden rounded-md border-2 border-accent/70 bg-raised" style={{ left: PAD_L, width: trackW, top: RULER_H + 6, height: TRACK_H }}>
+            <div className="absolute overflow-hidden rounded-md border border-border bg-raised" style={{ left: PAD_L, width: trackW, top: RULER_H + 6, height: TRACK_H }}>
               <div className="flex h-full" aria-hidden>
                 {Array.from({ length: cells }, (_, i) => (
                   <div key={i} className="h-full shrink-0" style={{ width: trackW / cells, backgroundImage: `url(${video.filmstripUrl})`, backgroundSize: `${STRIP_FRAMES * 100}% 100%`, backgroundPosition: `${(Math.min(STRIP_FRAMES - 1, Math.floor(((i + 0.5) / cells) * STRIP_FRAMES)) / (STRIP_FRAMES - 1)) * 100}% 0` }} />
@@ -161,15 +149,16 @@ export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<
               </div>
               <div className="pointer-events-none absolute left-0 top-0 flex max-w-full items-center gap-2 bg-black/55 px-1.5 py-0.5 text-2xs text-white">
                 <span className="truncate">{video.title}</span>
-                <span className="timecode shrink-0 rounded bg-accent/80 px-1 text-accent-foreground">{formatTimecode(duration, fps).slice(0, 8)}</span>
+                <span className="timecode shrink-0 rounded bg-white/20 px-1">{formatTimecode(duration, fps).slice(0, 8)}</span>
               </div>
             </div>
 
-            {/* tagged clips */}
+            {/* tagged events: thin ticks, goals and the selected one in the accent colour */}
             <div className="absolute" style={{ left: 0, right: 0, top: RULER_H + 6 + TRACK_H + 8 }}>
-              {markers.map(({ clip, row, color }) => {
+              {markers.map((clip) => {
                 const tag = tagById.get(clip.tagTypeId)
                 const who = clip.playerId ? playerById.get(clip.playerId)?.name : null
+                const hot = selected.has(clip.id) || tag?.name === 'Goal'
                 return (
                   <button
                     key={clip.id}
@@ -179,8 +168,8 @@ export function Timeline({ video, visibleIds }: { video: Video; visibleIds: Set<
                     title={`${tag?.name ?? 'Clip'} · ${formatClock(clip.timeSec)}${who ? ` · ${who}` : ''}${clip.notes ? ` — ${clip.notes}` : ''}`}
                     onPointerDown={(e) => onMarkerDown(e, clip.id, clip.startSec)}
                     data-clip-marker={clip.id}
-                    className={cn('absolute rounded-sm', selected.has(clip.id) && 'ring-2 ring-foreground')}
-                    style={{ left: xOf(clip.startSec), top: row * ROW_H, width: Math.max(5, (clip.endSec - clip.startSec) * pps), height: ROW_H - 3, background: color }}
+                    className={cn('absolute top-0 w-[3px] rounded-full', hot ? 'bg-accent' : 'bg-foreground/35 hover:bg-foreground/70', selected.has(clip.id) && 'ring-1 ring-accent ring-offset-1 ring-offset-surface')}
+                    style={{ left: xOf(clip.timeSec) - 1.5, height: TICK_H }}
                   />
                 )
               })}

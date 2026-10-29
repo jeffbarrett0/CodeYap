@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { newId } from '@/lib/ids'
 import { frameAt } from '@/lib/timecode'
-import { arrowHead, clickBox, ellipseOf, isVisible, markerGeom, tagWidth, useDrawing, withBounds, zoomInset, type DrawTool, type Shape } from './drawing'
+import { arrowHead, clickBox, ellipseOf, isVisible, markerGeom, tagCenterY, tagWidth, useDrawing, withBounds, zoomInset, type DrawTool, type Shape } from './drawing'
 import { player, usePlayback } from './playback'
 
 type Drag =
   | { kind: 'draw' }
   | { kind: 'move'; id: string; start: { x: number; y: number }; orig: Shape }
   | { kind: 'handle'; id: string; which: number }
+  | { kind: 'size'; id: string }
 
 type Pt = { x: number; y: number }
 
@@ -79,6 +80,13 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
     drag.current = { kind: 'handle', id: s.id, which }
   }
 
+  const onSizeDown = (e: React.PointerEvent, s: Shape) => {
+    if (e.button !== 0) return
+    grab(e)
+    select(s.id)
+    drag.current = { kind: 'size', id: s.id }
+  }
+
   /** Close a link chain / polygon; the Select tool takes over so the next click doesn't draw more. */
   const finishPoly = (pts: Pt[]) => {
     const need = tool === 'link' ? 2 : 3
@@ -135,6 +143,12 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
       const dx = p.x - d.start.x
       const dy = p.y - d.start.y
       update(d.id, { x1: d.orig.x1 + dx, y1: d.orig.y1 + dy, x2: d.orig.x2 + dx, y2: d.orig.y2 + dy, ...(d.orig.pts ? { pts: d.orig.pts.map(([x, y]) => [x + dx, y + dy] as [number, number]) } : {}) })
+    } else if (d.kind === 'size') {
+      const s = useDrawing.getState().shapes.find((x) => x.id === d.id)
+      if (!s) return
+      // Number: the handle sits on the badge's edge; player: on the tag's right edge. Size follows the distance from the anchor.
+      const size = s.type === 'number' ? Math.hypot(p.x - s.x1, p.y - s.y1) / g.badge : Math.abs(p.x - s.x1) / (tagWidth(s.text || 'Oyuncu', g.k) / 2)
+      update(d.id, { size: Math.min(4, Math.max(0.5, size)) })
     } else {
       const s = useDrawing.getState().shapes.find((x) => x.id === d.id)
       if (!s) return
@@ -171,6 +185,22 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
     if (tool === 'link' || tool === 'area') finishPoly(polyRef.current)
     else if (tool === 'number') setTool('select')
   }
+
+  // Mouse wheel over a number / player marker resizes it (instead of zooming the whole video).
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const onWheel = (e: WheelEvent) => {
+      const id = (e.target as Element).closest('[data-shape]')?.getAttribute('data-id')
+      const s = id ? useDrawing.getState().shapes.find((x) => x.id === id) : undefined
+      if (!s || (s.type !== 'number' && s.type !== 'player')) return
+      e.preventDefault()
+      e.stopPropagation()
+      useDrawing.getState().update(s.id, { size: Math.min(4, Math.max(0.5, (s.size ?? 1) * (e.deltaY < 0 ? 1.1 : 1 / 1.1))) })
+    }
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    return () => svg.removeEventListener('wheel', onWheel)
+  }, [])
 
   // Enter also finishes a chain / polygon.
   useEffect(() => {
@@ -237,24 +267,27 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
       )
     } else if (s.type === 'number' || s.type === 'player') {
       handles = []
-      const by = s.y1 - g.lift
+      const sz = s.size ?? 1
       const text = s.text || (s.type === 'number' ? '1' : 'Oyuncu')
-      const tw = tagWidth(text, g.k)
+      const tw = tagWidth(text, g.k, sz)
+      const tcy = tagCenterY(s, g)
+      // Where the resize handle sits: number = right edge of the badge, player = right edge of the tag.
+      const hx = s.type === 'number' ? s.x1 + g.badge * sz : s.x1 + tw / 2
+      const hy = s.type === 'number' ? s.y1 : tcy
       body = (
         <>
-          <ellipse cx={s.x1} cy={s.y1} {...ringProps(s)} fill="transparent" {...common} />
           {s.type === 'number' ? (
             <g {...common}>
-              <circle cx={s.x1} cy={by} r={g.badge} fill="#0b0b0b" stroke="#fff" strokeWidth={2 * g.k} />
-              <text x={s.x1} y={by} dy="0.35em" textAnchor="middle" fill="#fff" fontWeight={700} fontSize={15 * g.k} style={{ pointerEvents: 'none' }}>{text}</text>
+              <circle cx={s.x1} cy={s.y1} r={g.badge * sz} fill="#0b0b0b" stroke={s.color} strokeWidth={2 * g.k * sz} />
+              <text x={s.x1} y={s.y1} dy="0.35em" textAnchor="middle" fill="#fff" fontWeight={700} fontSize={g.numFont * sz} style={{ pointerEvents: 'none' }}>{text}</text>
             </g>
           ) : (
             <g {...common}>
-              <rect x={s.x1 - tw / 2} y={by - g.tagH / 2} width={tw} height={g.tagH} fill="#0b1220" />
-              <text x={s.x1} y={by} dy="0.35em" textAnchor="middle" fill="#fff" fontWeight={700} fontSize={g.font} style={{ pointerEvents: 'none' }}>{text}</text>
+              <rect x={s.x1 - tw / 2} y={tcy - (g.tagH * sz) / 2} width={tw} height={g.tagH * sz} fill="#0b1220" stroke={s.color} strokeWidth={2 * g.k * sz} />
+              <text x={s.x1} y={tcy} dy="0.35em" textAnchor="middle" fill="#fff" fontWeight={700} fontSize={g.font * sz} style={{ pointerEvents: 'none' }}>{text}</text>
             </g>
           )}
-          {sel && <ellipse cx={s.x1} cy={s.y1} rx={g.rx + 5 * unit} ry={g.ry + 4 * unit} {...dashed} />}
+          {sel && <circle cx={hx} cy={hy} r={handleR} fill="#fff" stroke="hsl(var(--accent))" strokeWidth={2 * unit} style={{ cursor: 'ew-resize', pointerEvents: 'auto' }} onPointerDown={(e) => onSizeDown(e, s)} data-handle="size" />}
         </>
       )
     } else {
@@ -263,7 +296,6 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
         <>
           <line x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} {...stroke(s)} strokeDasharray={s.type === 'run' ? `${12 * g.k} ${8 * g.k}` : undefined} style={{ pointerEvents: 'none' }} />
           {arrowish && <polygon points={arrowHead(s).map((p) => p.join(',')).join(' ')} fill={s.color} style={{ pointerEvents: 'none' }} />}
-          {s.type === 'run' && <ellipse cx={s.x1} cy={s.y1} {...ringProps(s)} style={{ pointerEvents: 'none' }} />}
           {/* wide invisible stroke makes thin lines easy to grab anywhere along their length */}
           {!preview && <line x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke="transparent" strokeWidth={hit} strokeLinecap="round" {...common} />}
           {sel && <circle cx={cx} cy={cy} r={handleR * 0.8} fill={s.color} stroke="#000" strokeWidth={unit} style={{ pointerEvents: 'none' }} />}
@@ -271,7 +303,7 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
       )
     }
     return (
-      <g key={s.id} style={{ filter: s.type === 'spot' ? undefined : 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} data-shape={s.type} data-selected={sel || undefined}>
+      <g key={s.id} style={{ filter: s.type === 'spot' ? undefined : 'drop-shadow(0 1px 2px rgba(0,0,0,.6))' }} data-shape={s.type} data-id={s.id} data-selected={sel || undefined}>
         {body}
         {sel && (
           <g style={{ filter: 'none' }}>
@@ -332,10 +364,13 @@ export function DrawingLayer({ w, h, unit, onZoomRect }: { w: number; h: number;
   )
 }
 
-/** The live magnified circle ("Player close up") for each zoom shape on screen: a canvas fed from the playing video. */
+/**
+ * The live magnified circle ("Player close up") for each zoom shape on screen: a canvas fed from the playing video.
+ * Mouse: drag inside it to pan, wheel to zoom in/out, drag the small dot on its edge to resize the window.
+ */
 function ZoomInsets({ w, h, zooms }: { w: number; h: number; zooms: Shape[] }) {
   const refs = useRef<(HTMLCanvasElement | null)[]>([])
-  const key = zooms.map((z) => `${z.id}:${z.x1.toFixed(0)},${z.y1.toFixed(0)},${z.x2.toFixed(0)},${z.y2.toFixed(0)}`).join('|')
+  const key = zooms.map((z) => `${z.id}:${z.x1.toFixed(0)},${z.y1.toFixed(0)},${z.x2.toFixed(0)},${z.y2.toFixed(0)},${z.zk},${z.zdx},${z.zdy},${z.zs}`).join('|')
   useEffect(() => {
     if (!zooms.length) return
     let raf = 0
@@ -348,7 +383,8 @@ function ZoomInsets({ w, h, zooms }: { w: number; h: number; zooms: Shape[] }) {
         const z = zoomInset(s, i, zooms.length, w, h)
         const sx = (v.videoWidth || w) / w
         const sy = (v.videoHeight || h) / h
-        ctx.drawImage(v, (z.cx - z.r) * sx, (z.cy - z.r) * sy, 2 * z.r * sx, 2 * z.r * sy, 0, 0, c.width, c.height)
+        ctx.clearRect(0, 0, c.width, c.height)
+        ctx.drawImage(v, (z.scx - z.r) * sx, (z.scy - z.r) * sy, 2 * z.r * sx, 2 * z.r * sy, 0, 0, c.width, c.height)
       })
       raf = requestAnimationFrame(draw)
     }
@@ -356,21 +392,89 @@ function ZoomInsets({ w, h, zooms }: { w: number; h: number; zooms: Shape[] }) {
     return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, w, h])
+
+  // Wheel = zoom. Needs a non-passive native listener so the page / video does not zoom too.
+  const wheelRefs = useRef<Map<string, { el: HTMLCanvasElement; fn: (e: WheelEvent) => void }>>(new Map())
+  const attach = (id: string) => (el: HTMLCanvasElement | null) => {
+    const prev = wheelRefs.current.get(id)
+    if (prev) { prev.el.removeEventListener('wheel', prev.fn); wheelRefs.current.delete(id) }
+    if (!el) return
+    const fn = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const st = useDrawing.getState()
+      const s = st.shapes.find((x) => x.id === id)
+      if (s) st.update(id, { zk: Math.min(8, Math.max(0.4, (s.zk ?? 1) * (e.deltaY < 0 ? 1.15 : 1 / 1.15))) })
+    }
+    el.addEventListener('wheel', fn, { passive: false })
+    wheelRefs.current.set(id, { el, fn })
+  }
+
+  const panning = useRef<{ id: string; x: number; y: number } | null>(null)
+  const sizing = useRef<{ id: string; baseR: number; cx: number; cy: number } | null>(null)
+  const down = (e: React.PointerEvent, s: Shape) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    useDrawing.getState().select(s.id)
+    panning.current = { id: s.id, x: e.clientX, y: e.clientY }
+  }
+  const move = (e: React.PointerEvent, s: Shape, i: number) => {
+    const p = panning.current
+    if (!p || p.id !== s.id) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const z = zoomInset(s, i, zooms.length, w, h)
+    // Dragging the picture right moves the visible area left (like grabbing the image).
+    const dx = -((e.clientX - p.x) / rect.width) * 2 * z.r
+    const dy = -((e.clientY - p.y) / rect.height) * 2 * z.r
+    panning.current = { id: s.id, x: e.clientX, y: e.clientY }
+    useDrawing.getState().update(s.id, { zdx: (s.zdx ?? 0) + dx, zdy: (s.zdy ?? 0) + dy })
+  }
+  const handleDown = (e: React.PointerEvent, s: Shape, canvas: HTMLCanvasElement | null) => {
+    if (e.button !== 0 || !canvas) return
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const r = canvas.getBoundingClientRect()
+    sizing.current = { id: s.id, baseR: r.width / 2 / (s.zs ?? 1), cx: r.left + r.width / 2, cy: r.top + r.height / 2 }
+  }
+  const handleMove = (e: React.PointerEvent, s: Shape) => {
+    const z = sizing.current
+    if (!z || z.id !== s.id) return
+    useDrawing.getState().update(s.id, { zs: Math.min(2, Math.max(0.5, Math.hypot(e.clientX - z.cx, e.clientY - z.cy) / z.baseR)) })
+  }
+
   return (
     <>
       {zooms.map((s, i) => {
         const z = zoomInset(s, i, zooms.length, w, h)
+        const left = ((z.icx - z.R) / w) * 100
+        const top = ((z.icy - z.R) / h) * 100
+        const wp = ((2 * z.R) / w) * 100
+        const hp = ((2 * z.R) / h) * 100
         return (
-          <canvas
-            key={s.id}
-            ref={(el) => { refs.current[i] = el }}
-            width={Math.round(2 * z.R)}
-            height={Math.round(2 * z.R)}
-            aria-hidden
-            data-zoom-inset
-            className="pointer-events-none absolute rounded-full"
-            style={{ left: `${((z.icx - z.R) / w) * 100}%`, top: `${((z.icy - z.R) / h) * 100}%`, width: `${((2 * z.R) / w) * 100}%`, height: `${((2 * z.R) / h) * 100}%` }}
-          />
+          <div key={s.id} data-overlay className="absolute" style={{ left: `${left}%`, top: `${top}%`, width: `${wp}%`, height: `${hp}%` }}>
+            <canvas
+              ref={(el) => { refs.current[i] = el; attach(s.id)(el) }}
+              width={Math.round(2 * z.R)}
+              height={Math.round(2 * z.R)}
+              aria-label="Player close up: sürükleyerek kaydır, tekerlekle yakınlaştır"
+              data-zoom-inset
+              className="h-full w-full cursor-grab touch-none rounded-full active:cursor-grabbing"
+              onPointerDown={(e) => down(e, s)}
+              onPointerMove={(e) => move(e, s, i)}
+              onPointerUp={() => { panning.current = null }}
+            />
+            {/* resize dot on the circle's lower-right edge */}
+            <span
+              role="presentation"
+              data-zoom-resize
+              className="absolute h-3.5 w-3.5 cursor-nwse-resize rounded-full border-2 border-accent bg-white"
+              style={{ left: '85.4%', top: '85.4%', transform: 'translate(-50%,-50%)', touchAction: 'none' }}
+              onPointerDown={(e) => handleDown(e, s, refs.current[i] ?? null)}
+              onPointerMove={(e) => handleMove(e, s)}
+              onPointerUp={() => { sizing.current = null }}
+            />
+          </div>
         )
       })}
     </>

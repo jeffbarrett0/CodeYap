@@ -2,7 +2,8 @@ import { Circle, Hand, Link2, ListOrdered, Minus, MousePointer2, MoveUpRight, Pe
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { DRAW_COLORS, useDrawing, type Tool } from './drawing'
+import { ColorPicker } from './ColorPicker'
+import { useDrawing, type Tool } from './drawing'
 
 const TOOLS: { id: Tool; label: string; tip: string; hotkey?: string; icon: typeof Circle }[] = [
   { id: 'select', label: 'Seç', tip: 'Çizimi seç ve taşı', hotkey: 'D', icon: MousePointer2 },
@@ -35,7 +36,9 @@ export function FrameTools({ zoom, onZoom, onResetZoom }: { zoom: number; onZoom
       {TOOLS.map(({ id, label, tip, hotkey, icon: Icon }) => (
         <Tip key={id} label={tip} hotkey={hotkey} side="top">
           <button type="button" aria-label={label} aria-pressed={tool === id} onClick={() => setTool(id)} className={cn('flex h-7 items-center gap-1 rounded px-1.5 text-xs text-muted transition-colors hover:bg-raised hover:text-foreground', on(tool === id))}>
-            <Icon className="h-4 w-4" /> {label}
+            <Icon className="h-4 w-4" />
+            {/* names show on wide screens; on narrower ones only the active tool keeps its name (all have tooltips) so the bar stays on one row */}
+            <span className={cn(tool === id ? 'inline' : 'hidden min-[1600px]:inline')}>{label}</span>
           </button>
         </Tip>
       ))}
@@ -51,10 +54,8 @@ export function FrameTools({ zoom, onZoom, onResetZoom }: { zoom: number; onZoom
             <button type="button" aria-label="Renk ve kalınlık" className={icoBtn}><span className="h-3.5 w-3.5 rounded-full border border-white/40" style={{ background: color }} /></button>
           </PopoverTrigger>
         </Tip>
-        <PopoverContent className="w-44 space-y-2">
-          <div className="flex gap-1.5">
-            {DRAW_COLORS.map((c) => <button key={c} type="button" aria-label={`Renk ${c}`} aria-pressed={color === c} onClick={() => setColor(c)} className={cn('h-6 w-6 rounded-full border-2', color === c ? 'border-foreground' : 'border-transparent')} style={{ background: c }} />)}
-          </div>
+        <PopoverContent className="w-72 space-y-2">
+          <ColorPicker value={color} onChange={setColor} />
           <label className="flex items-center gap-2 text-2xs text-muted">Kalınlık
             <input type="range" min={2} max={14} value={width} onChange={(e) => setWidth(Number(e.target.value))} aria-label="Çizgi kalınlığı" className="h-1 flex-1" />
           </label>

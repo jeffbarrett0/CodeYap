@@ -22,9 +22,23 @@ export interface Shape {
   pts?: [number, number][]
   /** player: name shown in the label. number: the digit. */
   text?: string
+  /** number / player: size multiplier of the marker (1 = default). */
+  size?: number
+  /** zoom (close-up): magnification (1 = the circle's own area), pan offset in video px, and window-size multiplier. */
+  zk?: number
+  zdx?: number
+  zdy?: number
+  zs?: number
 }
 
-export const DRAW_COLORS = ['#ef4444', '#facc15', '#ffffff', '#a3e635', '#38bdf8'] as const
+/** Ready-made colours, grouped so the picker stays easy to scan. The first one is the default. */
+export const COLOR_ROWS = [
+  { name: 'Temel', colors: ['#ef4444', '#f97316', '#facc15', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'] },
+  { name: 'Pastel', colors: ['#fca5a5', '#fdba74', '#fde68a', '#86efac', '#a5f3fc', '#93c5fd', '#c4b5fd', '#f9a8d4'] },
+  { name: 'Koyu', colors: ['#991b1b', '#9a3412', '#854d0e', '#166534', '#155e75', '#1e40af', '#5b21b6', '#9d174d'] },
+  { name: 'Nötr', colors: ['#ffffff', '#e5e7eb', '#9ca3af', '#6b7280', '#374151', '#111827', '#000000', '#a3e635'] },
+] as const
+export const DRAW_COLORS = COLOR_ROWS.flatMap((r) => r.colors)
 
 /** Is the drawing on screen at this frame? Shapes with hold>0 also stay visible while playing. */
 export function isVisible(s: Shape, frame: number, fps: number, playing: boolean): boolean {
@@ -63,7 +77,7 @@ interface DrawingState {
 
 export const useDrawing = create<DrawingState>((set) => ({
   tool: 'select',
-  color: DRAW_COLORS[0],
+  color: DRAW_COLORS[0]!,
   width: 4,
   hold: 0,
   shapes: [],
@@ -90,10 +104,13 @@ export const useDrawing = create<DrawingState>((set) => ({
 /** Size of the on-pitch markers (ring, number badge, name tag), relative to a 1280px-wide frame. */
 export function markerGeom(w: number) {
   const k = w / 1280
-  return { k, rx: 20 * k, ry: 8 * k, lift: 30 * k, badge: 13 * k, tagH: 22 * k, font: 13 * k }
+  // rx/ry: the rings of links; badge/numFont: number markers; tagH/font: player name tags (all scaled by Shape.size).
+  return { k, rx: 20 * k, ry: 8 * k, badge: 16 * k, numFont: 19 * k, tagH: 32 * k, font: 20 * k }
 }
-/** Name-tag width for a player label. */
-export const tagWidth = (text: string, k: number) => (Math.max(text.length, 3) * 8 + 16) * k
+/** Name-tag width for a player label (about 0.6 em per character plus padding). */
+export const tagWidth = (text: string, k: number, size = 1) => (Math.max(text.length, 3) * 12.5 + 24) * k * size
+/** Number badge centre is the click; a player tag sits just above the click. */
+export const tagCenterY = (s: Pick<Shape, 'y1' | 'size'>, g: ReturnType<typeof markerGeom>) => s.y1 - (g.tagH * (s.size ?? 1)) / 2 - 8 * g.k
 
 /** Arrow head polygon points for a line ending at (x2,y2). */
 export function arrowHead(s: Pick<Shape, 'x1' | 'y1' | 'x2' | 'y2' | 'width'>): [number, number][] {
@@ -120,11 +137,12 @@ export function clickBox(type: 'circle' | 'zoom' | 'spot', x: number, y: number,
 /** Where the "player close up" window of a zoom shape sits (left side of the frame) and what part of the video it magnifies. */
 export function zoomInset(s: Shape, index: number, count: number, w: number, h: number) {
   const { cx, cy, rx, ry } = ellipseOf(s)
-  const r = Math.max(Math.max(rx, ry), 12 * (w / 1280))
-  const R = Math.min(0.17 * h, 0.15 * w)
+  const r0 = Math.max(Math.max(rx, ry), 12 * (w / 1280))
+  const r = r0 / (s.zk ?? 1) // half-size of the video area shown in the close-up
+  const R = Math.min(0.17 * h, 0.15 * w) * (s.zs ?? 1)
   const gap = 2 * R + 34 * (w / 1280)
   const icy = clamp(h / 2 + (index - (count - 1) / 2) * gap, R + 24 * (w / 1280), h - R - 8)
-  return { cx, cy, r, R, icx: 20 * (w / 1280) + R, icy }
+  return { cx, cy, r, scx: cx + (s.zdx ?? 0), scy: cy + (s.zdy ?? 0), R, icx: 20 * (w / 1280) + R, icy }
 }
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi))
 
@@ -182,7 +200,7 @@ export function paintShapes(ctx: CanvasRenderingContext2D, shapes: Shape[], w = 
         ctx.beginPath()
         ctx.arc(z.icx, z.icy, z.R, 0, Math.PI * 2)
         ctx.clip()
-        ctx.drawImage(video, z.cx - z.r, z.cy - z.r, 2 * z.r, 2 * z.r, z.icx - z.R, z.icy - z.R, 2 * z.R, 2 * z.R)
+        ctx.drawImage(video, z.scx - z.r, z.scy - z.r, 2 * z.r, 2 * z.r, z.icx - z.R, z.icy - z.R, 2 * z.R, 2 * z.R)
         ctx.restore()
         ctx.beginPath()
         ctx.arc(z.icx, z.icy, z.R, 0, Math.PI * 2)
@@ -220,29 +238,32 @@ export function paintShapes(ctx: CanvasRenderingContext2D, shapes: Shape[], w = 
       ctx.stroke()
       for (const [x, y] of s.pts) ring(x, y, s.color, Math.max(2, s.width * 0.7), true)
     } else if (s.type === 'number' || s.type === 'player') {
-      ring(s.x1, s.y1, s.color, Math.max(2, s.width * 0.6))
-      const cy = s.y1 - g.lift
+      const sz = s.size ?? 1
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       if (s.type === 'number') {
         ctx.beginPath()
-        ctx.arc(s.x1, cy, g.badge, 0, Math.PI * 2)
+        ctx.arc(s.x1, s.y1, g.badge * sz, 0, Math.PI * 2)
         ctx.fillStyle = '#0b0b0b'
         ctx.fill()
-        ctx.lineWidth = 2 * g.k
-        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 2 * g.k * sz
+        ctx.strokeStyle = s.color
         ctx.stroke()
         ctx.fillStyle = '#fff'
-        ctx.font = `700 ${15 * g.k}px sans-serif`
-        ctx.fillText(s.text ?? '1', s.x1, cy + g.k)
+        ctx.font = `700 ${g.numFont * sz}px sans-serif`
+        ctx.fillText(s.text ?? '1', s.x1, s.y1 + g.k * sz)
       } else {
         const text = s.text || 'Oyuncu'
-        const tw = tagWidth(text, g.k)
+        const tw = tagWidth(text, g.k, sz)
+        const cy = tagCenterY(s, g)
         ctx.fillStyle = '#0b1220'
-        ctx.fillRect(s.x1 - tw / 2, cy - g.tagH / 2, tw, g.tagH)
+        ctx.fillRect(s.x1 - tw / 2, cy - (g.tagH * sz) / 2, tw, g.tagH * sz)
+        ctx.strokeStyle = s.color
+        ctx.lineWidth = 2 * g.k * sz
+        ctx.strokeRect(s.x1 - tw / 2, cy - (g.tagH * sz) / 2, tw, g.tagH * sz)
         ctx.fillStyle = '#fff'
-        ctx.font = `700 ${g.font}px sans-serif`
-        ctx.fillText(text, s.x1, cy + g.k)
+        ctx.font = `700 ${g.font * sz}px sans-serif`
+        ctx.fillText(text, s.x1, cy + g.k * sz)
       }
     } else {
       if (s.type === 'run') ctx.setLineDash([12 * g.k, 8 * g.k])
@@ -261,7 +282,6 @@ export function paintShapes(ctx: CanvasRenderingContext2D, shapes: Shape[], w = 
         ctx.fillStyle = s.color
         ctx.fill()
       }
-      if (s.type === 'run') ring(s.x1, s.y1, s.color, Math.max(2, s.width * 0.6))
     }
   }
 }

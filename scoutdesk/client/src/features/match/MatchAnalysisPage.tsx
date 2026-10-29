@@ -1,6 +1,6 @@
 import { AlertTriangle, CalendarX, Film, Upload } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelGroupHandle } from 'react-resizable-panels'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -31,12 +31,14 @@ import { player, usePlayback } from './playback'
 import { useTagging } from './tagging'
 import { useVisibleClips } from './visible'
 
+/** Draggable divider between sections. Thick enough to find, with a small grip; highlights on hover/drag. */
 function Handle({ dir }: { dir: 'h' | 'v' }) {
   return (
     <PanelResizeHandle
-      className={cn('group relative shrink-0 bg-border transition-colors data-[resize-handle-state=drag]:bg-accent data-[resize-handle-state=hover]:bg-accent/60', dir === 'h' ? 'h-px w-full' : 'h-full w-px')}
+      title="Boyutu değiştirmek için sürükle"
+      className={cn('group relative flex shrink-0 items-center justify-center bg-border/60 transition-colors data-[resize-handle-state=drag]:bg-accent data-[resize-handle-state=hover]:bg-accent/60', dir === 'h' ? 'h-1.5 w-full cursor-row-resize' : 'h-full w-1.5 cursor-col-resize')}
     >
-      <span className={cn('absolute z-20', dir === 'h' ? '-top-1 left-0 h-2 w-full cursor-row-resize' : '-left-1 top-0 h-full w-2 cursor-col-resize')} />
+      <span aria-hidden className={cn('rounded-full bg-muted/60 group-data-[resize-handle-state=drag]:bg-accent-foreground', dir === 'h' ? 'h-0.5 w-8' : 'h-8 w-0.5')} />
     </PanelResizeHandle>
   )
 }
@@ -51,6 +53,15 @@ export function MatchAnalysisPage() {
   const [rightTab, setRightTab] = useState('tag')
   const [bottomTab, setBottomTab] = useState('clips')
   const mode = useMode((s) => s.mode)
+  // Panel sizes are remembered by react-resizable-panels (localStorage, per autoSaveId). These refs let the
+  // "Düzeni sıfırla" button put every section back to its default size.
+  const vRef = useRef<ImperativePanelGroupHandle>(null)
+  const hRef = useRef<ImperativePanelGroupHandle>(null)
+  const resetLayout = () => {
+    const simple = useMode.getState().mode === 'simple'
+    vRef.current?.setLayout(simple ? [78, 22] : [62, 14, 24])
+    hRef.current?.setLayout(simple ? [78, 22] : [76, 24])
+  }
   const selectedShape = useDrawing((s) => s.shapes.find((x) => x.id === s.selectedId))
   useEffect(() => { if (selectedShape?.type === 'player') setRightTab('draw') }, [selectedShape?.id, selectedShape?.type])
 
@@ -205,14 +216,14 @@ export function MatchAnalysisPage() {
   if (mode === 'simple') {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <MatchHeader match={match} />
+        <MatchHeader match={match} onResetLayout={resetLayout} />
         <div className="min-h-0 flex-1">
-          <PanelGroup direction="horizontal" autoSaveId="sd-simple-h">
-            <Panel id="pnl-main" defaultSize={78} minSize={50} order={1}>
-              <PanelGroup direction="vertical" autoSaveId="sd-simple-v1">
-                <Panel id="pnl-video" defaultSize={72} minSize={35} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
+          <PanelGroup ref={hRef} direction="horizontal" autoSaveId="sd-simple-h2">
+            <Panel id="pnl-main" defaultSize={78} minSize={40} order={1}>
+              <PanelGroup ref={vRef} direction="vertical" autoSaveId="sd-simple-v2">
+                <Panel id="pnl-video" defaultSize={78} minSize={25} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
                 <Handle dir="h" />
-                <Panel id="pnl-timeline" defaultSize={28} minSize={14} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+                <Panel id="pnl-timeline" defaultSize={22} minSize={8} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
               </PanelGroup>
             </Panel>
             <Handle dir="v" />
@@ -230,16 +241,16 @@ export function MatchAnalysisPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-    <MatchHeader match={match} />
+    <MatchHeader match={match} onResetLayout={resetLayout} />
     <div className="min-h-0 flex-1">
-    <PanelGroup direction="horizontal" autoSaveId="sd-analysis-h" className="h-full">
-      <Panel id="pnl-main" defaultSize={74} minSize={45} order={1}>
-        <PanelGroup direction="vertical" autoSaveId="sd-analysis-v5">
-          <Panel id="pnl-video" defaultSize={52} minSize={26} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
+    <PanelGroup ref={hRef} direction="horizontal" autoSaveId="sd-analysis-h2" className="h-full">
+      <Panel id="pnl-main" defaultSize={76} minSize={40} order={1}>
+        <PanelGroup ref={vRef} direction="vertical" autoSaveId="sd-analysis-v6">
+          <Panel id="pnl-video" defaultSize={62} minSize={20} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
           <Handle dir="h" />
-          <Panel id="pnl-timeline" defaultSize={18} minSize={12} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+          <Panel id="pnl-timeline" defaultSize={14} minSize={8} order={2}><Timeline video={video} visibleIds={visibleIds} canEdit={canWrite} /></Panel>
           <Handle dir="h" />
-          <Panel id="pnl-bottom" defaultSize={30} minSize={8} order={3}>
+          <Panel id="pnl-bottom" defaultSize={24} minSize={5} order={3}>
             <Tabs value={bottomTab} onValueChange={setBottomTab} className="flex h-full flex-col bg-surface">
               <TabsList>
                 <TabsTrigger value="clips">Clips <span className="timecode text-2xs text-muted">{clipTotal}</span></TabsTrigger>
@@ -254,7 +265,7 @@ export function MatchAnalysisPage() {
         </PanelGroup>
       </Panel>
       <Handle dir="v" />
-      <Panel id="pnl-side" defaultSize={26} minSize={20} maxSize={42} order={2}>
+      <Panel id="pnl-side" defaultSize={24} minSize={16} maxSize={45} order={2}>
         <Tabs value={rightTab} onValueChange={setRightTab} className="flex h-full flex-col bg-surface">
           <TabsList>
             <TabsTrigger value="tag">Tagging</TabsTrigger>

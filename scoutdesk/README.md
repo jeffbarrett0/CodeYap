@@ -108,6 +108,10 @@ saved snapshots, and a written-notes section (ruled lines when left empty). Live
   - **Numara**: click players for 1, 2, 3…; right-click ends.
   - **Oyuncu**: click a player; the side **Çizim** tab opens with the name box (type, or pick from the match's players).
   - **Aydınlat**: click a player to light them with a white glow.
+  - **Colours**: 32 ready colours (basic, pastel, dark, neutral) plus a free colour (picker or `#rrggbb`).
+  - **Close-up** (Zoom): drag inside it to pan, mouse wheel to zoom, drag the dot on its edge to resize (or use the sliders in the Çizim tab).
+  - **Numara / Oyuncu**: drag the white dot or use the mouse wheel to resize; Oyuncu also has a *Yazı boyutu* slider.
+  - **Layout**: drag the dividers between sections; sizes are remembered, *Düzeni sıfırla* (top right of the match header) restores the defaults.
   - **Çizim süresi** keeps a drawing on screen for 2–10 s while playing (default: only on its frame). *Video boyutu* resizes the picture, *Ortala* recentres it.
 - **Ekran görüntüsü al** (top right of the video panel) saves only the match footage, without drawings or interface.
 - **Timeline** is a simple CapCut-style strip: time ruler, the match video as a filmstrip, tagged clips as coloured markers (click one to open it). Click or drag anywhere to jump; `+`/`-` zoom.
