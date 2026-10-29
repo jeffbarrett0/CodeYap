@@ -9,6 +9,6 @@ export default defineConfig({
   root: here('./src/renderer'),
   publicDir: here('./tests/fixtures/public'),
   resolve: { alias: { '@shared': here('./src/shared') } },
-  plugins: [react()],
+  plugins: [react(), { name: 'dev-csp', transformIndexHtml: (html: string) => html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '') }],
   server: { port: 5199, strictPort: true }
 })

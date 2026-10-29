@@ -1,0 +1,47 @@
+# macOS ve Windows kurulum dosyaları. Her platform KENDİ işletim sisteminde derlenmelidir:
+# ffmpeg-static kurulum sırasında derlemenin yapıldığı platformun ikilisini indirir.
+appId: app.clipforge.desktop
+productName: ClipForge
+copyright: ClipForge
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - node_modules/ffmpeg-static/**
+  - node_modules/ffprobe-static/**
+extraResources:
+  - from: resources
+    to: .
+    filter:
+      - faster_whisper_cli.py
+mac:
+  category: public.app-category.video
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  extendInfo:
+    NSMicrophoneUsageDescription: ClipForge ses kaydı yapmaz; bu izin istenmez.
+  files:
+    - '!node_modules/ffprobe-static/bin/{linux,win32}/**'
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  files:
+    - '!node_modules/ffprobe-static/bin/{linux,darwin}/**'
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+fileAssociations:
+  - ext: clipforge
+    name: ClipForge projesi
+    description: ClipForge projesi
+    role: Editor

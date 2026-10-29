@@ -28,12 +28,8 @@ export function MediaPanel() {
   const proxying = Object.values(tasks).filter((t) => t.kind === 'proxy' && t.status === 'running')
   const tr = asset ? transcripts[asset.id] : undefined
 
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setOver(false)
-    const paths = [...e.dataTransfer.files].map((f) => api.pathForFile(f)).filter(Boolean)
-    void importPaths(paths)
-  }
+  // Bırakma işlemini pencere düzeyindeki dinleyici (main.tsx) yapar; burada yalnızca görsel geri bildirim var.
+  const onDrop = () => setOver(false)
   const cams = project.assets.filter((a) => a.id !== asset?.id && a.kind === 'video')
 
   return (

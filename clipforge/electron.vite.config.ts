@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react'
 
 const alias = { '@shared': resolve(__dirname, 'src/shared') }
 
+/** Geliştirme sunucusu satır içi betik (react-refresh) enjekte eder; CSP yalnızca üretim derlemesinde uygulanır. */
+const devCsp = { name: 'clipforge-dev-csp', apply: 'serve' as const, transformIndexHtml: (html: string) => html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '') }
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -23,7 +26,7 @@ export default defineConfig({
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
     resolve: { alias },
-    plugins: [react()],
+    plugins: [react(), devCsp],
     build: { rollupOptions: { input: { index: resolve(__dirname, 'src/renderer/index.html') } } }
   }
 })

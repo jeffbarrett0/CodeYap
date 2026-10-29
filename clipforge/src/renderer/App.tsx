@@ -26,6 +26,8 @@ function useShortcuts() {
       if (mod || st.dialog) return
       if (e.key === ' ') {
         e.preventDefault()
+        // Odaktaki düğme boşluk tuşuyla ayrıca tetiklenmesin
+        if (el instanceof HTMLButtonElement) el.blur()
         if (st.viewMode !== 'timeline') st.setViewMode('timeline')
         setRate(1); jRate = 0
         st.setPlaying(!st.playing)

@@ -229,8 +229,8 @@ export class AppService {
       kind: 'export',
       title: `Dışa aktarma: ${req.name}`,
       run: async (ctx) => {
-        const { outputPath } = await runExport(req, this.tools, { signal: ctx.signal, progress: ctx.progress })
-        this.deps.emit('export:done', { taskId: ctx.id, outputPath })
+        const { outputPath, warnings } = await runExport(req, this.tools, { signal: ctx.signal, progress: ctx.progress })
+        this.deps.emit('export:done', { taskId: ctx.id, outputPath, warnings })
       }
     }).id
   }

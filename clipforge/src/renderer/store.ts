@@ -213,7 +213,10 @@ export const useStore = create<State>()((set, get) => {
         set({ suggesting: false })
         get().toast('info', candidates.length ? `${candidates.length} aday bulundu.` : 'Belirgin bir tepki anı bulunamadı.')
       })
-      a.on('export:done', ({ outputPath }) => set({ lastExport: outputPath }))
+      a.on('export:done', ({ outputPath, warnings }) => {
+        set({ lastExport: outputPath })
+        for (const w of warnings ?? []) get().toast('info', w)
+      })
       a.on('menu:command', (c) => {
         const g = get()
         if (c === 'import') void g.pickAndImport()
@@ -537,7 +540,8 @@ export const useStore = create<State>()((set, get) => {
     // ───── dışa aktarma ─────
     async startExport({ options, name, mode }) {
       const { project } = get()
-      const tl = project.timeline
+      // Çıkış oranı şablondan gelir; düzen kuralları aynı orana göre çözülsün
+      const tl = project.timeline.aspect === options.aspect ? project.timeline : { ...project.timeline, aspect: options.aspect }
       const total = timelineDuration(tl)
       const warnings = exportWarnings(total, options)
       if (total <= 0) return get().toast('error', warnings[0] ?? 'Zaman çizelgesi boş.')

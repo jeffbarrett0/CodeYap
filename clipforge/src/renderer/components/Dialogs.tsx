@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LANGUAGES, WHISPER_MODELS } from '@shared/settings'
 import { COPYRIGHT_NOTICE, EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '@shared/export/presets'
 import { CHAT_EXPECTED_SCHEMA } from '@shared/chat/parse'
@@ -22,8 +22,13 @@ export function ExportDialog() {
   const warnings = exportWarnings(total, opts)
   const patch = (p: Partial<ExportOptions>) => setOpts((o) => ({ ...o, ...p }))
 
+  const first = useRef(true)
   useEffect(() => {
-    // şablon değişince boyutlar ve sınırlar şablona döner; zaman çizelgesi oranı da şablona uyar
+    // ilk açılışta kullanıcı varsayılanları korunur; şablon değişince boyutlar ve sınırlar şablona döner
+    if (first.current) {
+      first.current = false
+      return
+    }
     setOpts(optionsFromPreset(preset))
   }, [preset])
 
@@ -48,7 +53,7 @@ export function ExportDialog() {
         </Field>
         <Field label="Dosya adı"><input type="text" value={name} onChange={(e) => setName(e.target.value)} aria-label="Dosya adı" /></Field>
       </div>
-      {mismatch && <div className="warnbox">Zaman çizelgesi {tl.aspect}, şablon {opts.aspect}. Çıkış şablonun oranında üretilir; Düzen sekmesinden oranı da {opts.aspect} yapmanız önerilir.</div>}
+      {mismatch && <div className="warnbox">Zaman çizelgesi {tl.aspect}, şablon {opts.aspect}. Dışa aktarma şablonun oranında ({opts.aspect}) üretilir; önizlemeyle birebir olması için Düzen sekmesinden oranı da {opts.aspect} yapın.</div>}
       <div className="grid3">
         <Field label="Kare hızı"><select value={opts.fps} onChange={(e) => patch({ fps: Number(e.target.value) })} aria-label="Kare hızı">{[24, 30, 60].map((f) => <option key={f} value={f}>{f} fps</option>)}</select></Field>
         <Field label="Video bitrate (kbps)"><Num value={opts.videoBitrateKbps} step={500} min={500} label="Video bitrate" onChange={(v) => patch({ videoBitrateKbps: v })} /></Field>

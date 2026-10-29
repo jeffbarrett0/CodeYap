@@ -118,7 +118,7 @@ export interface IpcEvents {
   'asset:updated': MediaAsset
   'transcript:ready': { assetId: string; transcript: Transcript; reused: boolean }
   'suggest:ready': { assetId: string; candidates: ClipCandidate[] }
-  'export:done': { taskId: string; outputPath: string }
+  'export:done': { taskId: string; outputPath: string; warnings?: string[] }
   'menu:command': 'open' | 'save' | 'saveAs' | 'import' | 'export'
 }
 

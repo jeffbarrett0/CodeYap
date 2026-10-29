@@ -15,6 +15,24 @@ export async function runExport(
   tools: MediaTools,
   opts: { signal?: AbortSignal; progress?: (f: number, msg?: string) => void } = {}
 ): Promise<{ outputPath: string; warnings: string[] }> {
+  try {
+    return await runExportOnce(req, tools, opts)
+  } catch (e) {
+    // Bazı FFmpeg derlemelerinde libass (ass filtresi) yoktur: altyazısız bir kopya üretip kullanıcıyı uyar.
+    const hasCaptions = req.timeline.captionStyle.enabled && req.timeline.captions.length > 0
+    if (hasCaptions && e instanceof ToolError && /No such filter: 'ass'|Filter ass|libass/i.test(e.detail)) {
+      const r = await runExportOnce({ ...req, timeline: { ...req.timeline, captionStyle: { ...req.timeline.captionStyle, enabled: false } } }, tools, opts)
+      return { ...r, warnings: [...r.warnings, 'Bu FFmpeg derlemesi altyazı filtresini (libass) içermiyor; klip altyazısız dışa aktarıldı. Ayarlar → FFmpeg yolu ile tam bir derleme seçin.'] }
+    }
+    throw e
+  }
+}
+
+async function runExportOnce(
+  req: ExportRequest,
+  tools: MediaTools,
+  opts: { signal?: AbortSignal; progress?: (f: number, msg?: string) => void }
+): Promise<{ outputPath: string; warnings: string[] }> {
   const byId = new Map(req.assets.map((a) => [a.id, a]))
   const missing = req.assets.filter((a) => a.missing)
   if (missing.length) throw new ToolError(`Kaynak medya bulunamadı: ${missing.map((m) => m.name).join(', ')}. Dosyaları yeniden bağlayın.`)
