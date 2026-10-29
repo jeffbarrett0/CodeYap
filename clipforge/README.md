@@ -32,7 +32,7 @@ Gereksinimler: **Node.js ≥ 20** (22 ile test edildi) ve npm.
 
 ```bash
 cd clipforge
-npm install          # electron, ffmpeg-static, ffprobe-static dahil (ağ erişimi gerekir)
+npm install          # electron, ffmpeg-static, @ffprobe-installer/ffprobe dahil (ağ erişimi gerekir)
 npm run dev          # geliştirme modunda Electron
 ```
 
@@ -77,6 +77,25 @@ Kapsam: Türkçe katlama/bulanık eşleşme/pencere/birleştirme ve “Victor Ne
 parça birleştirme (kelime kaybı yok); sohbet biçimleri ve hata mesajı; öneri skorlaması; zaman çizelgesi işlemleri ve geri al/yinele;
 ffmpeg ile içe aktarma, proxy, iptal, transkripsiyon hattı (önbellek/devam), **9:16 dışa aktarma (kare içeriği doğrulanır)**, proje göreli yolları;
 arayüzde uçtan uca akış; gerçek Electron'da içe aktarma → sahte whisper-cli → arama → klip → altyazı → 1080×1920 dışa aktarma.
+
+## Ölçümler (60 dakikalık kayıt)
+
+`npm run test:perf` — 60 dk, 1280×720@30, **3 ses track'li** OBS tarzı MKV (178 MB), Türkçe + boşluklu yol. Ölçüm ortamı: 4 çekirdekli
+Linux konteyneri, GPU yok. **Transkripsiyon, gerçek Whisper yerine sahte sağlayıcıyla** koştu (parçalama/birleştirme/önbellek hattı gerçek, model süresi
+ölçülmedi — gerçek süre modele ve donanıma bağlıdır; `small` modeli CPU'da kayıt süresinden uzun sürebilir).
+
+| Adım | Süre |
+|---|---|
+| İçe aktarma (ffprobe + OBS algılama + test çözümü + küçük resim) | **0.4 sn** |
+| Önizleme kopyası (540p + 3 ses track'i; arka planda, iptal edilebilir) | 7.4 dk |
+| Transkripsiyon hattı: 7 örtüşen parça çıkarma + birleştirme (sahte model) | 5 sn |
+| **Arama** “Victor Nelson” (~7 bin kelime) | **5 ms** |
+| Ses analizi (otomatik öneri için, 60 dk) | 4.7 sn |
+
+Doğrulananlar: Track 1 transkript için kullanılır; “Victor Nelson” 23:14 / 41:02 / 55:40 geçişlerini bulur; “Viktor Nelsen” aynı sonuçları verir;
+30 sn'lik klip hedefi aşmaz ve başlangıcı cümle başındadır; parça sınırlarında kelime kaybı/tekrarı yoktur.
+Önizleme kopyası en pahalı adımdır; *Ayarlar → Klip → Önizleme kopyası yüksekliği* ile düşürülebilir. Transkripsiyon/arama kopya
+hazır olmadan da kullanılabilir (yalnızca oynatma kopyayı bekler).
 
 ## Paketleme
 

@@ -53,7 +53,7 @@ export function resolveFfmpegPath(setting = ''): string {
   return setting || process.env.CLIPFORGE_FFMPEG || bundled('ffmpeg-static', (m) => m as string) || 'ffmpeg'
 }
 export function resolveFfprobePath(setting = ''): string {
-  return setting || process.env.CLIPFORGE_FFPROBE || bundled('ffprobe-static', (m) => (m as { path: string }).path) || 'ffprobe'
+  return setting || process.env.CLIPFORGE_FFPROBE || bundled('@ffprobe-installer/ffprobe', (m) => (m as { path: string }).path) || 'ffprobe'
 }
 
 export interface RunOptions {

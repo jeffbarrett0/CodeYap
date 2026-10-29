@@ -34,7 +34,7 @@ derlemeleri var), Python kurulumu gerektirmez. Kayıt 10 dk'lık parçalara böl
 | Bileşen | Lisans | Not |
 |---|---|---|
 | Electron, React, Zustand, Vite, Vitest, Playwright | MIT / Apache-2.0 | |
-| **FFmpeg** (`ffmpeg-static`) | **GPL-3.0** derlemeler (libx264 içerir) | Ayrı süreç olarak çalıştırılır (bağlanmaz), ama **dağıtımda GPL metni ve kaynak kodu teklifi** gerekir. `ffprobe-static` aynı şekilde. |
+| **FFmpeg** (`ffmpeg-static`) | **GPL-3.0** derlemeler (libx264 içerir) | Ayrı süreç olarak çalıştırılır (bağlanmaz), ama **dağıtımda GPL metni ve kaynak kodu teklifi** gerekir. `@ffprobe-installer/ffprobe` de statik bir ffprobe getirir (paketin lisans bilgisi ayrıca incelenmeli). |
 | whisper.cpp, OpenAI Whisper ağırlıkları, faster-whisper | MIT | |
 
 **Açık / riskli:** Ticari dağıtım düşünülüyorsa GPL FFmpeg yerine **LGPL derlemesi** (x264 yok → macOS VideoToolbox/Windows
@@ -105,7 +105,7 @@ kelimeli sorguda tek terim bulunursa düşük skorlu "kısmi" sonuç döner (iş
 
 ## 10. Proxy ve önizleme
 Önizleme 540p, kısa GOP'lu sessiz H.264 + **her ses track'i için ayrı mono AAC**. Böylece önizlemede oyun/konuşma seviyeleri
-ayrı oynar. Maliyet: içe aktarmadan sonra bir kerelik kodlama (1 saatlik kayıt için dakikalar; bkz. README ölçümleri).
+ayrı oynar. Maliyet: içe aktarmadan sonra bir kerelik kodlama (60 dk için 4 çekirdekli CPU'da ≈ 7.4 dk; bkz. README ölçümleri). Önizleme kopyası hazır olmadan transkripsiyon/arama çalışır; yalnızca oynatma bekler. Hızlandırma seçenekleri: daha düşük `proxyHeight`, donanım kodlayıcı (yapılmadı).
 Tarayıcı `<audio>` ile **%100 üstü ses** çalamaz: önizleme 0–%100 ile sınırlı, **dışa aktarma 0–%150** destekler.
 
 ## 11. OBS kodlayıcı (NVENC/x264/AMF) algılaması kesin değildir

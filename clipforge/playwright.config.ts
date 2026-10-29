@@ -7,6 +7,7 @@ const executablePath = process.env.PW_CHROMIUM ?? (existsSync(preinstalled) ? pr
 
 export default defineConfig({
   testDir: 'tests/e2e',
+  testIgnore: /electron\.spec\.ts/, // gerçek Electron testi ayrı yapılandırmada (playwright.electron.config.ts)
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,

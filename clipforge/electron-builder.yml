@@ -11,7 +11,7 @@ files:
   - package.json
 asarUnpack:
   - node_modules/ffmpeg-static/**
-  - node_modules/ffprobe-static/**
+  - node_modules/@ffprobe-installer/**
 extraResources:
   - from: resources
     to: .
@@ -26,16 +26,10 @@ mac:
       arch: [arm64, x64]
   hardenedRuntime: true
   gatekeeperAssess: false
-  extendInfo:
-    NSMicrophoneUsageDescription: ClipForge ses kaydı yapmaz; bu izin istenmez.
-  files:
-    - '!node_modules/ffprobe-static/bin/{linux,win32}/**'
 win:
   target:
     - target: nsis
       arch: [x64]
-  files:
-    - '!node_modules/ffprobe-static/bin/{linux,darwin}/**'
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

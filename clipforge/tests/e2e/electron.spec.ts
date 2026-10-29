@@ -124,7 +124,7 @@ test('gerçek Electron: preload köprüsü, ffmpeg algılama, içe aktarma, saht
   await page.getByTestId('export-go').click()
   await expect(page.getByTestId('last-export')).toContainText('klip çıktı.mp4', { timeout: 120_000 })
   expect(existsSync(out)).toBe(true)
-  const ffprobe = require('ffprobe-static').path as string
+  const ffprobe = require('@ffprobe-installer/ffprobe').path as string
   const j = JSON.parse(execFileSync(ffprobe, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', out]).toString())
   const v = j.streams.find((x: { codec_type: string }) => x.codec_type === 'video')
   expect([v.width, v.height]).toEqual([1080, 1920])
