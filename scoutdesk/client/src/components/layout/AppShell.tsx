@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom'
+import { ExportsTray } from '@/features/exports/ExportsTray'
 import { UploadTray } from '@/features/library/UploadTray'
 import { useVideoProcessingPoll } from '@/store/polling'
 import { CheatSheet } from './CheatSheet'
@@ -18,6 +19,7 @@ export function AppShell() {
       </div>
       <CheatSheet />
       <UploadTray />
+      <ExportsTray />
     </div>
   )
 }

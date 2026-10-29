@@ -157,10 +157,9 @@ export function TaggingPanel({ match, canWrite }: { match: Match; canWrite: bool
                   )}
                   style={{ borderLeft: `3px solid ${cat.color}` }}
                   title={t.name}
-                  aria-label={`Tag ${t.name}${t.hotkey ? `, shortcut ${formatHotkey(t.hotkey)}` : ''}`}
                 >
-                  <span className="truncate font-medium">{t.name}</span>
-                  <span className="flex shrink-0 items-center gap-1">
+                  <span className="truncate font-medium">{t.name}{t.hotkey && <span className="sr-only">, shortcut {formatHotkey(t.hotkey)}</span>}</span>
+                  <span className="flex shrink-0 items-center gap-1" aria-hidden>
                     {(counts.get(t.id) ?? 0) > 0 && <span className="timecode text-2xs text-muted">{counts.get(t.id)}</span>}
                     {t.hotkey && <Kbd>{formatHotkey(t.hotkey)}</Kbd>}
                   </span>

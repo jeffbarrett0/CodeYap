@@ -2,15 +2,18 @@ import { Field, Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/misc'
 import { clamp } from '@/lib/utils'
 import { useApp } from '@/store/app'
+import { TaxonomyEditor } from '@/features/settings/TaxonomyEditor'
+import { useCan } from '@/store/hooks'
 import { PageHeader } from './Placeholder'
 
 export function SettingsPage() {
   const { theme, setTheme, preRoll, postRoll, setRoll } = useApp()
+  const { isAdmin } = useCan()
   return (
     <div className="flex h-full flex-col">
       <PageHeader title="Settings" />
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="mx-auto max-w-2xl space-y-4">
+        <div className="mx-auto max-w-3xl space-y-4">
           <section className="panel p-4">
             <h2 className="mb-3 text-sm font-semibold">Appearance</h2>
             <Field label="Theme">
@@ -29,6 +32,11 @@ export function SettingsPage() {
                 <Input type="number" min={0} max={60} step={0.5} value={postRoll} onChange={(e) => setRoll(preRoll, clamp(Number(e.target.value) || 0, 0, 60))} />
               </Field>
             </div>
+          </section>
+
+          <section className="panel p-4">
+            <h2 className="mb-3 text-sm font-semibold">Tagging taxonomy</h2>
+            <TaxonomyEditor canEdit={isAdmin} />
           </section>
         </div>
       </div>

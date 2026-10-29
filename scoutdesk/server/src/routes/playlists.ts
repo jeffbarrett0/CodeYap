@@ -78,7 +78,7 @@ export async function playlistRoutes(app: FastifyInstance) {
   })
 
   app.delete<{ Params: { id: string } }>('/api/playlists/:id', { preHandler: canWrite }, async (req, reply) => {
-    await prisma.playlist.delete({ where: { id: req.params.id } })
+    await prisma.$transaction([prisma.shareLink.deleteMany({ where: { kind: 'playlist', refId: req.params.id } }), prisma.playlist.delete({ where: { id: req.params.id } })])
     return reply.code(204).send()
   })
   void adminOnly

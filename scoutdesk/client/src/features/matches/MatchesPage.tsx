@@ -1,4 +1,4 @@
-import { CalendarDays, Pencil, Plus, Trash2 } from 'lucide-react'
+import { CalendarDays, Pencil, Plus, Share2, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ import { useApp } from '@/store/app'
 import { useData } from '@/store/data'
 import { useCan, useLookups } from '@/store/hooks'
 import type { Match, TagStatus } from '@/types'
+import { ShareDialog } from '../share/ShareDialog'
 
 const STATUS: Record<TagStatus, { label: string; cls: string }> = {
   untagged: { label: 'Untagged', cls: '' },
@@ -28,6 +29,7 @@ export function MatchesPage() {
   const { canWrite } = useCan()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Match | null>(null)
+  const [sharing, setSharing] = useState<Match | null>(null)
   const refreshMatches = useData((s) => s.refreshMatches)
   useEffect(() => void refreshMatches().catch(() => {}), [refreshMatches])
 
@@ -74,7 +76,7 @@ export function MatchesPage() {
                     <td className="timecode border-b border-border px-3 py-2">{m.videoCount}</td>
                     <td className="timecode border-b border-border px-3 py-2">{m.clipCount}</td>
                     <td className="border-b border-border px-3 py-2"><Badge className={st.cls}>{st.label}</Badge></td>
-                    <td className="border-b border-border px-3 py-1 text-right"><Button variant="ghost" size="icon-sm" aria-label={`Edit match ${h?.name} v ${a?.name}`} disabled={!canWrite} onClick={() => setEditing(m)}><Pencil className="h-3.5 w-3.5" /></Button></td>
+                    <td className="whitespace-nowrap border-b border-border px-3 py-1 text-right"><Button variant="ghost" size="icon-sm" aria-label={`Share match ${h?.name} v ${a?.name}`} disabled={!canWrite || m.videoCount === 0} title={m.videoCount === 0 ? 'Attach a video first' : 'Share read-only link'} onClick={() => setSharing(m)}><Share2 className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon-sm" aria-label={`Edit match ${h?.name} v ${a?.name}`} disabled={!canWrite} onClick={() => setEditing(m)}><Pencil className="h-3.5 w-3.5" /></Button></td>
                   </tr>
                 )
               })}
@@ -83,6 +85,7 @@ export function MatchesPage() {
         )}
       </div>
       {creating && <NewMatchDialog onClose={() => setCreating(false)} />}
+      {sharing && <ShareDialog kind="match" refId={sharing.id} label={`${teamById.get(sharing.homeTeamId)?.name} v ${teamById.get(sharing.awayTeamId)?.name}`} onClose={() => setSharing(null)} />}
       {editing && <EditMatchDialog match={editing} onClose={() => setEditing(null)} />}
     </div>
   )

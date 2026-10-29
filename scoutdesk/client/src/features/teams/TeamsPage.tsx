@@ -9,7 +9,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter } from '@/components/ui
 import { Field, Input, Select, Textarea } from '@/components/ui/input'
 import { Badge, Dot, EmptyState } from '@/components/ui/misc'
 import { api } from '@/lib/api'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, formatDate, readableOn } from '@/lib/utils'
 import { PageHeader } from '@/pages/Placeholder'
 import { useData } from '@/store/data'
 import { useCan, useLookups } from '@/store/hooks'
@@ -35,7 +35,7 @@ export function TeamsPage() {
             {teams.map((t) => (
               <li key={t.id}>
                 <button type="button" onClick={() => setSelectedId(t.id)} aria-current={selected?.id === t.id} className={cn('flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-xs transition-colors hover:bg-raised/60', selected?.id === t.id && 'bg-raised')}>
-                  <span className="flex h-7 w-7 items-center justify-center rounded text-2xs font-bold text-white" style={{ background: t.color }}>{t.shortName}</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded text-2xs font-bold" style={{ background: t.color, color: readableOn(t.color) }}>{t.shortName}</span>
                   <span className="min-w-0 flex-1"><span className="block truncate font-medium">{t.name}</span><span className="block text-2xs text-muted">{t.isOwn ? 'Own team' : 'Opponent'} · {t.formation}</span></span>
                 </button>
               </li>
@@ -83,7 +83,7 @@ function TeamDetail({ team, onEdit }: { team: Team; onEdit: () => void }) {
       <div className="mx-auto grid max-w-5xl gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
           <header className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ background: team.color }}>{team.shortName}</span>
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg text-sm font-bold" style={{ background: team.color, color: readableOn(team.color) }}>{team.shortName}</span>
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-base font-semibold">{team.name}</h2>
               <p className="text-xs text-muted">{team.isOwn ? 'Own team' : 'Opponent'}{team.country ? ` · ${team.country}` : ''} · record <span className="timecode text-foreground">{record.W}W {record.D}D {record.L}L</span></p>

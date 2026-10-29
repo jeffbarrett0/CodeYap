@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "description": "Football video scouting & match analysis workstation",
-  "workspaces": ["server", "client"],
+  "workspaces": [
+    "server",
+    "client"
+  ],
   "scripts": {
     "setup": "npm install && npm run db:setup -w server && npm run seed -w server",
     "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
@@ -15,7 +18,10 @@
     "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
   },
   "devDependencies": {
+    "axe-core": "^4.14.0",
     "concurrently": "^9.1.0"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

@@ -96,7 +96,7 @@ export function VideoCard({ v, a }: { v: Video; a: VideoActions }) {
   )
   return (
     <article className="group panel overflow-hidden transition-colors hover:border-muted/50">
-      {open ? <Link to={open} aria-label={`Open ${v.title}`}>{thumb}</Link> : thumb}
+      {open ? <Link to={open}>{thumb}<span className="sr-only">Open {v.title}</span></Link> : thumb}
       <div className="space-y-1.5 p-2.5">
         <div className="flex items-start justify-between gap-2">
           <h3 className="line-clamp-2 text-xs font-semibold leading-snug" title={v.title}>{v.title}</h3>

@@ -1,6 +1,8 @@
-import { Camera, Check, ChevronLeft, ChevronRight, Maximize, Minimize, Pause, PenLine, Play, Volume2, VolumeX } from 'lucide-react'
+import { Camera, Check, Clapperboard, ChevronLeft, ChevronRight, Maximize, Minimize, Pause, PenLine, Play, Volume2, VolumeX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown'
+import { useAngles } from './angles'
+import type { Video } from '@/types'
 import { Tip } from '@/components/ui/tooltip'
 import { formatHotkey } from '@/lib/hotkeys'
 import { formatTimecode } from '@/lib/timecode'
@@ -22,7 +24,8 @@ export function Timecode() {
   )
 }
 
-export function PlayerControls({ fullscreen, onToggleFullscreen, onSnapshot }: { fullscreen: boolean; onToggleFullscreen: () => void; onSnapshot: () => void }) {
+export function PlayerControls({ fullscreen, onToggleFullscreen, onSnapshot, canSave, angles = [], primaryId }: { fullscreen: boolean; onToggleFullscreen: () => void; onSnapshot: (save: boolean) => void; canSave: boolean; angles?: Video[]; primaryId?: string }) {
+  const { secondaryId, setPrimary, setSecondary } = useAngles()
   const playing = usePlayback((s) => s.playing)
   const rate = usePlayback((s) => s.rate)
   const volume = usePlayback((s) => s.volume)
@@ -39,12 +42,12 @@ export function PlayerControls({ fullscreen, onToggleFullscreen, onSnapshot }: {
       </Tip>
 
       <div className="flex items-center gap-0.5">
-        <Tip label="Back 10 seconds" hotkey={formatHotkey('alt+left')} side="top"><Button variant="ghost" className={skipBtn} aria-label="Back 10 seconds" onClick={() => player.skip(-10)}>−10s</Button></Tip>
-        <Tip label="Back 5 seconds" hotkey={formatHotkey('shift+left')} side="top"><Button variant="ghost" className={skipBtn} aria-label="Back 5 seconds" onClick={() => player.skip(-5)}>−5s</Button></Tip>
+        <Tip label="Back 10 seconds" hotkey={formatHotkey('alt+left')} side="top"><Button variant="ghost" className={skipBtn} aria-label="−10s, back 10 seconds" onClick={() => player.skip(-10)}>−10s</Button></Tip>
+        <Tip label="Back 5 seconds" hotkey={formatHotkey('shift+left')} side="top"><Button variant="ghost" className={skipBtn} aria-label="−5s, back 5 seconds" onClick={() => player.skip(-5)}>−5s</Button></Tip>
         <Tip label="Previous frame" hotkey={formatHotkey('left')} side="top"><Button variant="secondary" size="icon" aria-label="Previous frame" onClick={() => player.stepFrames(-1)}><ChevronLeft className="h-4 w-4" /></Button></Tip>
         <Tip label="Next frame" hotkey={formatHotkey('right')} side="top"><Button variant="secondary" size="icon" aria-label="Next frame" onClick={() => player.stepFrames(1)}><ChevronRight className="h-4 w-4" /></Button></Tip>
-        <Tip label="Forward 5 seconds" hotkey={formatHotkey('shift+right')} side="top"><Button variant="ghost" className={skipBtn} aria-label="Forward 5 seconds" onClick={() => player.skip(5)}>+5s</Button></Tip>
-        <Tip label="Forward 10 seconds" hotkey={formatHotkey('alt+right')} side="top"><Button variant="ghost" className={skipBtn} aria-label="Forward 10 seconds" onClick={() => player.skip(10)}>+10s</Button></Tip>
+        <Tip label="Forward 5 seconds" hotkey={formatHotkey('shift+right')} side="top"><Button variant="ghost" className={skipBtn} aria-label="+5s, forward 5 seconds" onClick={() => player.skip(5)}>+5s</Button></Tip>
+        <Tip label="Forward 10 seconds" hotkey={formatHotkey('alt+right')} side="top"><Button variant="ghost" className={skipBtn} aria-label="+10s, forward 10 seconds" onClick={() => player.skip(10)}>+10s</Button></Tip>
       </div>
 
       <div className="mx-3 h-5 w-px bg-border" />
@@ -76,15 +79,34 @@ export function PlayerControls({ fullscreen, onToggleFullscreen, onSnapshot }: {
           <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={(e) => player.setVolume(Number(e.target.value))} aria-label="Volume" className="h-1 w-16" />
         </div>
 
+        {angles.length > 1 && (
+          <DropdownMenu>
+            <Tip label="Camera angles" side="top"><DropdownMenuTrigger asChild><Button variant={secondaryId ? 'primary' : 'ghost'} size="icon" aria-label="Camera angles"><Clapperboard className="h-4 w-4" /></Button></DropdownMenuTrigger></Tip>
+            <DropdownMenuContent align="end" side="top" className="w-56">
+              <DropdownMenuLabel>Main view</DropdownMenuLabel>
+              {angles.map((v) => <DropdownMenuItem key={v.id} onSelect={() => setPrimary(v.id)}><span className="w-3">{v.id === primaryId && <Check className="h-3 w-3 text-accent" />}</span>{v.angle}</DropdownMenuItem>)}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Second view (synced)</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setSecondary(null)}><span className="w-3">{!secondaryId && <Check className="h-3 w-3 text-accent" />}</span>None</DropdownMenuItem>
+              {angles.filter((v) => v.id !== primaryId).map((v) => <DropdownMenuItem key={v.id} onSelect={() => setSecondary(v.id)}><span className="w-3">{v.id === secondaryId && <Check className="h-3 w-3 text-accent" />}</span>{v.angle}</DropdownMenuItem>)}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <div className="mx-1 h-5 w-px bg-border" />
         <Tip label="Draw on frame" hotkey="D" side="top">
           <Button variant={drawing ? 'primary' : 'ghost'} size="icon" aria-label="Draw on frame" aria-pressed={drawing} onClick={() => setDrawing(!drawing)}>
             <PenLine className="h-4 w-4" />
           </Button>
         </Tip>
-        <Tip label="Save frame as PNG (with drawings)" side="top">
-          <Button variant="ghost" size="icon" aria-label="Save snapshot" onClick={onSnapshot}><Camera className="h-4 w-4" /></Button>
-        </Tip>
+        <DropdownMenu>
+          <Tip label="Snapshot of this frame (with drawings)" side="top">
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Snapshot"><Camera className="h-4 w-4" /></Button></DropdownMenuTrigger>
+          </Tip>
+          <DropdownMenuContent align="end" side="top" className="w-60">
+            <DropdownMenuItem disabled={!canSave} onSelect={() => onSnapshot(true)}>Save to report library</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onSnapshot(false)}>Download PNG</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Tip label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'} hotkey="F" side="top">
           <Button variant="ghost" size="icon" aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'} onClick={onToggleFullscreen}>
             {fullscreen ? <Minimize className={cn('h-4 w-4')} /> : <Maximize className="h-4 w-4" />}

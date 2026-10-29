@@ -1,4 +1,4 @@
-import { Crosshair, Minus, Play, Plus, Trash2, X } from 'lucide-react'
+import { Crosshair, Download, Minus, Play, Plus, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { EmptyState, Segmented } from '@/components/ui/misc'
@@ -7,11 +7,14 @@ import { Tip } from '@/components/ui/tooltip'
 import { formatTimecode, parseTimecode } from '@/lib/timecode'
 import { clamp, cn } from '@/lib/utils'
 import { useData } from '@/store/data'
+import { useExports } from '@/store/exports'
+import { AddToPlaylistMenu } from '../playlists/AddToPlaylistMenu'
 import { useLookups } from '@/store/hooks'
 import type { Clip, ClipPatch, Outcome } from '@/types'
 import { SquareDashedMousePointer } from 'lucide-react'
 import { deleteClips, patchClips, patchMany, useClips } from './clips'
 import { player, usePlayback } from './playback'
+import { ClipComments } from './ClipComments'
 import { ZonePicker } from './ZonePicker'
 import { parseZone, zoneCenter } from './zones'
 
@@ -129,7 +132,8 @@ function SingleInspector({ clip, canWrite, onPlayClip }: { clip: Clip; canWrite:
   const duration = usePlayback((s) => s.duration)
   const teams = useData((s) => s.teams)
   const allClips = useClips((s) => s.clips)
-  const { playerById } = useLookups()
+  const { playerById, tagById } = useLookups()
+  const tagLabel = tagById.get(clip.tagTypeId)?.name ?? 'Clip'
   const roster = useRoster(clip.teamId)
   const [notes, setNotes] = useState(clip.notes)
   useEffect(() => setNotes(clip.notes), [clip.notes])
@@ -194,9 +198,14 @@ function SingleInspector({ clip, canWrite, onPlayClip }: { clip: Clip; canWrite:
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} onKeyDown={(e) => e.stopPropagation()} onBlur={() => notes !== clip.notes && patch({ notes }, 'Edit notes')} rows={3} placeholder="What happened? Why does it matter?" />
           </Field>
         </fieldset>
+        <ClipComments clipId={clip.id} canComment={canWrite} />
       </div>
       <div className={cn('flex shrink-0 items-center justify-between gap-2 border-t border-border p-2')}>
-        <Button variant="secondary" size="sm" onClick={() => onPlayClip(clip)}><Play className="h-3.5 w-3.5" /> Play clip</Button>
+        <div className="flex items-center gap-1">
+          <Button variant="secondary" size="sm" onClick={() => onPlayClip(clip)}><Play className="h-3.5 w-3.5" /> Play</Button>
+          <Button variant="secondary" size="sm" disabled={!canWrite} onClick={() => void useExports.getState().start('clip', clip.id, tagLabel)} title="Cut this clip to an MP4 with FFmpeg"><Download className="h-3.5 w-3.5" /> MP4</Button>
+          <AddToPlaylistMenu clipIds={[clip.id]} disabled={!canWrite} size="sm" label="Playlist" />
+        </div>
         <Button variant="danger" size="sm" disabled={!canWrite} onClick={() => void deleteClips([clip.id])}><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
       </div>
     </div>

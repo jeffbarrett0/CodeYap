@@ -31,7 +31,7 @@
   --accent-foreground: 0 0% 100%;
   --danger: 0 72% 45%;
   --success: 142 70% 28%;
-  --warning: 32 95% 34%;
+  --warning: 30 95% 28%;
 }
 
 @layer base {
@@ -100,4 +100,11 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+@keyframes sdtitle {
+  0% { opacity: 0; transform: translateX(-18px); }
+  8% { opacity: 1; transform: none; }
+  82% { opacity: 1; }
+  100% { opacity: 0; }
 }

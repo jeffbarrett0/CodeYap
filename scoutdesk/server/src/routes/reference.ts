@@ -139,7 +139,7 @@ export async function referenceRoutes(app: FastifyInstance) {
     return withCounts(m)
   })
   app.delete<{ Params: { id: string } }>('/api/matches/:id', { preHandler: adminOnly }, async (req, reply) => {
-    await prisma.match.delete({ where: { id: req.params.id } })
+    await prisma.$transaction([prisma.shareLink.deleteMany({ where: { kind: 'match', refId: req.params.id } }), prisma.match.delete({ where: { id: req.params.id } })])
     return reply.code(204).send()
   })
 }

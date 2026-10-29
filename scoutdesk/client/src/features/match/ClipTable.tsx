@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowDown, ArrowUp, Check, ListFilter, Minus, Tags, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Download, ListFilter, Minus, Tags, Trash2, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { formatClock } from '@/lib/timecode'
 import { cn } from '@/lib/utils'
 import { useData } from '@/store/data'
+import { useExports } from '@/store/exports'
+import { AddToPlaylistMenu } from '../playlists/AddToPlaylistMenu'
 import { useLookups } from '@/store/hooks'
 import type { Clip, Outcome } from '@/types'
 import { deleteClips, patchClips, patchMany, useClips } from './clips'
@@ -62,14 +64,14 @@ const Row = memo(function Row({ d, selected, active, onClick, onDoubleClick, onT
       className={cn('absolute left-0 right-0 grid cursor-default items-center gap-x-2 border-b border-border/60 px-2 text-xs', selected ? 'bg-accent/10' : 'hover:bg-raised/50', active && 'shadow-[inset_2px_0_0_hsl(var(--accent))]')}
       style={{ gridTemplateColumns: GRID, height: ROW_H, transform: `translateY(${top}px)` }}
     >
-      <Checkbox checked={selected} onChange={(_, e) => onToggle(clip.id, e)} label={`Select clip at ${formatClock(clip.timeSec)}`} />
-      <span className="timecode text-muted">{formatClock(clip.timeSec)}</span>
-      <span className="flex min-w-0 items-center gap-1.5"><Dot color={d.color} /><span className="truncate font-medium">{d.tag}</span><span className="hidden truncate text-2xs text-muted 2xl:inline">{d.category}</span></span>
-      <span className="truncate">{d.player || <span className="text-muted">—</span>}{clip.jersey != null && d.player ? <span className="ml-1 text-2xs text-muted">#{clip.jersey}</span> : null}</span>
-      <span className="flex items-center gap-1">{d.team ? (<><Dot color={d.teamColor ?? '#888'} /><span className="text-muted">{d.team}</span></>) : <span className="text-muted">—</span>}</span>
-      <OutcomePill outcome={clip.outcome} />
-      <span className="truncate text-muted" title={clip.notes}>{clip.notes}</span>
-      <span className="flex min-w-0 gap-1 overflow-hidden">{clip.labels.map((l) => <span key={l} className="truncate rounded-sm bg-raised px-1 text-2xs text-muted">{l}</span>)}</span>
+      <span role="cell"><Checkbox checked={selected} onChange={(_, e) => onToggle(clip.id, e)} label={`Select clip at ${formatClock(clip.timeSec)}`} /></span>
+      <span role="cell" className="timecode text-muted">{formatClock(clip.timeSec)}</span>
+      <span role="cell" className="flex min-w-0 items-center gap-1.5"><Dot color={d.color} /><span className="truncate font-medium">{d.tag}</span><span className="hidden truncate text-2xs text-muted 2xl:inline">{d.category}</span></span>
+      <span role="cell" className="truncate">{d.player || <span className="text-muted">—</span>}{clip.jersey != null && d.player ? <span className="ml-1 text-2xs text-muted">#{clip.jersey}</span> : null}</span>
+      <span role="cell" className="flex items-center gap-1">{d.team ? (<><Dot color={d.teamColor ?? '#888'} /><span className="text-muted">{d.team}</span></>) : <span className="text-muted">—</span>}</span>
+      <span role="cell"><OutcomePill outcome={clip.outcome} /></span>
+      <span role="cell" className="truncate text-muted" title={clip.notes}>{clip.notes}</span>
+      <span role="cell" className="flex min-w-0 gap-1 overflow-hidden">{clip.labels.map((l) => <span key={l} className="truncate rounded-sm bg-raised px-1 text-2xs text-muted">{l}</span>)}</span>
     </div>
   )
 })
@@ -185,7 +187,7 @@ export function ClipTable({ canWrite, onPlayClip }: { canWrite: boolean; onPlayC
           }}
         >
           <div role="row" className="sticky top-0 z-10 grid items-center gap-x-2 border-b border-border bg-surface px-2" style={{ gridTemplateColumns: GRID, height: 26 }}>
-            <Checkbox checked={allChecked} indeterminate={!allChecked && someChecked} label="Select all clips" onChange={(next) => select(next ? rows.map((r) => r.clip.id) : [])} />
+            <span role="columnheader"><Checkbox checked={allChecked} indeterminate={!allChecked && someChecked} label="Select all clips" onChange={(next) => select(next ? rows.map((r) => r.clip.id) : [])} /></span>
             {COLUMNS.map((c) => (
               <button key={c.key} type="button" role="columnheader" aria-sort={sort.key === c.key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} onClick={() => setSort((s) => (s.key === c.key ? { key: c.key, dir: (s.dir * -1) as 1 | -1 } : { key: c.key, dir: 1 }))} className="label flex items-center gap-1 text-left hover:text-foreground">
                 {c.label}
@@ -213,6 +215,7 @@ function BulkBar({ ids, canWrite }: { ids: string[]; canWrite: boolean }) {
   const clips = useClips((s) => s.clips)
   const [label, setLabel] = useState('')
   const sel = useMemo(() => clips.filter((c) => ids.includes(c.id)), [clips, ids])
+  const { tagById } = useLookups()
 
   const remove = async () => {
     await deleteClips(ids)
@@ -260,6 +263,8 @@ function BulkBar({ ids, canWrite }: { ids: string[]; canWrite: boolean }) {
           <Input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') addLabel() }} placeholder="Label, Enter" aria-label="Label to add" className="h-7 text-xs" />
         </PopoverContent>
       </Popover>
+      <AddToPlaylistMenu clipIds={ids} disabled={!canWrite} />
+      <Button variant="secondary" size="xs" disabled={!canWrite || ids.length > 10} title={ids.length > 10 ? 'Export up to 10 clips at once — or add them to a playlist and export that' : 'Export each selected clip as its own MP4'} onClick={() => { for (const c of sel) void useExports.getState().start('clip', c.id, tagById.get(c.tagTypeId)?.name ?? 'Clip') }}><Download className="h-3 w-3" /> Export MP4</Button>
       <Button variant="danger" size="xs" disabled={!canWrite} onClick={() => void remove()}><Trash2 className="h-3 w-3" /> Delete</Button>
       <Button variant="ghost" size="xs" className="ml-auto" onClick={() => useClips.getState().select([])}>Clear selection</Button>
     </div>

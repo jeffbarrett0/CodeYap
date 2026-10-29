@@ -115,3 +115,139 @@ export interface Clip {
 }
 
 export type ClipPatch = Partial<Omit<Clip, 'id' | 'matchId' | 'createdAt' | 'updatedAt' | 'createdById'>>
+
+export interface PlaylistSummary {
+  id: string
+  title: string
+  description: string
+  createdAt: string
+  updatedAt: string
+  itemCount: number
+  durationSec: number
+}
+export interface PlaylistItem {
+  id: string
+  position: number
+  title: string | null
+  transition: 'cut' | 'fade'
+  clip: Clip
+}
+export interface Playlist {
+  id: string
+  title: string
+  description: string
+  durationSec: number
+  items: PlaylistItem[]
+  videos: Video[]
+}
+/** Editable item shape (clip id + overrides) sent to PUT /playlists/:id/items. */
+export interface PlaylistDraftItem {
+  key: string
+  clipId: string
+  title: string | null
+  transition: 'cut' | 'fade'
+}
+
+export interface ExportJob {
+  id: string
+  kind: 'clip' | 'playlist'
+  refId: string
+  label: string
+  status: 'queued' | 'running' | 'done' | 'failed'
+  progress: number
+  error: string | null
+  fileName: string | null
+  sizeBytes: number
+  createdAt: string
+  finishedAt: string | null
+  downloadUrl: string | null
+}
+
+export interface ShareLink {
+  id: string
+  token: string
+  kind: 'playlist' | 'match'
+  refId: string
+  label: string
+  hasPassword: boolean
+  expiresAt: string | null
+  createdAt: string
+  views: number
+}
+
+export interface CommentAuthor {
+  id: string
+  name: string
+  color: string
+  role: Role
+}
+export interface ClipComment {
+  id: string
+  clipId: string
+  parentId: string | null
+  author: CommentAuthor
+  body: string
+  createdAt: string
+}
+
+export interface Snapshot {
+  id: string
+  matchId: string | null
+  videoId: string | null
+  clipId: string | null
+  playerId: string | null
+  timeSec: number
+  caption: string
+  createdAt: string
+  url: string
+}
+
+export interface DisplayClip {
+  id: string
+  matchId: string
+  videoId: string | null
+  startSec: number
+  endSec: number
+  timeSec: number
+  tag: string
+  category: string
+  color: string
+  player: string | null
+  jersey: number | null
+  team: string | null
+  outcome: Outcome
+  notes: string
+  labels: string[]
+  zone: string | null
+  x: number | null
+  y: number | null
+  endX: number | null
+  endY: number | null
+}
+
+export interface Stats {
+  matches: number; clips: number; goals: number; shots: number; shotsOnTarget: number
+  passesAttempted: number; passesCompleted: number; passAccuracy: number | null; keyPasses: number
+  dribblesAttempted: number; dribblesWon: number; tackles: number; tacklesWon: number
+  interceptions: number; blocks: number; duelsWon: number; duelsLost: number; duelsWonPct: number | null
+  pressures: number; recoveries: number; errors: number; lostPossession: number; fouls: number; cards: number
+}
+export interface RadarAxis {
+  key: string
+  label: string
+  raw: number
+  value: number
+  avg: number
+}
+export interface PlayerProfile {
+  player: Player
+  stats: Stats
+  radar: { axes: RadarAxis[]; peers: 'position' | 'everyone' | 'none'; peerCount: number; group: string }
+  clips: DisplayClip[]
+  matches: { id: string; date: string; competition: string; homeTeamId: string; awayTeamId: string; homeScore: number | null; awayScore: number | null }[]
+  definitions: Record<string, string>
+}
+
+export type SharePayload =
+  | { kind: 'playlist'; label: string; title: string; description: string; expiresAt: string | null; videos: Video[]; items: { id: string; title: string | null; transition: 'cut' | 'fade'; clip: DisplayClip }[] }
+  | { kind: 'match'; label: string; expiresAt: string | null; match: { id: string; date: string; competition: string; home: string; away: string; homeScore: number | null; awayScore: number | null }; videos: Video[]; clips: DisplayClip[] }

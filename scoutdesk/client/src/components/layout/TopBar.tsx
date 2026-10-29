@@ -62,10 +62,11 @@ export function TopBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" aria-label={`Account: ${user?.name ?? 'not signed in'}`} className="ml-1 flex h-7 items-center gap-2 rounded pl-1 pr-2 hover:bg-raised">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full text-2xs font-bold text-black" style={{ background: user?.color ?? '#64748b' }}>
+            <button type="button" className="ml-1 flex h-7 items-center gap-2 rounded pl-1 pr-2 hover:bg-raised">
+              <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded-full text-2xs font-bold text-black" style={{ background: user?.color ?? '#64748b' }}>
                 {user ? initials(user.name) : '?'}
               </span>
+              <span className="sr-only">Account menu for</span>
               <span className="hidden text-xs font-medium lg:block">{user?.name ?? 'Sign in'}</span>
               {user && <span className="hidden rounded bg-raised px-1 py-px text-2xs capitalize text-muted lg:block">{user.role}</span>}
             </button>

@@ -20,6 +20,7 @@ import { TaggingPanel } from './TaggingPanel'
 import { Timeline } from './Timeline'
 import { VideoPlayer } from './VideoPlayer'
 import { deleteClips, patchClips, useClips } from './clips'
+import { useAngles } from './angles'
 import { useDrawing } from './drawing'
 import { useFilters } from './filters'
 import { useHistory } from './history'
@@ -48,10 +49,11 @@ export function MatchAnalysisPage() {
   const [bottomTab, setBottomTab] = useState('clips')
 
   const videos = useMemo(() => allVideos.filter((v) => v.matchId === matchId), [allVideos, matchId])
-  const video = useMemo(() => {
-    const ready = videos.filter((v) => v.status === 'ready')
-    return ready.find((v) => v.angle === 'Main') ?? ready[0]
-  }, [videos])
+  const primaryId = useAngles((s) => s.primaryId)
+  const secondaryId = useAngles((s) => s.secondaryId)
+  const readyVideos = useMemo(() => videos.filter((v) => v.status === 'ready'), [videos])
+  const video = useMemo(() => readyVideos.find((v) => v.id === primaryId) ?? readyVideos.find((v) => v.angle === 'Main') ?? readyVideos[0], [readyVideos, primaryId])
+  const secondary = useMemo(() => (secondaryId && secondaryId !== video?.id ? readyVideos.find((v) => v.id === secondaryId) ?? null : null), [readyVideos, secondaryId, video?.id])
   const processing = videos.some((v) => v.status === 'processing')
   const failed = videos.length > 0 && videos.every((v) => v.status === 'failed')
 
@@ -65,6 +67,7 @@ export function MatchAnalysisPage() {
   useEffect(() => {
     if (!matchId) return
     useHistory.getState().clear()
+    useAngles.getState().reset()
     useDrawing.setState({ shapes: [], active: false })
     void useClips.getState().load(matchId)
     return () => {
@@ -185,13 +188,13 @@ export function MatchAnalysisPage() {
 
   return (
     <PanelGroup direction="horizontal" autoSaveId="sd-analysis-h" className="h-full">
-      <Panel defaultSize={74} minSize={45} order={1}>
+      <Panel id="pnl-main" defaultSize={74} minSize={45} order={1}>
         <PanelGroup direction="vertical" autoSaveId="sd-analysis-v">
-          <Panel defaultSize={42} minSize={22} order={1}><VideoPlayer video={video} /></Panel>
+          <Panel id="pnl-video" defaultSize={42} minSize={22} order={1}><VideoPlayer video={video} secondary={secondary} angles={readyVideos} /></Panel>
           <Handle dir="h" />
-          <Panel defaultSize={27} minSize={14} order={2}><Timeline visibleIds={visibleIds} canEdit={canWrite} /></Panel>
+          <Panel id="pnl-timeline" defaultSize={27} minSize={14} order={2}><Timeline visibleIds={visibleIds} canEdit={canWrite} /></Panel>
           <Handle dir="h" />
-          <Panel defaultSize={31} minSize={10} order={3}>
+          <Panel id="pnl-bottom" defaultSize={31} minSize={10} order={3}>
             <Tabs value={bottomTab} onValueChange={setBottomTab} className="flex h-full flex-col bg-surface">
               <TabsList>
                 <TabsTrigger value="clips">Clips <span className="timecode text-2xs text-muted">{clipTotal}</span></TabsTrigger>
@@ -206,7 +209,7 @@ export function MatchAnalysisPage() {
         </PanelGroup>
       </Panel>
       <Handle dir="v" />
-      <Panel defaultSize={26} minSize={20} maxSize={42} order={2}>
+      <Panel id="pnl-side" defaultSize={26} minSize={20} maxSize={42} order={2}>
         <Tabs value={rightTab} onValueChange={setRightTab} className="flex h-full flex-col bg-surface">
           <TabsList>
             <TabsTrigger value="tag">Tagging</TabsTrigger>

@@ -37,7 +37,7 @@ if (!require('fs').existsSync(`${SP}/upload-test.mp4`)) require('child_process')
   await p.screenshot({ path: `${SP}/p2-library-list.png` })
 
   // delete as analyst should be disabled; switch to admin and delete
-  await p.getByLabel(/Account:/).click()
+  await p.getByRole('button', { name: /Sam Rivera/ }).click()
   await p.getByRole('menuitem', { name: /Alex Morgan/ }).click()
   await p.getByRole('button', { name: /Actions for E2E upload test/ }).click()
   await p.getByRole('menuitem', { name: /Delete/ }).click()

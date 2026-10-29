@@ -14,7 +14,7 @@ const assert = (c, m) => { if (!c) throw new Error('ASSERT: ' + m); console.log(
   await p.waitForFunction(() => document.querySelector('video')?.readyState >= 2)
   const count = async () => (await (await p.request.get('http://localhost:4000/api/clips?matchId=m_demo')).json()).length
   assert(await p.getByText('Read-only: viewers can’t create tags.').count() === 1, 'viewer sees the read-only banner')
-  assert(await p.getByRole('button', { name: 'Tag Shot, shortcut S' }).isDisabled(), 'tag buttons are disabled')
+  assert(await p.getByRole('button', { name: /^Shot\s*,\s*shortcut S/ }).isDisabled(), 'tag buttons are disabled')
   const n = await count()
   await p.keyboard.press('s'); await p.waitForTimeout(400)
   assert(await count() === n, 'hotkey S does nothing for a viewer')

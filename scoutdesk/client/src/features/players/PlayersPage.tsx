@@ -1,5 +1,6 @@
-import { Plus, Search, User } from 'lucide-react'
+import { GitCompare, Pencil, Plus, Search, User } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
@@ -21,6 +22,8 @@ export function PlayersPage() {
   const [teamId, setTeamId] = useState('')
   const [pos, setPos] = useState('')
   const [editing, setEditing] = useState<Player | 'new' | null>(null)
+  const [cmp, setCmp] = useState<string[]>([])
+  const navigate = useNavigate()
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -30,7 +33,10 @@ export function PlayersPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title="Players" subtitle={`${rows.length} of ${players.length}`} actions={<Button variant="primary" size="sm" disabled={!canWrite} onClick={() => setEditing('new')}><Plus className="h-3.5 w-3.5" /> New player</Button>} />
+      <PageHeader title="Players" subtitle={`${rows.length} of ${players.length}`} actions={<>
+        <Button size="sm" disabled={cmp.length !== 2} title={cmp.length === 2 ? undefined : 'Tick two players to compare'} onClick={() => navigate(`/players/compare?a=${cmp[0]}&b=${cmp[1]}`)}><GitCompare className="h-3.5 w-3.5" /> Compare{cmp.length ? ` (${cmp.length}/2)` : ''}</Button>
+        <Button variant="primary" size="sm" disabled={!canWrite} onClick={() => setEditing('new')}><Plus className="h-3.5 w-3.5" /> New player</Button>
+      </>} />
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         <div className="relative w-64">
           <Search aria-hidden className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-muted" />
@@ -53,17 +59,18 @@ export function PlayersPage() {
         ) : (
           <table className="panel w-full border-separate border-spacing-0 text-xs">
             <thead>
-              <tr className="text-left">{['Player', '#', 'Pos', 'Team', 'Foot', 'Height', 'Age', 'Nationality'].map((h) => <th key={h} scope="col" className="label sticky top-0 border-b border-border bg-surface px-3 py-2">{h}</th>)}</tr>
+              <tr className="text-left">{['', 'Player', '#', 'Pos', 'Team', 'Foot', 'Height', 'Age', 'Nationality', ''].map((h) => <th key={h} scope="col" className="label sticky top-0 border-b border-border bg-surface px-3 py-2">{h}</th>)}</tr>
             </thead>
             <tbody>
               {rows.map((p) => {
                 const t = p.teamId ? teamById.get(p.teamId) : undefined
                 return (
-                  <tr key={p.id} className="cursor-pointer hover:bg-raised/40" onClick={() => setEditing(p)}>
+                  <tr key={p.id} className="hover:bg-raised/40">
+                    <td className="w-8 border-b border-border px-3 py-1.5"><input type="checkbox" aria-label={`Select ${p.name} to compare`} checked={cmp.includes(p.id)} onChange={(e) => setCmp((c) => (e.target.checked ? [...c, p.id].slice(-2) : c.filter((x) => x !== p.id)))} /></td>
                     <td className="border-b border-border px-3 py-1.5">
-                      <button type="button" className="flex items-center gap-2.5 text-left font-medium hover:text-accent" onClick={(e) => (e.stopPropagation(), setEditing(p))}>
+                      <Link to={`/players/${p.id}`} className="flex items-center gap-2.5 font-medium hover:text-accent">
                         <PlayerAvatar player={p} size={26} color={t?.color} /> {p.name}
-                      </button>
+                      </Link>
                     </td>
                     <td className="timecode border-b border-border px-3 py-1.5 text-muted">{p.jersey ?? '—'}</td>
                     <td className="border-b border-border px-3 py-1.5"><span className="flex gap-1">{p.positions.map((x) => <Badge key={x} className="font-mono">{x}</Badge>)}</span></td>
@@ -72,6 +79,7 @@ export function PlayersPage() {
                     <td className="timecode border-b border-border px-3 py-1.5 text-muted">{p.heightCm ? `${p.heightCm} cm` : '—'}</td>
                     <td className="timecode border-b border-border px-3 py-1.5 text-muted">{p.age ?? '—'}</td>
                     <td className="border-b border-border px-3 py-1.5 text-muted">{p.nationality ?? '—'}</td>
+                    <td className="border-b border-border px-3 py-1 text-right"><Button variant="ghost" size="icon-sm" aria-label={`Edit ${p.name}`} onClick={() => setEditing(p)}><Pencil className="h-3.5 w-3.5" /></Button></td>
                   </tr>
                 )
               })}

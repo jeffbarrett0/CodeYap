@@ -6,9 +6,13 @@ import { Spinner } from '@/components/ui/misc'
 import { Tip } from '@/components/ui/tooltip'
 import { frameAt, formatTimecode } from '@/lib/timecode'
 import { clamp, cn } from '@/lib/utils'
+import { api } from '@/lib/api'
 import { useData } from '@/store/data'
+import { useCan } from '@/store/hooks'
+import { useTagging } from './tagging'
 import type { Video } from '@/types'
 import { DrawingLayer } from './DrawingLayer'
+import { SecondaryPane } from './SecondaryPane'
 import { PlayerControls } from './PlayerControls'
 import { DRAW_COLORS, useDrawing, type DrawTool } from './drawing'
 import { player, usePlayback } from './playback'
@@ -22,7 +26,7 @@ interface Zoom {
 const MIN_ZOOM = 1
 const MAX_ZOOM = 8
 
-export function VideoPlayer({ video }: { video: Video }) {
+export function VideoPlayer({ video, secondary, angles }: { video: Video; secondary?: Video | null; angles?: Video[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -116,7 +120,8 @@ export function VideoPlayer({ video }: { video: Video }) {
     return () => window.removeEventListener('scoutdesk:toggle-fullscreen', onFs)
   }, [toggleFullscreen])
 
-  const snapshot = async () => {
+  const { canWrite } = useCan()
+  const snapshot = async (save = false) => {
     const el = videoRef.current
     if (!el) return
     try {
@@ -124,14 +129,20 @@ export function VideoPlayer({ video }: { video: Video }) {
       const frame = frameAt(el.currentTime, fps)
       const shapes = useDrawing.getState().shapes.filter((s) => s.frame === frame)
       const blob = await captureSnapshot(el, shapes)
-      downloadBlob(blob, `${video.title.replace(/[^\w-]+/g, '_')}_${formatTimecode(el.currentTime, fps).replace(/[:.]/g, '-')}.png`)
-      toast.success(shapes.length ? `Snapshot saved with ${shapes.length} drawing${shapes.length > 1 ? 's' : ''}` : 'Snapshot saved')
+      if (save) {
+        const ctx = useTagging.getState()
+        await api.uploadSnapshot(blob, { matchId: video.matchId ?? '', videoId: video.id, timeSec: String(+el.currentTime.toFixed(2)), playerId: ctx.playerId ?? '', caption: shapes.length ? 'Annotated frame' : '' })
+        toast.success(`Saved to the report library${shapes.length ? ` with ${shapes.length} drawing${shapes.length > 1 ? 's' : ''}` : ''}`)
+      } else {
+        downloadBlob(blob, `${video.title.replace(/[^\w-]+/g, '_')}_${formatTimecode(el.currentTime, fps).replace(/[:.]/g, '-')}.png`)
+        toast.success(shapes.length ? `Snapshot downloaded with ${shapes.length} drawing${shapes.length > 1 ? 's' : ''}` : 'Snapshot downloaded')
+      }
     } catch {
       toast.error('Could not capture this frame')
     }
   }
   useEffect(() => {
-    const onSnap = () => void snapshot()
+    const onSnap = () => void snapshot(false)
     window.addEventListener('scoutdesk:snapshot', onSnap)
     return () => window.removeEventListener('scoutdesk:snapshot', onSnap)
   })
@@ -156,9 +167,10 @@ export function VideoPlayer({ video }: { video: Video }) {
 
   return (
     <div ref={containerRef} className="flex h-full min-h-0 flex-col bg-black">
+      <div className="flex min-h-0 flex-1">
       <div
         ref={stageRef}
-        className={cn('relative min-h-0 flex-1 touch-none select-none overflow-hidden', zoom.s > 1 && !drawing && 'cursor-grab active:cursor-grabbing')}
+        className={cn('relative min-h-0 min-w-0 flex-1 touch-none select-none overflow-hidden', zoom.s > 1 && !drawing && 'cursor-grab active:cursor-grabbing')}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -199,7 +211,7 @@ export function VideoPlayer({ video }: { video: Video }) {
         {/* overlays (marked so they don't start a pan / play toggle) */}
         <div data-overlay className="absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-white/10 bg-black/60 p-0.5 backdrop-blur">
           <Tip label="Zoom out" side="bottom"><Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10" aria-label="Zoom out" onClick={() => zoomAt(1 / 1.4)}><ZoomOut className="h-3.5 w-3.5" /></Button></Tip>
-          <button type="button" className="timecode w-11 text-center text-2xs text-white/90 hover:text-white" aria-label="Reset zoom" onClick={() => setZoom({ s: 1, x: 0, y: 0 })}>{Math.round(zoom.s * 100)}%</button>
+          <button type="button" className="timecode w-11 text-center text-2xs text-white/90 hover:text-white" aria-label={`Reset zoom, currently ${Math.round(zoom.s * 100)}%`} onClick={() => setZoom({ s: 1, x: 0, y: 0 })}>{Math.round(zoom.s * 100)}%</button>
           <Tip label="Zoom in (or scroll)" side="bottom"><Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10" aria-label="Zoom in" onClick={() => zoomAt(1.4)}><ZoomIn className="h-3.5 w-3.5" /></Button></Tip>
         </div>
 
@@ -218,7 +230,9 @@ export function VideoPlayer({ video }: { video: Video }) {
           </div>
         )}
       </div>
-      <PlayerControls fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen} onSnapshot={() => void snapshot()} />
+      {secondary && <SecondaryPane key={secondary.id} video={secondary} />}
+      </div>
+      <PlayerControls fullscreen={fullscreen} onToggleFullscreen={toggleFullscreen} onSnapshot={(save) => void snapshot(save)} canSave={canWrite} angles={angles} primaryId={video.id} />
     </div>
   )
 }

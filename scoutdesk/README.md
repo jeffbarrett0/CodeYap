@@ -6,12 +6,12 @@ timeline, and (in later phases) build playlists, profile players and export repo
 
 Dark, dense, pro-tool UI. Light theme available.
 
-> **Status: phases 1–6 of 10 are built and verified** (see [Roadmap](#roadmap)). Phases 7–10 are not started.
+> **Status: all 10 planned phases are built and verified** — see [Roadmap](#roadmap) and [Testing](#testing).
 
 ## Quick start
 
-Requirements: **Node 20+** and, strongly recommended, **ffmpeg** on your `PATH`
-(thumbnails, metadata probing, the generated demo video, and later clip export all use it).
+Requirements: **Node 20+** and **ffmpeg** on your `PATH`
+(thumbnails, metadata probing, the generated demo video and MP4 export all use it; without it the app still runs).
 
 ```bash
 cd scoutdesk
@@ -45,33 +45,51 @@ Environment variables (all optional): `PORT` (4000), `STORAGE_DIR` (`server/stor
 
 **Shell** — sidebar (Library, Matches, Players, Teams, Playlists, Reports, Settings), top bar with global search
 (`/` or `Ctrl/⌘K`; matches, teams, players, tags), team context filter, user switcher, dark/light theme, shortcut cheat sheet (`?`).
+Dark by default, 1280 px and up, WCAG 2.x A/AA clean (axe-core on every screen in both themes).
 
 **Library** — drag-and-drop multi-file upload streamed to disk (progress tray that survives navigation, cancel/retry),
 background ffprobe + thumbnail, grid/list views, filter/sort, rename, attach to a match, delete (admin).
 Video is delivered through **signed URLs with HTTP Range support**, so seeking works on multi-GB files.
 
-**Matches** — list with score, video/clip counts and tagging status; create/edit a match (score, status, venue, **lineups**).
-
-**Players** — database with photo upload, jersey, multiple positions, foot, height, age, nationality, team, notes; filters by team/position.
+**Matches** — list with score, video/clip counts and tagging status; create/edit a match (score, status, venue, **lineups**); share a read-only link.
+**Players** — database with photo upload, jersey, multiple positions, foot, height, age, nationality, team, notes; filter by team/position; tick two to **compare**.
 **Teams** — own team vs opponents, colour, formation field (indicative placement by position), roster, match history and W/D/L record.
 
 **Match analysis** (resizable panels, layout is remembered)
 - *Player*: play/pause, **frame step ±1 (←/→)**, ±5 s, ±10 s, speed 0.25×–2×, volume, fullscreen,
   `HH:MM:SS.ff` timecode, wheel/button **zoom and drag-to-pan**, and a **drawing overlay** (arrow / line / circle,
-  colours, undo, clear) bound to the paused frame, with **PNG snapshot** export that bakes in the drawings.
+  colours, undo, clear) bound to the paused frame. **Snapshots** download as PNG or are **saved to the report library** (drawings baked in).
+- *Multi-angle*: pick a second camera angle; it plays in sync beside the main one. An **offset slider** (±60 s, frame nudges) aligns the two and is saved per video.
 - *Timeline* (canvas): ruler, per-category density "waveform", one lane per category, overview map.
   Click/drag to scrub, **drag clip edges to re-trim** (one undo step), `Ctrl+wheel` / `=` `-` zoom, wheel pan, follow-playhead.
 - *Tagging panel*: quick-tag buttons grouped by category, each with a hotkey; sticky **team / player / jersey / outcome / zone**
   context; configurable pre/post roll (default −5 s / +5 s). Fully usable without the mouse.
-- *Clip inspector*: tag, start/end (timecode fields, ±0.5 s, "set to playhead"), team, player, jersey, outcome, zone, labels, notes.
-- *Clip list*: virtualized table (timestamp, category/tag, player, team, outcome, notes, labels), sortable, multi-select
-  (click / Shift / Ctrl), filters (text, category, tag, player, team, outcome, zone, label), **saved filter presets**,
-  bulk actions (change tag, outcome, team/player, add label, delete).
-- *Event log*: play-by-play list that follows the video.
-- *Pitch*: SVG pitch (attack → right) plotting event locations and pass/shot arrows, coloured by category with an outcome ring;
-  Events/Heatmap modes, honours the clip filters plus a time-range slider, and **click (or drag, for an end point) to place an event** (undoable).
-- **Undo / redo** (`Ctrl/⌘Z`, `Ctrl/⌘⇧Z`) for every clip edit — create, edit, bulk edit, trim, delete — kept in sync with the server.
-- **Roles**: admin, analyst (can tag), viewer (read-only). Enforced in the UI *and* on the server (401/403).
+- *Clip inspector*: tag, start/end (timecode fields, ±0.5 s, "set to playhead"), team, player, jersey, outcome, zone, labels, notes,
+  **threaded comments** with clickable `@1:23` timestamp mentions, one-click **MP4 export** and add-to-playlist.
+- *Clip list*: virtualized table, sortable, multi-select (click / Shift / Ctrl), filters (text, category, tag, player, team, outcome, zone, label),
+  **saved filter presets**, bulk actions (change tag, outcome, team/player, add label, add to playlist, export MP4, delete).
+- *Event log*: play-by-play list that follows the video. *Pitch*: SVG pitch with event dots + pass/shot arrows, heatmap mode, time-range filter,
+  and **click/drag to place an event** (undoable).
+- **Undo / redo** (`Ctrl/⌘Z`, `Ctrl/⌘⇧Z`) for every clip edit — create, edit, bulk edit, trim, delete, relocate.
+
+**Playlists** — build from any match via a cross-match clip library (filters: match, **date range**, category, player, outcome, text), **drag clips in**,
+drag or button to reorder, custom titles, **cut / fade** transitions. Continuous playback with **auto-advance**, a lower-third **title overlay**,
+loop, and fades through black. **Export to MP4** (FFmpeg: normalised 1280×720/25 fps H.264+AAC, optional burned-in titles, fades applied) through a
+persistent **job queue** with live progress and download links.
+
+**Share links** — read-only links to a playlist or a whole match, with optional **password** (scrypt-hashed, brute-force throttled) and **expiry**; revocable.
+Recipients need no account and see no app chrome.
+
+**Player profiles** — stat cards computed from tags (passes, shots, tackles, duels %, key passes, …), **heatmap / event map**, **radar vs position peers**
+(falls back to all players, and says so), actions-by-type chart, all clips (deep-linked into the match), side-by-side **comparison** with leaders marked.
+
+**Reports** — printable **PDF scouting reports** for a player or a team: summary stats, peer-comparison bars, vector heatmap, key clips with timestamps,
+saved snapshots, and a written-notes section (ruled lines when left empty). Live preview, then download.
+
+**Taxonomy editor** (Settings, admin) — add/rename/reorder/delete categories (= timeline lanes) and tags, pick colours, capture hotkeys
+(reserved/duplicate keys refused), set default outcomes.
+
+**Roles** — admin, analyst (can tag, build, export, share), viewer (read-only). Enforced in the UI *and* on the server (401/403).
 
 ### Keyboard shortcuts (press `?` in the app for the live list)
 
@@ -101,8 +119,9 @@ Deep links: `/match/:id?tag=<tagTypeId>`, `?clip=<clipId>`, `?t=<seconds>`.
 scoutdesk/
 ├─ server/                Fastify 5 + Prisma 6 (SQLite) — TypeScript, run with tsx
 │  ├─ prisma/             schema.prisma, seed.ts (+ demo-footage generator), taxonomy.ts
-│  ├─ src/routes/         reference (teams/players/matches), videos, clips, taxonomy
-│  ├─ src/lib/            range.ts (HTTP Range), sign.ts (HMAC URLs), ffmpeg.ts (probe/thumbs)
+│  ├─ src/routes/         reference, videos, clips, taxonomy, playlists, exports, shares, comments, snapshots, profile, reports
+│  ├─ src/lib/            range (HTTP Range), sign (HMAC URLs), ffmpeg (probe/thumbs), exporter (FFmpeg queue),
+│  │                      stats (tag → stats, radar), report (pdfkit), display, heat
 │  └─ test/               vitest + fastify.inject integration tests
 └─ client/                React 18 + Vite + Tailwind + Radix primitives + Zustand
    └─ src/
@@ -122,12 +141,21 @@ Design notes
 - **Performance** (measured, 5,030 clips in one match, headless Chromium): table ready in ~0.5 s with 20 DOM rows,
   timeline zoom = 1 frame, 60 fps (p95 16.9 ms) during playback with the timeline live, filtering 5 k clips ≈ 75 ms.
 
+## Security notes
+
+- Media (video, thumbnails, photos, snapshots, exports) is served through **HMAC-signed, expiring URLs** — nothing is world-readable by guessing an id.
+- Share passwords are scrypt-hashed with per-link salts; failed attempts are throttled (8/min per link and IP).
+- Uploads are streamed with size/extension checks; storage paths never come from user input.
+- **Auth is demo-grade** (the client sends `x-user-id`). Replace `server/src/auth.ts` with real sessions/SSO before exposing the server beyond a trusted network.
+- `npm audit` reports a `deepmerge-ts` advisory reachable only through Prisma's CLI config loader (build-time tooling, not the running server); it needs a Prisma major upgrade.
+
 ## Known limitations
 
-- **Browser codecs decide what plays.** H.264/AAC MP4 is safest; MOV/MKV/WebM depend on the browser. There is no server transcoding yet.
-- **Auth is demo-grade**: the client sends `x-user-id`. Swap `server/src/auth.ts` for real sessions before exposing it.
-- Filter presets are stored per browser (localStorage). Undo/redo currently covers clip edits (other entities arrive with their phases).
-- Drawn snapshots download as PNG; saving them into reports comes with phase 9.
+- **Browser codecs decide what plays.** H.264/AAC MP4 is safest; MOV/MKV/WebM depend on the browser. There is no server transcoding for *playback* (export always re-encodes to H.264).
+- Passes: the default taxonomy has no generic "Pass" tag, so "passes" are Key pass, Cross, Combination play, Distribution (and `Pass` if you add one) — see "How are these computed?" on the profile.
+- Stats describe *tagged* actions, not full-match totals; radar axes are scaled against the best player in *your* database, not a league benchmark.
+- Filter presets are stored per browser. Undo/redo covers clip edits (other entities save immediately).
+- SQLite + in-process export queue suit a single analyst workstation or small team; for many concurrent users move to Postgres and a separate worker.
 
 ## Roadmap
 
@@ -137,13 +165,24 @@ Design notes
 4. ✅ Timeline, tagging panel with hotkeys, clip creation
 5. ✅ Clip list with filtering and bulk actions
 6. ✅ Pitch visualisation, player & team database
-7. ⏳ Playlists, playback, FFmpeg clip export + job queue
-8. ⏳ Player profiles (stats, heatmap, radar), comparison
-9. ⏳ PDF reports, share links
-10. ⏳ Polish: remaining a11y pass, empty states everywhere, multi-angle sync
+7. ✅ Playlists, playback, FFmpeg export + job queue
+8. ✅ Player profiles (stats, heatmap, radar), comparison
+9. ✅ PDF reports, share links
+10. ✅ Polish: accessibility pass, empty states, comments, multi-angle sync, taxonomy editor
 
-## Browser tests
+Ideas beyond the brief: real auth/SSO, Postgres + object storage, per-user presets, server-side transcoding for non-H.264 uploads, team-level radar benchmarks.
 
-`e2e/*.cjs` are Playwright scripts that drive the real app (frame-accurate stepping against the burned-in frame counter,
-tagging, undo/redo, timeline drags, filters, bulk edits, viewer role, a 5,000-clip performance run). They assume the app is running on
-`:4000` with a freshly seeded DB, e.g. `node e2e/analysis-transport-tagging.cjs ./e2e-out`. Screenshots land in the output dir.
+## Testing
+
+```bash
+npm test             # 51 server integration tests + 37 client unit tests
+npm run typecheck
+node e2e/a11y.cjs    # axe-core WCAG A/AA audit of every screen, dark + light (needs the app running on :4000)
+```
+
+`e2e/*.cjs` are Playwright scripts that drive the real app — frame-accurate stepping against the burned-in frame counter, tagging, undo/redo, timeline drags,
+filters and bulk edits, viewer role, playlists with drag-and-drop and auto-advance, a real FFmpeg export (verified as MP4), password-protected public links
+opened in an anonymous browser, profiles/compare, PDF generation, comments, multi-angle sync, the taxonomy editor, and a 5,000-clip performance run.
+They need `npm i -g playwright && npx playwright install chromium`, the app on `:4000`
+(`npm run build && npm start`) and a freshly seeded DB (`SEED_VIDEO_FORMAT=webm npm run seed:reset` if your Chromium build lacks H.264), e.g.
+`node e2e/phase7-playlists-export-share.cjs ./e2e-out`. Screenshots land in the output dir.
