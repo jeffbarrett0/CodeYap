@@ -34,7 +34,7 @@ export async function importMedia(
 ): Promise<MediaAsset> {
   const name = basename(file)
   if (!isSupportedMedia(name)) {
-    throw new ToolError(`Desteklenmeyen dosya türü "${extname(name) || name}". Desteklenenler: MP4, MOV, MKV, FLV (OBS kayıtları için MKV önerilir).`)
+    throw new ToolError(`Desteklenmeyen dosya türü "${extname(name) || name}". Desteklenenler: video (MP4, MOV, MKV, FLV — OBS için MKV önerilir), ses (MP3, WAV, M4A, AAC, FLAC, OGG) ve görsel (PNG, JPG, WEBP).`)
   }
   let st
   try {
@@ -48,7 +48,7 @@ export async function importMedia(
   const probe = await ffprobeJson(tools.ffprobe, file, opts.signal)
   const head = await readHead(file).catch(() => undefined)
   const info = parseProbe(probe, name, head)
-  if (info.durationSec <= 0) throw new ToolError('Dosyanın süresi okunamadı; kayıt tamamlanmamış olabilir.')
+  if (info.kind !== 'image' && info.durationSec <= 0) throw new ToolError('Dosyanın süresi okunamadı; kayıt tamamlanmamış olabilir.')
   if (info.audioStreams.length === 0 && info.kind === 'video') {
     // ses olmayan kayıt geçerli ama transkripsiyon yapılamaz — uyarı UI'da gösterilir
   }
@@ -68,10 +68,11 @@ export async function importMedia(
     ...info,
     transcriptionTrack: 0,
     audioMap: defaultAudioMap(info.audioStreams),
-    importedAt: new Date().toISOString()
+    importedAt: new Date().toISOString(),
+    role: info.kind === 'image' ? 'image' : undefined
   }
 
-  if (info.kind === 'video') {
+  if (info.kind === 'video' || info.kind === 'image') {
     opts.progress?.(0.6, 'Küçük resim hazırlanıyor')
     await makeThumbnail(asset, tools, dataDir, opts.signal).catch(() => undefined)
   }
@@ -82,10 +83,10 @@ export async function importMedia(
 export async function makeThumbnail(asset: MediaAsset, tools: MediaTools, dataDir: string, signal?: AbortSignal): Promise<void> {
   const rel = join('thumbs', `${asset.id}.jpg`)
   await mkdir(join(dataDir, 'thumbs'), { recursive: true })
-  const at = Math.min(Math.max(1, asset.durationSec * 0.1), Math.max(0, asset.durationSec - 1))
+  const at = asset.kind === 'image' ? 0 : Math.min(Math.max(1, asset.durationSec * 0.1), Math.max(0, asset.durationSec - 1))
   await runFfmpeg(
     tools.ffmpeg,
-    ['-y', '-v', 'error', '-ss', at.toFixed(2), '-i', asset.path, '-frames:v', '1', '-vf', 'scale=320:-2', '-q:v', '4', join(dataDir, rel)],
+    ['-y', '-v', 'error', ...(at > 0 ? ['-ss', at.toFixed(2)] : []), '-i', asset.path, '-frames:v', '1', '-vf', 'scale=320:-2', '-q:v', '4', join(dataDir, rel)],
     { signal }
   )
   asset.thumbnailPath = rel

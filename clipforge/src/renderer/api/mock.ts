@@ -60,6 +60,13 @@ const audio = (i: number, title: string) => ({ index: i, streamIndex: i + 1, cod
 
 function demoAsset(path: string): MediaAsset {
   const name = path.split('/').pop() as string
+  const ext = name.toLowerCase().split('.').pop() ?? ''
+  if (['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+    return { id: newId('asset'), name, path, kind: 'image', container: 'image', durationSec: 0, width: 900, height: 700, fps: 0, sizeBytes: 100_000, audioStreams: [], obs: { isObs: false, encoder: 'unknown', evidence: [] }, chapters: [], transcriptionTrack: 0, audioMap: { mix: 0 }, importedAt: new Date().toISOString(), role: 'image' }
+  }
+  if (['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg'].includes(ext)) {
+    return { id: newId('asset'), name, path, kind: 'audio', container: ext, durationSec: 120, width: 0, height: 0, fps: 0, sizeBytes: 5_000_000, audioStreams: [audio(0, 'Ses')], obs: { isObs: false, encoder: 'unknown', evidence: [] }, chapters: [], transcriptionTrack: 0, audioMap: { mix: 0 }, importedAt: new Date().toISOString() }
+  }
   return {
     id: newId('asset'), name, path, kind: 'video', container: 'mkv', durationSec: 120, width: 1920, height: 1080, fps: 60, videoCodec: 'h264', videoProfile: 'High', sizeBytes: 1_800_000_000, bitrate: 20_000_000,
     audioStreams: [audio(0, 'Track 1'), audio(1, 'Track 2'), audio(2, 'Track 3')],

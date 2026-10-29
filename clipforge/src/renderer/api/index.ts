@@ -10,6 +10,8 @@ export async function getApi(): Promise<ClipforgeApi> {
   } else {
     const { createMockApi } = await import('./mock')
     api = createMockApi()
+    // Tarayıcı modu testleri için dışarıdan erişim (yalnızca sahte API)
+    ;(window as unknown as { __cfApi?: ClipforgeApi }).__cfApi = api
   }
   return api
 }

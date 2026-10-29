@@ -255,4 +255,47 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('layer-V2').click()
     await expect(page.getByTestId('layer-detail').getByLabel('Yükseklik')).toHaveValue(/^(2[0-9]|3[0-9])/)
   })
+
+  test('ayrı kaynaklar: ekran, oyun sesi, konuşma ve görsel ayrı içe aktarılır; ize eklenir; bağlı kaynaklarla klip çıkar', async ({ page }) => {
+    await boot(page)
+    // üç ayrı dosya + görsel (dosya diyaloğu yerine doğrudan içe aktarma)
+    await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/kayit/ekran kaydi.mp4', '/kayit/oyun sesi.wav', '/kayit/konusma.wav', '/kayit/konu gorseli.png']))
+    await expect(page.getByTestId('asset')).toHaveCount(4)
+    await expect(page.getByTestId('asset').nth(3)).toContainText('Görsel')
+    await expect(page.getByTestId('asset').nth(1)).toContainText('Ses')
+
+    // görseli I1'e ekle (düğmeyle)
+    await page.getByTestId('asset').nth(3).click()
+    await expect(page.getByTestId('target-track')).toContainText('Konu görseli')
+    await page.getByTestId('add-at-playhead').click()
+    await expect(page.getByTestId('lane-I1').getByTestId('clip')).toHaveCount(1)
+
+    // oyun sesini A1'e sürükle-bırak
+    const game = page.getByTestId('asset').nth(1)
+    const lane = page.getByTestId('lane-A1')
+    await game.dragTo(lane)
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1)
+    // görsel ses izine bırakılamaz: uyarı verir
+    await page.getByTestId('asset').nth(3).dragTo(page.getByTestId('lane-A2'))
+    await expect(page.getByTestId('toast').filter({ hasText: 'Görsel katmanına yalnızca' }).or(page.getByTestId('toast').filter({ hasText: 'ses akışı yok' }))).toBeVisible()
+    await expect(page.getByTestId('lane-A2').getByTestId('clip')).toHaveCount(0)
+
+    // konuşma dosyası: rol + bağlı kaynaklar
+    await page.getByTestId('asset').nth(2).click()
+    await page.getByTestId('role-select').selectOption('voice')
+    await page.getByTestId('src-screen').selectOption({ label: 'ekran kaydi.mp4' })
+    await page.getByTestId('src-game').selectOption({ label: 'oyun sesi.wav' })
+    // konuşma dosyasını transkribe et ve ara
+    await page.getByTestId('transcribe-btn').click()
+    await expect(page.getByText('Transkript hazır').first()).toBeVisible()
+    await page.getByTestId('tab-search').click()
+    await page.getByTestId('search-input').fill('Victor Nelson')
+    await page.getByTestId('search-btn').click()
+    await page.getByTestId('make-clip').first().click()
+    await page.getByTestId('add-to-timeline').click()
+    // ekran V1, oyun sesi A1, konuşma A2 (konuşma dosyasından) — yeni klipler eklenmiş olmalı
+    await expect(page.getByTestId('lane-V1').getByTestId('clip')).toHaveCount(1)
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(2)
+    await expect(page.getByTestId('lane-A2').getByTestId('clip')).toHaveCount(1)
+  })
 })

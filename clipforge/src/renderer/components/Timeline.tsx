@@ -91,7 +91,7 @@ export function Timeline() {
       exec(cmd.trimStart(d.clip.id, snap(d.clip.start + dx, ids)))
     } else {
       const assets = useStore.getState().project.assets
-      exec(cmd.trimEnd(d.clip.id, snap(clipEnd(d.clip) + dx, ids), (c) => assets.find((a) => a.id === c.assetId)?.durationSec ?? Infinity))
+      exec(cmd.trimEnd(d.clip.id, snap(clipEnd(d.clip) + dx, ids), (c) => { const a = assets.find((x) => x.id === c.assetId); return !a || a.kind === 'image' ? Infinity : a.durationSec }))
     }
   }
 
@@ -184,6 +184,16 @@ export function Timeline() {
                 data-lane-id={t.id}
                 data-testid={`lane-${t.id}`}
                 onPointerDown={(e) => { if (e.target === e.currentTarget) { select([]); if (viewMode !== 'timeline') setViewMode('timeline'); setPlayhead(timeFromEvent(e.clientX)) } }}
+                onDragOver={(e) => e.dataTransfer.types.includes('application/x-clipforge-asset') && (e.preventDefault(), e.currentTarget.classList.add('drop'))}
+                onDragLeave={(e) => e.currentTarget.classList.remove('drop')}
+                onDrop={(e) => {
+                  e.currentTarget.classList.remove('drop')
+                  const id = e.dataTransfer.getData('application/x-clipforge-asset')
+                  if (!id) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  useStore.getState().addAssetToTrack(id, t.id, { at: timeFromEvent(e.clientX) })
+                }}
               >
                 {t.clips.map((c) => (
                   <div

@@ -117,28 +117,37 @@ export function parseProbe(probe: FfprobeJson, fileName: string, headBytes?: Uin
   const fmtName = probe.format?.format_name ?? ''
   const container = fmtName.includes('matroska') ? 'mkv' : fmtName.includes('flv') ? 'flv' : fmtName.includes('mov') ? 'mp4/mov' : fmtName.split(',')[0] || 'unknown'
 
+  const image = isImageFile(fileName) && !!video
   return {
-    kind: video ? 'video' : 'audio',
-    container,
-    durationSec,
+    kind: image ? 'image' : video ? 'video' : 'audio',
+    container: image ? 'image' : container,
+    // Durağan görselin süresi yoktur (klip süresini kullanıcı belirler)
+    durationSec: image ? 0 : durationSec,
     width: video?.width ?? 0,
     height: video?.height ?? 0,
-    fps: frac(video?.avg_frame_rate) || frac(video?.r_frame_rate) || 0,
+    fps: image ? 0 : frac(video?.avg_frame_rate) || frac(video?.r_frame_rate) || 0,
     videoCodec: video?.codec_name,
     videoProfile: video?.profile,
     pixelFormat: video?.pix_fmt,
     bitrate: Number(probe.format?.bit_rate) || undefined,
     sizeBytes: Number(probe.format?.size) || 0,
-    audioStreams,
+    audioStreams: image ? [] : audioStreams,
     obs: detectObs(probe, fileName, headBytes),
     chapters
   }
 }
 
-export const SUPPORTED_EXTENSIONS = ['mp4', 'mov', 'mkv', 'flv', 'm4v', 'webm', 'ts']
+export const VIDEO_EXTENSIONS = ['mp4', 'mov', 'mkv', 'flv', 'm4v', 'webm', 'ts']
+export const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wma']
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif']
+export const SUPPORTED_EXTENSIONS = [...VIDEO_EXTENSIONS, ...AUDIO_EXTENSIONS, ...IMAGE_EXTENSIONS]
+
+const extOf = (name: string) => name.toLowerCase().split('.').pop() ?? ''
+export const isImageFile = (name: string) => IMAGE_EXTENSIONS.includes(extOf(name))
+export const isAudioFile = (name: string) => AUDIO_EXTENSIONS.includes(extOf(name))
 
 export function isSupportedMedia(fileName: string): boolean {
-  return SUPPORTED_EXTENSIONS.includes(fileName.toLowerCase().split('.').pop() ?? '')
+  return SUPPORTED_EXTENSIONS.includes(extOf(fileName))
 }
 
 /** Çoklu ses track'li kayıtlarda varsayılan eşleme: Track 1 = karışım; 2 = oyun; 3 = mikrofon (OBS konvansiyonu) */

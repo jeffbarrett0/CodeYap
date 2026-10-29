@@ -5,7 +5,12 @@ import { userMessage } from './tasks'
 
 type Handlers = { [C in IpcChannel]: (...args: IpcInvoke[C][0]) => Promise<IpcInvoke[C][1]> | IpcInvoke[C][1] }
 
-const MEDIA_FILTER = { name: 'Video kayıtları (OBS)', extensions: ['mkv', 'mp4', 'mov', 'flv'] }
+const MEDIA_FILTERS = [
+  { name: 'Tüm medya', extensions: ['mkv', 'mp4', 'mov', 'flv', 'm4v', 'webm', 'mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'] },
+  { name: 'Video kayıtları (OBS)', extensions: ['mkv', 'mp4', 'mov', 'flv', 'm4v', 'webm'] },
+  { name: 'Ses', extensions: ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus'] },
+  { name: 'Görsel', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'] }
+]
 
 /** Tipli IPC kanallarını bağlar. Her hata anlaşılır bir mesaja çevrilip renderer'a Result olarak döner; main çökmez. */
 export function registerIpc(app: AppService, getWindow: () => BrowserWindow | null): void {
@@ -14,7 +19,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     'settings:get': () => app.settings.value,
     'settings:set': (patch) => app.settings.update(patch),
     'dialog:openMedia': async () => {
-      const r = await dialog.showOpenDialog(getWindow() ?? (undefined as never), { title: 'Yayın kaydı seç', properties: ['openFile', 'multiSelections'], filters: [MEDIA_FILTER] })
+      const r = await dialog.showOpenDialog(getWindow() ?? (undefined as never), { title: 'Medya seç (video, ses, görsel)', properties: ['openFile', 'multiSelections'], filters: MEDIA_FILTERS })
       return r.canceled ? [] : r.filePaths
     },
     'dialog:openFile': async ({ title, extensions }) => {

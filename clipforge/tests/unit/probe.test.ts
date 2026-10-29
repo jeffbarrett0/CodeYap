@@ -43,3 +43,14 @@ describe('ffprobe ayrıştırma', () => {
     expect(defaultAudioMap(parseProbe(obsMkv, 'a.mkv').audioStreams.slice(0, 1))).toEqual({ mix: 0 })
   })
 })
+
+describe('ses ve görsel dosyaları', () => {
+  it('görsel: süresiz, ses akışsız, kind=image; ses dosyası: kind=audio', () => {
+    const img = parseProbe({ format: { format_name: 'png_pipe' }, streams: [{ index: 0, codec_type: 'video', codec_name: 'png', width: 800, height: 600 }] }, 'konu görseli.PNG')
+    expect(img).toMatchObject({ kind: 'image', durationSec: 0, width: 800, height: 600, audioStreams: [] })
+    const aud = parseProbe({ format: { format_name: 'mp3', duration: '61.5' }, streams: [{ index: 0, codec_type: 'audio', codec_name: 'mp3', channels: 2, sample_rate: '44100' }] }, 'konuşma.mp3')
+    expect(aud).toMatchObject({ kind: 'audio', durationSec: 61.5 })
+    expect(aud.audioStreams).toHaveLength(1)
+    expect(['a.wav', 'a.png', 'a.JPG', 'a.m4a', 'a.mkv'].every(isSupportedMedia)).toBe(true)
+  })
+})

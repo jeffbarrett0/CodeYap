@@ -100,7 +100,7 @@ export class AppService {
           const asset = await importMedia(file, this.tools, this.dataDir, { signal: ctx.signal, progress: ctx.progress })
           this.assets.set(asset.id, asset)
           this.deps.emit('asset:added', asset)
-          this.queueProxy(asset)
+          if (asset.kind !== 'image') this.queueProxy(asset)
         }
       })
       return task.id

@@ -4,6 +4,7 @@ import type { MediaAsset } from '@shared/types'
 import { requireApi } from '../api'
 import { useStore } from '../store'
 import { fmt, Progress } from './ui'
+import { AddToTrack, SourcesBlock } from './Sources'
 
 const ENC: Record<string, string> = { nvenc: 'NVENC', x264: 'x264', amf: 'AMF', qsv: 'QuickSync', apple: 'VideoToolbox', software: 'Yazılım', unknown: 'kodlayıcı ?' }
 
@@ -61,11 +62,11 @@ export function MediaPanel() {
         <div className="col">
           {project.assets.length === 0 && <div className="empty">Henüz medya yok.</div>}
           {project.assets.map((a) => (
-            <div key={a.id} className={`asset${a.id === selectedAssetId ? ' sel' : ''}`} onClick={() => selectAsset(a.id)} data-testid="asset" role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && selectAsset(a.id)}>
+            <div key={a.id} className={`asset${a.id === selectedAssetId ? ' sel' : ''}`} draggable onDragStart={(e) => e.dataTransfer.setData('application/x-clipforge-asset', a.id)} title="Zaman çizelgesindeki bir ize sürükleyip bırakabilirsiniz" onClick={() => selectAsset(a.id)} data-testid="asset" role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && selectAsset(a.id)}>
               <div className="thumb" style={api.mediaUrl(a, 'thumb') ? { backgroundImage: `url(${api.mediaUrl(a, 'thumb')})` } : undefined}>{!api.mediaUrl(a, 'thumb') && 'önizleme yok'}</div>
               <div className="meta">
                 <div className="name" title={a.path}>{a.name}</div>
-                <div className="hint">{fmt(a.durationSec)} · {a.width}×{a.height} · {Math.round(a.fps)} fps</div>
+                <div className="hint">{a.kind === 'image' ? `Görsel · ${a.width}×${a.height}` : a.kind === 'audio' ? `Ses · ${fmt(a.durationSec)}` : `${fmt(a.durationSec)} · ${a.width}×${a.height} · ${Math.round(a.fps)} fps`}</div>
                 {a.missing && <span className="badge red">Dosya bulunamadı</span>}
                 {transcripts[a.id] && <span className="badge blue">Transkript hazır</span>}
               </div>
@@ -77,9 +78,9 @@ export function MediaPanel() {
       {asset && (
         <div className="col" data-testid="asset-detail">
           <div className="section-title">Seçili kayıt</div>
-          <ObsBadges a={asset} />
-          {asset.obs.evidence.length > 0 && <div className="hint">Algılama: {asset.obs.evidence.join(' · ')}</div>}
-          {asset.audioStreams.length === 0 ? (
+          {asset.kind === 'video' && <ObsBadges a={asset} />}
+          {asset.kind === 'video' && asset.obs.evidence.length > 0 && <div className="hint">Algılama: {asset.obs.evidence.join(' · ')}</div>}
+          {asset.kind === 'image' ? null : asset.audioStreams.length === 0 ? (
             <div className="warnbox">Bu kayıtta ses akışı yok; transkripsiyon yapılamaz.</div>
           ) : (
             <table className="tracktable">
@@ -140,62 +141,8 @@ export function MediaPanel() {
           </div>
           {tr && <div className="hint">{tr.words.length.toLocaleString('tr')} kelime · {tr.segments.length} cümle · Track {tr.audioTrack + 1} · {tr.language} · {tr.model}</div>}
 
-          <div className="section-title" style={{ marginTop: 6 }}>Yüz kamerası</div>
-          <label className="field">
-            <span>Kamera kaynağı</span>
-            <select
-              aria-label="Kamera kaynağı"
-              value={asset.webcamAssetId ? 'file' : asset.webcamRegion ? 'region' : 'none'}
-              onChange={(e) => {
-                const v = e.target.value
-                if (v === 'none') patchAsset(asset.id, { webcamAssetId: undefined, webcamRegion: undefined })
-                else if (v === 'region') patchAsset(asset.id, { webcamAssetId: undefined, webcamRegion: asset.webcamRegion ?? { x: 0.72, y: 0.68, w: 0.28, h: 0.32 } })
-                else patchAsset(asset.id, { webcamRegion: undefined, webcamAssetId: cams[0]?.id })
-              }}
-            >
-              <option value="none">Yok</option>
-              <option value="region">Aynı dosyada (OBS birleşik kayıt)</option>
-              <option value="file" disabled={cams.length === 0}>Ayrı dosya</option>
-            </select>
-          </label>
-          {asset.webcamRegion && (
-            <div className="grid2">
-              {(['x', 'y', 'w', 'h'] as const).map((k) => (
-                <label className="field" key={k}>
-                  <span>Bölge {k.toUpperCase()} (0–1)</span>
-                  <input type="number" step={0.01} min={0} max={1} value={asset.webcamRegion![k]} onChange={(e) => patchAsset(asset.id, { webcamRegion: { ...asset.webcamRegion!, [k]: Math.min(1, Math.max(0, Number(e.target.value))) } })} />
-                </label>
-              ))}
-            </div>
-          )}
-          {asset.webcamAssetId && (
-            <div className="col">
-              <select aria-label="Kamera dosyası" value={asset.webcamAssetId} onChange={(e) => patchAsset(asset.id, { webcamAssetId: e.target.value })}>
-                {cams.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <div className="row">
-                <label className="field grow">
-                  <span>Senkron ofseti (sn)</span>
-                  <input type="number" step={0.05} value={project.assets.find((c) => c.id === asset.webcamAssetId)?.syncOffsetSec ?? 0} onChange={(e) => patchAsset(asset.webcamAssetId!, { syncOffsetSec: Number(e.target.value) })} />
-                </label>
-                <button
-                  className="btn"
-                  style={{ alignSelf: 'flex-end' }}
-                  onClick={async () => {
-                    try {
-                      const off = await api.invoke('media:syncOffset', { screenAssetId: asset.id, camAssetId: asset.webcamAssetId! })
-                      patchAsset(asset.webcamAssetId!, { syncOffsetSec: off })
-                      useStore.getState().toast('success', `Senkron ofseti bulundu: ${off.toFixed(2)} sn`)
-                    } catch (e) {
-                      useStore.getState().toast('error', (e as Error).message)
-                    }
-                  }}
-                >
-                  Sesten bul
-                </button>
-              </div>
-            </div>
-          )}
+          <SourcesBlock asset={asset} />
+          <AddToTrack asset={asset} />
         </div>
       )}
     </div>

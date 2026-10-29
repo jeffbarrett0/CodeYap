@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { importMedia, loadMarkers } from '../../src/main/media/import'
 import { makeProxy } from '../../src/main/media/proxy'
@@ -9,7 +10,7 @@ import { friendlyFfmpegMessage, ToolError } from '../../src/main/ffmpeg'
 import { transcribeAsset, loadTranscript } from '../../src/main/transcribe/pipeline'
 import { MockProvider, parseWhisperCppJson } from '../../src/main/transcribe/providers'
 import { CancelledError } from '../../src/main/tasks'
-import { ffmpegAvailable, makeBurstWav, makeObsLikeMkv, tools } from './ffmpeg-fixtures'
+import { ffmpegAvailable, FFMPEG, makeBurstWav, makeObsLikeMkv, tools } from './ffmpeg-fixtures'
 import { indexFromLines, longTranscriptLines, wordsFromLines } from './helpers'
 import { searchTranscript } from '@shared/search/engine'
 import type { MediaAsset } from '@shared/types'
@@ -102,6 +103,26 @@ d('medya içe aktarma (gerçek ffmpeg)', () => {
     expect(Math.min(...loud)).toBeGreaterThan(Math.max(...quiet) + 15)
     const cuts = await detectScenes(mkv, 20, tools, { threshold: 0.2 })
     expect(Array.isArray(cuts)).toBe(true)
+  })
+})
+
+d('ayrı ses ve görsel dosyaları (gerçek ffmpeg)', () => {
+  it('WAV ve PNG içe aktarılır: kind, süre, küçük resim, ses proxy; görselin proxy\'si yok', async () => {
+    const wav = makeBurstWav(root)
+    const a = await importMedia(wav, tools, join(root, 'data-sep'))
+    expect(a).toMatchObject({ kind: 'audio', width: 0 })
+    expect(a.durationSec).toBeGreaterThan(19)
+    expect(a.audioStreams).toHaveLength(1)
+    const px = await makeProxy(a, tools, join(root, 'data-sep'), 360)
+    expect(px.proxyPath).toBeUndefined()
+    expect(existsSync(join(root, 'data-sep', px.audioStreams[0].proxyPath as string))).toBe(true)
+
+    const png = join(root, 'Konu Görseli çğ.png')
+    execFileSync(FFMPEG, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=s=640x480:d=1', '-frames:v', '1', png])
+    const img = await importMedia(png, tools, join(root, 'data-sep'))
+    expect(img).toMatchObject({ kind: 'image', durationSec: 0, width: 640, height: 480, role: 'image' })
+    expect(img.audioStreams).toEqual([])
+    expect(existsSync(join(root, 'data-sep', img.thumbnailPath as string))).toBe(true)
   })
 })
 

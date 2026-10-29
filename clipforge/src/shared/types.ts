@@ -70,8 +70,15 @@ export interface MediaAsset {
   syncOffsetSec?: number
   /** Kayıtta ekran ve kamera tek dosyada ise kamera bölgesi (0..1 normalize) */
   webcamRegion?: NormRect
-  /** Ayrı kamera dosyası kullanılıyorsa ona işaret eder (kamera varlığında syncOffsetSec ayarlıdır) */
+  /** Ayrı kamera dosyası kullanılıyorsa ona işaret eder (eski alan; `sources.cam` tercih edilir) */
   webcamAssetId?: ID
+  /** Bu dosyanın rolü (ayrı içe aktarılan parçalar için varsayılan iz seçimini belirler) */
+  role?: 'screen' | 'game' | 'voice' | 'cam' | 'image'
+  /**
+   * Aynı yayının ayrı dosyaları: bu dosyadan (ör. konuşma kaydı) klip çıkarılınca diğerleri de AYNI zaman aralığında
+   * (her dosyanın `syncOffsetSec` ofsetiyle: kaynak zamanı = bu dosyanın zamanı + ofset) klibe eklenir.
+   */
+  sources?: { screen?: ID; game?: ID; voice?: ID; cam?: ID }
   /** Transkripsiyon için seçilen ses track'i (varsayılan 0 = Track 1) */
   transcriptionTrack: number
   /** Oyun ve konuşma sesi için ayrı ses akışı eşlemesi (yoksa karışım kullanılır) */

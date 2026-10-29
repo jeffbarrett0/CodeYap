@@ -5,7 +5,7 @@ import { suggestClip, nearestBoundary, type ClipWarning } from '@shared/clip/bou
 import { History } from '@shared/timeline/history'
 import { cmd, type TimelineCommand } from '@shared/timeline/commands'
 import { captionsForTimeline } from '@shared/timeline/captions'
-import { clipItemsForSource } from '@shared/timeline/create'
+import { clipForTrack, clipItemsForSource } from '@shared/timeline/create'
 import { clipEnd, createDefaultTimeline, findClip, groupMembers, newId, timelineDuration } from '@shared/timeline/model'
 import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
 import { EXPORT_PRESETS } from '@shared/export/presets'
@@ -126,6 +126,8 @@ interface State {
   snapDraft(edge: 'start' | 'end'): void
   commitDraft(): void
   createClipsFromResults(ids: string[]): void
+  /** Medya kütüphanesinden bir dosyayı doğrudan bir ize ekler (sürükle-bırak ya da düğme) */
+  addAssetToTrack(assetId: string, trackId: string, opts?: { at?: number; srcIn?: number; duration?: number; audioStream?: number }): void
 
   importChat(path?: string): Promise<void>
   runSuggest(sceneDetection: boolean): Promise<void>
@@ -405,8 +407,7 @@ export const useStore = create<State>()((set, get) => {
       if (!d) return
       const asset = s.project.assets.find((a) => a.id === d.assetId)
       if (!asset) return
-      const cam = asset.webcamAssetId ? s.project.assets.find((a) => a.id === asset.webcamAssetId) : undefined
-      const items = clipItemsForSource(asset, { start: d.start, end: d.end }, timelineDuration(s.project.timeline), { query: d.query, resultId: d.resultId, matchTime: d.matchTime, candidateId: d.candidateId }, cam)
+      const items = clipItemsForSource(asset, { start: d.start, end: d.end }, timelineDuration(s.project.timeline), { query: d.query, resultId: d.resultId, matchTime: d.matchTime, candidateId: d.candidateId }, (id) => s.project.assets.find((a) => a.id === id))
       const at = timelineDuration(s.project.timeline)
       get().exec(cmd.addClips(items.map((i) => ({ ...i, clip: { ...i.clip, start: at + (i.clip.start - items[0].clip.start) } }))))
       get().afterClipsAdded(items.map((i) => i.trackId))
@@ -415,19 +416,33 @@ export const useStore = create<State>()((set, get) => {
       get().setPlayhead(at)
       get().toast('success', `Klip zaman çizelgesine eklendi (${(d.end - d.start).toFixed(1)} sn).`)
     },
+    addAssetToTrack(assetId, trackId, opts = {}) {
+      const s = get()
+      const asset = s.project.assets.find((a) => a.id === assetId)
+      const track = s.project.timeline.tracks.find((t) => t.id === trackId)
+      if (!asset || !track) return
+      const r = clipForTrack(asset, track, { at: opts.at ?? s.playhead, srcIn: opts.srcIn, duration: opts.duration, audioStream: opts.audioStream })
+      if ('error' in r) return get().toast('error', r.error)
+      get().exec(cmd.addClip(trackId, r.clip))
+      // Kullanıcı bilerek ekledi: kapalı katman görünür olsun
+      if (track.placement && !track.placement.visible) get().exec(cmd.placement(trackId, { visible: true }, false))
+      get().exec(cmd.fillText())
+      set({ selection: [r.clip.id] })
+      get().toast('success', `"${asset.name}" → ${track.name}`)
+    },
     createClipsFromResults(ids) {
       const s = get()
       const asset = s.project.assets.find((a) => a.id === s.searchedAssetId)
       if (!asset) return
       const segs = s.transcripts[asset.id]?.segments ?? []
-      const cam = asset.webcamAssetId ? s.project.assets.find((a) => a.id === asset.webcamAssetId) : undefined
+      const byId = (id: string) => s.project.assets.find((a) => a.id === id)
       let at = timelineDuration(s.project.timeline)
       const items = []
       let warned = 0
       for (const r of s.results.filter((x) => ids.includes(x.id))) {
         const sug = suggestClip(segs, r, { preRollSec: s.settings.preRollSec, postRollSec: s.settings.postRollSec, targetDurationSec: s.settings.targetDurationSec || undefined, maxDurationSec: s.settings.exportDefaults.maxDurationSec ?? 60, assetDurationSec: asset.durationSec })
         if (sug.warnings.length) warned++
-        const its = clipItemsForSource(asset, sug, at, { query: s.query, resultId: r.id, matchTime: r.start }, cam)
+        const its = clipItemsForSource(asset, sug, at, { query: s.query, resultId: r.id, matchTime: r.start }, byId)
         items.push(...its)
         at += sug.duration
       }
