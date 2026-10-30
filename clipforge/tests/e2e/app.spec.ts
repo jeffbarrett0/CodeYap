@@ -717,6 +717,84 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('asset')).toHaveCount(0)
   })
 
+  test('katman bazlı seç/sil: bağlam menüsü yalnızca o katmanı etkiler, Ctrl+A etkin katmanla sınırlı, altyazı katmanı dahil, geri alınır', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V2')
+    await page.getByTestId('rtab-captions').click()
+    await page.getByTestId('gen-captions').click()
+    const total = await page.getByTestId('clip').count()
+    const v2 = await page.getByTestId('lane-V2').getByTestId('clip').count()
+    const a1 = await page.getByTestId('lane-A1').getByTestId('clip').count()
+    expect(v2).toBeGreaterThan(0)
+    expect(total).toBeGreaterThan(v2)
+    const caps = await page.getByTestId('cap-clip').count()
+
+    // V2'ye sağ tık → tümünü seç: yalnızca V2 klipleri seçilir
+    await page.getByTestId('label-V2').click({ button: 'right' })
+    await page.getByTestId('lane-select-all').click()
+    await expect(page.locator('.tl-clip.sel')).toHaveCount(v2)
+    await expect(page.getByTestId('lane-V2').locator('.tl-clip.sel')).toHaveCount(v2)
+
+    // hepsini sil: V2 boşalır, A1 ve altyazılar aynen kalır
+    await page.getByTestId('label-V2').click({ button: 'right' })
+    await page.getByTestId('lane-delete-all').click()
+    await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(0)
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(a1)
+    await expect(page.getByTestId('cap-clip')).toHaveCount(caps)
+    await page.keyboard.press('Control+z')
+    await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(v2)
+
+    // klavye: A1 şeridine tıkla (etkin katman) → Ctrl+A yalnızca A1 → Delete
+    await page.getByTestId('label-A1').click()
+    await page.keyboard.press('Control+a')
+    await expect(page.locator('.tl-clip.sel')).toHaveCount(a1)
+    await page.keyboard.press('Delete')
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(0)
+    await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(v2)
+    await page.keyboard.press('Control+z')
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(a1)
+
+    // altyazı katmanı: Ctrl+A + Delete yalnızca altyazıları siler
+    await page.getByTestId('label-CC').click()
+    await page.keyboard.press('Control+a')
+    await expect(page.locator('.tl-clip.cap.sel')).toHaveCount(caps)
+    await page.keyboard.press('Delete')
+    await expect(page.getByTestId('cap-clip')).toHaveCount(0)
+    await expect(page.getByTestId('clip')).toHaveCount(total)
+    await page.keyboard.press('Control+z')
+    await expect(page.getByTestId('cap-clip')).toHaveCount(caps)
+  })
+
+  test('arama sonucundan bağımsız klip projesi: süre seçimi (18/20/25/özel), ana proje değişmez, ayrı projede açılır, ana projeye dönülür', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V2')
+    const mainClips = await page.getByTestId('clip').count()
+    await page.getByTestId('tab-search').click()
+    await page.getByTestId('search-input').fill('Viktor Nelsen')
+    await page.getByTestId('search-btn').click()
+    await expect(page.getByTestId('result')).toHaveCount(3)
+    await page.getByTestId('newclip-25').click()
+    await expect(page.getByTestId('make-clip-project').first()).toContainText('25 sn')
+    await page.getByTestId('newclip-custom').fill('18')
+    await expect(page.getByTestId('make-clip-project').first()).toContainText('18 sn')
+    await page.getByTestId('newclip-20').click()
+
+    // ana proje kaydedilmemiş: onay istenir
+    page.once('dialog', (d) => void d.accept())
+    await page.getByTestId('make-clip-project').first().click()
+    await expect(page.getByTestId('clip-project-badge')).toBeVisible()
+    await expect(page.getByTestId('toast').filter({ hasText: 'Ana proje değişmedi' })).toBeVisible()
+    // yeni projede klip var (süre, arama sonucunun cümle sınırlarına yapışan hedefidir)
+    await expect(page.getByTestId('clip').first()).toBeVisible()
+
+    // ana projeye dön: değişmemiş
+    await page.getByTestId('back-to-parent').click()
+    await expect(page.getByTestId('clip-project-badge')).toHaveCount(0)
+    await expect(page.getByTestId('clip')).toHaveCount(mainClips)
+  })
+
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))

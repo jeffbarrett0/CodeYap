@@ -238,3 +238,6 @@ kbd { background: var(--panel3); border: 1px solid var(--border); border-bottom-
 .layer-overlay, .caption-overlay, .crop-overlay { clip-path: inset(-18px); }
 .canvas-box { isolation: isolate; }
 .asset-check { align-self: center; flex: none; }
+.tl-label.active { box-shadow: inset 3px 0 0 var(--accent); }
+.tl-lane.active { background-image: linear-gradient(#53fc180d, #53fc180d); }
+.ctx-menu button:disabled { opacity: .45; }

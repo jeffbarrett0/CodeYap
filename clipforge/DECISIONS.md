@@ -229,3 +229,17 @@ Yöntemler: (1) Whisper'a **ipucu** (özel sözlük) — `whisper.cpp --prompt`,
 
 * **Siyah ekran:** Her kesimde klipler yeni kimlik alıyordu ve önizleme motoru klip başına yeni bir `<video>` oluşturup yüklüyordu; yüklenene kadar (~1 sn) kare çizilmiyordu. Artık video/ses öğeleri **katman+kaynak** başına tutulur ve kesimden sonraki klip aynı öğeyi yeniden kullanır (sadece atlama yapılır); atlama sürerken öğenin son karesi çizilmeye devam eder. Klip değişiminde hemen doğru noktaya atlanır. Not: dışa aktarma etkilenmez (kesimler zaten boşluksuz birleşir). Sınır: sert bir geri sarma/ilk açılışta, öğe henüz hiç kare üretmediyse yine kısa bir bekleme olabilir; ağır VP9'da önizleme kopyası hazır olunca tamamen akıcıdır.
 * **Toplu silme (hepsi tek geri alma adımı):** Altyazı sekmesi (onay kutuları, Tümünü seç, Seçilenleri sil, Tüm altyazıları sil) · Zaman çizelgesi (Tümünü seç / Ctrl+A, Sil, Tümünü sil) · Klip sekmesi (çoklu seçimde "Seçilenleri sil", tümünü seç/sil) · Katmanlar (seçili katmanda "Klipleri temizle") · Ses sekmesi (izin tüm kliplerini sil) · Kütüphane (onay kutuları, Seçilenleri kaldır; diskteki dosyalara dokunulmaz) · Arama (Sonuçları temizle). Kilitli izler atlanır. Transkript silme için ana süreç tarafında kalıcı bir silme işlemi yok; eklenmedi.
+
+## 28. Katman bazlı seç/sil ve aramadan bağımsız klip projesi
+
+**Katman bazlı seç/sil.** Zaman çizelgesindeki her katman (V2, A1, A2…, Altyazı/CC) bir "klasör" gibi davranır: katman etiketine ya da şeride **sağ tık → "Bu katmandaki tümünü seç / hepsini sil"**; ya da katmana (etikete, boş şeride, bir klibine) tıklayıp **Ctrl+A → Delete** (etkin katman sol kenarda yeşil işaretlenir; etkin katman yoksa Ctrl+A tüm klipleri seçer). Silme tek `removeMany` komutudur: yalnızca o katman etkilenir (bağlı görüntü/ses klipleri başka katmanda kalır), **Ctrl+Z tek adımda geri alır**. Altyazı katmanı da aynı kuralı izler. Kilitli katmanlar atlanır (uyarı verilir).
+
+**Aramadan bağımsız klip projesi.** Arama sonucunda süre seçilir (**18 / 20 / 25 sn ya da özel**) ve "Yeni projede klip (N sn)" ile (klip taslağında "Yeni projede aç") klip **ayrı bir proje dosyası** olarak üretilip açılır. Ana proje dosyası ve bellekteki hali değişmez; "← Ana projeye dön" ile dönülür.
+* Yeni proje: `<ana proje>-klipler/<arama · süre>.clipforge` (+ `-data`). Yalnızca ilgili medya (ayrı kaynak track'leri/kamera dahil) aynı dosyalara işaret eder — **medya kopyalanmaz**; önizleme kopyası, küçük resim ve **transkript** sabit bağ/kopya ile taşınır, böylece klip bağımsız olarak kesilebilir, altyazılanabilir, sesi ayarlanabilir.
+* Süre mantığı mevcut klip önerisidir: hedef süreye göre **cümle sınırlarına yapışır**, konuşma ortasında kesilmez.
+
+**Varsayımlar (belirsiz noktalar):**
+1. "Tam N sn" yerine "N sn hedefi": cümle sınırları nedeniyle gerçek süre N'den biraz farklı olabilir (konuşma azsa belirgin kısa; uyarı gösterilir). İsterseniz klibi sonradan kırpabilirsiniz.
+2. Ana projede kaydedilmemiş değişiklik ya da hiç kayıt yoksa, çalışma alanı değişirken kaybolmasın diye **önce onayla kaydedilir**; reddedilirse klip projesi oluşturulmaz.
+3. Etkin katman yokken Ctrl+A tüm klipleri seçer (eski davranış).
+4. Aynı arama sonucundan tekrar klip üretilirse dosya adı `(2)`, `(3)`… ile ayrılır; mevcut klip projesinin üzerine yazılmaz.

@@ -63,6 +63,44 @@ const newProject = (): Project => ({
   exportJobs: []
 })
 
+interface IndependentClipReq {
+  assetId: string
+  start: number
+  end: number
+  query?: string
+  resultId?: string
+  matchTime?: number
+  label: string
+}
+
+/**
+ * Bağımsız klip projesi akışı. ANA PROJE DEĞİŞMEZ: kaydedilmemiş değişiklik varsa önce kullanıcı onayıyla kaydedilir
+ * (yoksa çalışma alanı değişince kaybolurdu), ardından yeni proje dosyası üretilir, açılır, klip eklenir ve kaydedilir.
+ */
+async function createIndependent(get: () => State, set: (p: Partial<State>) => void, req: IndependentClipReq): Promise<void> {
+  const s0 = get()
+  if (s0.dirty || !s0.projectPath) {
+    if (!window.confirm('Yeni klip ayrı bir projede açılacak. Ana proje önce kaydedilsin mi? (Ana proje olduğu gibi kalır; "Ana projeye dön" ile geri dönebilirsiniz.)')) return
+    await get().saveProject(!s0.projectPath)
+    if (get().dirty || !get().projectPath) return get().toast('info', 'Ana proje kaydedilmediği için yeni klip projesi oluşturulmadı.')
+  }
+  const mainPath = get().projectPath!
+  try {
+    const { path } = await requireApi().invoke('project:createClip', get().project, req.assetId, req.label)
+    if (!(await get().openProject(path))) return
+    set({ parentProjectPath: mainPath })
+    set({
+      clipDraft: { assetId: req.assetId, query: req.query, resultId: req.resultId, matchTime: req.matchTime, start: req.start, end: req.end, hitStart: req.start, hitEnd: req.end, firstWord: 0, lastWord: 0, preRoll: 0, postRoll: 0, targetSec: 0, title: req.label, warnings: [] } as ClipDraft
+    })
+    get().commitDraft()
+    await get().saveProject()
+    set({ rightTab: 'inspector' })
+    get().toast('success', `Yeni bağımsız proje açıldı: "${req.label}" (${(req.end - req.start).toFixed(1)} sn). Ana proje değişmedi.`)
+  } catch (e) {
+    get().toast('error', errText(e))
+  }
+}
+
 /** Geri al / yinele geçmişi (komut deseni); store yalnızca sürüm sayacını tutar. */
 const history = new History<Timeline>(createDefaultTimeline())
 /** StrictMode efektleri iki kez çalıştırsa da olay abonelikleri bir kez kurulur */
@@ -89,6 +127,14 @@ interface State {
 
   selectedLayerId: string | null
   selectedCaptionId: string | null
+  /** Birden çok altyazı seçiliyken (katman bazlı "tümünü seç") */
+  selectedCaptionIds: string[]
+  /** Bağımsız klip projesi açıksa, çıkış yapılan ana projenin dosya yolu */
+  parentProjectPath: string | null
+  /** "Yeni projede klip" için seçili süre (sn) */
+  newClipSec: number
+  /** Etkin zaman çizelgesi katmanı (iz kimliği ya da 'CC'): Ctrl+A yalnızca bunu seçer */
+  activeLane: string | null
   /** Kırpma modunda düzenlenen klip */
   cropClipId: string | null
   userTemplates: LayoutTemplate[]
@@ -161,6 +207,17 @@ interface State {
   /** Kütüphaneden birden çok dosyayı tek onayla kaldırır (diskteki dosyalara dokunmaz) */
   removeAssets(ids: string[]): void
   clearResults(): void
+  setNewClipSec(sec: number): void
+  /** Arama sonucunun etrafından `sec` sn'lik (cümle sınırlarına yapışan) klibi YENİ, bağımsız bir projede açar; ana proje değişmez */
+  createClipProjectFromResult(r: SearchResult, sec?: number): Promise<void>
+  /** Hazır aralıktan (taslak) bağımsız klip projesi */
+  createClipProjectFromDraft(): Promise<void>
+  returnToParent(): Promise<void>
+  setActiveLane(id: string | null): void
+  /** Yalnızca bu katmandaki öğeleri seçer ('CC' = altyazılar) */
+  selectLane(laneId: string): void
+  /** Yalnızca bu katmandaki öğeleri siler (tek geri alma adımı; diğer katmanlar etkilenmez) */
+  deleteLane(laneId: string): void
   /** Dosyayı kütüphaneden kaldırır (diskteki dosyaya dokunmaz); zaman çizelgesinde kullanılıyorsa onay ister */
   removeAsset(id: string): void
   generateCaptions(): void
@@ -170,7 +227,7 @@ interface State {
   setZoom(z: number): void
 
   newProject(): Promise<void>
-  openProject(): Promise<void>
+  openProject(path?: string | null): Promise<boolean>
   saveProject(saveAs?: boolean): Promise<void>
   startExport(opts: { options: ExportOptions; name: string; mode: 'all' | 'each' | 'selection' }): Promise<void>
   cancelTask(id: string): void
@@ -238,6 +295,10 @@ export const useStore = create<State>()((set, get) => {
     zoom: 40,
     selectedLayerId: null,
     selectedCaptionId: null,
+    selectedCaptionIds: [],
+    parentProjectPath: null,
+    newClipSec: 20,
+    activeLane: null,
     cropClipId: null,
     userTemplates: [],
     transcripts: {},
@@ -565,7 +626,7 @@ export const useStore = create<State>()((set, get) => {
     canUndo: () => history.canUndo,
     canRedo: () => history.canRedo,
     // Klip seçilince "Klip" sekmesine yalnızca düzenleme sekmelerindeyken geçilir; arama/transkript/kaynak sekmesindeki çalışma bölünmez
-    select: (ids) => set((st) => ({ selection: ids, selectedCaptionId: ids.length ? null : st.selectedCaptionId, rightTab: ids.length && !['source', 'search', 'transcript'].includes(st.rightTab) ? 'inspector' : st.rightTab })),
+    select: (ids) => set((st) => ({ selection: ids, selectedCaptionId: ids.length ? null : st.selectedCaptionId, selectedCaptionIds: ids.length ? [] : st.selectedCaptionIds, rightTab: ids.length && !['source', 'search', 'transcript'].includes(st.rightTab) ? 'inspector' : st.rightTab })),
     splitAtPlayhead() {
       const { project, selection, playhead } = get()
       const tl = project.timeline
@@ -592,7 +653,7 @@ export const useStore = create<State>()((set, get) => {
       const keep = ids ? caps.filter((c) => !ids.includes(c.id)) : []
       if (keep.length === caps.length) return
       get().exec(cmd.captions(keep))
-      set({ selectedCaptionId: null })
+      set({ selectedCaptionId: null, selectedCaptionIds: [] })
       get().toast('info', `${caps.length - keep.length} altyazı silindi. Geri almak için Ctrl+Z.`)
     },
     selectAllClips(trackId) {
@@ -637,6 +698,59 @@ export const useStore = create<State>()((set, get) => {
         playing: false
       })
       get().toast('info', `${list.length} dosya kütüphaneden kaldırıldı (diskteki dosyalar silinmedi).`)
+    },
+    setActiveLane: (id) => set({ activeLane: id }),
+    selectLane(laneId) {
+      const tl = get().project.timeline
+      if (laneId === 'CC') {
+        if (tl.captions.length === 0) return get().toast('info', 'Altyazı katmanı boş.')
+        return set({ activeLane: 'CC', selection: [], selectedCaptionId: null, selectedCaptionIds: tl.captions.map((c) => c.id) })
+      }
+      const t = tl.tracks.find((x) => x.id === laneId)
+      if (!t) return
+      if (t.locked) return get().toast('info', `"${t.name}" katmanı kilitli.`)
+      if (t.clips.length === 0) return get().toast('info', `"${t.name}" katmanı boş.`)
+      set({ activeLane: laneId, selection: t.clips.map((c) => c.id), selectedCaptionId: null, selectedCaptionIds: [] })
+    },
+    deleteLane(laneId) {
+      const tl = get().project.timeline
+      if (laneId === 'CC') {
+        const n = tl.captions.length
+        if (n === 0) return get().toast('info', 'Altyazı katmanı boş.')
+        get().exec(cmd.captions([]))
+        set({ selectedCaptionId: null, selectedCaptionIds: [] })
+        return get().toast('info', `Altyazı katmanındaki ${n} öğe silindi. Geri almak için Ctrl+Z.`)
+      }
+      const t = tl.tracks.find((x) => x.id === laneId)
+      if (!t) return
+      if (t.locked) return get().toast('info', `"${t.name}" katmanı kilitli.`)
+      if (t.clips.length === 0) return get().toast('info', `"${t.name}" katmanı boş.`)
+      const n = t.clips.length
+      get().exec(cmd.removeMany(t.clips.map((c) => c.id), true, `${t.name}: hepsini sil`))
+      set({ selection: [] })
+      get().toast('info', `"${t.name}" katmanındaki ${n} öğe silindi (diğer katmanlar etkilenmedi). Geri almak için Ctrl+Z.`)
+    },
+    setNewClipSec: (sec) => set({ newClipSec: Math.min(300, Math.max(3, Math.round(sec) || 20)) }),
+    async createClipProjectFromResult(r, sec) {
+      const s = get()
+      const asset = s.project.assets.find((a) => a.id === s.searchedAssetId)
+      if (!asset) return
+      const target = sec ?? s.newClipSec
+      const sug = suggestClip(s.transcripts[asset.id]?.segments ?? [], r, { preRollSec: 0, postRollSec: 0, targetDurationSec: target, maxDurationSec: Math.max(target, s.settings.exportDefaults.maxDurationSec ?? 60), assetDurationSec: asset.durationSec })
+      await createIndependent(get, set, { assetId: asset.id, start: sug.start, end: sug.end, query: s.query, resultId: r.id, matchTime: r.start, label: `${s.query || 'Klip'} · ${target} sn` })
+    },
+    async createClipProjectFromDraft() {
+      const s = get()
+      const d = s.clipDraft
+      if (!d) return
+      await createIndependent(get, set, { assetId: d.assetId, start: d.start, end: d.end, query: d.query, resultId: d.resultId, matchTime: d.matchTime, label: `${d.query || d.title || 'Klip'} · ${Math.round(d.end - d.start)} sn` })
+    },
+    async returnToParent() {
+      const s = get()
+      if (!s.parentProjectPath) return
+      if (s.dirty) await get().saveProject()
+      if (get().dirty) return
+      await get().openProject(s.parentProjectPath)
     },
     clearResults() {
       set({ results: [], selectedResults: [] })
@@ -694,23 +808,25 @@ export const useStore = create<State>()((set, get) => {
     async newProject() {
       await api().invoke('project:new')
       history.clear(createDefaultTimeline())
-      set({ project: newProject(), projectPath: null, dirty: false, transcripts: {}, results: [], selection: [], selectedAssetId: null, playhead: 0, historyVersion: 0, clipDraft: null })
+      set({ project: newProject(), projectPath: null, parentProjectPath: null, dirty: false, transcripts: {}, results: [], selection: [], selectedAssetId: null, playhead: 0, historyVersion: 0, clipDraft: null })
     },
-    async openProject() {
+    async openProject(path) {
       try {
-        const r = await api().invoke('project:open', null)
-        if (!r) return
+        const r = await api().invoke('project:open', path ?? null)
+        if (!r) return false
         history.clear(r.project.timeline)
         const transcripts: Record<string, Transcript> = {}
         for (const a of r.project.assets) {
           const t = await api().invoke('transcript:get', a.id)
           if (t) transcripts[a.id] = t
         }
-        set({ project: r.project, projectPath: r.path, dirty: false, transcripts, selection: [], selectedAssetId: null, playhead: 0, historyVersion: 0, results: [] })
+        set({ project: r.project, projectPath: r.path, parentProjectPath: null, dirty: false, transcripts, selection: [], selectedAssetId: null, playhead: 0, historyVersion: 0, results: [], clipDraft: null, activeLane: null, selectedCaptionId: null, selectedCaptionIds: [] })
         const missing = r.project.assets.filter((a) => a.missing)
         get().toast(missing.length ? 'error' : 'success', missing.length ? `Bulunamayan medya: ${missing.map((m) => m.name).join(', ')}` : 'Proje açıldı.')
+        return true
       } catch (e) {
         get().toast('error', errText(e))
+        return false
       }
     },
     async saveProject(saveAs = false) {
@@ -760,7 +876,7 @@ export const useStore = create<State>()((set, get) => {
 
     selectCaption(id, seek = false) {
       // Tek seçim kuralı: altyazı seçilince klip/katman seçimi temizlenir (Delete yalnızca seçili TEK öğeyi siler)
-      set({ selectedCaptionId: id, ...(id ? { selection: [], selectedLayerId: null, rightTab: 'captions' as RightTab } : {}) })
+      set({ selectedCaptionId: id, selectedCaptionIds: [], ...(id ? { selection: [], selectedLayerId: null, rightTab: 'captions' as RightTab } : {}) })
       const cap = id ? get().project.timeline.captions.find((c) => c.id === id) : undefined
       if (cap && seek) {
         set({ viewMode: 'timeline' })

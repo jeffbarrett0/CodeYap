@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cmd } from '@shared/timeline/commands'
 import { clipDuration, clipEnd, groupMembers, timelineDuration } from '@shared/timeline/model'
 import { snapPoints } from '@shared/timeline/ops'
@@ -24,6 +24,16 @@ export function Timeline() {
   const { project, selection, select, playhead, setPlayhead, zoom, setZoom, exec, undo, redo, historyVersion, splitAtPlayhead, deleteSelection, playing, setPlaying, viewMode, setViewMode } = useStore()
   const tl = project.timeline
   const selectedCaptionId = useStore((s) => s.selectedCaptionId)
+  const selectedCaptionIds = useStore((s) => s.selectedCaptionIds)
+  const activeLane = useStore((s) => s.activeLane)
+  const setActiveLane = useStore((s) => s.setActiveLane)
+  const [laneMenu, setLaneMenu] = useState<{ x: number; y: number; lane: string } | null>(null)
+  const openLaneMenu = (e: React.MouseEvent, lane: string) => {
+    if ((e.target as HTMLElement).closest('.tl-clip')) return
+    e.preventDefault()
+    setActiveLane(lane)
+    setLaneMenu({ x: e.clientX, y: e.clientY, lane })
+  }
   const scrollRef = useRef<HTMLDivElement>(null)
   const drag = useRef<DragState | null>(null)
   const total = timelineDuration(tl)
@@ -62,6 +72,7 @@ export function Timeline() {
 
   const onClipDown = (e: React.PointerEvent, clip: Clip, track: Track) => {
     e.stopPropagation()
+    useStore.getState().setActiveLane(track.id)
     if (track.locked) return select([clip.id])
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const off = e.clientX - rect.left
@@ -154,7 +165,7 @@ export function Timeline() {
         <div className="tl-labels">
           <div style={{ height: 26, borderBottom: '1px solid var(--border)' }} />
           {tracks.map((t) => (
-            <div key={t.id} className="tl-label" data-testid={`label-${t.id}`}>
+            <div key={t.id} className={`tl-label${activeLane === t.id ? ' active' : ''}`} data-testid={`label-${t.id}`} onPointerDown={() => setActiveLane(t.id)} onContextMenu={(e) => openLaneMenu(e, t.id)}>
               <div className="tn">
                 <span>{t.name}</span>
                 <span className="row" style={{ gap: 3 }}>
@@ -169,10 +180,10 @@ export function Timeline() {
               <span className="hint">{t.id}</span>
             </div>
           ))}
-          <div className="tl-label"><div className="tn"><span>Altyazı</span></div><span className="hint">CC</span></div>
+          <div className={`tl-label${activeLane === 'CC' ? ' active' : ''}`} data-testid="label-CC" onPointerDown={() => setActiveLane('CC')} onContextMenu={(e) => openLaneMenu(e, 'CC')}><div className="tn"><span>Altyazı</span></div><span className="hint">CC</span></div>
         </div>
         <div className="tl-scroll" ref={scrollRef} onWheel={onWheel} onPointerDown={(e) => e.target === e.currentTarget && select([])}>
-          <div className="tl-content" style={{ width }} onPointerDown={(e) => { if ((e.target as HTMLElement).dataset.laneId || (e.target as HTMLElement).classList.contains('tl-content')) select([]) }}>
+          <div className="tl-content" style={{ width }} onPointerDown={(e) => { if ((e.target as HTMLElement).dataset.laneId || (e.target as HTMLElement).classList.contains('tl-content')) select([]); if ((e.target as HTMLElement).classList.contains('tl-content')) setActiveLane(null) }}>
             <div
               className="tl-ruler"
               data-testid="ruler"
@@ -186,10 +197,11 @@ export function Timeline() {
             {tracks.map((t) => (
               <div
                 key={t.id}
-                className="tl-lane"
+                className={`tl-lane${activeLane === t.id ? ' active' : ''}`}
                 data-lane-id={t.id}
+                onContextMenu={(e) => openLaneMenu(e, t.id)}
                 data-testid={`lane-${t.id}`}
-                onPointerDown={(e) => { if (e.target === e.currentTarget) { select([]); if (viewMode !== 'timeline') setViewMode('timeline'); setPlayhead(timeFromEvent(e.clientX)) } }}
+                onPointerDown={(e) => { if (e.target === e.currentTarget) { select([]); setActiveLane(t.id); if (viewMode !== 'timeline') setViewMode('timeline'); setPlayhead(timeFromEvent(e.clientX)) } }}
                 onDragOver={(e) => e.dataTransfer.types.includes('application/x-clipforge-asset') && (e.preventDefault(), e.currentTarget.classList.add('drop'))}
                 onDragLeave={(e) => e.currentTarget.classList.remove('drop')}
                 onDrop={(e) => {
@@ -221,15 +233,43 @@ export function Timeline() {
                 ))}
               </div>
             ))}
-            <div className="tl-lane" data-testid="lane-CC">
+            <div className={`tl-lane${activeLane === 'CC' ? ' active' : ''}`} data-testid="lane-CC" onContextMenu={(e) => openLaneMenu(e, 'CC')} onPointerDown={(e) => { if (e.target === e.currentTarget) { setActiveLane('CC'); select([]) } }}>
               {tl.captions.map((c) => (
-                <div key={c.id} className={`tl-clip cap${selectedCaptionId === c.id ? ' sel' : ''}`} style={{ left: c.start * zoom, width: Math.max(4, (c.end - c.start) * zoom), cursor: 'pointer' }} title={`${c.text}\n(tıkla: seç ve önizlemede göster)`} onPointerDown={(e) => { e.stopPropagation(); useStore.getState().selectCaption(c.id, true) }} data-testid="cap-clip">{c.text}</div>
+                <div key={c.id} className={`tl-clip cap${selectedCaptionId === c.id || selectedCaptionIds.includes(c.id) ? ' sel' : ''}`} style={{ left: c.start * zoom, width: Math.max(4, (c.end - c.start) * zoom), cursor: 'pointer' }} title={`${c.text}\n(tıkla: seç ve önizlemede göster)`} onPointerDown={(e) => { e.stopPropagation(); useStore.getState().selectCaption(c.id, true); useStore.getState().setActiveLane('CC') }} data-testid="cap-clip">{c.text}</div>
               ))}
             </div>
             <div className="tl-playhead" style={{ left: playhead * zoom }} data-testid="playhead" />
           </div>
         </div>
       </div>
+      {laneMenu && <LaneMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
     </section>
+  )
+}
+
+/** Katman bağlam menüsü: yalnızca o katmandaki öğeleri seçer / siler (geri alınabilir) */
+function LaneMenu({ menu, onClose }: { menu: { x: number; y: number; lane: string }; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const tl = useStore((s) => s.project.timeline)
+  const track = tl.tracks.find((t) => t.id === menu.lane)
+  const name = menu.lane === 'CC' ? 'Altyazı' : (track?.name ?? menu.lane)
+  const count = menu.lane === 'CC' ? tl.captions.length : (track?.clips.length ?? 0)
+  useEffect(() => {
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) onClose()
+    }
+    window.addEventListener('pointerdown', close, true)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('pointerdown', close, true)
+      window.removeEventListener('keydown', close)
+    }
+  }, [onClose])
+  return (
+    <div className="ctx-menu" ref={ref} style={{ left: menu.x, top: menu.y }} role="menu" data-testid="lane-menu">
+      <div className="hint" style={{ padding: '4px 10px' }}>{name} katmanı · {count} öğe</div>
+      <button role="menuitem" data-testid="lane-select-all" disabled={count === 0} onClick={() => { onClose(); useStore.getState().selectLane(menu.lane) }}>Bu katmandaki tümünü seç <kbd>Ctrl+A</kbd></button>
+      <button role="menuitem" data-testid="lane-delete-all" disabled={count === 0} onClick={() => { onClose(); useStore.getState().deleteLane(menu.lane) }}>Bu katmandaki hepsini sil</button>
+    </div>
   )
 }

@@ -3,7 +3,7 @@ import { useStore } from '../store'
 import { Progress } from './ui'
 
 export function TopBar() {
-  const { project, projectPath, dirty, pickAndImport, openProject, saveProject, openDialog, newProject, settings } = useStore()
+  const { project, projectPath, dirty, pickAndImport, openProject, saveProject, openDialog, newProject, settings, parentProjectPath, returnToParent } = useStore()
   return (
     <header className="topbar">
       <div className="brand"><i /> ClipForge</div>
@@ -12,6 +12,12 @@ export function TopBar() {
       <button className="btn" onClick={() => void saveProject(false)} data-testid="save">Kaydet</button>
       <button className="btn" onClick={() => void pickAndImport()}>Kayıt içe aktar</button>
       <span className="projname" title={projectPath ?? ''}><b>{project.name}</b>{dirty ? ' •' : ''}</span>
+      {parentProjectPath && (
+        <>
+          <span className="badge blue" data-testid="clip-project-badge" title="Bu, aramadan üretilen bağımsız bir klip projesidir; ana proje ayrı dosyada durur">Bağımsız klip projesi</span>
+          <button className="btn sm" onClick={() => void returnToParent()} data-testid="back-to-parent">← Ana projeye dön</button>
+        </>
+      )}
       <span className="spacer" />
       <span className="badge" title="Transkripsiyon dili ve modeli">{settings.language.toUpperCase()} · {settings.whisperModel}</span>
       <button className="btn ghost" onClick={() => openDialog('help')} aria-label="Kısayollar">⌨</button>

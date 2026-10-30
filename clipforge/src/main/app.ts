@@ -1,5 +1,5 @@
 import { mkdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { parseChatLog } from '../shared/chat/parse'
 import { DEFAULT_SEARCH_OPTIONS } from '../shared/search/engine'
 import { SearchService } from '../shared/search/service'
@@ -13,7 +13,9 @@ import { resolveFfmpegPath, resolveFfprobePath, ToolError, toolVersion } from '.
 import { audioLevelSeries, detectScenes } from './media/audio'
 import { importMedia, loadMarkers, type MediaTools } from './media/import'
 import { makeProxy } from './media/proxy'
-import { copyDataDir, dataDirFor, openProject, saveProject } from './project/io'
+import { access } from 'node:fs/promises'
+import { copyDataDir, dataDirFor, openProject, saveProject, seedDataDir } from './project/io'
+import { assetsNeededFor, buildClipProject, safeFileName } from '../shared/project/clipProject'
 import { SettingsStore, TemplateStore } from './settings-store'
 import { TaskQueue, userMessage } from './tasks'
 import { createEmbeddingProvider } from './embeddings'
@@ -293,6 +295,32 @@ export class AppService {
     const ids = project.assets.filter((a) => this.search.has(a.id)).map((a) => a.id)
     await saveProject(project, path, ids)
     this.projectPath = path
+  }
+
+  /**
+   * Arama sonucundan bağımsız klip projesi: ana proje dosyasına/klasörüne dokunulmaz. Yeni proje dosyası
+   * `<ana proje>-klipler/` altına (kayıtsız oturumda kullanıcı verisi altındaki `clips/`) yazılır; ilgili medya
+   * aynı dosyalara işaret eder (kopyalanmaz), proxy/küçük resim/transkript sabit bağla taşınır.
+   */
+  async createClipProject(source: Project, assetId: string, name: string): Promise<{ path: string }> {
+    const project = buildClipProject(source, assetId, name)
+    if (!project) throw new ToolError('Klip için kaynak medya bulunamadı.')
+    const folder = this.projectPath ? join(dirname(this.projectPath), `${basename(this.projectPath).replace(/\.clipforge$/i, '')}-klipler`) : join(this.deps.userDataDir, 'clips')
+    await mkdir(folder, { recursive: true })
+    const base = safeFileName(name)
+    let path = join(folder, `${base}.clipforge`)
+    for (let i = 2; await access(path).then(() => true, () => false); i++) path = join(folder, `${base} (${i}).clipforge`)
+    const rel: string[] = []
+    for (const a of assetsNeededFor(source, assetId)) {
+      if (a.thumbnailPath) rel.push(a.thumbnailPath)
+      if (a.proxyPath) rel.push(a.proxyPath)
+      for (const s of a.audioStreams) if (s.proxyPath) rel.push(s.proxyPath)
+      rel.push(`transcripts/${a.id}.json`)
+    }
+    await seedDataDir(this.dataDir, dataDirFor(path), rel)
+    const ids = project.assets.map((a) => a.id)
+    await saveProject(project, path, ids)
+    return { path }
   }
 
   async openProject(path: string): Promise<OpenedProject> {

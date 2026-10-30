@@ -12,7 +12,8 @@ import { buildSegments } from '@shared/transcript/sentences'
 import { applyVocabulary, fixWord, parseVocabulary, withWords } from '@shared/transcript/vocabulary'
 import { scoreCandidates, snapCandidate } from '@shared/suggest/score'
 import { newId } from '@shared/timeline/model'
-import type { MediaAsset, Settings, Transcript, TranscriptWord } from '@shared/types'
+import { buildClipProject, safeFileName } from '@shared/project/clipProject'
+import type { MediaAsset, Project, Settings, Transcript, TranscriptWord } from '@shared/types'
 import { TaskQueue, userMessage } from '../../main/tasks'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -85,6 +86,7 @@ export function createMockApi(): ClipforgeApi {
   const listeners = new Map<IpcEventName, Set<(p: never) => void>>()
   const emit = <E extends IpcEventName>(event: E, payload: IpcEvents[E]) => listeners.get(event)?.forEach((cb) => cb(payload as never))
   let settings: Settings = { ...DEFAULT_SETTINGS }
+  const clipProjects = new Map<string, Project>()
   const assets = new Map<string, MediaAsset>()
   const search = new SearchService()
   const queue = new TaskQueue()
@@ -102,8 +104,19 @@ export function createMockApi(): ClipforgeApi {
     'dialog:openMedia': () => ['/demo/2024-05-12 21-30-45.mkv'],
     'dialog:openFile': () => 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
-    'project:save': (_p, path) => ({ path: path ?? '/tmp/proje.clipforge' }),
-    'project:open': () => null,
+    'project:save': (p, path) => {
+      const target = path ?? '/tmp/proje.clipforge'
+      clipProjects.set(target, structuredClone(p)) // sahte disk: kaydedilen her proje sonradan açılabilir
+      return { path: target }
+    },
+    'project:open': (path) => (path && clipProjects.has(path) ? { project: structuredClone(clipProjects.get(path)!), path } : null),
+    'project:createClip': (project, assetId, name) => {
+      const p = buildClipProject(project, assetId, name)
+      if (!p) throw new Error('Klip için kaynak medya bulunamadı.')
+      const path = `/tmp/klipler/${safeFileName(name)}-${clipProjects.size + 1}.clipforge`
+      clipProjects.set(path, p)
+      return { path }
+    },
     'project:new': () => ({ dataDir: 'mock' }),
     'media:import': (paths) =>
       paths.map((p) => {

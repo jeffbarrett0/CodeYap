@@ -20,7 +20,7 @@ function useShortcuts() {
       if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? st.redo() : st.undo(); return }
       if (mod && k === 'y') { e.preventDefault(); st.redo(); return }
       if (mod && k === 's') { e.preventDefault(); void st.saveProject(e.shiftKey); return }
-      if (mod && k === 'a' && !st.dialog) { e.preventDefault(); st.selectAllClips(); return }
+      if (mod && k === 'a' && !st.dialog) { e.preventDefault(); (st.activeLane ? st.selectLane(st.activeLane) : st.selectAllClips()); return }
       if (mod && k === 'e') { e.preventDefault(); st.openDialog('export'); return }
       if (mod || st.dialog) return
       if (e.key === ' ') {
@@ -35,6 +35,7 @@ function useShortcuts() {
         // Yalnızca o an seçili TEK öğe silinir: odak kütüphane kartındaysa dosya, değilse seçili klip, o da yoksa seçili altyazı
         const inLibrary = el?.closest?.('[data-testid="asset"]')
         if (inLibrary && st.selectedAssetId) { e.preventDefault(); st.removeAsset(st.selectedAssetId) }
+        else if (st.selectedCaptionIds.length) { e.preventDefault(); st.deleteCaptions(st.selectedCaptionIds) }
         else if (st.selection.length) { e.preventDefault(); st.deleteSelection(e.shiftKey) }
         else if (st.selectedCaptionId) { e.preventDefault(); st.deleteCaption(st.selectedCaptionId) }
       }

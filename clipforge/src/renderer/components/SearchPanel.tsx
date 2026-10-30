@@ -20,7 +20,7 @@ function Highlighted({ r, tr }: { r: SearchResult; tr?: Transcript }) {
 const KIND: Record<string, string> = { exact: 'Tam', fuzzy: 'Bulanık', window: 'Yakın kelimeler', semantic: 'Anlamsal' }
 
 export function SearchPanel() {
-  const { query, results, searching, runSearch, project, transcripts, selectedAssetId, selectedResults, toggleResult, openDraftFromResult, createClipsFromResults, settings, updateSettings, setSourceTime, setViewMode, searchedAssetId } = useStore()
+  const { query, results, searching, runSearch, project, transcripts, selectedAssetId, selectedResults, toggleResult, openDraftFromResult, createClipsFromResults, settings, updateSettings, setSourceTime, setViewMode, searchedAssetId, newClipSec, setNewClipSec, createClipProjectFromResult } = useStore()
   const [text, setText] = useState(query)
   const asset = project.assets.find((a) => a.id === selectedAssetId)
   const tr = searchedAssetId ? transcripts[searchedAssetId] : undefined
@@ -75,6 +75,11 @@ export function SearchPanel() {
               Seçilenlerden klip ({selectedResults.length})
             </button>
           </div>
+          <div className="row wrap" data-testid="newclip-duration" title="Sonuçtan, ana projeyi değiştirmeden yeni ve bağımsız bir projede açılacak klibin süresi (cümle sınırlarına yapışır)">
+            <span className="hint">Yeni projede klip süresi:</span>
+            {[18, 20, 25].map((n) => <button key={n} className={`btn sm${newClipSec === n ? ' active' : ''}`} aria-pressed={newClipSec === n} onClick={() => setNewClipSec(n)} data-testid={`newclip-${n}`}>{n} sn</button>)}
+            <input type="number" min={3} max={300} value={newClipSec} onChange={(e) => setNewClipSec(Number(e.target.value))} style={{ width: 64 }} aria-label="Özel süre (sn)" data-testid="newclip-custom" />
+          </div>
           <div className="col" data-testid="results">
             {results.map((r) => (
               <div
@@ -101,6 +106,7 @@ export function SearchPanel() {
                 {r.after.length > 0 && <div className="ctx">{r.after[0]}…</div>}
                 <div className="row">
                   <button className="btn sm primary" onClick={(e) => { e.stopPropagation(); openDraftFromResult(r) }} data-testid="make-clip">Klip oluştur</button>
+                  <button className="btn sm" onClick={(e) => { e.stopPropagation(); void createClipProjectFromResult(r) }} data-testid="make-clip-project" title="Ana projeyi değiştirmeden, bu sözün etrafından seçili süreli klibi yeni ve bağımsız bir projede açar">Yeni projede klip ({newClipSec} sn)</button>
                 </div>
               </div>
             ))}

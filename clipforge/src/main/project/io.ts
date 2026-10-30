@@ -1,4 +1,4 @@
-import { access, cp, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { access, copyFile, cp, link, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { PROJECT_VERSION, type Project } from '../../shared/types'
 import { applyTemplate, DEFAULT_TEMPLATE } from '../../shared/timeline/templates'
@@ -100,4 +100,23 @@ export async function copyDataDir(from: string, to: string): Promise<void> {
 
 export function defaultProjectName(path: string): string {
   return basename(path).replace(/\.clipforge$/i, '')
+}
+
+/** Aynı birimdeyse sabit bağ (anında, ek disk yok), olmazsa kopya */
+async function linkOrCopy(from: string, to: string): Promise<void> {
+  await mkdir(dirname(to), { recursive: true })
+  if (await exists(to)) return
+  try {
+    await link(from, to)
+  } catch {
+    await copyFile(from, to)
+  }
+}
+
+/** Yeni (bağımsız) projenin veri klasörüne yalnızca ilgili türetilmiş dosyaları taşır; kaynak klasöre dokunmaz */
+export async function seedDataDir(fromDir: string, toDir: string, relPaths: string[]): Promise<void> {
+  for (const rel of relPaths) {
+    const src = join(fromDir, rel)
+    if (await exists(src)) await linkOrCopy(src, join(toDir, rel))
+  }
 }

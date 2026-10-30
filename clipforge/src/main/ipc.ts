@@ -50,6 +50,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       return app.openProject(target)
     },
     'project:new': () => app.newProject(),
+    'project:createClip': (project, assetId, name) => app.createClipProject(project, assetId, name),
     'media:import': (paths) => app.importMedia(paths),
     'media:markers': (id) => app.markers(id),
     'media:syncOffset': ({ screenAssetId, camAssetId }) => app.syncOffset(screenAssetId, camAssetId),

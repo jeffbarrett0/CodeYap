@@ -30,6 +30,9 @@ function DraftPanel() {
         <select aria-label="Hedef süre" value={d.targetSec} onChange={(e) => recomputeDraft({ targetSec: Number(e.target.value) })}>
           <option value={0}>Pre/post-roll kullan</option>
           <option value={15}>15 sn</option>
+          <option value={18}>18 sn</option>
+          <option value={20}>20 sn</option>
+          <option value={25}>25 sn</option>
           <option value={30}>30 sn</option>
           <option value={60}>60 sn</option>
         </select>
@@ -56,6 +59,7 @@ function DraftPanel() {
       <div className="hint">Platform sınırı: {settings.exportDefaults.maxDurationSec ?? 60} sn (TikTok/Reels/Shorts).</div>
       <div className="row">
         <button className="btn primary grow" onClick={commitDraft} data-testid="add-to-timeline">Zaman çizelgesine ekle</button>
+        <button className="btn" onClick={() => void useStore.getState().createClipProjectFromDraft()} data-testid="draft-new-project" title="Bu aralığı ana projeyi değiştirmeden yeni ve bağımsız bir projede açar">Yeni projede aç</button>
         <button className="btn" onClick={() => useStore.setState({ clipDraft: null })}>Vazgeç</button>
       </div>
     </div>

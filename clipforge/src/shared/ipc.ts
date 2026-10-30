@@ -96,6 +96,8 @@ export interface IpcInvoke {
   'project:save': [[Project, string | null], { path: string } | null]
   'project:open': [[string | null], OpenedProject | null]
   'project:new': [[], { dataDir: string }]
+  /** Arama sonucundan bağımsız klip projesi dosyası üretir (ana proje değişmez) */
+  'project:createClip': [[Project, string, string], { path: string }]
   'media:import': [[string[]], string[]]
   'media:markers': [[string], Marker[]]
   'media:syncOffset': [[{ screenAssetId: string; camAssetId: string }], number]

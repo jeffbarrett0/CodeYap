@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, truncateSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
@@ -131,6 +131,29 @@ test('gerçek Electron: preload köprüsü, ffmpeg algılama, içe aktarma, saht
   expect([v.width, v.height]).toEqual([1920, 1080]) // oran otomatik: 1280×720 kaynak → 16:9 → YouTube şablonu
   expect(j.streams.some((x: { codec_type: string }) => x.codec_type === 'audio')).toBe(true)
   expect(Number(j.format.duration)).toBeGreaterThan(3) // transkriptte yalnızca bir cümle var: klip o cümleyle sınırlı
+
+  // arama sonucundan BAĞIMSIZ klip projesi: ana proje kaydedilir ama klip projesi ayrı dosya/veri klasörüdür
+  const mainProj = join(tmp, 'ana proje.clipforge')
+  await app.evaluate(({ dialog }, o) => {
+    dialog.showSaveDialog = (async () => ({ canceled: false, filePath: o })) as typeof dialog.showSaveDialog
+  }, mainProj)
+  await page.getByTestId('tab-search').click()
+  await expect(page.getByTestId('result')).toHaveCount(1)
+  await page.getByTestId('newclip-25').click()
+  page.once('dialog', (d) => void d.accept())
+  await page.getByTestId('make-clip-project').click()
+  await expect(page.getByTestId('clip-project-badge')).toBeVisible({ timeout: 30_000 })
+  const clipsDir = join(tmp, 'ana proje-klipler')
+  const made = readdirSync(clipsDir).filter((f) => f.endsWith('.clipforge'))
+  expect(made).toHaveLength(1)
+  const clipProj = JSON.parse(readFileSync(join(clipsDir, made[0]), 'utf8'))
+  expect(clipProj.assets).toHaveLength(1)
+  expect(clipProj.timeline.tracks.flatMap((t: { clips: unknown[] }) => t.clips).length).toBeGreaterThan(0)
+  expect(existsSync(join(clipsDir, `${made[0]}-data`, 'transcripts'))).toBe(true) // transkript taşındı: ayrı düzenlenebilir
+  const mainBefore = readFileSync(mainProj, 'utf8')
+  await page.getByTestId('back-to-parent').click()
+  await expect(page.getByTestId('clip-project-badge')).toHaveCount(0)
+  expect(readFileSync(mainProj, 'utf8')).toBe(mainBefore) // ana proje dosyası değişmedi
 })
 
 test('hata yönetimi: bozuk dosya içe aktarılınca uygulama çökmez, anlaşılır mesaj gösterilir', async () => {
