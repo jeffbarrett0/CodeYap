@@ -129,7 +129,7 @@ mark { background: #53fc1830; color: #c5ffa9; border-radius: 3px; padding: 0 2px
 .tl-label button { background: none; border: 1px solid var(--border); border-radius: 4px; font-size: 10px; padding: 0 4px; color: var(--muted); }
 .tl-label button.on { color: var(--warn); border-color: var(--warn); }
 .tl-scroll { flex: 1; overflow-x: auto; overflow-y: hidden; position: relative; min-width: 0; }
-.tl-content { position: relative; min-height: 100%; }
+.tl-content { position: relative; min-height: 100%; min-width: 100%; }
 .tl-ruler { height: 26px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 4; background: var(--panel); cursor: col-resize; }
 .tl-tick { position: absolute; top: 0; bottom: 0; border-left: 1px solid #2f3543; padding-left: 4px; font-size: 10px; color: var(--muted); user-select: none; }
 .tl-lane { height: 46px; border-bottom: 1px solid var(--border); position: relative; background: repeating-linear-gradient(90deg, transparent 0 99px, #ffffff06 99px 100px); }
@@ -241,3 +241,5 @@ kbd { background: var(--panel3); border: 1px solid var(--border); border-bottom-
 .tl-label.active { box-shadow: inset 3px 0 0 var(--accent); }
 .tl-lane.active { background-image: linear-gradient(#53fc180d, #53fc180d); }
 .ctx-menu button:disabled { opacity: .45; }
+.marquee { position: fixed; z-index: 250; border: 1px solid var(--accent); background: #53fc1822; pointer-events: none; }
+.tl-lane { user-select: none; }

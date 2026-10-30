@@ -246,7 +246,9 @@ describe('proje kaydet / aç', () => {
     writeFileSync(projPath, JSON.stringify({ ...baseProject(fake), version: 1, timeline: legacyTl }))
     const p = await openProject(projPath)
     expect(p.timeline.tracks.every((t) => t.kind === 'audio' || t.placement)).toBe(true)
-    expect(p.timeline.tracks.map((t) => t.id)).toEqual(expect.arrayContaining(['V2', 'V1', 'A1', 'A2'])) // eski oyun ekranı izi korunur ve görünür bir yer alır
+    expect(p.timeline.tracks.map((t) => t.id)).toEqual(expect.arrayContaining(['V2', 'V1', 'A1'])) // eski oyun ekranı izi korunur ve görünür bir yer alır
+    expect(p.timeline.tracks.some((t) => t.id === 'A2')).toBe(false) // BOŞ eski "Konuşma" izi kaldırıldı
+    expect(p.timeline.tracks.find((t) => t.id === 'A1')!.name).toBe('Ses')
     expect(p.timeline.tracks.find((t) => t.id === 'V1')!.clips[0]).toMatchObject({ id: 'c1', srcIn: 5, label: 'eski klip' })
   })
 

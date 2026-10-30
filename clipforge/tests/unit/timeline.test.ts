@@ -23,12 +23,13 @@ function base(): Timeline {
 describe('zaman çizelgesi işlemleri', () => {
   it('GERÇEK varsayılan: yalnızca tek tam kare Video katmanı; görsel/metin/oyun ekranı yok; oran otomatik; hiçbir alan dolu değil', () => {
     const tl = createDefaultTimeline()
-    expect(tl.tracks.map((t) => t.id)).toEqual(['V2', 'A1', 'A2'])
-    expect(tl.tracks.some((t) => t.kind === 'image' || t.kind === 'text' || t.id === 'V1')).toBe(false)
+    expect(tl.tracks.map((t) => t.id)).toEqual(['V1', 'V2', 'V3', 'I1', 'I2', 'A1'])
+    expect(tl.tracks.map((t) => t.name)).toEqual(['Video 1', 'Video 2', 'Video 3', 'Fotoğraf 1', 'Fotoğraf 2', 'Ses']) // Konuşma izi yok
+    expect(tl.tracks.some((t) => t.kind === 'text')).toBe(false)
     expect(tl.tracks.flatMap((t) => t.clips)).toEqual([])
     expect(tl.aspectAuto).toBe(true) // ilk video eklenince videonun boyutuna göre
-    const video = tl.tracks.find((t) => t.id === 'V2')!
-    expect(video.name).toBe('Video') // "webcam" değil
+    const video = tl.tracks.find((t) => t.id === 'V1')!
+    expect(video.name).toBe('Video 1')
     expect(video.placement).toMatchObject({ fit: 'contain', visible: true, rect: { x: 0, y: 0, w: 1, h: 1 } })
   })
 
@@ -191,5 +192,18 @@ describe('altyazılar', () => {
   })
   it('wrapCaption kelime ortasında bölmez', () => {
     expect(wrapCaption('Merhaba arkadaşlar bugün sizlere', 14)).toEqual(['Merhaba', 'arkadaşlar', 'bugün sizlere'])
+  })
+})
+
+describe('snapDropTime: bırakılan dosya 0. sn\'den başlar', () => {
+  const track = { clips: [{ id: 'c', trackId: 'V1', assetId: 'a', start: 5, srcIn: 0, srcOut: 10, volume: 1, label: 'c' }] as Clip[] }
+  it('şeridin başına yakın (≤2 sn) → tam 0', () => {
+    expect(ops.snapDropTime(track, 0)).toBe(0)
+    expect(ops.snapDropTime(track, 1)).toBe(0)
+    expect(ops.snapDropTime(track, 1.9)).toBe(0)
+  })
+  it('klibin sonuna yakın → hemen sonrası; uzaksa olduğu gibi', () => {
+    expect(ops.snapDropTime(track, 15.6)).toBe(15)
+    expect(ops.snapDropTime(track, 30)).toBe(30)
   })
 })

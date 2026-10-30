@@ -108,9 +108,9 @@ test('gerçek Electron: preload köprüsü, ffmpeg algılama, içe aktarma, saht
   await page.getByTestId('make-clip').click()
   await page.getByLabel('Hedef süre').selectOption('15')
   await page.getByTestId('add-to-timeline').click()
-  await expect(page.getByTestId('lane-V2').getByTestId('clip')).toHaveCount(1)
+  await expect(page.getByTestId('lane-V1').getByTestId('clip')).toHaveCount(1)
   await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1)
-  await expect(page.getByTestId('lane-A2').getByTestId('clip')).toHaveCount(1)
+  await expect(page.getByTestId('lane-A2')).toHaveCount(0) // Konuşma katmanı yok
 
   // altyazı + dışa aktarma (gerçek ffmpeg, 9:16). Sistem kaydet diyaloğu ana süreçte taklit edilir.
   await page.getByTestId('rtab-captions').click()

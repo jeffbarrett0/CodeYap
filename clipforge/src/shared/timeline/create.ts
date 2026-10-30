@@ -161,7 +161,7 @@ export function retargetItems(tl: Timeline, items: NewClipItem[]): NewClipItem[]
   const has = (id: ID) => tl.tracks.some((t) => t.id === id)
   const firstVideo = tl.tracks.find((t) => t.kind === 'video')
   const audioFor = (wantId: ID) => tl.tracks.find((t) => t.kind === 'audio' && t.role === (wantId === TRACK_IDS.voice ? 'voice' : 'game')) ?? tl.tracks.find((t) => t.kind === 'audio')
-  const used = new Set<ID>()
+  const used = new Map<ID, [number, number][]>()
   const out: NewClipItem[] = []
   for (const it of items) {
     let target = it.trackId
@@ -172,9 +172,14 @@ export function retargetItems(tl: Timeline, items: NewClipItem[]): NewClipItem[]
       target = t.id
     }
     const track = tl.tracks.find((t) => t.id === target)
-    if (track?.kind === 'video') {
-      if (used.has(target)) continue
-      used.add(target)
+    // Aynı izde iki video / iki ses çakışacaksa ilki tutulur (tek "Ses" izi: oyun+konuşma akışı ayrıysa ilki)
+    // (yalnızca ZAMANDA çakışanlar elenir: toplu klip oluşturmada art arda gelen klipler aynı izde yan yana durur)
+    if (track?.kind === 'video' || track?.kind === 'audio') {
+      const s = it.clip.start
+      const e = it.clip.start + (it.clip.srcOut - it.clip.srcIn)
+      const taken = used.get(target) ?? []
+      if (taken.some(([a, b]) => s < b && a < e)) continue
+      used.set(target, [...taken, [s, e]])
     }
     out.push({ trackId: target, clip: { ...it.clip, trackId: target } })
   }

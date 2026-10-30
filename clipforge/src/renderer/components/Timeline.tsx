@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cmd } from '@shared/timeline/commands'
 import { clipDuration, clipEnd, groupMembers, timelineDuration } from '@shared/timeline/model'
-import { snapPoints } from '@shared/timeline/ops'
+import { snapDropTime, snapPoints } from '@shared/timeline/ops'
 import type { Clip, Track } from '@shared/types'
 import { useStore } from '../store'
 import { fmt } from './ui'
@@ -28,6 +28,53 @@ export function Timeline() {
   const activeLane = useStore((s) => s.activeLane)
   const setActiveLane = useStore((s) => s.setActiveLane)
   const [laneMenu, setLaneMenu] = useState<{ x: number; y: number; lane: string } | null>(null)
+  // Sol tuşla boş alana basılı tutup sürükleyince kutu içindeki klip/altyazılar toplu seçilir (Shift: mevcut seçime ekle)
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  const marqueeRef = useRef<{ x0: number; y0: number; lane: string; additive: boolean; moved: boolean; clickT: number } | null>(null)
+  const startMarquee = (e: React.PointerEvent, lane: string) => {
+    marqueeRef.current = { x0: e.clientX, y0: e.clientY, lane, additive: e.shiftKey, moved: false, clickT: timeFromEvent(e.clientX) }
+    setActiveLane(lane)
+    const onMove = (ev: PointerEvent) => {
+      const m = marqueeRef.current
+      if (!m) return
+      if (ev.buttons === 0) return end(ev) // düğme dışarıda bırakıldıysa takılı kalmasın
+      if (!m.moved && Math.hypot(ev.clientX - m.x0, ev.clientY - m.y0) < 4) return
+      m.moved = true
+      setMarquee({ x0: m.x0, y0: m.y0, x1: ev.clientX, y1: ev.clientY })
+    }
+    const end = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      const m = marqueeRef.current
+      marqueeRef.current = null
+      setMarquee(null)
+      if (!m) return
+      const st = useStore.getState()
+      if (!m.moved) {
+        // tek tıklama: seçimi bırak, oynatma başlığını taşı
+        st.select([])
+        st.selectCaption(null)
+        if (st.viewMode !== 'timeline') st.setViewMode('timeline')
+        st.setPlayhead(m.clickT)
+        return
+      }
+      const box = { l: Math.min(m.x0, ev.clientX), r: Math.max(m.x0, ev.clientX), t: Math.min(m.y0, ev.clientY), b: Math.max(m.y0, ev.clientY) }
+      const hit = (el: Element) => {
+        const r = el.getBoundingClientRect()
+        return r.right >= box.l && r.left <= box.r && r.bottom >= box.t && r.top <= box.b
+      }
+      const clipIds = [...document.querySelectorAll<HTMLElement>('.tl-clip[data-clip-id]')].filter((el) => !el.classList.contains('locked') && hit(el)).map((el) => el.dataset.clipId!)
+      const capIds = [...document.querySelectorAll<HTMLElement>('.tl-clip.cap[data-cap-id]')].filter(hit).map((el) => el.dataset.capId!)
+      const keep = m.additive ? st.selection : []
+      st.select([...new Set([...keep, ...clipIds])])
+      useStore.setState({ selectedCaptionId: null, selectedCaptionIds: m.additive ? [...new Set([...st.selectedCaptionIds, ...capIds])] : capIds })
+      if (clipIds.length + capIds.length === 0) st.toast('info', 'Kutuda seçilecek öğe yok.')
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+  }
   const openLaneMenu = (e: React.MouseEvent, lane: string) => {
     if ((e.target as HTMLElement).closest('.tl-clip')) return
     e.preventDefault()
@@ -201,7 +248,7 @@ export function Timeline() {
                 data-lane-id={t.id}
                 onContextMenu={(e) => openLaneMenu(e, t.id)}
                 data-testid={`lane-${t.id}`}
-                onPointerDown={(e) => { if (e.target === e.currentTarget) { select([]); setActiveLane(t.id); if (viewMode !== 'timeline') setViewMode('timeline'); setPlayhead(timeFromEvent(e.clientX)) } }}
+                onPointerDown={(e) => { if (e.target === e.currentTarget && e.button === 0) startMarquee(e, t.id) }}
                 onDragOver={(e) => e.dataTransfer.types.includes('application/x-clipforge-asset') && (e.preventDefault(), e.currentTarget.classList.add('drop'))}
                 onDragLeave={(e) => e.currentTarget.classList.remove('drop')}
                 onDrop={(e) => {
@@ -210,12 +257,13 @@ export function Timeline() {
                   if (!id) return
                   e.preventDefault()
                   e.stopPropagation()
-                  useStore.getState().addAssetToTrack(id, t.id, { at: timeFromEvent(e.clientX), withAudio: !e.altKey }) // Alt: videonun sesini ekleme
+                  useStore.getState().addAssetToTrack(id, t.id, { at: snapDropTime(t, timeFromEvent(e.clientX)), withAudio: !e.altKey }) // Alt: videonun sesini ekleme
                 }}
               >
                 {t.clips.map((c) => (
                   <div
                     key={c.id}
+                    data-lane={t.id}
                     className={`tl-clip ${ROLE_CLASS[t.role] ?? ''}${selection.includes(c.id) ? ' sel' : ''}${selGroups.has(c.id) && !selection.includes(c.id) ? ' grp' : ''}${t.locked ? ' locked' : ''}`}
                     style={{ left: c.start * zoom, width: Math.max(4, clipDuration(c) * zoom) }}
                     title={`${c.label}\nKaynak: ${fmt(c.srcIn)}–${fmt(c.srcOut)}`}
@@ -233,15 +281,16 @@ export function Timeline() {
                 ))}
               </div>
             ))}
-            <div className={`tl-lane${activeLane === 'CC' ? ' active' : ''}`} data-testid="lane-CC" onContextMenu={(e) => openLaneMenu(e, 'CC')} onPointerDown={(e) => { if (e.target === e.currentTarget) { setActiveLane('CC'); select([]) } }}>
+            <div className={`tl-lane${activeLane === 'CC' ? ' active' : ''}`} data-testid="lane-CC" onContextMenu={(e) => openLaneMenu(e, 'CC')} onPointerDown={(e) => { if (e.target === e.currentTarget && e.button === 0) startMarquee(e, 'CC') }}>
               {tl.captions.map((c) => (
-                <div key={c.id} className={`tl-clip cap${selectedCaptionId === c.id || selectedCaptionIds.includes(c.id) ? ' sel' : ''}`} style={{ left: c.start * zoom, width: Math.max(4, (c.end - c.start) * zoom), cursor: 'pointer' }} title={`${c.text}\n(tıkla: seç ve önizlemede göster)`} onPointerDown={(e) => { e.stopPropagation(); useStore.getState().selectCaption(c.id, true); useStore.getState().setActiveLane('CC') }} data-testid="cap-clip">{c.text}</div>
+                <div key={c.id} className={`tl-clip cap${selectedCaptionId === c.id || selectedCaptionIds.includes(c.id) ? ' sel' : ''}`} style={{ left: c.start * zoom, width: Math.max(4, (c.end - c.start) * zoom), cursor: 'pointer' }} title={`${c.text}\n(tıkla: seç ve önizlemede göster)`} onPointerDown={(e) => { e.stopPropagation(); useStore.getState().selectCaption(c.id, true); useStore.getState().setActiveLane('CC') }} data-cap-id={c.id} data-testid="cap-clip">{c.text}</div>
               ))}
             </div>
             <div className="tl-playhead" style={{ left: playhead * zoom }} data-testid="playhead" />
           </div>
         </div>
       </div>
+      {marquee && <div className="marquee" style={{ left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0) }} data-testid="marquee" />}
       {laneMenu && <LaneMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
     </section>
   )

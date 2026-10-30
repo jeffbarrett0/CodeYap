@@ -137,7 +137,7 @@ function AudioMixer() {
           </div>
         </div>
       ))}
-      <div className="hint">Oyun sesi ve konuşma farklı ses track'lerinde ise ayrı izlerde (A1/A2) yer alır ve dışa aktarmada ayrı seviyelerle karıştırılır. Tek karışım track'i varsa yalnızca "Oyun sesi" izi kullanılır. Dışa aktarmada ses −14 LUFS'a dengelenir (şablonda açıksa).</div>
+      <div className="hint">Videoların sesi tek "Ses" izine eklenir. Aynı aralıkta ikinci bir video eklenirse sesi eklenmez (üst üste binmesin); sesi ayrıca eklemek için ses dosyasını Ses izine bırakın. Dışa aktarmada ses −14 LUFS'a dengelenir (şablonda açıksa).</div>
     </div>
   )
 }

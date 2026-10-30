@@ -382,3 +382,18 @@ export function cutRanges(tl: Timeline, ranges: [number, number][], ripple = tru
 export function removeClipsOfAsset(tl: Timeline, assetId: ID): Timeline {
   return { ...tl, tracks: tl.tracks.map((t) => (t.clips.some((c) => c.assetId === assetId) ? { ...t, clips: t.clips.filter((c) => c.assetId !== assetId) } : t)) }
 }
+
+/**
+ * Bırakılan dosyanın başlangıcı: şeridin başına yakın (≤2 sn) bırakılırsa tam 0. sn; bir klibin sonuna yakınsa (≤1 sn)
+ * o klibin hemen sonrası. Böylece video "1. saniyeden" değil sıfırdan başlar, klipler arasında istemsiz boşluk kalmaz.
+ */
+export function snapDropTime(track: Pick<Track, 'clips'>, raw: number): number {
+  const t = Math.max(0, raw)
+  if (t <= 2) return 0
+  for (const c of track.clips) {
+    const end = clipEnd(c)
+    if (Math.abs(t - end) <= 1) return end
+  }
+  return t
+}
+

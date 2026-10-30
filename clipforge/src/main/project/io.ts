@@ -1,7 +1,7 @@
 import { access, copyFile, cp, link, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { PROJECT_VERSION, type Project } from '../../shared/types'
-import { applyTemplate, DEFAULT_TEMPLATE } from '../../shared/timeline/templates'
+import { applyTemplate, DEFAULT_TEMPLATE, normalizeTracks } from '../../shared/timeline/templates'
 import { sanitizePlacements } from '../../shared/timeline/ops'
 
 /** Proje dosyasının türetilmiş verileri (proxy, küçük resim, transkript) için yan klasör */
@@ -82,7 +82,7 @@ export async function openProject(projectPath: string): Promise<Project> {
   // v1 projelerinde katman konumu yoktur: varsayılan şablon uygulanır (klipler ve iz kimlikleri korunur)
   if (!p.timeline.tracks.some((t) => t.placement)) p.timeline = applyTemplate(p.timeline, { ...DEFAULT_TEMPLATE, aspect: p.timeline.aspect })
   // Kare dışına taşmış katman konumlarını onar (arayüzü kapatıp tıklamaları yakalıyordu)
-  p.timeline = sanitizePlacements(p.timeline)
+  p.timeline = normalizeTracks(sanitizePlacements(p.timeline))
   p.chatLogs ??= []
   p.candidates ??= []
   p.markers ??= {}

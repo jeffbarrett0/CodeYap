@@ -541,9 +541,16 @@ export const useStore = create<State>()((set, get) => {
         // Video katmanına eklenen videonun SESİ de (bağlı klip olarak) ses izine eklenir
         const r = clipsForVideoWithAudio(asset, track, s.project.timeline.tracks, { at, srcIn: opts.srcIn, duration: opts.duration, withAudio: opts.withAudio })
         if ('error' in r) return get().toast('error', r.error)
-        get().exec(cmd.addClips(r.items, 'Dosya ekle'))
-        firstId = r.items[0].clip.id
-        withSound = r.items.length > 1
+        // Ses izinde o aralık doluysa (ör. Video 1'in sesi) ikinci videonun sesi eklenmez: findFreeStart onu kaydırıp görüntüden koparırdı
+        const items = r.items.filter((it, i) => {
+          if (i === 0) return true
+          const tr = s.project.timeline.tracks.find((x) => x.id === it.trackId)
+          return !tr || !tr.clips.some((c) => c.start < it.clip.start + (it.clip.srcOut - it.clip.srcIn) && it.clip.start < c.start + (c.srcOut - c.srcIn))
+        })
+        if (items.length < r.items.length) get().toast('info', 'Ses izinde bu aralık dolu: videonun sesi eklenmedi (görüntü eklendi). Sesi ayrıca Ses izine bırakabilirsiniz.')
+        get().exec(cmd.addClips(items, 'Dosya ekle'))
+        firstId = items[0].clip.id
+        withSound = items.length > 1
         if (asset.audioStreams.length === 0) get().toast('info', 'Bu videoda ses yok.')
       } else {
         const r = clipForTrack(asset, track, { at, srcIn: opts.srcIn, duration: opts.duration, audioStream: opts.audioStream })

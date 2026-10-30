@@ -3,16 +3,22 @@ import type { AspectRatio, LayoutTemplate, Placement, Timeline, Track } from '..
 const P = (x: number, y: number, w: number, h: number, fit: Placement['fit'] = 'cover', visible = true): Placement => ({ rect: { x, y, w, h }, fit, visible, opacity: 1 })
 
 /**
- * Varsayılan şablon: yalnızca TEK, tam kare **Video** katmanı. Hiçbir görsel/metin/oyun ekranı katmanı kendiliğinden gelmez;
- * kullanıcı gerekirse Katmanlar panelinden ekler. Oran da başta dayatılmaz: ilk video eklenince videonun boyutuna göre ayarlanır.
+ * Varsayılan şablon: Video 1-3 ve Fotoğraf 1-2 katmanları (hepsi tam kare, içerik yok → boş katman çizilmez), tek Ses izi ve Altyazı.
+ * Kendiliğinden hiçbir içerik eklenmez; konumlar Katmanlar panelinden ayarlanır. Oran da başta dayatılmaz: ilk video eklenince videonun boyutuna göre ayarlanır.
  */
 export const DEFAULT_TEMPLATE: LayoutTemplate = {
   id: 'default-video',
-  name: 'Tek video',
+  name: 'Video 1-3 + Fotoğraf 1-2',
   builtin: true,
   aspect: '16:9',
   background: '#000000',
-  layers: [{ id: 'V2', name: 'Video', kind: 'video', role: 'webcam', placement: P(0, 0, 1, 1, 'contain') }]
+  layers: [
+    { id: 'V1', name: 'Video 1', kind: 'video', role: 'screen', placement: P(0, 0, 1, 1, 'contain') },
+    { id: 'V2', name: 'Video 2', kind: 'video', role: 'screen', placement: P(0, 0, 1, 1, 'contain') },
+    { id: 'V3', name: 'Video 3', kind: 'video', role: 'screen', placement: P(0, 0, 1, 1, 'contain') },
+    { id: 'I1', name: 'Fotoğraf 1', kind: 'image', role: 'image', placement: P(0, 0, 1, 1, 'contain') },
+    { id: 'I2', name: 'Fotoğraf 2', kind: 'image', role: 'image', placement: P(0, 0, 1, 1, 'contain') }
+  ]
 }
 
 export const BUILTIN_TEMPLATES: LayoutTemplate[] = [
@@ -53,9 +59,18 @@ export const BUILTIN_TEMPLATES: LayoutTemplate[] = [
 ]
 
 export const AUDIO_TRACKS = (): Track[] => [
-  { id: 'A1', name: 'Oyun sesi', kind: 'audio', role: 'game', clips: [], muted: false, locked: false, volume: 1 },
-  { id: 'A2', name: 'Konuşma', kind: 'audio', role: 'voice', clips: [], muted: false, locked: false, volume: 1 }
+  { id: 'A1', name: 'Ses', kind: 'audio', role: 'game', clips: [], muted: false, locked: false, volume: 1 }
 ]
+
+/**
+ * Eski projeleri yeni adlara taşır: "Oyun sesi" → "Ses"; BOŞ "Konuşma" izi kaldırılır (kliplı izler veri kaybı olmasın diye korunur).
+ */
+export function normalizeTracks(tl: Timeline): Timeline {
+  const tracks = tl.tracks
+    .filter((t) => !(t.id === 'A2' && t.kind === 'audio' && t.clips.length === 0))
+    .map((t) => (t.id === 'A1' && t.kind === 'audio' && t.name === 'Oyun sesi' ? { ...t, name: 'Ses' } : t.id === 'A2' && t.name === 'Konuşma' ? { ...t, name: 'Ses 2' } : t))
+  return tracks.length === tl.tracks.length && tracks.every((t, i) => t === tl.tracks[i]) ? tl : { ...tl, tracks }
+}
 
 /**
  * Şablonu zaman çizelgesine uygular: eşleşen iz kimliklerinin konumunu günceller, eksik katmanları ekler,

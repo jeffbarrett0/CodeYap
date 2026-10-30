@@ -243,3 +243,11 @@ Yöntemler: (1) Whisper'a **ipucu** (özel sözlük) — `whisper.cpp --prompt`,
 2. Ana projede kaydedilmemiş değişiklik ya da hiç kayıt yoksa, çalışma alanı değişirken kaybolmasın diye **önce onayla kaydedilir**; reddedilirse klip projesi oluşturulmaz.
 3. Etkin katman yokken Ctrl+A tüm klipleri seçer (eski davranış).
 4. Aynı arama sonucundan tekrar klip üretilirse dosya adı `(2)`, `(3)`… ile ayrılır; mevcut klip projesinin üzerine yazılmaz.
+
+## 29. Yeni varsayılan katmanlar, 0. saniyeden başlama, sürükle-kutu ile toplu seçim
+
+* **Katmanlar (yeni projeler):** `Video 1 · Video 2 · Video 3 · Fotoğraf 1 · Fotoğraf 2 · Ses · Altyazı`. "Oyun sesi" → **Ses**; **Konuşma katmanı kaldırıldı**. Katmanlar boş başlar (hiçbir içerik kendiliğinden eklenmez), hepsi tam kare "sığdır"; konum/boyut Katmanlar panelinden ayarlanır. Kimlikler: V1–V3, I1–I2, A1. Eski projeler açılırken "Oyun sesi" adı "Ses" olur ve **boş** "Konuşma" izi kaldırılır; içinde klip olan eski Konuşma izi veri kaybı olmasın diye "Ses 2" adıyla korunur.
+* **Sesler tek "Ses" izinde:** Bir videoyu bırakınca sesi Ses izine gelir. O aralıkta Ses izi doluysa (ör. Video 1'in sesi) ikinci videonun **sesi eklenmez** (görüntü eklenir, uyarı verilir) — aksi halde ses kayıp görüntüden kopardı. Dosyada ayrı oyun/konuşma ses akışı varsa yalnızca ilki (oyun) Ses izine girer; konuşma akışını ayrıca almak için ses dosyasını Ses izine bırakın. (Varsayım: tek "Ses" istendi, karışım tek izde.)
+* **0. saniyeden başlama:** Bırakılan dosya şeridin başına yakınsa (≤ 2 sn) **tam 0. sn**'den başlar; bir klibin sonuna ≤ 1 sn yakınsa hemen sonrasına yapışır (`snapDropTime`). Görüntü ve sesi aynı noktadan başlar.
+* **Sürükle-kutu (marquee):** Boş şeride sol tuşla basılı tutup sürükleyince kutuya değen klip/altyazılar seçilir (Shift: seçime ekle); Delete siler, Ctrl+Z geri alır. Tek tıklama seçimi bırakıp oynatma başlığını taşır. Kilitli katmanlar atlanır. Katman şeritleri artık görünür alanın sonuna kadar uzar, boş alandan başlamak kolaylaşır.
+* **Düzeltme:** `retargetItems` aynı izdeki klipleri yalnızca **zamanda çakışıyorsa** eler (önceden toplu klip oluşturmada aynı izdeki 2. ve 3. klip sessizce düşüyordu).

@@ -92,5 +92,7 @@ export function createTimelineWithGame(): Timeline {
       { id: 'V1', name: 'Oyun ekranı', kind: 'video', role: 'screen', placement: P(0, 0.415, 1, 0.585, 'contain', false) }
     ]
   })
-  return { ...tl, aspectAuto: false }
+  // eski düzen: ayrı konuşma izi (A2) de var; yeni varsayılanda yalnızca tek "Ses" izi olur
+  const voice = { id: 'A2', name: 'Konuşma', kind: 'audio' as const, role: 'voice' as const, clips: [], muted: false, locked: false, volume: 1 }
+  return { ...tl, aspectAuto: false, tracks: [...tl.tracks.map((t) => (t.id === 'V2' ? { ...t, role: 'webcam' as const } : t)), voice] }
 }

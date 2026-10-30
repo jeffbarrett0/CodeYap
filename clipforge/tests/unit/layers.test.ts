@@ -23,10 +23,11 @@ function base(): Timeline {
 
 describe('şablonlar', () => {
   it('varsayılan şablon: yalnızca tam kare Video; hiçbir hazır görsel/metin/oyun ekranı yok', () => {
-    expect(DEFAULT_TEMPLATE.layers.map((l) => l.id)).toEqual(['V2'])
-    expect(DEFAULT_TEMPLATE.layers[0]).toMatchObject({ name: 'Video', kind: 'video' })
+    expect(DEFAULT_TEMPLATE.layers.map((l) => l.id)).toEqual(['V1', 'V2', 'V3', 'I1', 'I2'])
+    expect(DEFAULT_TEMPLATE.layers.map((l) => l.name)).toEqual(['Video 1', 'Video 2', 'Video 3', 'Fotoğraf 1', 'Fotoğraf 2'])
+    expect(DEFAULT_TEMPLATE.layers[0]).toMatchObject({ name: 'Video 1', kind: 'video' })
     expect(DEFAULT_TEMPLATE.layers[0].placement).toMatchObject({ fit: 'contain', rect: { x: 0, y: 0, w: 1, h: 1 } })
-    expect(DEFAULT_TEMPLATE.layers.some((l) => l.kind === 'text' || l.kind === 'image' || l.textDefault)).toBe(false)
+    expect(DEFAULT_TEMPLATE.layers.some((l) => l.kind === 'text' || l.textDefault)).toBe(false)
     expect(BUILTIN_TEMPLATES.length).toBeGreaterThanOrEqual(4)
   })
 
