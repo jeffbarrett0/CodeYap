@@ -249,6 +249,7 @@ export function LayersPanel() {
         <button className="btn sm" onClick={() => addLayer('text')} data-testid="add-text-layer">+ Metin</button>
         <button className="btn sm" onClick={() => addLayer('video')}>+ Video</button>
         <button className="btn sm" onClick={() => addLayer('game')} disabled={tl.tracks.some((t) => t.id === 'V1')} data-testid="add-game-layer" title="Oyun ekranı katmanını elle ekler">+ Oyun ekranı</button>
+        {sel && sel.clips.length > 0 && <button className="btn sm" data-testid="clear-layer-clips" onClick={() => useStore.getState().clearClips(sel.id)} title="Bu katmandaki tüm klipleri siler (katman kalır; Ctrl+Z geri alır)">Klipleri temizle</button>}
         {sel && <button className="btn sm danger" data-testid="remove-layer" onClick={() => {
           // Her katman silinebilir; içinde klip varsa onay istenir (klipler de kalkar, Ctrl+Z geri alır)
           if (sel.clips.length > 0 && !window.confirm(`"${sel.name}" katmanında ${sel.clips.length} klip var. Katmanla birlikte silinsin mi? (Ctrl+Z geri alır)`)) return

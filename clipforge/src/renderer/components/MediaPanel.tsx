@@ -13,6 +13,8 @@ import { SourcesBlock } from './Sources'
 export function MediaLibrary() {
   const { project, selectedAssetId, playAsset, pickAndImport, transcripts } = useStore()
   const [over, setOver] = useState(false)
+  const [checked, setChecked] = useState<string[]>([])
+  const removeAssets = useStore((s) => s.removeAssets)
   const api = requireApi()
   // Bırakma işlemini pencere düzeyindeki dinleyici (main.tsx) yapar; burada yalnızca görsel geri bildirim var.
   const onDrop = () => setOver(false)
@@ -35,10 +37,17 @@ export function MediaLibrary() {
 
       <div>
         <div className="section-title">Medya kütüphanesi ({project.assets.length})</div>
+        {project.assets.length > 0 && (
+          <div className="row wrap" data-testid="asset-bulk">
+            <label className="check"><input type="checkbox" checked={checked.length === project.assets.length} onChange={(e) => setChecked(e.target.checked ? project.assets.map((a) => a.id) : [])} data-testid="asset-check-all" /> Tümünü seç</label>
+            <button className="btn sm danger" disabled={checked.length === 0} onClick={() => { removeAssets(checked); setChecked([]) }} data-testid="asset-remove-sel">Seçilenleri kaldır ({checked.length})</button>
+          </div>
+        )}
         <div className="col">
           {project.assets.length === 0 && <div className="empty">Henüz medya yok.</div>}
           {project.assets.map((a) => (
             <div key={a.id} className={`asset${a.id === selectedAssetId ? ' sel' : ''}`} draggable onDragStart={(e) => e.dataTransfer.setData('application/x-clipforge-asset', a.id)} title="Zaman çizelgesindeki bir ize sürükleyip bırakabilirsiniz" onClick={() => playAsset(a.id)} data-testid="asset" role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && playAsset(a.id)}>
+              <input type="checkbox" className="asset-check" checked={checked.includes(a.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => setChecked(e.target.checked ? [...checked, a.id] : checked.filter((x) => x !== a.id))} aria-label={`${a.name} seç`} data-testid="asset-check" />
               <div className="thumb" style={api.mediaUrl(a, 'thumb') ? { backgroundImage: `url(${api.mediaUrl(a, 'thumb')})` } : undefined}>{!api.mediaUrl(a, 'thumb') && 'önizleme yok'}</div>
               <div className="meta">
                 <div className="name" title={a.path}>{a.name}</div>

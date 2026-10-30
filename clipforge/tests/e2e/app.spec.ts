@@ -677,6 +677,46 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('cap-clip')).toHaveCount(n - 1)
   })
 
+  test('toplu silme: altyazılar (seçilenler / tümü), zaman çizelgesi klipleri (Ctrl+A, Tümünü sil), kütüphane (seçilenleri kaldır); hepsi geri alınır', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V2')
+    await page.getByTestId('rtab-captions').click()
+    await page.getByTestId('gen-captions').click()
+    const n = await page.getByTestId('cap-clip').count()
+    expect(n).toBeGreaterThan(2)
+    // iki altyazı işaretle → seçilenleri sil
+    await page.getByTestId('cap-check').nth(0).check()
+    await page.getByTestId('cap-check').nth(1).check()
+    await page.getByTestId('cap-delete-sel').click()
+    await expect(page.getByTestId('cap-clip')).toHaveCount(n - 2)
+    // tümünü sil (onay)
+    page.once('dialog', (d) => void d.accept())
+    await page.getByTestId('cap-delete-all').click()
+    await expect(page.getByTestId('cap-clip')).toHaveCount(0)
+    await page.keyboard.press('Control+z')
+    await expect(page.getByTestId('cap-clip')).toHaveCount(n - 2)
+
+    // zaman çizelgesi: Ctrl+A ile hepsi seçilir, Sil tek adımda kaldırır
+    const clips = await page.getByTestId('clip').count()
+    expect(clips).toBeGreaterThan(0)
+    await page.getByTestId('select-all-clips').click()
+    await expect(page.locator('.tl-clip.sel')).toHaveCount(clips)
+    await page.getByTestId('delete').click()
+    await expect(page.getByTestId('clip')).toHaveCount(0)
+    await page.keyboard.press('Control+z')
+    await expect(page.getByTestId('clip')).toHaveCount(clips)
+    page.once('dialog', (d) => void d.accept())
+    await page.getByTestId('clear-clips').click()
+    await expect(page.getByTestId('clip')).toHaveCount(0)
+
+    // kütüphane: hepsini işaretle, kaldır
+    await page.getByTestId('asset-check-all').check()
+    page.once('dialog', (d) => void d.accept())
+    await page.getByTestId('asset-remove-sel').click()
+    await expect(page.getByTestId('asset')).toHaveCount(0)
+  })
+
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))

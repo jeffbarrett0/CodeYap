@@ -70,6 +70,7 @@ export function SearchPanel() {
         <>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div className="section-title" style={{ margin: 0 }} data-testid="result-count">{results.length} sonuç · zamana göre</div>
+            <button className="btn sm" onClick={() => useStore.getState().clearResults()} data-testid="clear-results" title="Arama sonuçlarını listeden temizler">Sonuçları temizle</button>
             <button className="btn sm" disabled={selectedResults.length === 0} onClick={() => createClipsFromResults(selectedResults)} data-testid="batch-btn">
               Seçilenlerden klip ({selectedResults.length})
             </button>

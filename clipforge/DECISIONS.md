@@ -224,3 +224,8 @@ Yöntemler: (1) Whisper'a **ipucu** (özel sözlük) — `whisper.cpp --prompt`,
 - Test: gerçek Electron + 40 sn 1080p60 yüksek bit hızlı MP4 → Range yanıtları ve ortaya atlayıp oynatma.
 
 **Not:** VP9 1080p60 yazılımsal çözülürken zayıf bilgisayarlarda hâlâ ağır olabilir; önizleme kopyası (540p) hazır olunca (kütüphanedeki görev çubuğu) akıcılık belirgin artar. Dışa aktarma etkilenmez.
+
+## 27. Sessizleri kes sonrası siyah ekran ve toplu silme
+
+* **Siyah ekran:** Her kesimde klipler yeni kimlik alıyordu ve önizleme motoru klip başına yeni bir `<video>` oluşturup yüklüyordu; yüklenene kadar (~1 sn) kare çizilmiyordu. Artık video/ses öğeleri **katman+kaynak** başına tutulur ve kesimden sonraki klip aynı öğeyi yeniden kullanır (sadece atlama yapılır); atlama sürerken öğenin son karesi çizilmeye devam eder. Klip değişiminde hemen doğru noktaya atlanır. Not: dışa aktarma etkilenmez (kesimler zaten boşluksuz birleşir). Sınır: sert bir geri sarma/ilk açılışta, öğe henüz hiç kare üretmediyse yine kısa bir bekleme olabilir; ağır VP9'da önizleme kopyası hazır olunca tamamen akıcıdır.
+* **Toplu silme (hepsi tek geri alma adımı):** Altyazı sekmesi (onay kutuları, Tümünü seç, Seçilenleri sil, Tüm altyazıları sil) · Zaman çizelgesi (Tümünü seç / Ctrl+A, Sil, Tümünü sil) · Klip sekmesi (çoklu seçimde "Seçilenleri sil", tümünü seç/sil) · Katmanlar (seçili katmanda "Klipleri temizle") · Ses sekmesi (izin tüm kliplerini sil) · Kütüphane (onay kutuları, Seçilenleri kaldır; diskteki dosyalara dokunulmaz) · Arama (Sonuçları temizle). Kilitli izler atlanır. Transkript silme için ana süreç tarafında kalıcı bir silme işlemi yok; eklenmedi.

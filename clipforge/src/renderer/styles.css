@@ -237,3 +237,4 @@ kbd { background: var(--panel3); border: 1px solid var(--border); border-bottom-
 /* Katman/altyazı/kırpma katmanları yalnızca tuvalin (+ tutamaç payı) içinde tıklama alır: taşan çerçeveler diğer panelleri kapatamaz */
 .layer-overlay, .caption-overlay, .crop-overlay { clip-path: inset(-18px); }
 .canvas-box { isolation: isolate; }
+.asset-check { align-self: center; flex: none; }

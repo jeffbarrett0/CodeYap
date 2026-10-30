@@ -33,6 +33,7 @@ export class PreviewEngine {
   private videos = new Map<string, HTMLVideoElement>()
   private audios = new Map<string, HTMLAudioElement>()
   private images = new Map<string, HTMLImageElement>()
+  private lastClip = new WeakMap<HTMLMediaElement, string>()
   private lastSeek = new WeakMap<HTMLMediaElement, number>()
   /** Kırpma modunda düzenlenen klip: tamamı (kırpmasız, sığdırılmış) gösterilir */
   cropClipId: string | null = null
@@ -60,37 +61,41 @@ export class PreviewEngine {
         if (url) this.imageFor(url)
       } else if (track.kind === 'video') {
         if (track.placement && !track.placement.visible) continue // kapalı katman çözülmez (CPU tasarrufu)
-        want.add(c.id)
-        let v = this.videos.get(c.id)
+        // Öğe klip başına değil katman+kaynak başına tutulur: kesimden sonra yeni klip aynı öğeyi yeniden kullanır
+        // (her kesimde yeni <video> yüklemek ~1 sn siyah ekran yapıyordu)
+        const vk = this.key(c)
+        want.add(vk)
+        let v = this.videos.get(vk)
         const src = this.mediaFor(c, assets, 'video')
         if (!v) {
           v = document.createElement('video')
           v.muted = true
           v.playsInline = true
           v.preload = 'auto'
-          this.videos.set(c.id, v)
+          this.videos.set(vk, v)
         }
         // oynatma sırasında kaynak değiştirilmez (proxy hazır olunca adres değişir; yeniden yükleme takılma yapar)
         if (src && v.getAttribute('data-src') !== src && (!playing || !v.getAttribute('data-src'))) {
           v.setAttribute('data-src', src)
           v.src = src
         }
-        this.align(v, target, playing, rate)
+        this.align(v, target, playing, rate, c.id)
       } else if (track.kind === 'audio') {
-        want.add(c.id)
-        let a = this.audios.get(c.id)
+        const ak = `${this.key(c)}|${c.audioStream ?? 0}`
+        want.add(ak)
+        let a = this.audios.get(ak)
         const src = this.mediaFor(c, assets, 'audio', c.audioStream ?? 0)
         if (!a) {
           a = new Audio()
           a.preload = 'auto'
-          this.audios.set(c.id, a)
+          this.audios.set(ak, a)
         }
         if (src && a.getAttribute('data-src') !== src && (!playing || !a.getAttribute('data-src'))) {
           a.setAttribute('data-src', src)
           a.src = src
         }
         a.volume = Math.min(1, Math.max(0, track.volume * c.volume))
-        this.align(a, target, playing, rate)
+        this.align(a, target, playing, rate, c.id)
       }
     }
     // Artık etkin olmayan öğeleri bırak
@@ -98,9 +103,22 @@ export class PreviewEngine {
     for (const [id, a] of this.audios) if (!want.has(id)) (a.pause(), a.removeAttribute('src'), a.load(), this.audios.delete(id))
   }
 
-  private align(el: HTMLMediaElement, target: number, playing: boolean, rate: number) {
+  private key(c: Clip) {
+    return `${c.trackId}|${c.assetId}`
+  }
+
+  private align(el: HTMLMediaElement, target: number, playing: boolean, rate: number, clipId: string) {
     el.playbackRate = rate
     const drift = Math.abs(el.currentTime - target)
+    // klip değiştiyse (kesim/sonraki parça) hemen doğru yere git; sınırlama yalnızca ağır videoda aynı klip içindeki sapma içindir
+    const changed = this.lastClip.get(el) !== clipId
+    this.lastClip.set(el, clipId)
+    if (changed && playing && drift > 0.05) {
+      this.lastSeek.set(el, performance.now())
+      el.currentTime = target
+      if (el.paused) void el.play().catch(() => undefined)
+      return
+    }
     if (!playing) {
       if (drift > 0.03) el.currentTime = target
       if (!el.paused) el.pause()
@@ -149,8 +167,8 @@ export class PreviewEngine {
           let sw = 0
           let sh = 0
           if (track.kind === 'video') {
-            const v = this.videos.get(c.id)
-            if (v && v.readyState >= 2 && v.videoWidth) (src = v, sw = v.videoWidth, sh = v.videoHeight)
+            const v = this.videos.get(this.key(c))
+            if (v && (v.readyState >= 2 || (v.seeking && v.readyState >= 1)) && v.videoWidth) (src = v, sw = v.videoWidth, sh = v.videoHeight)
           } else if (track.kind === 'image') {
             const a = assets.find((x) => x.id === c.assetId)
             const url = a ? this.api.mediaUrl(a, 'image') : null
@@ -240,8 +258,8 @@ export class PreviewEngine {
     for (const c of active) {
       const track = tl.tracks.find((x) => x.id === c.trackId)
       if (!track || track.kind !== 'video' || track.muted) continue
-      const v = this.videos.get(c.id)
-      if (!v || v.readyState < 2 || !v.videoWidth) continue
+      const v = this.videos.get(this.key(c))
+      if (!v || (v.readyState < 2 && !(v.seeking && v.readyState >= 1)) || !v.videoWidth) continue
       if (track.role === 'webcam') {
         const r = layout.cam && tl.aspect === '9:16' && tl.layout !== 'fill' && tl.layout !== 'cam-overlay-corner' ? layout.cam : { x: (c.overlay ?? tl.webcamOverlay).x * W, y: (c.overlay ?? tl.webcamOverlay).y * H, w: (c.overlay ?? tl.webcamOverlay).w * W, h: (c.overlay ?? tl.webcamOverlay).h * H }
         const s = coverSource(v.videoWidth, v.videoHeight, r.w, r.h, c.crop)

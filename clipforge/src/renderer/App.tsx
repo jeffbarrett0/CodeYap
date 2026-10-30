@@ -20,6 +20,7 @@ function useShortcuts() {
       if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? st.redo() : st.undo(); return }
       if (mod && k === 'y') { e.preventDefault(); st.redo(); return }
       if (mod && k === 's') { e.preventDefault(); void st.saveProject(e.shiftKey); return }
+      if (mod && k === 'a' && !st.dialog) { e.preventDefault(); st.selectAllClips(); return }
       if (mod && k === 'e') { e.preventDefault(); st.openDialog('export'); return }
       if (mod || st.dialog) return
       if (e.key === ' ') {

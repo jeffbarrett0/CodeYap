@@ -17,6 +17,8 @@ export const cmd = {
     makeCommand('Bitişi kırp', (t) => ops.trimEnd(t, clipId, end, srcDur), `trimE:${clipId}`),
   split: (clipId: ID, time: number): TimelineCommand => makeCommand('Böl', (t) => ops.splitClip(t, clipId, time)),
   remove: (clipId: ID, ripple = false, single = false): TimelineCommand => makeCommand('Sil', (t) => ops.deleteClip(t, clipId, ripple, single)),
+  /** Birden çok klibi TEK geri alma adımında siler (kilitli izler atlanır) */
+  removeMany: (ids: ID[], single = true, label = 'Toplu sil'): TimelineCommand => makeCommand(label, (t) => ids.reduce((acc, id) => ops.deleteClip(acc, id, false, single), t)),
   updateClip: (clipId: ID, patch: Partial<Clip>, coalesce = false): TimelineCommand =>
     makeCommand('Klip özelliği', (t) => ops.updateClip(t, clipId, patch), coalesce ? `upd:${clipId}:${Object.keys(patch).join(',')}` : undefined),
   track: (trackId: ID, patch: Parameters<typeof ops.updateTrack>[2], coalesce = false): TimelineCommand =>

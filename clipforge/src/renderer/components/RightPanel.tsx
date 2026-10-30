@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { cmd } from '@shared/timeline/commands'
 import { clipDuration, findClip, groupMembers, TRACK_IDS } from '@shared/timeline/model'
 import type { AspectRatio, LayoutPreset } from '@shared/types'
@@ -65,13 +66,27 @@ function Inspector() {
   const { project, selection, exec } = useStore()
   const tl = project.timeline
   const f = selection[0] ? findClip(tl, selection[0]) : null
-  if (!f) return <div className="empty">Ayarlarını görmek için zaman çizelgesinden bir klip seçin.</div>
+  if (!f) return (
+    <div className="col">
+      <div className="empty">Ayarlarını görmek için zaman çizelgesinden bir klip seçin.</div>
+      <div className="row wrap">
+        <button className="btn sm" onClick={() => useStore.getState().selectAllClips()} data-testid="inspector-select-all">Tüm klipleri seç</button>
+        <button className="btn sm danger" onClick={() => useStore.getState().clearClips()} data-testid="inspector-clear-all">Tüm klipleri sil</button>
+      </div>
+    </div>
+  )
   const { clip, track } = f
   const members = groupMembers(tl, clip.id)
   const asset = project.assets.find((a) => a.id === clip.assetId)
   return (
     <div className="col" data-testid="inspector">
       <div className="section-title">Klip</div>
+      {selection.length > 1 && (
+        <div className="row wrap" data-testid="multi-sel">
+          <span className="hint">{selection.length} klip seçili</span>
+          <button className="btn sm danger" onClick={() => useStore.getState().deleteSelection()} data-testid="inspector-delete-sel">Seçilenleri sil</button>
+        </div>
+      )}
       <Field label="Ad"><input type="text" value={clip.label} onChange={(e) => exec(cmd.updateClip(clip.id, { label: e.target.value }, true))} aria-label="Klip adı" /></Field>
       <dl className="kv">
         <dt>İz</dt><dd>{track.name}</dd>
@@ -112,7 +127,10 @@ function AudioMixer() {
       {tracks.map((t) => (
         <div key={t.id} className="col" style={{ gap: 4 }}>
           <Slider label={`${t.name}${t.clips.length === 0 ? ' (boş)' : ''}`} value={t.volume} min={0} max={1.5} onChange={(v) => exec(cmd.track(t.id, { volume: v }, true))} format={(v) => `${Math.round(v * 100)}%`} />
-          <label className="check"><input type="checkbox" checked={t.muted} onChange={(e) => exec(cmd.track(t.id, { muted: e.target.checked }))} /> Sustur</label>
+          <div className="row wrap">
+            <label className="check"><input type="checkbox" checked={t.muted} onChange={(e) => exec(cmd.track(t.id, { muted: e.target.checked }))} /> Sustur</label>
+            {t.clips.length > 0 && <button className="btn sm danger" onClick={() => useStore.getState().clearClips(t.id)} data-testid={`clear-${t.id}`}>Klipleri sil ({t.clips.length})</button>}
+          </div>
         </div>
       ))}
       <div className="hint">Oyun sesi ve konuşma farklı ses track'lerinde ise ayrı izlerde (A1/A2) yer alır ve dışa aktarmada ayrı seviyelerle karıştırılır. Tek karışım track'i varsa yalnızca "Oyun sesi" izi kullanılır. Dışa aktarmada ses −14 LUFS'a dengelenir (şablonda açıksa).</div>
@@ -121,7 +139,8 @@ function AudioMixer() {
 }
 
 function Captions() {
-  const { project, exec, generateCaptions, selectedCaptionId, selectCaption } = useStore()
+  const { project, exec, generateCaptions, selectedCaptionId, selectCaption, deleteCaptions } = useStore()
+  const [checked, setChecked] = useState<string[]>([])
   const tl = project.timeline
   const st = tl.captionStyle
   const set = (p: Partial<typeof st>) => exec(cmd.captionStyle(p))
@@ -165,10 +184,18 @@ function Captions() {
         )
       })()}
       <div className="section-title">Satırlar ({tl.captions.length})</div>
+      {tl.captions.length > 0 && (
+        <div className="row wrap" data-testid="caption-bulk">
+          <label className="check"><input type="checkbox" checked={checked.length === tl.captions.length} onChange={(e) => setChecked(e.target.checked ? tl.captions.map((c) => c.id) : [])} data-testid="cap-check-all" /> Tümünü seç</label>
+          <button className="btn sm danger" disabled={checked.length === 0} onClick={() => { deleteCaptions(checked); setChecked([]) }} data-testid="cap-delete-sel">Seçilenleri sil ({checked.length})</button>
+          <button className="btn sm danger" onClick={() => { if (window.confirm(`${tl.captions.length} altyazının tamamı silinsin mi? (Ctrl+Z geri alır)`)) { deleteCaptions(); setChecked([]) } }} data-testid="cap-delete-all">Tüm altyazıları sil</button>
+        </div>
+      )}
       <div className="col" style={{ maxHeight: 220, overflow: 'auto' }}>
         {tl.captions.length === 0 && <div className="hint">Henüz altyazı yok.</div>}
         {tl.captions.map((c, i) => (
           <div key={c.id} className="capline" style={c.id === selectedCaptionId ? { outline: '1px solid #ffb224', borderRadius: 6 } : undefined}>
+            <input type="checkbox" checked={checked.includes(c.id)} onChange={(e) => setChecked(e.target.checked ? [...checked, c.id] : checked.filter((x) => x !== c.id))} aria-label={`Altyazı ${i + 1} seç`} data-testid="cap-check" />
             <button className="btn ghost sm tc" style={{ minWidth: 0, padding: '0 4px' }} onClick={() => selectCaption(c.id, true)} title="Seç ve önizlemede göster">{fmt(c.start)}</button>
             <input type="text" value={c.text} aria-label={`Altyazı ${i + 1}`} onChange={(e) => exec(cmd.captions(tl.captions.map((x) => (x.id === c.id ? { ...x, text: e.target.value } : x))))} />
           </div>

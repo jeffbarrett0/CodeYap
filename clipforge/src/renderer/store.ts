@@ -152,6 +152,15 @@ interface State {
   /** Seçili klibi siler. Varsayılan: YALNIZCA seçili klip; `withLinked` (Shift+Delete) bağlı görüntü/ses klipleriyle birlikte */
   deleteSelection(withLinked?: boolean): void
   deleteCaption(id: string): void
+  /** Altyazıları toplu siler (tek geri alma adımı); ids verilmezse hepsi */
+  deleteCaptions(ids?: string[]): void
+  /** Zaman çizelgesindeki klipleri toplu seçer (izId verilirse yalnızca o iz; kilitli izler hariç) */
+  selectAllClips(trackId?: string): void
+  /** Bir izdeki (ya da hepsindeki) tüm klipleri siler; kilitli izler atlanır */
+  clearClips(trackId?: string): void
+  /** Kütüphaneden birden çok dosyayı tek onayla kaldırır (diskteki dosyalara dokunmaz) */
+  removeAssets(ids: string[]): void
+  clearResults(): void
   /** Dosyayı kütüphaneden kaldırır (diskteki dosyaya dokunmaz); zaman çizelgesinde kullanılıyorsa onay ister */
   removeAsset(id: string): void
   generateCaptions(): void
@@ -574,8 +583,63 @@ export const useStore = create<State>()((set, get) => {
     },
     deleteSelection(withLinked = false) {
       const { selection } = get()
-      for (const id of selection) get().exec(cmd.remove(id, false, !withLinked))
+      if (selection.length === 0) return
+      get().exec(selection.length === 1 ? cmd.remove(selection[0], false, !withLinked) : cmd.removeMany(selection, !withLinked))
       set({ selection: [] })
+    },
+    deleteCaptions(ids) {
+      const caps = get().project.timeline.captions
+      const keep = ids ? caps.filter((c) => !ids.includes(c.id)) : []
+      if (keep.length === caps.length) return
+      get().exec(cmd.captions(keep))
+      set({ selectedCaptionId: null })
+      get().toast('info', `${caps.length - keep.length} altyazı silindi. Geri almak için Ctrl+Z.`)
+    },
+    selectAllClips(trackId) {
+      const tl = get().project.timeline
+      const ids = tl.tracks.filter((t) => !t.locked && (!trackId || t.id === trackId)).flatMap((t) => t.clips.map((c) => c.id))
+      set({ selection: ids })
+    },
+    clearClips(trackId) {
+      const tl = get().project.timeline
+      const tracks = tl.tracks.filter((t) => !t.locked && (!trackId || t.id === trackId))
+      const ids = tracks.flatMap((t) => t.clips.map((c) => c.id))
+      if (ids.length === 0) return get().toast('info', 'Silinecek klip yok.')
+      if (!window.confirm(`${ids.length} klip silinecek${trackId ? '' : ' (tüm katmanlar)'}. Ctrl+Z ile geri alınabilir. Devam edilsin mi?`)) return
+      get().exec(cmd.removeMany(ids, true, 'Klipleri temizle'))
+      set({ selection: [] })
+    },
+    removeAssets(ids) {
+      const s = get()
+      const list = s.project.assets.filter((a) => ids.includes(a.id))
+      if (list.length === 0) return
+      const used = s.project.timeline.tracks.reduce((n, t) => n + t.clips.filter((c) => ids.includes(c.assetId)).length, 0)
+      const msg = used > 0 ? `${list.length} dosya kütüphaneden kaldırılacak; zaman çizelgesinde kullanılan ${used} klip de silinir ve işlem geri alınamaz. Devam edilsin mi?` : `${list.length} dosya kütüphaneden kaldırılacak (diskteki dosyalara dokunulmaz). Devam edilsin mi?`
+      if (!window.confirm(msg)) return
+      let tl = s.project.timeline
+      if (used > 0) {
+        for (const id of ids) tl = removeClipsOfAsset(tl, id)
+        history.clear(tl)
+      }
+      const transcripts = { ...s.transcripts }
+      for (const id of ids) delete transcripts[id]
+      set({
+        project: {
+          ...s.project,
+          timeline: tl,
+          assets: s.project.assets.filter((a) => !ids.includes(a.id)).map((a) => ({ ...a, webcamAssetId: a.webcamAssetId && ids.includes(a.webcamAssetId) ? undefined : a.webcamAssetId, sources: a.sources ? Object.fromEntries(Object.entries(a.sources).filter(([, v]) => !ids.includes(v as string))) : a.sources }))
+        },
+        dirty: true,
+        transcripts,
+        selectedAssetId: s.selectedAssetId && ids.includes(s.selectedAssetId) ? null : s.selectedAssetId,
+        selection: used > 0 ? [] : s.selection,
+        historyVersion: s.historyVersion + 1,
+        playing: false
+      })
+      get().toast('info', `${list.length} dosya kütüphaneden kaldırıldı (diskteki dosyalar silinmedi).`)
+    },
+    clearResults() {
+      set({ results: [], selectedResults: [] })
     },
     deleteCaption(id) {
       get().exec(cmd.captions(get().project.timeline.captions.filter((c) => c.id !== id)))

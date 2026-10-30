@@ -135,6 +135,8 @@ export function Timeline() {
         <span style={{ width: 8 }} />
         <button className="btn sm" onClick={splitAtPlayhead} title="Oynatma başlığında böl (S)" data-testid="split">✂ Böl</button>
         <button className="btn sm danger" onClick={(e) => deleteSelection(e.shiftKey)} disabled={selection.length === 0} title="Seçili klibi sil (Delete). Bağlı görüntü/ses klipleriyle birlikte: Shift+Delete" data-testid="delete">Sil</button>
+        <button className="btn sm" onClick={() => useStore.getState().selectAllClips()} title="Tüm klipleri seç (Ctrl+A)" data-testid="select-all-clips">Tümünü seç</button>
+        <button className="btn sm danger" onClick={() => useStore.getState().clearClips()} title="Tüm katmanlardaki bütün klipleri siler (kilitli izler hariç; Ctrl+Z geri alır)" data-testid="clear-clips">Tümünü sil</button>
         <button className="btn sm" onClick={() => useStore.getState().joinSelected()} title="Seçili klibi hemen sonraki, kaynakta kesintisiz devam eden klibiyle birleştirir" data-testid="join">⇄ Birleştir</button>
         <button className="btn sm" onClick={() => useStore.getState().cutSilence()} title="Konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini tek tıkla keser" data-testid="cut-silence-tb">✂ Sessizleri kes</button>
         <button className="btn sm" onClick={() => useStore.getState().closeGaps()} title="Hiçbir izde içerik olmayan boşlukları siler" data-testid="close-gaps">Boşlukları kapat</button>
