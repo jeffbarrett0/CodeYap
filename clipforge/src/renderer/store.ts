@@ -9,7 +9,7 @@ import { planSilenceCuts } from '@shared/timeline/silence'
 import { timelineWords } from '@shared/timeline/transcript'
 import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems } from '@shared/timeline/create'
 import { removeClipsOfAsset } from '@shared/timeline/ops'
-import { clipEnd, createDefaultTimeline, findClip, groupMembers, newId, timelineDuration } from '@shared/timeline/model'
+import { clipEnd, createDefaultTimeline, findClip, groupMembers, nearestAspect, newId, timelineDuration } from '@shared/timeline/model'
 import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
 import { EXPORT_PRESETS } from '@shared/export/presets'
 import { PROJECT_VERSION } from '@shared/types'
@@ -193,6 +193,13 @@ interface State {
   applyVocabulary(assetId: string): Promise<void>
   /** Klip eklendikten sonra: kullanıcının eklediği boş metin katmanlarını doldurur */
   afterClipsAdded(trackIds?: string[]): void
+  /**
+   * İlk video eklenmeden ÖNCE çağrılır: oran otomatikse ve zaman çizelgesinde henüz görüntü yoksa, oranı eklenecek videonun
+   * gerçek boyutuna göre ayarlar. Oran elle seçilmişse ya da zaman çizelgesinde zaten görüntü varsa dokunmaz.
+   */
+  autoAspectFor(asset: MediaAsset | undefined): void
+  /** Oranı videonun boyutuna göre yeniden hesaplanır hâle getirir (zaman çizelgesindeki ilk videoya bakar) */
+  enableAutoAspect(): void
 }
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -441,11 +448,14 @@ export const useStore = create<State>()((set, get) => {
       const items = clipItemsForSource(asset, { start: d.start, end: d.end }, timelineDuration(s.project.timeline), { query: d.query, resultId: d.resultId, matchTime: d.matchTime, candidateId: d.candidateId }, (id) => s.project.assets.find((a) => a.id === id))
       const at = timelineDuration(s.project.timeline)
       const placed = retargetItems(s.project.timeline, items)
+      const firstVideo = placed.find((i) => s.project.timeline.tracks.find((t) => t.id === i.trackId)?.kind === 'video')
+      get().autoAspectFor(firstVideo ? s.project.assets.find((a) => a.id === firstVideo.clip.assetId) : undefined)
       get().exec(cmd.addClips(placed.map((i) => ({ ...i, clip: { ...i.clip, start: at + (i.clip.start - items[0].clip.start) } }))))
       get().afterClipsAdded(placed.map((i) => i.trackId))
       if (d.candidateId) get().setCandidateStatus(d.candidateId, 'accepted')
       set({ clipDraft: null, dialog: null, selection: placed.slice(0, 1).map((i) => i.clip.id), viewMode: 'timeline', rightTab: 'inspector' })
       get().setPlayhead(at)
+      if (!placed.some((i) => get().project.timeline.tracks.find((t) => t.id === i.trackId)?.kind === 'video') && items.some((i) => i.clip.audioStream === undefined)) get().toast('info', 'Görüntü eklenmedi: zaman çizelgesinde video katmanı yok. Katmanlar → "+ Video" ile ekleyebilirsiniz.')
       get().toast('success', `Klip zaman çizelgesine eklendi (${(d.end - d.start).toFixed(1)} sn).`)
     },
     addAssetToTrack(assetId, trackId, opts = {}) {
@@ -454,6 +464,7 @@ export const useStore = create<State>()((set, get) => {
       const track = s.project.timeline.tracks.find((t) => t.id === trackId)
       if (!asset || !track) return
       const at = opts.at ?? s.playhead
+      if (track.kind === 'video') get().autoAspectFor(asset)
       let firstId: string
       let withSound = false
       if (track.kind === 'video') {
@@ -494,6 +505,8 @@ export const useStore = create<State>()((set, get) => {
       }
       if (items.length === 0) return
       const placed = retargetItems(s.project.timeline, items)
+      const firstVideo = placed.find((i) => s.project.timeline.tracks.find((t) => t.id === i.trackId)?.kind === 'video')
+      get().autoAspectFor(firstVideo ? s.project.assets.find((a) => a.id === firstVideo.clip.assetId) : undefined)
       get().exec(cmd.addClips(placed, 'Toplu klip oluştur'))
       get().afterClipsAdded(placed.map((i) => i.trackId))
       set({ selectedResults: [], viewMode: 'timeline' })
@@ -736,6 +749,24 @@ export const useStore = create<State>()((set, get) => {
       } catch (e) {
         get().toast('error', errText(e))
       }
+    },
+    autoAspectFor(asset) {
+      const tl = get().project.timeline
+      if (!asset || asset.kind !== 'video' || tl.aspectAuto === false) return
+      const hasVisual = tl.tracks.some((t) => (t.kind === 'video' || t.kind === 'image') && t.clips.length > 0)
+      if (hasVisual) return
+      const aspect = nearestAspect(asset.width, asset.height)
+      if (aspect !== tl.aspect || tl.aspectAuto !== true) get().exec(cmd.aspectAuto(true, aspect))
+    },
+    enableAutoAspect() {
+      const { project } = get()
+      const first = project.timeline.tracks
+        .filter((t) => t.kind === 'video')
+        .flatMap((t) => t.clips)
+        .sort((a, b) => a.start - b.start)[0]
+      const asset = first ? project.assets.find((a) => a.id === first.assetId) : undefined
+      get().exec(cmd.aspectAuto(true, asset && asset.kind === 'video' ? nearestAspect(asset.width, asset.height) : undefined))
+      get().toast('info', asset ? `Oran videoya göre ayarlandı: ${get().project.timeline.aspect}` : 'Otomatik oran açık: ilk videoyu eklediğinizde oran ona göre ayarlanır.')
     },
     afterClipsAdded() {
       // Yalnızca (kullanıcının kendi eklediği) boş metin katmanları doldurulur; hiçbir katman kendiliğinden açılmaz/eklenmez

@@ -128,7 +128,7 @@ test('gerçek Electron: preload köprüsü, ffmpeg algılama, içe aktarma, saht
   const ffprobe = require('@ffprobe-installer/ffprobe').path as string
   const j = JSON.parse(execFileSync(ffprobe, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', out]).toString())
   const v = j.streams.find((x: { codec_type: string }) => x.codec_type === 'video')
-  expect([v.width, v.height]).toEqual([1080, 1920])
+  expect([v.width, v.height]).toEqual([1920, 1080]) // oran otomatik: 1280×720 kaynak → 16:9 → YouTube şablonu
   expect(j.streams.some((x: { codec_type: string }) => x.codec_type === 'audio')).toBe(true)
   expect(Number(j.format.duration)).toBeGreaterThan(3) // transkriptte yalnızca bir cümle var: klip o cümleyle sınırlı
 })

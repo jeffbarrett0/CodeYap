@@ -1,6 +1,6 @@
 import type { Timeline, Transcript, TranscriptWord } from '@shared/types'
 import { createDefaultTimeline } from '@shared/timeline/model'
-import { applyTemplate, DEFAULT_TEMPLATE } from '@shared/timeline/templates'
+import { applyTemplate } from '@shared/timeline/templates'
 import { buildSegments } from '@shared/transcript/sentences'
 import { TranscriptIndex } from '@shared/search/engine'
 
@@ -75,12 +75,22 @@ export function makeTranscript(words: TranscriptWord[]): Transcript {
 
 
 /**
- * Eski varsayılan düzeni taklit eder: gerçek varsayılana ek olarak (gizli) oyun ekranı katmanı `V1`.
- * Gerçek varsayılanda V1 YOKTUR (kullanıcı elle ekler); birçok işlem testi V1'e ihtiyaç duyar.
+ * Eski (3 bölgeli) varsayılan düzeni taklit eder: orta görsel yeri I2, üst video V2, alt görsel I1 ve (gizli) oyun ekranı V1; 9:16.
+ * GERÇEK varsayılan artık yalnızca tek tam kare "Video" katmanıdır; birçok işlem testi bu çok katmanlı düzene ihtiyaç duyar.
  */
 export function createTimelineWithGame(): Timeline {
-  return applyTemplate(createDefaultTimeline(), {
-    ...DEFAULT_TEMPLATE,
-    layers: [...DEFAULT_TEMPLATE.layers, { id: 'V1', name: 'Oyun ekranı', kind: 'video', role: 'screen', placement: { rect: { x: 0, y: 0.415, w: 1, h: 0.585 }, fit: 'contain', visible: false, opacity: 1 } }]
+  const P = (x: number, y: number, w: number, h: number, fit: 'cover' | 'contain' = 'cover', visible = true) => ({ rect: { x, y, w, h }, fit, visible, opacity: 1 })
+  const tl = applyTemplate(createDefaultTimeline(), {
+    id: 'legacy-3zone',
+    name: 'eski',
+    aspect: '9:16',
+    background: '#000000',
+    layers: [
+      { id: 'I2', name: 'Orta alan (görsel)', kind: 'image', role: 'image', placement: P(0.03, 0.34, 0.94, 0.14, 'contain') },
+      { id: 'V2', name: 'Video', kind: 'video', role: 'webcam', placement: P(0, 0, 1, 0.415, 'contain') },
+      { id: 'I1', name: 'Konu görseli', kind: 'image', role: 'image', placement: P(0, 0.415, 1, 0.585) },
+      { id: 'V1', name: 'Oyun ekranı', kind: 'video', role: 'screen', placement: P(0, 0.415, 1, 0.585, 'contain', false) }
+    ]
   })
+  return { ...tl, aspectAuto: false }
 }

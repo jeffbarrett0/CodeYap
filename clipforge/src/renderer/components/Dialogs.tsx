@@ -12,7 +12,10 @@ export function ExportDialog() {
   const { project, settings, openDialog, startExport, selection } = useStore()
   const tl = project.timeline
   const total = timelineDuration(tl)
-  const initial = settings.exportDefaults.presetId || 'shorts'
+  // Çıkış, zaman çizelgesinin (otomatik ya da elle) oranına uyan şablonla başlar; kullanıcı değiştirebilir
+  const byAspect = EXPORT_PRESETS.find((p) => p.options.aspect === tl.aspect)?.id ?? 'shorts'
+  const saved = EXPORT_PRESETS.find((p) => p.id === settings.exportDefaults.presetId)
+  const initial = saved && saved.options.aspect === tl.aspect ? saved.id : byAspect
   const [preset, setPreset] = useState(initial)
   const [opts, setOpts] = useState<ExportOptions>(() => optionsFromPreset(initial, settings.exportDefaults))
   const [name, setName] = useState(project.name === 'Adsız proje' ? 'klip' : project.name)

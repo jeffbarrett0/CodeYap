@@ -292,6 +292,8 @@ export type LayoutPreset =
 export interface Timeline {
   fps: number
   aspect: AspectRatio
+  /** true: oran, ilk video eklenince videonun gerçek boyutuna göre kendiliğinden ayarlanır; oran elle seçilirse false olur */
+  aspectAuto?: boolean
   layout: LayoutPreset
   tracks: Track[]
   captions: Caption[]

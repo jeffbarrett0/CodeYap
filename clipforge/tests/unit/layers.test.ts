@@ -1,6 +1,6 @@
 import { createTimelineWithGame } from './helpers'
 import { describe, expect, it } from 'vitest'
-import { createDefaultTimeline, findClip, timelineDuration, TRACK_IDS } from '@shared/timeline/model'
+import { createDefaultTimeline, findClip, nearestAspect, timelineDuration, TRACK_IDS } from '@shared/timeline/model'
 import * as ops from '@shared/timeline/ops'
 import { applyTemplate, BUILTIN_TEMPLATES, DEFAULT_TEMPLATE, templateFromTimeline } from '@shared/timeline/templates'
 import { cmd } from '@shared/timeline/commands'
@@ -22,19 +22,11 @@ function base(): Timeline {
 }
 
 describe('şablonlar', () => {
-  it('varsayılan şablon üç bölge: yüz üstte, boş görsel yeri ortada, görsel altta; hazır yazı yok; oyun ekranı kapalı', () => {
-    const r = (id: string) => DEFAULT_TEMPLATE.layers.find((l) => l.id === id)!
-    expect(r('V2').placement.rect).toMatchObject({ x: 0, y: 0, w: 1 })
-    expect(r('I1').placement.rect.y).toBeGreaterThan(0.4)
-    expect(r('I1').placement.rect.y + r('I1').placement.rect.h).toBeCloseTo(1)
-    const mid = r('I2').placement.rect
-    expect(r('I2').kind).toBe('image')
-    expect(mid.y).toBeGreaterThan(r('V2').placement.rect.h - 0.1) // yüz ile alt görsel arasında
-    expect(mid.y).toBeLessThan(r('I1').placement.rect.y + 0.1)
-    expect(DEFAULT_TEMPLATE.layers.some((l) => l.kind === 'text' || l.textDefault)).toBe(false)
-    expect(DEFAULT_TEMPLATE.layers.some((l) => l.id === 'V1')).toBe(false) // oyun ekranı katmanı varsayılanda yok
-    expect(r('V2').name).toBe('Video')
-    expect(r('V2').placement.fit).toBe('contain')
+  it('varsayılan şablon: yalnızca tam kare Video; hiçbir hazır görsel/metin/oyun ekranı yok', () => {
+    expect(DEFAULT_TEMPLATE.layers.map((l) => l.id)).toEqual(['V2'])
+    expect(DEFAULT_TEMPLATE.layers[0]).toMatchObject({ name: 'Video', kind: 'video' })
+    expect(DEFAULT_TEMPLATE.layers[0].placement).toMatchObject({ fit: 'contain', rect: { x: 0, y: 0, w: 1, h: 1 } })
+    expect(DEFAULT_TEMPLATE.layers.some((l) => l.kind === 'text' || l.kind === 'image' || l.textDefault)).toBe(false)
     expect(BUILTIN_TEMPLATES.length).toBeGreaterThanOrEqual(4)
   })
 
@@ -264,5 +256,40 @@ describe('altyazı konumu (sürükleyerek taşıma)', () => {
     expect(ass).toContain(`\\pos(540,${def.cy})`)
     expect(lay.w).toBeGreaterThan(0)
     expect(lay.h).toBeGreaterThan(0)
+  })
+})
+
+describe('otomatik en-boy oranı ve katman sınırları', () => {
+  it('nearestAspect: gerçek boyuta göre en yakın desteklenen oran', () => {
+    expect(nearestAspect(1920, 1080)).toBe('16:9')
+    expect(nearestAspect(1280, 720)).toBe('16:9')
+    expect(nearestAspect(1080, 1920)).toBe('9:16')
+    expect(nearestAspect(1080, 1080)).toBe('1:1')
+    expect(nearestAspect(1080, 1350)).toBe('1:1') // 4:5 → kareye yakın
+    expect(nearestAspect(3840, 1600)).toBe('16:9') // ultra geniş → en yakın
+    expect(nearestAspect(0, 0)).toBe('16:9')
+  })
+
+  it('elle oran seçimi otomatiği kapatır; otomatik komut oranı uygular', () => {
+    const t0 = createDefaultTimeline()
+    expect(t0.aspectAuto).toBe(true)
+    const manual = cmd.aspect('1:1').do(t0)
+    expect(manual).toMatchObject({ aspect: '1:1', aspectAuto: false })
+    const auto = cmd.aspectAuto(true, '9:16').do(manual)
+    expect(auto).toMatchObject({ aspect: '9:16', aspectAuto: true })
+  })
+
+  it('katman dikdörtgeni kare içinde tutulur (taşma yok); bozuk değerler onarılır', () => {
+    const tl = createDefaultTimeline()
+    const big = ops.setPlacement(tl, 'V2', { rect: { x: -0.4, y: 0.2, w: 1.96, h: 3 } })
+    expect(big.tracks.find((t) => t.id === 'V2')!.placement!.rect).toEqual({ x: 0, y: 0, w: 1, h: 1 })
+    const off = ops.clampRect({ x: 0.9, y: 0.95, w: 0.5, h: 0.5 })
+    expect(off.x + off.w).toBeLessThanOrEqual(1)
+    expect(off.y + off.h).toBeLessThanOrEqual(1)
+    expect(ops.clampRect({ x: NaN, y: NaN, w: NaN, h: NaN })).toEqual({ x: 0, y: 0, w: 1, h: 1 })
+    expect(ops.clampRect({ x: 0, y: 0, w: 0, h: 0 }).w).toBeCloseTo(0.03)
+    // kare dışına taşmış eski proje onarılır
+    const broken = { ...tl, tracks: tl.tracks.map((t) => (t.id === 'V2' ? { ...t, placement: { ...t.placement!, rect: { x: -1, y: -1, w: 3, h: 3 } } } : t)) }
+    expect(ops.sanitizePlacements(broken).tracks.find((t) => t.id === 'V2')!.placement!.rect).toEqual({ x: 0, y: 0, w: 1, h: 1 })
   })
 })

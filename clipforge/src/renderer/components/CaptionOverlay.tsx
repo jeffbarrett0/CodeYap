@@ -33,6 +33,10 @@ export function CaptionOverlay() {
     const d = drag.current
     const box = ref.current?.getBoundingClientRect()
     if (!d || !box) return
+    if (e.buttons === 0) {
+      drag.current = null
+      return
+    }
     if (!d.moved && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 3) return
     d.moved = true
     let x = d.cx + (e.clientX - d.x0) / box.width
@@ -55,6 +59,8 @@ export function CaptionOverlay() {
             onPointerDown={(e) => down(e, c.id)}
             onPointerMove={move}
             onPointerUp={() => (drag.current = null)}
+            onPointerCancel={() => (drag.current = null)}
+            onLostPointerCapture={() => (drag.current = null)}
             data-testid="cap-box"
             data-caption-id={c.id}
             title="Altyazıyı seçmek için tıklayın, taşımak için sürükleyin"

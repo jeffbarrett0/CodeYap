@@ -44,6 +44,11 @@ export function LayerOverlay() {
     const d = drag.current
     const box = ref.current?.getBoundingClientRect()
     if (!d || !box) return
+    // Fare düğmesi bırakılmışsa (bırakma olayı kaçırıldıysa) sürükleme BİTER: "basılı kalma" takılması olmasın
+    if (e.buttons === 0) {
+      drag.current = null
+      return
+    }
     const dx = (e.clientX - d.x0) / box.width
     const dy = (e.clientY - d.y0) / box.height
     const MIN = 0.03
@@ -51,18 +56,19 @@ export function LayerOverlay() {
     const others = tl.tracks.filter((t) => t.placement?.visible && t.id !== d.id).flatMap((t) => [t.placement!.rect.x, t.placement!.rect.x + t.placement!.rect.w])
     const othersY = tl.tracks.filter((t) => t.placement?.visible && t.id !== d.id).flatMap((t) => [t.placement!.rect.y, t.placement!.rect.y + t.placement!.rect.h])
     if (d.mode === 'move') {
-      x = snapAxis(d.r.x + dx, w, others)
-      y = snapAxis(d.r.y + dy, h, othersY)
+      x = Math.min(1 - w, Math.max(0, snapAxis(d.r.x + dx, w, others)))
+      y = Math.min(1 - h, Math.max(0, snapAxis(d.r.y + dy, h, othersY)))
     } else {
-      if (d.mode.includes('e')) w = Math.max(MIN, d.r.w + dx)
-      if (d.mode.includes('s')) h = Math.max(MIN, d.r.h + dy)
+      // kare dışına çıkılamaz: kenarlar 0..1 ile sınırlanır
+      if (d.mode.includes('e')) w = Math.min(1 - d.r.x, Math.max(MIN, d.r.w + dx))
+      if (d.mode.includes('s')) h = Math.min(1 - d.r.y, Math.max(MIN, d.r.h + dy))
       if (d.mode.includes('w')) {
-        const nx = Math.min(d.r.x + d.r.w - MIN, d.r.x + dx)
+        const nx = Math.max(0, Math.min(d.r.x + d.r.w - MIN, d.r.x + dx))
         w = d.r.w + (d.r.x - nx)
         x = nx
       }
       if (d.mode.includes('n')) {
-        const ny = Math.min(d.r.y + d.r.h - MIN, d.r.y + dy)
+        const ny = Math.max(0, Math.min(d.r.y + d.r.h - MIN, d.r.y + dy))
         h = d.r.h + (d.r.y - ny)
         y = ny
       }
@@ -83,13 +89,15 @@ export function LayerOverlay() {
             onPointerDown={(e) => down(e, t, 'move')}
             onPointerMove={move}
             onPointerUp={() => (drag.current = null)}
+            onPointerCancel={() => (drag.current = null)}
+            onLostPointerCapture={() => (drag.current = null)}
             data-testid={`ly-${t.id}`}
             title={`${t.name} — sürükleyerek taşıyın`}
           >
             {sel && <span className="ly-name">{t.name}</span>}
             {sel &&
               HANDLES.map((m) => (
-                <span key={m} className={`hd hd-${m}`} onPointerDown={(e) => down(e, t, m)} onPointerMove={move} onPointerUp={() => (drag.current = null)} data-testid={`hd-${t.id}-${m}`} />
+                <span key={m} className={`hd hd-${m}`} onPointerDown={(e) => down(e, t, m)} onPointerMove={move} onPointerUp={() => (drag.current = null)} onPointerCancel={() => (drag.current = null)} onLostPointerCapture={() => (drag.current = null)} data-testid={`hd-${t.id}-${m}`} />
               ))}
           </div>
         )
@@ -168,7 +176,7 @@ function LayerDetail({ track }: { track: Track }) {
 }
 
 export function LayersPanel() {
-  const { project, exec, selectedLayerId, selectLayer, userTemplates, applyLayoutTemplate, saveLayoutTemplate, deleteLayoutTemplate, toggleLayerVisible } = useStore()
+  const { project, exec, selectedLayerId, selectLayer, userTemplates, applyLayoutTemplate, saveLayoutTemplate, deleteLayoutTemplate, toggleLayerVisible, enableAutoAspect } = useStore()
   const tl = project.timeline
   const [name, setName] = useState('')
   const [tplId, setTplId] = useState('')
@@ -219,9 +227,10 @@ export function LayersPanel() {
 
       <div className="section-title">En-boy oranı</div>
       <div className="row">
-        {aspects.map((a) => <button key={a} className={`btn grow${tl.aspect === a ? ' active' : ''}`} onClick={() => exec(cmd.aspect(a))} data-testid={`aspect-${a}`} aria-pressed={tl.aspect === a}>{a}</button>)}
+        <button className={`btn grow${tl.aspectAuto ? ' active' : ''}`} onClick={() => (tl.aspectAuto ? exec(cmd.aspectAuto(false)) : enableAutoAspect())} aria-pressed={!!tl.aspectAuto} data-testid="aspect-auto" title="Oranı, eklediğiniz ilk videonun gerçek boyutuna göre ayarlar">Otomatik</button>
+        {aspects.map((a) => <button key={a} className={`btn grow${!tl.aspectAuto && tl.aspect === a ? ' active' : ''}`} onClick={() => exec(cmd.aspect(a))} data-testid={`aspect-${a}`} aria-pressed={!tl.aspectAuto && tl.aspect === a}>{a}</button>)}
       </div>
-      <div className="hint">Çıkış: {sz.width}×{sz.height}</div>
+      <div className="hint" data-testid="aspect-info">Çıkış: {sz.width}×{sz.height} ({tl.aspect}){tl.aspectAuto ? ' · otomatik: ilk video eklenince videonun boyutuna göre ayarlanır' : ' · elle seçildi'}</div>
 
       <div className="section-title">Katmanlar (üstteki en önde)</div>
       <div className="col" style={{ gap: 4 }} data-testid="layer-list">
@@ -240,7 +249,12 @@ export function LayersPanel() {
         <button className="btn sm" onClick={() => addLayer('text')} data-testid="add-text-layer">+ Metin</button>
         <button className="btn sm" onClick={() => addLayer('video')}>+ Video</button>
         <button className="btn sm" onClick={() => addLayer('game')} disabled={tl.tracks.some((t) => t.id === 'V1')} data-testid="add-game-layer" title="Oyun ekranı katmanını elle ekler">+ Oyun ekranı</button>
-        {sel && !['V1', 'V2', 'I1', 'I2'].includes(sel.id) && <button className="btn sm danger" onClick={() => { exec(cmd.removeTrack(sel.id)); selectLayer(null) }}>Katmanı sil</button>}
+        {sel && <button className="btn sm danger" data-testid="remove-layer" onClick={() => {
+          // Her katman silinebilir; içinde klip varsa onay istenir (klipler de kalkar, Ctrl+Z geri alır)
+          if (sel.clips.length > 0 && !window.confirm(`"${sel.name}" katmanında ${sel.clips.length} klip var. Katmanla birlikte silinsin mi? (Ctrl+Z geri alır)`)) return
+          exec(cmd.removeTrack(sel.id))
+          selectLayer(null)
+        }}>Katmanı sil</button>}
       </div>
       {sel ? <LayerDetail track={sel} /> : <div className="hint">Ayarlamak için listeden ya da önizlemeden bir katman seçin; önizlemede sürükleyerek taşıyın, kenar tutamaçlarıyla boyutlandırın.</div>}
     </div>

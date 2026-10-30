@@ -71,8 +71,9 @@ function demoAsset(path: string): MediaAsset {
   if (['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg'].includes(ext)) {
     return { id: newId('asset'), name, path, kind: 'audio', container: ext, durationSec: 120, width: 0, height: 0, fps: 0, sizeBytes: 5_000_000, audioStreams: [audio(0, 'Ses')], obs: { isObs: false, encoder: 'unknown', evidence: [] }, chapters: [], transcriptionTrack: 0, audioMap: { mix: 0 }, importedAt: new Date().toISOString() }
   }
+  const vertical = /dikey/i.test(name) // test: dikey (1080×1920) video
   return {
-    id: newId('asset'), name, path, kind: 'video', container: 'mkv', durationSec: 120, width: 1920, height: 1080, fps: 60, videoCodec: 'h264', videoProfile: 'High', sizeBytes: 1_800_000_000, bitrate: 20_000_000,
+    id: newId('asset'), name, path, kind: 'video', container: 'mkv', durationSec: 120, width: vertical ? 1080 : 1920, height: vertical ? 1920 : 1080, fps: 60, videoCodec: 'h264', videoProfile: 'High', sizeBytes: 1_800_000_000, bitrate: 20_000_000,
     audioStreams: [audio(0, 'Track 1'), audio(1, 'Track 2'), audio(2, 'Track 3')],
     obs: { isObs: true, version: '30.1.2', encoder: 'x264', evidence: ['Dosya adı OBS varsayılan biçiminde', 'Kodlayıcı imzası: x264'] },
     chapters: [], transcriptionTrack: 0, audioMap: { mix: 0, game: 1, voice: 2 }, importedAt: new Date().toISOString(),

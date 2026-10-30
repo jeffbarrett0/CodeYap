@@ -109,6 +109,10 @@ export function CropOverlay({ boxW, boxH }: { boxW: number; boxH: number }) {
   const move = (e: React.PointerEvent) => {
     const d = drag.current
     if (!d) return
+    if (e.buttons === 0) {
+      drag.current = null
+      return
+    }
     const dx = (e.clientX - d.x0) / frame.w
     const dy = (e.clientY - d.y0) / frame.h
     const MIN = 0.05
@@ -165,10 +169,12 @@ export function CropOverlay({ boxW, boxH }: { boxW: number; boxH: number }) {
           onPointerDown={(e) => down(e, 'move')}
           onPointerMove={move}
           onPointerUp={() => (drag.current = null)}
+          onPointerCancel={() => (drag.current = null)}
+          onLostPointerCapture={() => (drag.current = null)}
           data-testid="crop-rect"
         >
           {HANDLES.map((m) => (
-            <span key={m} className={`hd hd-${m} crop-hd`} onPointerDown={(e) => down(e, m)} onPointerMove={move} onPointerUp={() => (drag.current = null)} data-testid={`crop-hd-${m}`} />
+            <span key={m} className={`hd hd-${m} crop-hd`} onPointerDown={(e) => down(e, m)} onPointerMove={move} onPointerUp={() => (drag.current = null)} onPointerCancel={() => (drag.current = null)} onLostPointerCapture={() => (drag.current = null)} data-testid={`crop-hd-${m}`} />
           ))}
         </div>
       </div>

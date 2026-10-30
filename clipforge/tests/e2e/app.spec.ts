@@ -62,7 +62,9 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     // 9:16 varsayılan
     await expect(page.getByTestId('aspect-9:16')).toHaveCount(0) // sağ panel Klip sekmesinde
     await page.getByTestId('rtab-layout').click()
-    await expect(page.getByTestId('aspect-9:16')).toHaveAttribute('aria-pressed', 'true')
+    // oran otomatik: ilk video (1920×1080) eklenince 16:9
+    await expect(page.getByTestId('aspect-auto')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('aspect-info')).toContainText('1920×1080 (16:9)')
 
     // Altyazı
     await page.getByTestId('rtab-captions').click()
@@ -196,13 +198,14 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('rtab-layout').click()
     await expect(page.getByTestId('layers-panel')).toBeVisible()
 
-    // varsayılan düzen: orta boş görsel yeri, üst video, alt görsel; HAZIR YAZI ve OYUN EKRANI KATMANI YOK
-    for (const id of ['I2', 'V2', 'I1']) await expect(page.getByTestId(`layer-${id}`)).toBeVisible()
-    await expect(page.getByTestId('layer-V1')).toHaveCount(0)
+    // varsayılan düzen: YALNIZCA tek Video katmanı. Orta alan/konu görseli, hazır yazı ve oyun ekranı kendiliğinden gelmez
+    await expect(page.getByTestId('layer-V2')).toBeVisible()
+    for (const id of ['I1', 'I2', 'V1']) await expect(page.getByTestId(`layer-${id}`)).toHaveCount(0)
+    await expect(page.getByTestId('layer-list')).not.toContainText('Orta alan')
+    await expect(page.getByTestId('layer-list')).not.toContainText('Konu görseli')
     await expect(page.getByTestId('layer-list')).not.toContainText('Davet')
     await expect(page.getByTestId('layer-list')).not.toContainText('webcam')
-    await expect(page.getByTestId('lane-I2').getByTestId('clip')).toHaveCount(0)
-    // üst alan normal video alanı: kırpmadan sığdırılır
+    // video alanı normal video alanı: kırpmadan sığdırılır
     await page.getByTestId('layer-V2').click()
     await expect(page.getByTestId('layer-detail').getByLabel('Sığdırma')).toHaveValue('contain')
     // oyun ekranı katmanı YALNIZCA elle eklenir
@@ -214,6 +217,10 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('eye-V1').click() // göster
     await expect(page.getByTestId('ly-V1')).not.toHaveClass(/off/)
     await expect(page.getByTestId('add-game-layer')).toBeDisabled()
+    // her katman silinebilir (içinde klip yoksa onaysız)
+    await page.getByTestId('layer-V1').click()
+    await page.getByTestId('remove-layer').click()
+    await expect(page.getByTestId('layer-V1')).toHaveCount(0)
 
     // sayısal giriş: yüz katmanının yüksekliği
     await page.getByTestId('layer-V2').click()
@@ -277,11 +284,13 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('asset').nth(3)).toContainText('Görsel')
     await expect(page.getByTestId('asset').nth(1)).toContainText('Ses')
 
-    // görseli önce orta alana, sonra alt görsel katmanına sürükle-bırak
-    await dropAsset(page, 3, 'I2')
-    await expect(page.getByTestId('lane-I2').getByTestId('clip')).toHaveCount(1)
-    await dropAsset(page, 3, 'I1')
-    await expect(page.getByTestId('lane-I1').getByTestId('clip')).toHaveCount(1)
+    // görsel katmanı kendiliğinden gelmez: elle eklenir, sonra görsel o katmana sürüklenir
+    await expect(page.locator('[data-testid^="lane-L"]')).toHaveCount(0)
+    await page.getByTestId('rtab-layout').click()
+    await page.getByTestId('add-image-layer').click()
+    const imgLane = page.locator('[data-testid^="lane-L"]').first()
+    await page.getByTestId('asset').nth(3).dragTo(imgLane, { targetPosition: { x: 8, y: 20 } })
+    await expect(imgLane.getByTestId('clip')).toHaveCount(1)
 
     // oyun sesini A1'e sürükle-bırak
     const game = page.getByTestId('asset').nth(1)
@@ -289,7 +298,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await game.dragTo(lane)
     await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1)
     // görsel ses izine bırakılamaz: uyarı verir
-    await page.getByTestId('asset').nth(3).dragTo(page.getByTestId('lane-A2'))
+    await page.getByTestId('asset').nth(3).dragTo(page.getByTestId('lane-A2'), { targetPosition: { x: 8, y: 20 } })
     await expect(page.getByTestId('toast').filter({ hasText: 'Görsel katmanına yalnızca' }).or(page.getByTestId('toast').filter({ hasText: 'ses akışı yok' }))).toBeVisible()
     await expect(page.getByTestId('lane-A2').getByTestId('clip')).toHaveCount(0)
 
@@ -666,5 +675,74 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('cap-clip').nth(1).click()
     await page.keyboard.press('Delete')
     await expect(page.getByTestId('cap-clip')).toHaveCount(n - 1)
+  })
+
+  test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
+    await boot(page)
+    await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))
+    await expect(page.getByTestId('asset')).toHaveCount(2)
+    await page.getByTestId('rtab-layout').click()
+    // henüz video yok: oran otomatik modda, hiçbir oran seçili/dayatılmış değil
+    await expect(page.getByTestId('aspect-auto')).toHaveAttribute('aria-pressed', 'true')
+    for (const a of ['9:16', '1:1', '16:9']) await expect(page.getByTestId(`aspect-${a}`)).toHaveAttribute('aria-pressed', 'false')
+    // 16:9 (1920×1080) video → 16:9
+    await dropAsset(page, 0, 'V2')
+    await expect(page.getByTestId('aspect-info')).toContainText('(16:9)')
+    await expect(page.getByTestId('aspect-info')).toContainText('1920×1080')
+    // ikinci (dikey) video oranı DEĞİŞTİRMEZ: zaman çizelgesinde zaten görüntü var
+    await page.getByTestId('lane-V2').getByTestId('clip').click()
+    await page.keyboard.press('Delete')
+    await dropAsset(page, 1, 'V2') // artık görüntü yok: yeni ilk video → 9:16
+    await expect(page.getByTestId('aspect-info')).toContainText('(9:16)')
+    await expect(page.getByTestId('aspect-info')).toContainText('1080×1920')
+    // elle seçim otomatiği kapatır ve sonraki videolar oranı değiştirmez
+    await page.getByTestId('aspect-1:1').click()
+    await expect(page.getByTestId('aspect-auto')).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.getByTestId('aspect-info')).toContainText('elle seçildi')
+    await page.getByTestId('lane-V2').getByTestId('clip').click()
+    await page.keyboard.press('Delete')
+    await dropAsset(page, 0, 'V2')
+    await expect(page.getByTestId('aspect-info')).toContainText('(1:1)')
+    // "Otomatik": mevcut videonun boyutuna göre yeniden ayarlar
+    await page.getByTestId('aspect-auto').click()
+    await expect(page.getByTestId('aspect-info')).toContainText('(16:9)')
+    await expect(page.getByTestId('aspect-auto')).toHaveAttribute('aria-pressed', 'true')
+    // dışa aktarma penceresi zaman çizelgesinin oranına uygun şablonla açılır
+    await page.getByTestId('export-btn').click()
+    await expect(page.getByTestId('export-preset')).toHaveValue('youtube')
+  })
+
+  test('takılma düzeltmesi: katman çerçevesi kare dışına taşamaz; sürükleme bittikten sonra diğer alanlara tıklanabilir', async ({ page }) => {
+    await boot(page)
+    await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/video.mp4']))
+    await expect(page.getByTestId('asset')).toHaveCount(1)
+    await dropAsset(page, 0, 'V2')
+    await page.getByTestId('mode-timeline').click()
+    await page.getByTestId('rtab-layout').click()
+    await page.getByTestId('layer-V2').click()
+    // çerçeveyi 'çok büyütmeye' çalış: sağ-alt tutamacı ekranın çok dışına sürükle
+    const hd = (await page.getByTestId('hd-V2-se').boundingBox())!
+    await page.mouse.move(hd.x + hd.width / 2, hd.y + hd.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(hd.x + 900, hd.y + 500, { steps: 6 })
+    await page.mouse.up()
+    const r = await page.getByTestId('ly-V2').evaluate((el) => { const s = (el as HTMLElement).style; return { l: parseFloat(s.left), t: parseFloat(s.top), w: parseFloat(s.width), h: parseFloat(s.height) } })
+    expect(r.l).toBeGreaterThanOrEqual(0)
+    expect(r.t).toBeGreaterThanOrEqual(0)
+    expect(r.l + r.w).toBeLessThanOrEqual(100.01)
+    expect(r.t + r.h).toBeLessThanOrEqual(100.01)
+    // sayısal giriş de sınırlanır
+    await page.getByTestId('layer-detail').getByLabel('Genişlik').fill('300')
+    await expect(page.getByTestId('layer-detail').getByLabel('Genişlik')).toHaveValue('100')
+    // fare düğmesi bırakılmışken (bırakma olayı kaçırılmış gibi) hareket katmanı sürüklemez
+    const before = await page.getByTestId('ly-V2').evaluate((el) => (el as HTMLElement).style.left + (el as HTMLElement).style.top)
+    await page.mouse.move(400, 300)
+    await page.mouse.move(700, 500, { steps: 5 })
+    expect(await page.getByTestId('ly-V2').evaluate((el) => (el as HTMLElement).style.left + (el as HTMLElement).style.top)).toBe(before)
+    // boş alanlara (kütüphane, sekmeler) tıklamak çalışır
+    await page.getByTestId('asset').click()
+    await expect(page.getByTestId('mode-source')).toHaveClass(/active/)
+    await page.getByTestId('tab-search').click()
+    await expect(page.getByTestId('search-input')).toBeVisible()
   })
 })

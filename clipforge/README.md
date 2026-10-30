@@ -29,7 +29,7 @@ Belirsiz kalan kararlar: [`DECISIONS.md`](DECISIONS.md).
 `Ctrl/Cmd+Z` geri al · `Ctrl/Cmd+Shift+Z` yinele · `Ctrl/Cmd+S` kaydet · `Ctrl/Cmd+E` dışa aktar · `Ctrl + tekerlek` yakınlaştır.
 
 ## Her şey senin kontrolünde (otomatik davranış yok)
-* **Otomatik yükleme yok:** içe aktarılan ya da projeden açılan dosya kendiliğinden seçilmez/oynatılmaz; orta alan sen kütüphanede bir dosyaya tıklayana kadar boştur. Orta görsel yeri, üst video ve alt görsel başlangıçta boştur.
+* **Otomatik yükleme yok:** içe aktarılan ya da projeden açılan dosya kendiliğinden seçilmez/oynatılmaz; orta alan sen kütüphanede bir dosyaya tıklayana kadar boştur. Yeni projede tek boş Video katmanı vardır; orta/alt görsel alanı gibi hiçbir şey hazır gelmez.
 * **Otomatik odaklama/kırpma yok:** üst alan normal bir video alanıdır; video kırpılmadan sığdırılır. (Kırpmayı yalnızca sen *Crop / Kırp* ile yaparsın.)
 * **Otomatik ekleme yok:** oyun ekranı katmanı kendiliğinden gelmez, hiçbir katman kendiliğinden açılmaz. Aramadan klip çıkarınca video, oyun ekranı katmanı yoksa **Video** katmanına (`V2`) konur; sesler kendi izlerine.
 * **Delete** yalnızca seçili **tek** öğeyi siler: zaman çizelgesindeki klip (bağlı klipler kalır; `Shift+Delete` bağlılarla birlikte), seçili altyazı, ya da kütüphanede odaktaki dosya. Kütüphaneden kaldırma diskteki dosyayı silmez; dosya zaman çizelgesinde kullanılıyorsa önce onay ister (o durumda klipler de kalkar ve geri alınamaz).
@@ -46,16 +46,11 @@ Belirsiz kalan kararlar: [`DECISIONS.md`](DECISIONS.md).
 
 ## Katmanlı düzen (YouTube Shorts) — kullanım notu
 
-Kare artık **katmanlardan** oluşur. Her katman zaman çizelgesinde bir izdir ve kendi **konumu, boyutu, görünürlüğü, saydamlığı** vardır.
-Varsayılan şablon (**“YouTube Shorts · Yüz / Davet / Görsel”**, 9:16 = 1080×1920):
+Kare **katmanlardan** oluşur. Her katman zaman çizelgesinde bir izdir ve kendi **konumu, boyutu, görünürlüğü, saydamlığı** vardır.
 
-| Bölge | Katman (iz) | Varsayılan yer | İçerik |
-|---|---|---|---|
-| Üst | **Video** `V2` | y 0–41.5 %, tam genişlik, *sığdır* (kırpmadan, kaynağın kendi oranında) | normal bir video alanı; **yüz algılama, odaklama, otomatik kırpma/zoom yoktur** |
-| Orta | **Orta alan (görsel)** `I2` | y 34–48 %, *sığdır* | **boş** bir görsel yeri; çağrı/davet yazılarını (görsel olarak ya da *+ Metin* ile) sen eklersin. Hazır yazı yoktur. |
-| Alt | **Konu görseli** `I1` | y 41.5–100 %, tam genişlik, *doldur* | konuyla ilgili fotoğraf / ekran görüntüsü |
-| (yok) | **Oyun ekranı** `V1` | — | varsayılan düzende **bulunmaz**; Katmanlar → **+ Oyun ekranı** ile elle eklenir |
-| Ses | **Oyun sesi** `A1`, **Konuşma** `A2` | — | bağımsız seviye (Ses sekmesi) |
+**Varsayılan düzen = yalnızca tek, tam kare "Video" katmanı** (kırpmadan, kaynağın oranında *sığdır*). **Hiçbir görsel/metin/oyun ekranı katmanı kendiliğinden gelmez**; gerekirse *Katmanlar* panelinden kendin eklersin (**+ Görsel**, **+ Metin**, **+ Video**, **+ Oyun ekranı**). Her katman (varsayılan olanlar dahil) **silinebilir** (*Katmanı sil*; içinde klip varsa onay ister, `Ctrl+Z` geri alır). Ses için **Oyun sesi** `A1` ve **Konuşma** `A2` izleri vardır (seviyeleri bağımsız).
+
+**En-boy oranı otomatik** (varsayılan): başta hiçbir oran dayatılmaz; **ilk videoyu koyduğunda oran videonun gerçek boyutuna göre ayarlanır** (1920×1080 → 16:9, 1080×1920 → 9:16, kareye yakınsa 1:1; arada kalanlar en yakın orana). Zaman çizelgesinde zaten görüntü varsa sonraki videolar oranı değiştirmez. Oranı **elle seçersen** (9:16 · 1:1 · 16:9) otomatik kapanır; **Otomatik** düğmesi, mevcut ilk videonun boyutuna göre yeniden ayarlar. Dışa aktarma penceresi, zaman çizelgesinin oranına uyan şablonla açılır.
 
 **Bir katmanı ayarlamak**
 1. Sağ panel → **Katmanlar** sekmesi. Katmanı listeden ya da **önizlemeden** seç.
@@ -112,8 +107,8 @@ npm run dev:web      # http://localhost:5199 — sahte ana süreç + demo medya 
 2. Sağ panel **Kaynak** sekmesi → **Transkripsiyonu başlat** (Track 1 varsayılan). İlerleme alttaki *Görevler* çubuğunda; iptal edilebilir.
 3. **Arama** sekmesi: `Victor Nelson` (ya da `Victor Nelson ile ilgili konuştuğum yer`, `Viktor Nelsen`) → sonuçlar zaman damgasıyla listelenir.
 4. **Klip oluştur** → sağ panelde pre/post-roll ya da hedef süre (30 sn), oynatıcıda `[ Baş` / `Son ]` ile ince ayar → **Zaman çizelgesine ekle**.
-5. **Düzen** sekmesi: 9:16 + “Oyun ortada · kamera altta”. **Altyazı** sekmesi: *Transkriptten altyazı üret*.
-6. **Dışa aktar** → şablon (TikTok/Reels/Shorts) → telif hatırlatmasını onayla → kuyruğa eklenir.
+5. **Katmanlar** sekmesi: oranı kontrol et (otomatik), gerekirse katman ekle/konumlandır. **Altyazı** sekmesi: *Transkriptten altyazı üret*.
+6. **Dışa aktar** → şablon (oranına uyan açılır; ör. TikTok/Reels/Shorts) → telif hatırlatmasını onayla → kuyruğa eklenir.
 
 ## Test
 

@@ -27,7 +27,10 @@ export const cmd = {
   captionPos: (id: ID, pos: { x: number; y: number } | undefined, coalesce = true): TimelineCommand =>
     makeCommand('Altyazı konumu', (t) => ops.setCaptionPos(t, id, pos), coalesce ? `cpos:${id}` : undefined),
   allCaptionPos: (pos: { x: number; y: number } | undefined): TimelineCommand => makeCommand('Tüm altyazı konumu', (t) => ops.setAllCaptionPos(t, pos)),
-  aspect: (aspect: AspectRatio): TimelineCommand => makeCommand('En-boy oranı', (t) => ({ ...t, aspect })),
+  /** Elle oran seçimi: otomatik oran kapanır */
+  aspect: (aspect: AspectRatio): TimelineCommand => makeCommand('En-boy oranı', (t) => ({ ...t, aspect, aspectAuto: false })),
+  /** Otomatik oranı aç/kapat; `aspect` verilirse (videodan hesaplanan) uygulanır */
+  aspectAuto: (auto: boolean, aspect?: AspectRatio): TimelineCommand => makeCommand(auto ? 'Otomatik oran' : 'Oranı sabitle', (t) => ({ ...t, aspectAuto: auto, ...(aspect ? { aspect } : {}) })),
   layout: (layout: LayoutPreset): TimelineCommand => makeCommand('Düzen', (t) => ({ ...t, layout })),
   webcamOverlay: (r: NormRect): TimelineCommand => makeCommand('Kamera konumu', (t) => ({ ...t, webcamOverlay: r }), 'webcam'),
   replace: (label: string, next: Timeline): TimelineCommand => makeCommand(label, () => next),
@@ -37,7 +40,7 @@ export const cmd = {
     makeCommand('Katman ekle', (t) => ops.addTrack(t, spec)),
   removeTrack: (trackId: ID): TimelineCommand => makeCommand('Katmanı sil', (t) => ops.removeTrack(t, trackId)),
   moveTrack: (trackId: ID, dir: 'up' | 'down'): TimelineCommand => makeCommand('Katman sırası', (t) => ops.moveTrackOrder(t, trackId, dir)),
-  applyTemplate: (tpl: LayoutTemplate): TimelineCommand => makeCommand('Şablon uygula', (t) => ops.fillTextTracks(applyTemplate(t, tpl))),
+  applyTemplate: (tpl: LayoutTemplate): TimelineCommand => makeCommand('Şablon uygula', (t) => ({ ...ops.fillTextTracks(applyTemplate(t, tpl)), aspectAuto: false })), // şablonun kendi oranı geçerli olur
   fillText: (): TimelineCommand => makeCommand('Metin katmanlarını doldur', (t) => ops.fillTextTracks(t)),
   extendToEnd: (clipId: ID): TimelineCommand => makeCommand('Sona kadar uzat', (t) => ops.extendToEnd(t, clipId)),
   cutRange: (a: number, b: number, ripple = true): TimelineCommand => makeCommand('Aralığı kes', (t) => ops.cutRange(t, a, b, ripple)),

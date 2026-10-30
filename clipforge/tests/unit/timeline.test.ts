@@ -21,17 +21,15 @@ function base(): Timeline {
 }
 
 describe('zaman çizelgesi işlemleri', () => {
-  it('GERÇEK varsayılan: 9:16, üst video / boş orta görsel yeri / alt görsel; oyun ekranı, hazır yazı ve otomatik doldurma yok', () => {
+  it('GERÇEK varsayılan: yalnızca tek tam kare Video katmanı; görsel/metin/oyun ekranı yok; oran otomatik; hiçbir alan dolu değil', () => {
     const tl = createDefaultTimeline()
-    expect(tl.aspect).toBe('9:16')
-    expect(tl.tracks.map((t) => t.id)).toEqual(['I2', 'V2', 'I1', 'A1', 'A2'])
-    expect(tl.tracks.some((t) => t.id === 'V1')).toBe(false) // oyun ekranı katmanı kendiliğinden gelmez
-    expect(tl.tracks.some((t) => t.kind === 'text')).toBe(false)
-    expect(tl.tracks.flatMap((t) => t.clips)).toEqual([]) // hiçbir alan kendiliğinden dolu değil
+    expect(tl.tracks.map((t) => t.id)).toEqual(['V2', 'A1', 'A2'])
+    expect(tl.tracks.some((t) => t.kind === 'image' || t.kind === 'text' || t.id === 'V1')).toBe(false)
+    expect(tl.tracks.flatMap((t) => t.clips)).toEqual([])
+    expect(tl.aspectAuto).toBe(true) // ilk video eklenince videonun boyutuna göre
     const video = tl.tracks.find((t) => t.id === 'V2')!
-    expect(video.name).toBe('Video') // "webcam" değil, normal video alanı
-    expect(video.placement).toMatchObject({ fit: 'contain', visible: true }) // kırpma/odaklama yok: kaynak oranında sığdırılır
-    expect(video.placement!.rect).toMatchObject({ x: 0, y: 0, w: 1 })
+    expect(video.name).toBe('Video') // "webcam" değil
+    expect(video.placement).toMatchObject({ fit: 'contain', visible: true, rect: { x: 0, y: 0, w: 1, h: 1 } })
   })
 
   it('ekleme çakışmayı önler', () => {

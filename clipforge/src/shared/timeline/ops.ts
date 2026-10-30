@@ -205,7 +205,24 @@ const VISUAL = new Set<TrackKind>(['video', 'image', 'text'])
 
 /** Katmanın (iz) kare içindeki konumunu/boyutunu/görünürlüğünü günceller. */
 export function setPlacement(tl: Timeline, trackId: ID, patch: Partial<Placement>): Timeline {
-  return mapTracks(tl, (t) => (t.id === trackId && t.placement ? { ...t, placement: { ...t.placement, ...patch, rect: { ...t.placement.rect, ...(patch.rect ?? {}) } } } : t))
+  return mapTracks(tl, (t) => (t.id === trackId && t.placement ? { ...t, placement: { ...t.placement, ...patch, rect: clampRect({ ...t.placement.rect, ...(patch.rect ?? {}) }) } } : t))
+}
+
+/**
+ * Katman dikdörtgenini kare içinde tutar (0..1): kare dışına taşan katmanlar arayüzü kapatıp tıklamaları yakalıyordu.
+ * En az %3 boyut; x+w ≤ 1, y+h ≤ 1.
+ */
+export function clampRect(r: { x: number; y: number; w: number; h: number }): { x: number; y: number; w: number; h: number } {
+  const w = Math.min(1, Math.max(0.03, Number.isFinite(r.w) ? r.w : 1))
+  const h = Math.min(1, Math.max(0.03, Number.isFinite(r.h) ? r.h : 1))
+  const x = Math.min(1 - w, Math.max(0, Number.isFinite(r.x) ? r.x : 0))
+  const y = Math.min(1 - h, Math.max(0, Number.isFinite(r.y) ? r.y : 0))
+  return { x, y, w, h }
+}
+
+/** Tüm katman konumlarını kare içine sığdırır (eski/bozuk projeler için onarım) */
+export function sanitizePlacements(tl: Timeline): Timeline {
+  return mapTracks(tl, (t) => (t.placement ? { ...t, placement: { ...t.placement, rect: clampRect(t.placement.rect) } } : t))
 }
 
 /** Yeni görsel/ses katmanı. Görsel katmanlar en üste (en öndeki katman) eklenir. */

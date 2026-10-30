@@ -26,7 +26,8 @@ export const TRACK_IDS = { screen: 'V1', webcam: 'V2', image: 'I1', game: 'A1', 
 export function createDefaultTimeline(): Timeline {
   const base: Timeline = {
     fps: 30,
-    aspect: '9:16',
+    aspect: '16:9', // nötr başlangıç; ilk video eklenince videonun boyutuna göre ayarlanır (aspectAuto)
+    aspectAuto: true,
     layout: 'game-center-cam-bottom',
     tracks: AUDIO_TRACKS(),
     captions: [],
@@ -69,4 +70,12 @@ export function aspectSize(aspect: AspectRatio, shortSide = 1080): { width: numb
   if (aspect === '9:16') return { width: shortSide, height: even((shortSide * 16) / 9) }
   if (aspect === '1:1') return { width: shortSide, height: shortSide }
   return { width: even((shortSide * 16) / 9), height: shortSide }
+}
+
+/** Genişlik/yükseklikten en yakın desteklenen oran (9:16 · 1:1 · 16:9; log uzaklığına göre) */
+export function nearestAspect(width: number, height: number): AspectRatio {
+  if (!(width > 0) || !(height > 0)) return '16:9'
+  const r = width / height
+  const cands: [AspectRatio, number][] = [['9:16', 9 / 16], ['1:1', 1], ['16:9', 16 / 9]]
+  return cands.reduce((best, c) => (Math.abs(Math.log(r / c[1])) < Math.abs(Math.log(r / best[1])) ? c : best))[0]
 }
