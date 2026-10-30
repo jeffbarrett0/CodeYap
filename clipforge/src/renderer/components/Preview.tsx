@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'react'
 import { timelineDuration } from '@shared/timeline/model'
 import { requireApi } from '../api'
 import { PreviewEngine, previewSize } from '../preview/engine'
@@ -55,13 +55,34 @@ function SourcePlayer() {
   const selfSet = useRef(0)
   const isVideo = asset?.kind === 'video'
   const isImage = asset?.kind === 'image'
-  const videoUrl = asset && isVideo ? api.mediaUrl(asset, 'video') : null
-  const audioUrl = asset && asset.audioStreams.length ? api.mediaUrl(asset, 'audio', asset.audioMap.mix) : null
+  // Kaynak adresleri OYNATMA SIRASINDA sabit tutulur: önizleme kopyası (proxy) arka planda bitince
+  // adres değişir ve öğe kaynağı yeniden yükleyip oynatmayı bozardı (ilk saniyeler normal, sonra takılma/cızırtı).
+  const swapped = useRef(false)
+  const lockRef = useRef<{ id: string; videoUrl: string | null; audioUrl: string | null; hasSound: boolean }>({ id: '', videoUrl: null, audioUrl: null, hasSound: false })
+  if (!asset) lockRef.current = { id: '', videoUrl: null, audioUrl: null, hasSound: false }
+  else if (lockRef.current.id !== asset.id || !playing) {
+    const prev = lockRef.current
+    const nextVideo = isVideo ? api.mediaUrl(asset, 'video') : null
+    swapped.current = prev.id === asset.id && prev.videoUrl !== nextVideo
+    lockRef.current = {
+      id: asset.id,
+      videoUrl: isVideo ? api.mediaUrl(asset, 'video') : null,
+      audioUrl: asset.audioStreams.length ? api.mediaUrl(asset, 'audio', asset.audioMap.mix) : null,
+      // Önizleme kopyası yokken orijinal dosya doğrudan oynar: ses de aynı öğeden gelir (tek saat, kayma yok)
+      hasSound: isVideo && !asset.proxyPath,
+    }
+  }
+  const { videoUrl, audioUrl, hasSound } = lockRef.current
+  /** Ses ayrı <audio> öğesinden geliyorsa saat sesindir; video ona yetişir (ağır VP9'da video takılsa da ses bozulmaz) */
+  const followVideo = isVideo && !hasSound && !!audioUrl
   const imageUrl = asset && isImage ? api.mediaUrl(asset, 'image') : null
   const markers = (asset && project.markers[asset.id]?.map((m) => m.time)) || []
   const audioPending = !!asset && !api.isMock && asset.audioStreams.length > 0 && !asset.audioStreams[asset.audioMap.mix]?.proxyPath && !/\.(mp4|m4v|mov|webm|mp3|wav|m4a|aac|ogg|flac|opus)$/i.test(asset.path)
   /** Zamanı yöneten öğe: video varsa video (ses ayrı <audio>'dan), ses dosyasında <audio>'nun kendisi */
-  const master = () => (isVideo ? vref.current : aref.current)
+  const master = () => (isVideo && !followVideo ? vref.current : aref.current ?? vref.current)
+  const follower = () => (followVideo ? vref.current : null)
+  const lastPush = useRef({ t: -1, at: 0 })
+  const lastFix = useRef(0)
 
   // dışarıdan gelen arama (sonuç tıklama vb.)
   useEffect(() => {
@@ -69,7 +90,8 @@ function SourcePlayer() {
     if (!m) return
     if (Math.abs(m.currentTime - sourceTime) > 0.25 && Math.abs(selfSet.current - sourceTime) > 0.01) {
       m.currentTime = sourceTime
-      if (isVideo && aref.current) aref.current.currentTime = sourceTime
+      const f = follower()
+      if (f) f.currentTime = sourceTime
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceTime])
@@ -80,12 +102,20 @@ function SourcePlayer() {
       const m = master()
       if (m && !m.paused) {
         selfSet.current = m.currentTime
-        setSourceTime(m.currentTime)
-        const a = aref.current
-        if (isVideo && a && Math.abs(a.currentTime - m.currentTime) > 0.2) a.currentTime = m.currentTime
+        // her karede değil ~15 Hz güncelle (60 Hz store/React güncellemesi ağır videoyu daha da yavaşlatıyordu)
+        const nowMs = performance.now()
+        if (nowMs - lastPush.current.at >= 66) {
+          lastPush.current = { t: m.currentTime, at: nowMs }
+          setSourceTime(m.currentTime)
+        }
+        const f = follower()
+        if (f && !f.seeking && Math.abs(f.currentTime - m.currentTime) > 0.4 && nowMs - lastFix.current > 1500) {
+          lastFix.current = nowMs
+          f.currentTime = m.currentTime
+        }
         if (clipDraft && m.currentTime >= clipDraft.end) {
           m.pause()
-          aref.current?.pause()
+          follower()?.pause()
           setPlaying(false)
         }
       } else if (m && m.paused && playing && m.ended) setPlaying(false)
@@ -101,7 +131,11 @@ function SourcePlayer() {
     if (!m) return
     if (clipDraft && (m.currentTime >= clipDraft.end - 0.05 || m.currentTime < clipDraft.start)) m.currentTime = clipDraft.start
     void m.play().catch(() => undefined)
-    if (isVideo) void aref.current?.play().catch(() => undefined)
+    const f = follower()
+    if (f) {
+      f.currentTime = m.currentTime
+      void f.play().catch(() => undefined)
+    }
     setPlaying(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clipDraft, isVideo])
@@ -112,11 +146,11 @@ function SourcePlayer() {
     if (m.paused) play()
     else {
       m.pause()
-      aref.current?.pause()
+      follower()?.pause()
       setPlaying(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [play, isVideo])
+  }, [play, isVideo, followVideo])
 
   // Kütüphanede bir dosyaya tıklanınca (playRequest artar) seçilen dosya BAŞTAN otomatik oynatılır
   useEffect(() => {
@@ -127,7 +161,8 @@ function SourcePlayer() {
       const m = master()
       if (!m) return
       m.currentTime = 0
-      if (aref.current) aref.current.currentTime = 0
+      const f = follower()
+      if (f) f.currentTime = 0
       play()
     }
     // öğenin kaynağı yeni atanmış olabilir: hazır olunca (ya da hemen) başlat
@@ -148,6 +183,11 @@ function SourcePlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playRequest])
 
+  /** Kaynak değişince (ör. duraklatılmışken proxy'ye geçiş) kaldığımız yerden devam et */
+  const restoreTime = (e: SyntheticEvent<HTMLMediaElement>) => {
+    const el = e.currentTarget
+    if (swapped.current && sourceTime > 0.25 && Math.abs(el.currentTime - sourceTime) > 0.25) el.currentTime = sourceTime
+  }
   const dur = asset?.durationSec ?? 0
   return (
     <>
@@ -158,11 +198,11 @@ function SourcePlayer() {
           setMenu({ x: e.clientX, y: e.clientY, clipId: null })
         }}
       >
-        {asset && isVideo && <video ref={vref} src={videoUrl ?? undefined} muted playsInline preload="auto" data-testid="source-video" />}
+        {asset && isVideo && <video ref={vref} src={videoUrl ?? undefined} muted={!hasSound} playsInline preload="auto" data-testid="source-video" onLoadedMetadata={restoreTime} />}
         {asset && isImage && <img src={imageUrl ?? undefined} alt={asset.name} className="source-image" data-testid="source-image" />}
         {asset && asset.kind === 'audio' && <div className="empty" data-testid="source-audio">Ses dosyası: {asset.name}</div>}
         {!asset && <div className="empty">Soldaki kütüphaneden bir dosya seçin.</div>}
-        {audioUrl && <audio ref={aref} src={audioUrl} preload="auto" onEnded={() => !isVideo && setPlaying(false)} />}
+        {audioUrl && !hasSound && <audio ref={aref} src={audioUrl} preload="auto" onLoadedMetadata={restoreTime} onEnded={() => !isVideo && setPlaying(false)} />}
         {menu && <SourceCropMenu menu={menu} onClose={() => setMenu(null)} />}
       </div>
       <div className="transport">

@@ -142,3 +142,49 @@ test('hata yönetimi: bozuk dosya içe aktarılınca uygulama çökmez, anlaşı
   // ana süreç hâlâ yanıt veriyor
   expect((await page.evaluate(() => window.clipforge!.invoke('app:info'))).ffmpeg.ok).toBe(true)
 })
+
+test('büyük MP4: cf-media Range yanıtları doğru ve orta noktaya atlayıp oynatma ilerler (takılma/cızırtı regresyonu)', async () => {
+  const ffmpeg = process.env.CLIPFORGE_FFMPEG ?? require('ffmpeg-static')
+  const big = join(tmp, 'büyük kayıt.mp4')
+  // gürültülü 1080p60 → yüksek bit hızı, onlarca MB; ses AAC stereo
+  execFileSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=60:duration=40', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=40', '-vf', 'noise=alls=40:allf=t', '-c:v', 'libx264', '-preset', 'ultrafast', '-b:v', '20M', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', big])
+  const before = await page.getByTestId('asset').count()
+  await page.evaluate((p) => window.clipforge!.invoke('media:import', [p]), big)
+  await expect(page.getByTestId('asset')).toHaveCount(before + 1, { timeout: 60_000 })
+  const url = await page.evaluate(() => {
+    const els = [...document.querySelectorAll('[data-testid=asset] .thumb')] as HTMLElement[]
+    const css = getComputedStyle(els[els.length - 1]).backgroundImage
+    const m = css.match(/cf-media:\/\/m\/([^/]+)\/thumb/)
+    return m ? `cf-media://m/${m[1]}/video` : ''
+  })
+  expect(url).not.toBe('')
+  const r = await page.evaluate(async (u) => {
+    const out: { status: number; cr: string | null; len: number }[] = []
+    for (const range of ['bytes=0-99', 'bytes=20000000-20000099']) {
+      const res = await fetch(u, { headers: { Range: range } })
+      out.push({ status: res.status, cr: res.headers.get('content-range'), len: (await res.arrayBuffer()).byteLength })
+    }
+    return out
+  }, url)
+  for (const x of r) {
+    expect(x.status).toBe(206)
+    expect(x.len).toBe(100)
+    expect(x.cr).toMatch(/^bytes \d+-\d+\/\d+$/)
+  }
+  // gerçek <video>: ortaya atla, oynat, saat ilerlemeli
+  const adv = await page.evaluate(async (u) => {
+    const v = document.createElement('video')
+    v.muted = true
+    v.src = u
+    await new Promise<void>((ok, bad) => ((v.onloadedmetadata = () => ok()), (v.onerror = () => bad(new Error('yüklenemedi')))))
+    v.currentTime = v.duration / 2
+    await new Promise<void>((ok) => (v.onseeked = () => ok()))
+    const t0 = v.currentTime
+    await v.play()
+    await new Promise((ok) => setTimeout(ok, 2500))
+    const t1 = v.currentTime
+    v.pause()
+    return { t0, t1 }
+  }, url)
+  expect(adv.t1 - adv.t0).toBeGreaterThan(1.5)
+})

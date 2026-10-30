@@ -33,6 +33,7 @@ export class PreviewEngine {
   private videos = new Map<string, HTMLVideoElement>()
   private audios = new Map<string, HTMLAudioElement>()
   private images = new Map<string, HTMLImageElement>()
+  private lastSeek = new WeakMap<HTMLMediaElement, number>()
   /** Kırpma modunda düzenlenen klip: tamamı (kırpmasız, sığdırılmış) gösterilir */
   cropClipId: string | null = null
 
@@ -69,7 +70,8 @@ export class PreviewEngine {
           v.preload = 'auto'
           this.videos.set(c.id, v)
         }
-        if (src && v.getAttribute('data-src') !== src) {
+        // oynatma sırasında kaynak değiştirilmez (proxy hazır olunca adres değişir; yeniden yükleme takılma yapar)
+        if (src && v.getAttribute('data-src') !== src && (!playing || !v.getAttribute('data-src'))) {
           v.setAttribute('data-src', src)
           v.src = src
         }
@@ -83,7 +85,7 @@ export class PreviewEngine {
           a.preload = 'auto'
           this.audios.set(c.id, a)
         }
-        if (src && a.getAttribute('data-src') !== src) {
+        if (src && a.getAttribute('data-src') !== src && (!playing || !a.getAttribute('data-src'))) {
           a.setAttribute('data-src', src)
           a.src = src
         }
@@ -103,7 +105,12 @@ export class PreviewEngine {
       if (drift > 0.03) el.currentTime = target
       if (!el.paused) el.pause()
     } else {
-      if (drift > 0.3) el.currentTime = target
+      // ağır videoda geride kalınca her karede yeniden aramak takılmayı büyütür: en çok ~1,5 sn'de bir düzelt
+      const now = performance.now()
+      if (drift > 0.3 && (drift > 2 || (!el.seeking && now - (this.lastSeek.get(el) ?? 0) > 1500))) {
+        this.lastSeek.set(el, now)
+        el.currentTime = target
+      }
       if (el.paused) void el.play().catch(() => undefined)
     }
   }

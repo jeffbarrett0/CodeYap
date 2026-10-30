@@ -211,3 +211,16 @@ Yöntemler: (1) Whisper'a **ipucu** (özel sözlük) — `whisper.cpp --prompt`,
 * **Varsayılan düzen tek "Video" katmanı** (tam kare, sığdır). Orta alan (görsel) ve Konu görseli kaldırıldı; hiçbir hazır katman yok. Eski projelerdeki bu katmanlar aynen durur ve artık **silinebilir** (daha önce korumalıydı). Üst bölge artık tam kare olduğu için "üst %41" düzeni yeni projelerde kalktı; önceki 3 bölgeli düzen isteyen kullanıcı katmanları elle ekleyip "Düzeni kaydet" ile saklayabilir. Hazır şablonlar (oyun ortada + kamera vb.) kodda duruyor ama arayüzde listelenmez.
 * **Otomatik oran** (`Timeline.aspectAuto`, yeni projelerde açık): ilk video eklenirken, zaman çizelgesinde henüz video/görsel klip yoksa oran videonun **gerçek genişlik/yüksekliğinden** en yakın desteklenen orana (9:16 · 1:1 · 16:9) çevrilir. Sınırlar: yalnızca bu üç oran desteklenir (4:3, 21:9, 4:5 en yakınına yuvarlanır; özel oran/çözünürlük yok); video dönüş (rotation) meta verisi okunmaz; görsel (resim) oranı belirlemez. Eski projeler "elle" sayılır (oran değişmez). Şablon uygulamak oranı şablondan alır ve otomatiği kapatır.
 * **Takılma hatası:** Katman çerçevesi kare dışına büyütülebiliyordu (genişlik > %100); taşan çerçeve diğer panellerin üstüne binip tıklamaları yakalıyor, "basılı kalmış" gibi davranıyordu. Düzeltmeler: (1) katman konumu her zaman kare içinde tutulur (`clampRect`; sürükleme, tutamaç, sayısal giriş ve proje açılışı onarımı), (2) bindirme katmanları `clip-path` ile tuvale (+ tutamaç payı) kırpılır, (3) fare düğmesi bırakılmışsa ya da işaretçi yakalama kaybedilmişse sürükleme **biter** (katman/altyazı/kırpma). Kare dışına taşan "kasıtlı" yerleşim (kaydırarak kırpma etkisi) artık mümkün değil; bunun için *Crop / Kırp* kullanılır.
+
+## 26. Büyük videolarda oynatma bozulması (ilk saniyeler normal, sonra takılma/cızırtı)
+
+**Kök neden (ölçüldü):** `cf-media://` işleyicisi `net.fetch(file://)` kullanıyordu ve HTTP `Range` başlığını yok sayıp her istekte tüm dosyayı `200` olarak döndürüyordu (gerçek Electron testinde `206` yerine `200`). Küçük dosyada fark edilmez; 24 dk'lık 1080p60 VOD'da her arabellek/atlama GB'larca veri okutur, oynatma ilk saniyelerden sonra çöker ve ses cızırdar. Üstüne: (a) ses ayrı `<audio>`'dan geliyor ve her karede videoya göre yeniden aranıyordu, (b) saat 60 Hz store'a yazılıyordu, (c) önizleme kopyası (proxy) bitince adres oynatma sırasında değişip kaynağı yeniden yüklüyordu.
+
+**Çözüm:**
+- `src/main/media/serve.ts`: Range'i kendimiz karşılıyoruz (206 + `Content-Range`, 416, `Accept-Ranges`), `fs` akışıyla; birim testli.
+- Kaynak: önizleme kopyası yokken orijinal MP4/MOV/WebM tek öğeden (sesli) çalınır; kopya varsa ses saattir, video ona yetişir ve en çok ~1,5 sn'de bir düzeltilir.
+- Oynatma sırasında adres değişmez (duraklatınca geçer, kaldığı süreden devam eder); `sourceTime` ~15 Hz güncellenir.
+- Zaman çizelgesi önizlemesi (`PreviewEngine`) aynı korumaları aldı: oynatmada kaynak değişmez, yeniden arama sıklığı sınırlı.
+- Test: gerçek Electron + 40 sn 1080p60 yüksek bit hızlı MP4 → Range yanıtları ve ortaya atlayıp oynatma.
+
+**Not:** VP9 1080p60 yazılımsal çözülürken zayıf bilgisayarlarda hâlâ ağır olabilir; önizleme kopyası (540p) hazır olunca (kütüphanedeki görev çubuğu) akıcılık belirgin artar. Dışa aktarma etkilenmez.

@@ -1,8 +1,8 @@
-import { app, BrowserWindow, Menu, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, Menu, protocol, shell } from 'electron'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { AppService } from './app'
 import { registerIpc } from './ipc'
+import { serveFile } from './media/serve'
 
 // Önizleme medyasını (proxy/ses/küçük resim) Range desteğiyle sunan özel şema; dosya:// yerine kullanılır.
 protocol.registerSchemesAsPrivileged([{ scheme: 'cf-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }])
@@ -84,11 +84,12 @@ void app.whenReady().then(async () => {
     const [assetId, kind, idx] = u.pathname.split('/').filter(Boolean)
     const file = service.resolveMediaPath(u.hostname === 'm' ? assetId : u.hostname, kind, Number(idx ?? 0))
     if (!file) return new Response('Bulunamadı', { status: 404 })
-    const res = await net.fetch(pathToFileURL(file).toString(), { headers: req.headers, bypassCustomProtocolHandlers: true })
-    // Sayfa file:// kökeninden yüklendiği için çapraz-köken izni gerekir (Range/206 yanıtı korunur)
-    const headers = new Headers(res.headers)
-    headers.set('Access-Control-Allow-Origin', '*')
-    return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
+    // Range'i kendimiz karşılarız (net.fetch(file://) yok sayıyordu → büyük videolarda bozuk oynatma)
+    try {
+      return await serveFile(file, req.headers.get('range'))
+    } catch {
+      return new Response('Bulunamadı', { status: 404 })
+    }
   })
 
   registerIpc(service, () => win)
