@@ -88,6 +88,39 @@ describe('komut satırı: sessizleri kes + altyazı + dışa aktar; arama + bağ
     expect(existsSync(proj + '.bak')).toBe(true) // yedek alınır
   }, 240_000)
 
+  it('vlog akışı: Video 3 ana görüntü, script, b-roll önerisi/uygulama, grafik yerleştirme', () => {
+    const vlog = join(tmp, 'vlog.clipforge')
+    const broll = join(tmp, 'broll')
+    mkdirSync(broll, { recursive: true })
+    const ffmpeg = require('ffmpeg-static') as string
+    execFileSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=30:duration=5', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', join(broll, 'viktor_nelsen.mp4')])
+    cli('new', vlog)
+    cli('import', vlog, join(tmp, 'video örnek.mp4'), '--add', '--layer', 'V3')
+    cli('transcribe', vlog)
+    expect(cli('silence', vlog).cuts).toBeGreaterThan(0)
+    const script = cli('script', vlog)
+    expect(script.sentences.length).toBe(3)
+    // öneri: yazmaz
+    const before = md5(vlog)
+    const plan = cli('broll-plan', vlog, '--folder', broll)
+    expect(plan.plan[0]).toMatchObject({ file: 'viktor_nelsen.mp4' })
+    expect(plan.plan[0].at).not.toBeNull()
+    expect(md5(vlog)).toBe(before)
+    expect(cli('broll-plan', vlog, '--folder', broll, '--apply').placed).toEqual(['viktor_nelsen.mp4'])
+    // grafik: harita/küre üretilip V1'e konur; çakışmada hata verir
+    const g = cli('graphic', vlog, '--type', 'globe', '--to', 'Türkiye', '--from', 'Londra', '--at', '1', '--dur', '2', '--layer', 'V1')
+    expect(g.ok).toBe(true)
+    expect(existsSync(g.file)).toBe(true)
+    expect(cli('graphic', vlog, '--type', 'title', '--text', 'X', '--at', '1.5', '--dur', '2', '--layer', 'V1').error).toMatch(/dolu/)
+    expect(cli('graphic', vlog, '--type', 'map', '--to', 'Atlantis').error).toMatch(/bulunamadı/)
+    const show = cli('show', vlog)
+    const lane = (id: string) => show.tracks.find((t: any) => t.id === id).clips
+    expect(lane('V3').length).toBeGreaterThan(0) // ana görüntü
+    expect(lane('V2')).toHaveLength(1) // b-roll
+    expect(lane('V1')).toHaveLength(1) // grafik
+    expect(cli('captions', vlog, '--style', 'boxed-highlight').style).toBe('boxed-highlight')
+  }, 300_000)
+
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)
     const bad = cli('bogus', proj)

@@ -180,3 +180,16 @@ npm run cli -- silence "D:\Videolar\proje.clipforge"
 npm run cli -- captions "D:\Videolar\proje.clipforge"
 npm run cli -- export "D:\Videolar\proje.clipforge" --out "D:\Videolar\cikti.mp4" --preset shorts
 ```
+
+### Vlog otomatik kurgu (sessizleri kes → b-roll → grafik → altyazı)
+
+```bash
+npm run cli -- import proje.clipforge vlog.mp4 --add --layer V3
+npm run cli -- transcribe proje.clipforge
+npm run cli -- silence proje.clipforge
+npm run cli -- script proje.clipforge                      # kurgu sonrası cümleler + geçen yerler
+npm run cli -- broll-plan proje.clipforge --folder "D:\bro\ll"   # öneri; --apply ile uygula
+npm run cli -- graphic proje.clipforge --type globe --to "Türkiye" --from "Londra" --at 12 --dur 4 --layer V1
+npm run cli -- captions proje.clipforge --style boxed-highlight
+npm run cli -- export proje.clipforge --out cikti.mp4 --preset youtube
+```

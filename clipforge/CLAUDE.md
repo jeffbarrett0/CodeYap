@@ -6,10 +6,20 @@ Bu klasörde Claude Code çalıştırıldığında videolar **komut satırı** (
 `npm install` → `npm run build` (CLI `out/main/cli.js` olarak derlenir; kod değişirse yeniden derleyin). Whisper yolu/modeli uygulamanın Ayarlar'ındakiyle **aynıdır** (aynı kullanıcı verisi klasörü); uygulamada bir kez transkripsiyon çalışıyorsa CLI'da da çalışır.
 
 ## Komutlar (hepsi JSON döndürür; `npm run cli -- help`)
-`new` · `import --add` · `transcribe` · `transcript` · `search` · `add-clip` · `new-clip-project` · `silence` · `cut` · `captions` · `delete-lane` · `frame` · `show` · `export` · `presets`
+`new` · `import --add` · `transcribe` · `transcript` · `script` · `search` · `add-clip` · `new-clip-project` · `silence` · `cut` · `overlay` · `broll-plan` · `graphic` · `captions` · `delete-lane` · `frame` · `show` · `export` · `presets`
 
 Tipik akış: `new p.clipforge` → `import p.clipforge video.mp4 --add` → `transcribe p.clipforge` → `transcript p.clipforge` (içeriği OKU) → `silence` → `captions` → `frame` (bir kareye bakıp doğrula) → `export p.clipforge --out cikti.mp4 --preset shorts`.
 Aramadan klip: `search p.clipforge "söz"` → `new-clip-project p.clipforge --query "söz" --pick 1 --sec 25 --out klip.clipforge` (ana proje değişmez).
+
+## Vlog akışı (otomatik kurgu)
+Sıra önemlidir: **önce kesim, sonra yerleştirme** (kesimden sonra zamanlar kayar).
+1. `new` → `import <proje> vlog.mp4 --add --layer V3` — ana görüntü EN ALT katmana (V3). **Katman sırası: V1 en üstte çizilir**, V3 en altta; b-roll V2'ye, grafikler V1'e gider (üstteki alttakini kapatır; konuşma sesi Ses katmanında kesintisiz sürer).
+2. `transcribe` → `silence` (sessizlik + ııı/eee kesimi).
+3. `script` — kurgu SONRASI zamanlarla cümleler ve cümlede geçen yerler (`places`). Buradan b-roll ve grafik fırsatlarını **öner** (kullanıcı onaylamadan uygulama).
+4. B-roll: kullanıcı klasör verirse `broll-plan --folder K` (dosya adındaki kelimeleri konuşmada arar; yazmaz) → onaydan sonra `--apply` ya da `overlay --file F --at sn --dur 3.5`.
+5. Grafik (konuşulan yeri çizerek anlat): `graphic --type globe --to "Türkiye" --from "Londra" --at 12.5 --dur 4 --layer V1` (3D dönen küre + rota), `--type map` (2D harita, yakınlaşma + rota), `--type title --text "3. GÜN"`, `--type chart --data "A:10,B:20"`. Çıktı tam kare bir videodur, çizelgede normal klip gibi düzenlenir. Yer adı ülke/ana şehir ya da `boylam,enlem`.
+6. İstenirse `captions --style boxed-highlight`.
+7. `frame --at sn --out k.jpg` ile bak (ör. grafik anında), sonra `export`.
 
 ## Çalışma kuralları (kullanıcının kalıcı kuralları)
 - **Çağrı/yönlendirme metni üretme ya da ekleme:** "videoyu beğenip takip etmeyi unutmayın", "videonun tamamı … kanalında" gibi hiçbir yazı, altyazı ya da katman olmayacak.
@@ -19,4 +29,5 @@ Aramadan klip: `search p.clipforge "söz"` → `new-clip-project p.clipforge --q
 - Her yeni video için aynı kurallar geçerlidir; belirli kişi/konu adı varsayma.
 
 ## Sınırlar
+- **Grafikler:** 2D/3D "çizim" sahneleri (harita, dönen küre, başlık, grafik) hazır şablonlardır; serbest 3D model/karakter ya da fotogerçekçi sahne üretilemez. Harita verisi 1:110m (küçük adalar/şehir sınırları yok); şehirler için ~50 ana şehir tanımlı, diğerleri `boylam,enlem` ile verilir. Yazı tipi Impact (Windows/macOS'ta var).
 Arayüzdeki görsel ince ayarlar (katman konum/boyutu, metin katmanı, kırpma) CLI'da henüz yok; proje JSON'u elle düzenlenebilir ama önce `.bak` alın. Ayrı oyun/konuşma ses akışı olan videolarda Ses katmanına yalnızca ilk akış girer.

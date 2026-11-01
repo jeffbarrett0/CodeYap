@@ -6,16 +6,20 @@
  *   node out/main/cli.js <komut> <proje.clipforge> [seçenekler]      (kısa: npm run cli -- <komut> ...)
  */
 import { execFile } from 'node:child_process'
-import { mkdir, rm } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { mkdir, readdir, rm } from 'node:fs/promises'
+import { basename, dirname, extname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { nearestBoundary, suggestClip } from '../shared/clip/boundaries'
 import { cmd } from '../shared/timeline/commands'
 import { captionsForTimeline } from '../shared/timeline/captions'
 import { CAPTION_PRESETS, presetById } from '../shared/timeline/captionStyles'
-import { clipItemsForSource, clipsForVideoWithAudio, retargetItems } from '../shared/timeline/create'
-import { clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
+import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems } from '../shared/timeline/create'
+import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
+import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
+import { loadWorld, renderScene } from '../main/graphics/render'
+import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { clipsAt, timelineToSource } from '../shared/timeline/ops'
+import { buildSegments } from '../shared/transcript/sentences'
 import { planSilenceCuts } from '../shared/timeline/silence'
 import { timelineWords } from '../shared/timeline/transcript'
 import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/export/presets'
@@ -59,7 +63,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
 
   info                                   ffmpeg/ffprobe/whisper durumu
   new <proje> [--name ad]                boş proje oluşturur
-  import <proje> <dosya...> [--add]      medya ekler (--add: ilk videoyu Video 1'e, 0. sn'den, sesiyle yerleştirir)
+  import <proje> <dosya...> [--add] [--layer V3]   medya ekler (--add: ilk videoyu --layer'a (varsayılan V1), 0. sn'den, sesiyle yerleştirir)
   show <proje>                           katmanlar, klipler, altyazılar, süre
   transcribe <proje> [--asset a] [--lang tr] [--model small] [--track 0] [--force]
   transcript <proje> [--asset a] [--from sn --to sn]   cümleler (kaynak zamanı)
@@ -68,6 +72,11 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          zaman çizelgesinin sonuna klip ekler (cümle sınırlarına yapışır)
   new-clip-project <proje> --query "söz" [--pick 1] [--sec 25] --out yeni.clipforge [--asset a]
                                          ana projeyi DEĞİŞTİRMEDEN bağımsız klip projesi üretir
+  script <proje>                         KURGU SONRASI zaman çizelgesindeki cümleler (çizelge zamanı) + geçen yerler (grafik/b-roll önerisi için)
+  overlay <proje> --file dosya|--asset a --at sn [--dur 3.5] [--layer V2] [--src-in sn]   b-roll (video/foto) yerleştirir; konuşma sesi devam eder
+  broll-plan <proje> --folder klasör [--asset a] [--dur 3.5] [--layer V2] [--apply]       dosya adlarındaki kelimeleri konuşmada arar, yerleşim ÖNERİR (--apply: uygular)
+  graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
+                                         hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
   silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
   captions <proje> [--style classic|boxed-highlight] [--max-chars 22]   transkriptten altyazı üretir (boxed-highlight: referans stil)
@@ -97,6 +106,36 @@ function commitClip(s: Session, asset: MediaAsset, start: number, end: number, o
   s.apply(cmd.fillText())
   return placed.length
 }
+
+/** Katmana tek bir dosya koyar (çakışma varsa hata: üstüne yazmaz, kaydırmaz) */
+function placeOnLayer(s: Session, asset: MediaAsset, layerId: string, at: number, opts: { duration?: number; srcIn?: number } = {}): { start: number; end: number } {
+  const track = s.timeline.tracks.find((t) => t.id === layerId)
+  if (!track) throw new Error(`Katman yok: ${layerId}`)
+  if (track.locked) throw new Error(`"${track.name}" kilitli.`)
+  const r = clipForTrack(asset, track, { at, srcIn: opts.srcIn, duration: opts.duration ?? (asset.kind === 'image' ? 3 : undefined) })
+  if ('error' in r) throw new Error(r.error)
+  const start = r.clip.start
+  const end = start + (r.clip.srcOut - r.clip.srcIn)
+  if (track.clips.some((c) => c.start < end - 1e-6 && start < clipEnd(c) - 1e-6)) throw new Error(`"${track.name}" katmanında ${start.toFixed(1)}–${end.toFixed(1)} sn dolu; başka katman (--layer) ya da zaman seçin.`)
+  s.apply(cmd.addClip(track.id, { ...r.clip, label: asset.name }))
+  return { start, end }
+}
+
+/** Dosyayı projeye ekler (zaten ekliyse mevcut varlığı döndürür) */
+async function ensureAsset(s: Session, file: string): Promise<MediaAsset> {
+  const abs = resolve(file)
+  const have = s.project.assets.find((x) => x.path === abs)
+  if (have) return have
+  const known = new Set(s.project.assets.map((x) => x.id))
+  const ids = s.service.importMedia([abs])
+  for (const id of ids) await waitTask(s.service, id, `İçe aktarma ${basename(abs)}`)
+  const added = [...s.service.assets.values()].find((x) => !known.has(x.id) && x.path === abs)
+  if (!added) throw new Error(`İçe aktarılamadı: ${abs}`)
+  s.project = { ...s.project, assets: [...s.project.assets, added] }
+  return added
+}
+
+const MEDIA_EXT = /\.(mp4|mov|mkv|webm|m4v|jpe?g|png|webp)$/i
 
 async function suggestFor(s: Session, asset: MediaAsset, a: Args) {
   const query = str(a.opt.query)
@@ -147,7 +186,7 @@ async function main(argv: string[]): Promise<unknown> {
       s.project = { ...s.project, assets: [...s.project.assets, ...added] }
       if (a.opt.add) {
         const v = added.find((x) => x.kind === 'video')
-        const track = s.timeline.tracks.find((t) => t.id === 'V1')
+        const track = s.timeline.tracks.find((t) => t.id === (str(a.opt.layer) ?? 'V1'))
         if (v && track) {
           const r = clipsForVideoWithAudio(v, track, s.timeline.tracks, { at: 0 })
           if ('error' in r) throw new Error(r.error)
@@ -222,6 +261,97 @@ async function main(argv: string[]): Promise<unknown> {
         await rm(`${created.path}-data`, { recursive: true, force: true })
       }
       return out({ ok: true, project: finalPath, source: { start: r1(g.start), end: r1(g.end), durationSec: r1(g.end - g.start) }, matched: g.matched, warnings: g.warnings, note: 'Ana proje değişmedi.' })
+    }
+    case 'script': {
+      const world = await loadWorld(s.service.deps.resourcesDir)
+      const words = timelineWords(s.timeline, s.transcripts)
+      if (words.length === 0) throw new Error('Zaman çizelgesindeki içeriğin transkripti yok.')
+      const segs = buildSegments(words.map((w) => ({ text: w.text, start: w.start, end: w.end, confidence: w.confidence ?? 1 })))
+      return out({ durationSec: r1(timelineDuration(s.timeline)), sentences: segs.map((g) => ({ start: r1(g.start), end: r1(g.end), text: g.text, places: placesInText(world, g.text).map((p) => p.name) })) })
+    }
+    case 'overlay': {
+      const layer = str(a.opt.layer) ?? 'V2'
+      const at = num(a.opt.at, 'at')
+      if (at === undefined) throw new Error('--at <sn> verin.')
+      const file = str(a.opt.file)
+      const asset = file ? await ensureAsset(s, file) : s.asset(str(a.opt.asset))
+      const r = placeOnLayer(s, asset, layer, at, { duration: num(a.opt.dur, 'dur'), srcIn: num(a.opt['src-in'], 'src-in') })
+      await s.save()
+      return out({ ok: true, layer, asset: asset.name, start: r1(r.start), end: r1(r.end), note: 'Konuşma sesi (Ses katmanı) aynen devam eder.' })
+    }
+    case 'broll-plan': {
+      const folder = str(a.opt.folder)
+      if (!folder) throw new Error('--folder <klasör> verin.')
+      const main = s.asset(str(a.opt.asset))
+      const files = (await readdir(resolve(folder))).filter((f) => MEDIA_EXT.test(f)).sort()
+      const dur = num(a.opt.dur, 'dur') ?? 3.5
+      const layer = str(a.opt.layer) ?? 'V2'
+      const clipsOfMain = s.timeline.tracks.filter((t) => t.kind === 'video' || t.kind === 'audio').flatMap((t) => t.clips).filter((c) => c.assetId === main.id).sort((x, y) => x.start - y.start)
+      const toTimeline = (src: number) => {
+        const c = clipsOfMain.find((x) => src >= x.srcIn && src < x.srcOut)
+        return c ? c.start + (src - c.srcIn) : null
+      }
+      const plan: { file: string; query: string; at: number | null; sentence?: string; score?: number; note?: string }[] = []
+      for (const f of files) {
+        const query = geoKey(basename(f, extname(f)).replace(/[_\-.]+/g, ' ').replace(/\d+/g, ' ')).trim()
+        if (!query) { plan.push({ file: f, query, at: null, note: 'Dosya adından aranacak kelime çıkmadı' }); continue }
+        const res = await pickResults(s, main, query, 5)
+        const hit = res.find((r) => toTimeline(r.start) !== null && r.score >= 0.7)
+        if (!hit) { plan.push({ file: f, query, at: null, note: 'Konuşmada eşleşme yok (kurguda kesilmiş olabilir)' }); continue }
+        plan.push({ file: f, query, at: r1(Math.max(0, (toTimeline(hit.start) as number) - 0.3)), sentence: hit.sentence, score: r1(hit.score) })
+      }
+      const placed: string[] = []
+      if (a.opt.apply) {
+        for (const p of plan) {
+          if (p.at === null) continue
+          try {
+            const asset = await ensureAsset(s, join(resolve(folder), p.file))
+            placeOnLayer(s, asset, layer, p.at, { duration: asset.kind === 'image' ? dur : Math.min(dur, asset.durationSec) })
+            placed.push(p.file)
+          } catch (e) {
+            p.note = e instanceof Error ? e.message : String(e)
+          }
+        }
+        await s.save()
+      }
+      return out({ applied: !!a.opt.apply, layer, plan, placed, hint: a.opt.apply ? undefined : 'Bunlar ÖNERİDİR; onaylarsanız aynı komutu --apply ile çalıştırın ya da tek tek `overlay` kullanın.' })
+    }
+    case 'graphic': {
+      const type = str(a.opt.type)
+      if (!type || !['globe', 'map', 'title', 'chart'].includes(type)) throw new Error('--type globe|map|title|chart verin.')
+      const world = await loadWorld(s.service.deps.resourcesDir)
+      const size = aspectSize(s.timeline.aspect)
+      const base = { ...DEFAULT_SCENE, ...size, durationSec: num(a.opt.dur, 'dur') ?? 4, accent: str(a.opt.accent) ?? DEFAULT_SCENE.accent }
+      const place = (v: string | undefined, name: string) => {
+        if (!v) return undefined
+        const p = findPlace(world, v)
+        if (!p) throw new Error(`${name} yeri bulunamadı: "${v}". Ülke/ana şehir adı ya da "boylam,enlem" verin (ör. 28.98,41.01).`)
+        return p
+      }
+      let spec: SceneSpec
+      if (type === 'globe' || type === 'map') {
+        const to = place(str(a.opt.to), '--to')
+        if (!to) throw new Error('--to "yer" verin.')
+        spec = { ...base, type, to, from: place(str(a.opt.from), '--from'), label: str(a.opt.label), sub: str(a.opt.sub) }
+      } else if (type === 'title') {
+        const text = str(a.opt.text)
+        if (!text) throw new Error('--text "başlık" verin.')
+        spec = { ...base, type, text, sub: str(a.opt.sub) }
+      } else {
+        const data = (str(a.opt.data) ?? '').split(',').map((x) => x.split(':')).filter((x) => x.length === 2 && Number.isFinite(Number(x[1]))).map(([label, v]) => ({ label: label.trim(), value: Number(v) }))
+        if (data.length === 0) throw new Error('--data "Ad:değer,Ad:değer" verin.')
+        spec = { ...base, type: 'chart', title: str(a.opt.title) ?? str(a.opt.label), data }
+      }
+      const n = s.service.assets.size + s.project.assets.length
+      const outFile = str(a.opt.out) ? resolve(str(a.opt.out)!) : join(dirname(s.path), `${basename(s.path, '.clipforge')}-data`, 'graphics', `${type}-${Date.now().toString(36)}${n}.mp4`)
+      await renderScene(spec, world, s.service.tools.ffmpeg, outFile)
+      if (a.opt['no-place']) return out({ ok: true, file: outFile, durationSec: spec.durationSec, size: `${spec.width}x${spec.height}` })
+      const asset = await ensureAsset(s, outFile)
+      const layer = str(a.opt.layer) ?? 'V1'
+      const at = num(a.opt.at, 'at') ?? timelineDuration(s.timeline)
+      const r = placeOnLayer(s, asset, layer, at)
+      await s.save()
+      return out({ ok: true, type, file: outFile, layer, start: r1(r.start), end: r1(r.end), note: 'Grafik kapalı kalan görüntünün üstüne biner; konuşma sesi devam eder.' })
     }
     case 'silence': {
       const words = timelineWords(s.timeline, s.transcripts)
