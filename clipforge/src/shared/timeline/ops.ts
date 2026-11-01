@@ -365,7 +365,40 @@ export function closeGaps(tl: Timeline): Timeline {
 /** Bir altyazının konumunu (merkez, 0..1) ayarlar; `undefined` varsayılan konuma döndürür. */
 export function setCaptionPos(tl: Timeline, id: ID, pos: { x: number; y: number } | undefined): Timeline {
   const clamp = (v: number) => Math.min(1, Math.max(0, v))
-  return { ...tl, captions: tl.captions.map((c) => (c.id === id ? (pos ? { ...c, pos: { x: clamp(pos.x), y: clamp(pos.y) } } : { id: c.id, start: c.start, end: c.end, text: c.text }) : c)) }
+  return {
+    ...tl,
+    captions: tl.captions.map((c) => {
+      if (c.id !== id) return c
+      if (pos) return { ...c, pos: { x: clamp(pos.x), y: clamp(pos.y) } }
+      const { pos: _p, ...rest } = c // yalnızca konumu sıfırla; vurgu/boyut kalır
+      void _p
+      return rest
+    })
+  }
+}
+
+export const MIN_CAPTION_SCALE = 0.25
+export const MAX_CAPTION_SCALE = 5
+
+/** Altyazının boyut çarpanını (ve istenirse konumunu) tek işlemde ayarlar; scale undefined → stil boyutuna dön */
+export function setCaptionBox(tl: Timeline, id: ID, patch: { scale?: number | null; pos?: { x: number; y: number } }): Timeline {
+  const clamp = (v: number) => Math.min(1, Math.max(0, v))
+  return {
+    ...tl,
+    captions: tl.captions.map((c) => {
+      if (c.id !== id) return c
+      const next = { ...c }
+      if (patch.scale === null) delete next.scale
+      else if (patch.scale !== undefined) next.scale = Math.min(MAX_CAPTION_SCALE, Math.max(MIN_CAPTION_SCALE, patch.scale))
+      if (patch.pos) next.pos = { x: clamp(patch.pos.x), y: clamp(patch.pos.y) }
+      return next
+    })
+  }
+}
+
+/** Aynı boyut çarpanını tüm altyazılara uygular */
+export function setAllCaptionScale(tl: Timeline, scale: number | null): Timeline {
+  return tl.captions.reduce((acc, c) => setCaptionBox(acc, c.id, { scale }), tl)
 }
 
 /** Tüm altyazılara aynı konumu uygular (ya da hepsini varsayılana döndürür). */

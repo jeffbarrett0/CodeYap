@@ -48,7 +48,7 @@ export interface TextEvent {
  */
 export function captionLayout(style: CaptionStyle, cap: Caption, W: number, H: number) {
   const scale = Math.min(W, H) / 1080
-  const fontPx = Math.round(style.fontSize * scale)
+  const fontPx = Math.max(6, Math.round(style.fontSize * scale * (cap.scale ?? 1)))
   const text = style.uppercase ? cap.text.toLocaleUpperCase('tr-TR') : cap.text
   const lines = wrapCaption(text, style.maxCharsPerLine)
   const cx = Math.round(cap.pos ? cap.pos.x * W : W / 2)
@@ -138,8 +138,11 @@ export function buildAss(captions: Caption[], style: CaptionStyle, W: number, H:
       : plain
     const t0 = assTime(Math.max(0, start))
     const t1 = assTime(end)
-    if (style.box?.enabled) lines.push(`Dialogue: 0,${t0},${t1},Box,,0,0,0,,{\\an5\\pos(${lay.cx},${lay.cy})}${plain}`)
-    lines.push(`Dialogue: ${style.box?.enabled ? 1 : 0},${t0},${t1},Default,,0,0,0,,{\\an5\\pos(${lay.cx},${lay.cy})}${body}`)
+    // elle boyutlandırılmış altyazı: yazı boyutu (ve kutu iç boşluğu / kontur) satır etiketiyle ölçeklenir
+    const k = c.scale && c.scale !== 1 ? c.scale : 0
+    const sz = k ? `\\fs${lay.fontPx}` : ''
+    if (style.box?.enabled) lines.push(`Dialogue: 0,${t0},${t1},Box,,0,0,0,,{\\an5\\pos(${lay.cx},${lay.cy})${sz}${k ? `\\bord${Math.round(lay.fontPx * 0.22 * 10) / 10}` : ''}}${plain}`)
+    lines.push(`Dialogue: ${style.box?.enabled ? 1 : 0},${t0},${t1},Default,,0,0,0,,{\\an5\\pos(${lay.cx},${lay.cy})${sz}${k ? `\\bord${Math.round(outline * k * 10) / 10}` : ''}}${body}`)
   }
   texts.forEach((t, i) => {
     const start = Math.max(0, t.start)

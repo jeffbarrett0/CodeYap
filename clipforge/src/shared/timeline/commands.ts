@@ -32,6 +32,10 @@ export const cmd = {
     makeCommand(label, (t) => ({ ...t, captionStyle: style, captions: captions ?? assignHighlights(t.captions, style) })),
   captionPos: (id: ID, pos: { x: number; y: number } | undefined, coalesce = true): TimelineCommand =>
     makeCommand('Altyazı konumu', (t) => ops.setCaptionPos(t, id, pos), coalesce ? `cpos:${id}` : undefined),
+  /** Altyazı boyutu/konumu (köşe ve kenar tutamaçlarıyla sürüklerken tek geri alma adımında birleşir) */
+  captionBox: (id: ID, patch: { scale?: number | null; pos?: { x: number; y: number } }, coalesce = true): TimelineCommand =>
+    makeCommand('Altyazı boyutu', (t) => ops.setCaptionBox(t, id, patch), coalesce ? `cbox:${id}` : undefined),
+  allCaptionScale: (scale: number | null): TimelineCommand => makeCommand('Tüm altyazı boyutu', (t) => ops.setAllCaptionScale(t, scale)),
   allCaptionPos: (pos: { x: number; y: number } | undefined): TimelineCommand => makeCommand('Tüm altyazı konumu', (t) => ops.setAllCaptionPos(t, pos)),
   /** Elle oran seçimi: otomatik oran kapanır */
   aspect: (aspect: AspectRatio): TimelineCommand => makeCommand('En-boy oranı', (t) => ({ ...t, aspect, aspectAuto: false })),

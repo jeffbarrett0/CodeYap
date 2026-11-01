@@ -205,6 +205,11 @@ function Captions() {
               <Field label="X (%)"><Num value={Math.round(px * 1000) / 10} step={1} min={0} max={100} label="Altyazı X" onChange={(v) => exec(cmd.captionPos(cap.id, { x: v / 100, y: py }))} /></Field>
               <Field label="Y (%)"><Num value={Math.round(py * 1000) / 10} step={1} min={0} max={100} label="Altyazı Y" onChange={(v) => exec(cmd.captionPos(cap.id, { x: px, y: v / 100 }))} /></Field>
             </div>
+            <Slider label="Boyut (önizlemede kenar/köşeden de çekilir)" value={cap.scale ?? 1} min={0.25} max={3} onChange={(v) => exec(cmd.captionBox(cap.id, { scale: v }))} format={(v) => `${Math.round(v * 100)}%`} />
+            <div className="row wrap">
+              <button className="btn sm" onClick={() => exec(cmd.allCaptionScale(cap.scale ?? null))} data-testid="cap-scale-all">Bu boyutu tüm altyazılara uygula</button>
+              <button className="btn sm" onClick={() => exec(cmd.captionBox(cap.id, { scale: null }, false))} disabled={!cap.scale} data-testid="cap-scale-reset">Boyutu sıfırla</button>
+            </div>
             <div className="row wrap">
               <button className="btn sm" onClick={() => exec(cmd.captionPos(cap.id, undefined, false))} disabled={!cap.pos} data-testid="cap-reset">Varsayılan konuma dön</button>
               <button className="btn sm" onClick={() => exec(cmd.allCaptionPos({ x: px, y: py }))} data-testid="cap-apply-all">Bu konumu tüm altyazılara uygula</button>

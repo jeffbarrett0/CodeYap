@@ -243,3 +243,11 @@ kbd { background: var(--panel3); border: 1px solid var(--border); border-bottom-
 .ctx-menu button:disabled { opacity: .45; }
 .marquee { position: fixed; z-index: 250; border: 1px solid var(--accent); background: #53fc1822; pointer-events: none; }
 .tl-lane { user-select: none; }
+
+.cap-h { position: absolute; width: 11px; height: 11px; background: #ffb224; border: 1px solid #000a; border-radius: 2px; z-index: 2; touch-action: none; }
+.cap-h-nw { left: -6px; top: -6px; cursor: nwse-resize; }
+.cap-h-ne { right: -6px; top: -6px; cursor: nesw-resize; }
+.cap-h-sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.cap-h-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.cap-h-w { left: -6px; top: calc(50% - 6px); cursor: ew-resize; }
+.cap-h-e { right: -6px; top: calc(50% - 6px); cursor: ew-resize; }

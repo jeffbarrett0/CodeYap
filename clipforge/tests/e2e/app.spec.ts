@@ -880,6 +880,44 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('cap-hl-on')).not.toBeChecked()
   })
 
+  test('altyazı: önizlemede kenar/köşe tutamaçlarıyla büyütüp küçültme (boyut ve konum), tek geri alma', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V1')
+    await page.getByTestId('rtab-captions').click()
+    await page.getByTestId('gen-captions').click()
+    await page.getByTestId('cap-clip').first().click() // seç ve önizlemede göster
+    const box = page.getByTestId('cap-box').first()
+    await expect(box).toBeVisible()
+    await expect(page.getByTestId('cap-h-e')).toBeVisible()
+    const w0 = (await box.boundingBox())!.width
+    // sağ kenardan sağa çek → büyür, sol kenar sabit kalır
+    const left0 = (await box.boundingBox())!.x
+    const h = (await page.getByTestId('cap-h-e').boundingBox())!
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(h.x + 70, h.y + h.height / 2, { steps: 6 })
+    await page.mouse.up()
+    const b1 = (await page.getByTestId('cap-box').first().boundingBox())!
+    expect(b1.width).toBeGreaterThan(w0 + 30)
+    expect(Math.abs(b1.x - left0)).toBeLessThan(6)
+    // sol-alt köşeden içeri çek → küçülür
+    const sw = (await page.getByTestId('cap-h-sw').boundingBox())!
+    await page.mouse.move(sw.x + sw.width / 2, sw.y + sw.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(sw.x + 90, sw.y + sw.height / 2, { steps: 6 })
+    await page.mouse.up()
+    const b2 = (await page.getByTestId('cap-box').first().boundingBox())!
+    expect(b2.width).toBeLessThan(b1.width - 30)
+    // panelde boyut görünür; Ctrl+Z geri alır (art arda hızlı çekmeler tek adımda birleşebilir)
+    await expect(page.getByTestId('caption-detail')).toContainText('Boyut')
+    await page.keyboard.press('Control+z')
+    const b3 = (await page.getByTestId('cap-box').first().boundingBox())!
+    expect(Math.abs(b3.width - b2.width)).toBeGreaterThan(6)
+    // tüm altyazılara uygula
+    await page.getByTestId('cap-scale-all').click()
+  })
+
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))

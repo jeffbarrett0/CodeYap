@@ -49,3 +49,28 @@ describe('referans altyazı stili (vurgulu kutulu)', () => {
     expect(ass).toContain('Dialogue: 0,0:00:01.00,0:00:03.00,Default')
   })
 })
+
+describe('altyazı boyutu (önizlemede çekerek)', () => {
+  const caps: Caption[] = [{ id: 'a', start: 0, end: 2, text: 'merhaba dünya', hl: { from: 1, to: 1, color: '#f00' } }, { id: 'b', start: 2, end: 4, text: 'ikinci' }]
+  const tl = { captions: caps } as never
+  it('setCaptionBox: sınırlar, konum, null = sıfırla; konum sıfırlamak vurgu/boyutu silmez', async () => {
+    const ops = await import('@shared/timeline/ops')
+    let t = ops.setCaptionBox(tl, 'a', { scale: 1.6, pos: { x: 0.4, y: 0.7 } })
+    expect(t.captions[0]).toMatchObject({ scale: 1.6, pos: { x: 0.4, y: 0.7 } })
+    expect(ops.setCaptionBox(t, 'a', { scale: 99 }).captions[0].scale).toBe(ops.MAX_CAPTION_SCALE)
+    expect(ops.setCaptionBox(t, 'a', { scale: 0.01 }).captions[0].scale).toBe(ops.MIN_CAPTION_SCALE)
+    t = ops.setCaptionPos(t, 'a', undefined)
+    expect(t.captions[0]).toMatchObject({ scale: 1.6, hl: { color: '#f00' } })
+    expect(t.captions[0].pos).toBeUndefined()
+    expect(ops.setAllCaptionScale(t, 2).captions.map((c) => c.scale)).toEqual([2, 2])
+    expect(ops.setCaptionBox(ops.setAllCaptionScale(t, 2), 'b', { scale: null }).captions[1].scale).toBeUndefined()
+  })
+  it('ASS: boyutlandırılmış altyazıya satır içi yazı boyutu (ve kutu iç boşluğu) eklenir; boyutsuz olana eklenmez', () => {
+    const big: Caption[] = [{ id: 'a', start: 1, end: 3, text: 'merhaba', scale: 2 }, { id: 'b', start: 3, end: 5, text: 'selam' }]
+    const ass = buildAss(big, ref, 1080, 1920)
+    const lines = ass.split('\n').filter((l) => l.startsWith('Dialogue'))
+    expect(lines.find((l) => l.includes('MERHABA') && l.includes(',Default,'))).toMatch(/\\fs132\\bord/) // 66 × 2
+    expect(lines.find((l) => l.includes('MERHABA') && l.includes(',Box,'))).toMatch(/\\fs132\\bord29/)
+    expect(lines.find((l) => l.includes('SELAM') && l.includes(',Default,'))).not.toContain('\\fs')
+  })
+})

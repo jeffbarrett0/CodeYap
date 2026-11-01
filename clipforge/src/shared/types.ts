@@ -268,6 +268,8 @@ export interface Caption {
   pos?: { x: number; y: number }
   /** Vurgulu kelimeler: kelime sırası aralığı [from, to] (dahil) ve rengi. Metin düzenlenirse sınırlara kırpılır. */
   hl?: { from: number; to: number; color: string }
+  /** Bu altyazının boyut çarpanı (1 = stil boyutu). Önizlemede köşe/kenar tutamaçlarıyla ayarlanır. */
+  scale?: number
 }
 
 export interface CaptionStyle {

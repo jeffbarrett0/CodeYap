@@ -4,6 +4,7 @@ import { aspectSize, clipDuration, clipEnd } from '@shared/timeline/model'
 import { clipsAt, timelineToSource } from '@shared/timeline/ops'
 import { wrapCaption } from '@shared/timeline/captions'
 import { captionLayout, highlightedLines, wrapTextForRect } from '@shared/export/ass'
+import { captionFont } from './measure'
 import type { Clip, MediaAsset, NormRect, TextSpec, Timeline, Track } from '@shared/types'
 
 /** Kaynak karenin hedefi dolduracak (cover) bölgesi */
@@ -291,7 +292,7 @@ export class PreviewEngine {
     const upper = st.uppercase ? cap.text.toLocaleUpperCase('tr-TR') : cap.text
     const segs = highlightedLines(upper, lines, cap.hl)
     ctx.save()
-    ctx.font = `${st.italic ? 'italic ' : ''}${st.bold ? '700' : '400'} ${fontPx}px "${st.fontFamily}", Impact, Arial, sans-serif`
+    ctx.font = captionFont(st, fontPx)
     ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
     ctx.lineJoin = 'round'
