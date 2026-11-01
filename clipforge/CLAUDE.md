@@ -14,6 +14,9 @@ Aramadan klip: `search p.clipforge "söz"` → `new-clip-project p.clipforge --q
 ## Auto Kick (yayın kaydı → tam video)
 `auto-kick "<yayın.mkv>" [--out klasör] [--quality fast|high]`: içe aktar → transkripsiyon → sessizleri kırp → `<ad> - full.mp4` + `<ad>.clipforge` (`AutoKick/<ad>/`). Uzun sürer (2 saatlik yayın = saatler); bitmeden terminali kapatma, yeniden çalıştırırsan kalan aşamalardan sürer. Klip aşaması henüz yok; kullanıcı kurallarını verince eklenecek. Arayüzde: üst çubuk → **Auto Kick**.
 
+### Konu klibi ("Osimhen'le ilgili klip çıkar")
+`topic-clips <AutoKick klasörü|proje> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25]` → transkriptte konunun geçtiği yerleri bulur (Türkçe ek ve küçük yazım hatalarına dayanıklı), yakın geçişleri tek blokta toplar, cümle sınırlarına oturtup **aday önerir** (zaman, süre, geçiş sayısı, metin). Kullanıcı seçince `--pick 1,3` (ya da `--all`) ile her aday için **bağımsız klip projesi** üretilir (`<AutoKick projesi>-klipler/`); Auto Kick projesine dokunulmaz. Adayları kullanıcıya göster, seçtirmeden üretme. **Klibin düzeni** (kullanıcının yüzü üstte, fotoğraf altta, sıralama…) kullanıcı anlatınca eklenecek; şimdilik klip yalnızca kesilmiş, sessizsiz çizelge aralığıdır. Arayüzde: Auto Kick penceresi → **Konu klibi**.
+
 ## Vlog akışı (otomatik kurgu)
 Sıra önemlidir: **önce kesim, sonra yerleştirme** (kesimden sonra zamanlar kayar).
 1. `new` → `import <proje> vlog.mp4 --add --layer V3` — ana görüntü EN ALT katmana (V3). **Katman sırası: V1 en üstte çizilir**, V3 en altta; b-roll V2'ye, grafikler V1'e gider (üstteki alttakini kapatır; konuşma sesi Ses katmanında kesintisiz sürer).

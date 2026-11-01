@@ -144,6 +144,29 @@ describe('komut satırı: sessizleri kes + altyazı + dışa aktar; arama + bağ
     expect(cli('auto-kick', join(tmp, 'x.txt')).error).toMatch(/video/i)
   }, 300_000)
 
+  it('topic-clips: konuyu Auto Kick transkriptinde bul, aday öner, seçileni bağımsız projeye çıkar (Auto Kick projesi değişmez)', () => {
+    const dir = join(tmp, 'Çıkış Klasörü', 'yayın')
+    const projFile = cli('auto-kick', join(tmp, 'video örnek.mp4'), '--out', dir).projectPath
+    const before = md5(projFile)
+    // öneri: hiçbir şey yazmaz
+    const r = cli('topic-clips', dir, '--topic', "Viktor Nelsen'le ilgili")
+    expect(r.candidates.length).toBeGreaterThan(0)
+    expect(r.candidates[0].mentions.join(' ')).toMatch(/Nelsen|Viktor/)
+    expect(r.created).toEqual([])
+    expect(md5(projFile)).toBe(before)
+    // seç: bağımsız klip projesi
+    const p = cli('topic-clips', projFile, '--topic', 'Viktor Nelson', '--pick', '1')
+    expect(p.created).toHaveLength(1)
+    expect(md5(projFile)).toBe(before)
+    const clip = cli('show', p.created[0].projectPath)
+    expect(clip.durationSec).toBeGreaterThan(1)
+    expect(clip.durationSec).toBeLessThan(15)
+    expect(clip.tracks.find((t: any) => t.id === 'V1').clips.length).toBeGreaterThan(0)
+    expect(clip.tracks.find((t: any) => t.id === 'A1').clips.length).toBeGreaterThan(0)
+    expect(cli('topic-clips', dir, '--topic', 'Neymar').candidates).toEqual([])
+    expect(cli('topic-clips', dir, '--topic', 'Viktor', '--pick', '9').error).toMatch(/Seçilen aday yok/)
+  }, 300_000)
+
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)
     const bad = cli('bogus', proj)

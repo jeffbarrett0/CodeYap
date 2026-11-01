@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { TopicCandidate } from '@shared/topic'
 import { LANGUAGES } from '@shared/settings'
 import type { AutoKickStatus } from '@shared/autokick'
 import { requireApi } from '../api'
@@ -44,6 +45,90 @@ function Job({ job }: { job: AutoKickStatus }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+/** Konu klibi: "Osimhen'le ilgili klip çıkar" → transkriptte konuyu bul, aday öner, seçilenden bağımsız klip projesi üret */
+function TopicClips({ initialProject }: { initialProject: string }) {
+  const api = requireApi()
+  const openProject = useStore((s) => s.openProject)
+  const openDialog = useStore((s) => s.openDialog)
+  const [project, setProject] = useState(initialProject)
+  const [topic, setTopic] = useState('')
+  const [maxSec, setMaxSec] = useState(60)
+  const [cands, setCands] = useState<TopicCandidate[] | null>(null)
+  const [made, setMade] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState('')
+  const [err, setErr] = useState('')
+
+  const pickProject = async () => {
+    const p = await api.invoke('dialog:openFile', { title: 'Auto Kick projesi', extensions: ['clipforge'] })
+    if (p) (setProject(p), setCands(null), setMade({}))
+  }
+  const search = async () => {
+    if (!project) return setErr('Önce bir Auto Kick projesi seçin (ya da yukarıdaki işin sonucundan kullanın).')
+    if (!topic.trim()) return setErr('Konuyu yazın (ör. Osimhen).')
+    setErr('')
+    setBusy('search')
+    try {
+      setCands(await api.invoke('autokick:topic', { projectPath: project, topic: topic.trim(), maxSec }))
+      setMade({})
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy('')
+    }
+  }
+  const create = async (c: TopicCandidate) => {
+    setBusy(c.id)
+    try {
+      const r = await api.invoke('autokick:makeClip', { projectPath: project, topic: topic.trim(), start: c.start, end: c.end })
+      setMade((m) => ({ ...m, [c.id]: r.projectPath }))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <div className="col" data-testid="topic-clips">
+      <div className="section-title">Konu klibi</div>
+      <div className="hint">Bir konu yazın (ör. <i>Osimhen</i>): Auto Kick transkriptinde geçtiği yerler bulunur, aday klipler önerilir; siz seçersiniz. Klip, Auto Kick projesine dokunmadan <b>ayrı bir projede</b> açılır (düzenleme adımı sonra).</div>
+      <Field label="Auto Kick projesi">
+        <div className="row">
+          <input type="text" readOnly value={project} placeholder="Seçilmedi" aria-label="Auto Kick projesi" data-testid="topic-project" style={{ flex: 1 }} />
+          <button className="btn" onClick={() => void pickProject()} data-testid="topic-pick-project">Proje seç…</button>
+        </div>
+      </Field>
+      <div className="grid2">
+        <Field label="Konu"><input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void search()} placeholder="Osimhen" aria-label="Konu" data-testid="topic-input" /></Field>
+        <Field label="En uzun klip (sn)"><Num value={maxSec} min={10} max={300} step={5} label="En uzun klip" onChange={setMaxSec} /></Field>
+      </div>
+      {err && <div className="warnbox" role="alert" data-testid="topic-error">{err}</div>}
+      <button className="btn primary" disabled={busy === 'search'} onClick={() => void search()} data-testid="topic-search">{busy === 'search' ? 'Aranıyor…' : 'Klip adaylarını bul'}</button>
+      {cands && cands.length === 0 && <div className="empty" data-testid="topic-none">Bu konuda transkriptte geçiş bulunamadı. Yazılışı değiştirip deneyin.</div>}
+      {cands?.map((c, i) => (
+        <div key={c.id} className="col topic-cand" data-testid="topic-cand">
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <b>{i + 1}. aday · {mmss(c.start)}–{mmss(c.end)} · {Math.round(c.durationSec)} sn</b>
+            <span className="badge">{c.hits} geçiş</span>
+          </div>
+          <div className="hint" style={{ maxHeight: 64, overflow: 'auto' }}>{c.text}</div>
+          {made[c.id] ? (
+            <div className="row wrap">
+              <span className="badge blue" data-testid="topic-made">Klip projesi oluşturuldu</span>
+              <button className="btn sm" onClick={() => void api.invoke('shell:reveal', made[c.id])}>Klasörü aç</button>
+              <button className="btn sm" onClick={() => void openProject(made[c.id]).then((ok) => ok && openDialog(null))} data-testid="topic-open">Uygulamada aç</button>
+            </div>
+          ) : (
+            <button className="btn sm" disabled={!!busy} onClick={() => void create(c)} data-testid="topic-make">{busy === c.id ? 'Oluşturuluyor…' : 'Bu adaydan klip projesi oluştur'}</button>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
@@ -111,6 +196,7 @@ export function AutoKickDialog() {
 
         {jobs.length > 0 && <div className="section-title">İşler</div>}
         {jobs.map((j) => <Job key={j.id} job={j} />)}
+        <TopicClips key={jobs.find((j) => j.result)?.result?.projectPath ?? 'none'} initialProject={jobs.find((j) => j.result)?.result?.projectPath ?? ''} />
       </div>
     </Modal>
   )

@@ -7,6 +7,7 @@
  *    bir uygulama ile sağlar; böylece arayüz iki ortamda da aynı kodla çalışır.
  */
 import type { AutoKickRequest, AutoKickStatus } from './autokick'
+import type { TopicCandidate } from './topic'
 import type {
   ChatColumnMapping,
   ChatLog,
@@ -116,6 +117,10 @@ export interface IpcInvoke {
   'autokick:start': [[AutoKickRequest], string]
   'autokick:cancel': [[string], void]
   'autokick:list': [[], AutoKickStatus[]]
+  /** Konu klibi: Auto Kick projesinin transkriptinde konuyu arar, aday klipleri önerir (projeyi değiştirmez) */
+  'autokick:topic': [[{ projectPath: string; topic: string; maxSec?: number; minSec?: number }], TopicCandidate[]]
+  /** Seçilen adaydan bağımsız klip projesi üretir (Auto Kick projesi değişmez) */
+  'autokick:makeClip': [[{ projectPath: string; topic: string; start: number; end: number }], { projectPath: string; durationSec: number }]
   'task:list': [[], TaskInfo[]]
   'model:download': [[WhisperModelSize], string]
   'shell:reveal': [[string], void]

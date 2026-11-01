@@ -941,6 +941,27 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autokick-job').first()).toHaveAttribute('data-status', 'cancelled')
   })
 
+  test('Auto Kick konu klibi: proje seç, konuyu yaz → aday klipler → seçileni bağımsız projeye çıkar; konu yoksa anlaşılır mesaj', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('autokick-btn').click()
+    await page.getByTestId('topic-search').click()
+    await expect(page.getByTestId('topic-error')).toContainText('Auto Kick projesi seçin')
+    await page.getByTestId('topic-pick-project').click()
+    await expect(page.getByTestId('topic-project')).not.toHaveValue('')
+    await page.getByTestId('topic-search').click()
+    await expect(page.getByTestId('topic-error')).toContainText('Konuyu yazın')
+    await page.getByTestId('topic-input').fill("Osimhen'le ilgili")
+    await page.getByTestId('topic-search').click()
+    await expect(page.getByTestId('topic-cand')).toHaveCount(2)
+    await expect(page.getByTestId('topic-cand').first()).toContainText('geçiş')
+    await page.getByTestId('topic-make').first().click()
+    await expect(page.getByTestId('topic-made')).toHaveCount(1)
+    await expect(page.getByTestId('topic-open')).toBeVisible()
+    await page.getByTestId('topic-input').fill('yok böyle bir şey')
+    await page.getByTestId('topic-search').click()
+    await expect(page.getByTestId('topic-none')).toBeVisible()
+  })
+
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))

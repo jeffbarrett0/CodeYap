@@ -3,6 +3,7 @@ import type { IpcChannel, IpcInvoke, IpcResult } from '../shared/ipc'
 import type { AppService } from './app'
 import { userMessage } from './tasks'
 import { AutoKickManager } from './autokick/pipeline'
+import { makeTopicClip, topicCandidates } from './autokick/clips'
 
 type Handlers = { [C in IpcChannel]: (...args: IpcInvoke[C][0]) => Promise<IpcInvoke[C][1]> | IpcInvoke[C][1] }
 
@@ -20,6 +21,8 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     'autokick:start': (req) => autoKick.start(req),
     'autokick:cancel': (id) => autoKick.cancel(id),
     'autokick:list': () => autoKick.list(),
+    'autokick:topic': (r) => topicCandidates(r.projectPath, r.topic, { ...(r.maxSec ? { maxSec: r.maxSec } : {}), ...(r.minSec ? { minSec: r.minSec } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
+    'autokick:makeClip': (r) => makeTopicClip(r.projectPath, r.topic, r.start, r.end, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'app:info': () => app.info(),
     'settings:get': () => app.settings.value,
     'settings:set': (patch) => app.settings.update(patch),

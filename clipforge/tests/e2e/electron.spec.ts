@@ -225,4 +225,15 @@ test('Auto Kick (gerçek Electron): arka planda içe aktar → transkript → se
   expect(job.result!.fullVideoPath).toContain('AutoKick')
   // arayüzdeki açık projeyi etkilemez
   await expect(page.getByTestId('asset').first()).toBeVisible()
+
+  // konu klibi: transkriptte konuyu bul → aday → bağımsız klip projesi (Auto Kick projesi değişmez)
+  const proj = job.result!.projectPath
+  const before = readFileSync(proj, 'utf8')
+  const cands = await page.evaluate((p) => window.clipforge!.invoke('autokick:topic', { projectPath: p, topic: "Viktor Nelsen'le ilgili" }), proj)
+  expect(cands.length).toBeGreaterThan(0)
+  expect(cands[0].mentions.length).toBeGreaterThan(0)
+  const made = await page.evaluate((a) => window.clipforge!.invoke('autokick:makeClip', { projectPath: a.p, topic: 'Viktor', start: a.s, end: a.e }), { p: proj, s: cands[0].start, e: cands[0].end })
+  expect(existsSync(made.projectPath)).toBe(true)
+  expect(made.durationSec).toBeGreaterThan(1)
+  expect(readFileSync(proj, 'utf8')).toBe(before)
 })

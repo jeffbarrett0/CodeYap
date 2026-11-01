@@ -18,6 +18,7 @@ import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
 import { runAutoKick } from '../main/autokick/pipeline'
+import { makeTopicClip, topicCandidates } from '../main/autokick/clips'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { clipsAt, timelineToSource } from '../shared/timeline/ops'
 import { buildSegments } from '../shared/transcript/sentences'
@@ -63,6 +64,8 @@ const r1 = (n: number) => Math.round(n * 100) / 100
 const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON döndürür)
 
   info                                   ffmpeg/ffprobe/whisper durumu
+  topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
+                                         Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
   auto-kick <video> [--out klasör] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
                                          yayın kaydı → transkript → sessizleri kırp → tam video (<out>/<ad> - full.mp4 + proje); biten aşamalar yeniden çalıştırmada atlanır
   new <proje> [--name ad]                boş proje oluşturur
@@ -168,6 +171,24 @@ async function main(argv: string[]): Promise<unknown> {
   if (command === 'info') {
     const svc = await makeService()
     return out(await svc.info())
+  }
+  if (command === 'topic-clips') {
+    if (!projectArg) throw new Error('Auto Kick projesini ya da klasörünü verin: topic-clips <proje|klasör> --topic "Osimhen"')
+    const topic = str(a.opt.topic)
+    if (!topic) throw new Error('--topic "konu" verin.')
+    const opts = { ...(a.opt['max-sec'] ? { maxSec: num(a.opt['max-sec'], 'max-sec') } : {}), ...(a.opt['min-sec'] ? { minSec: num(a.opt['min-sec'], 'min-sec') } : {}), ...(a.opt.gap ? { mergeGapSec: num(a.opt.gap, 'gap') } : {}), ...(a.opt.limit ? { limit: num(a.opt.limit, 'limit') } : {}) }
+    const cands = await topicCandidates(projectArg, topic, opts)
+    const wanted = new Set(String(a.opt.pick ?? '').split(',').map((x) => Number(x.trim())))
+    const picks = a.opt.all ? cands : a.opt.pick ? cands.filter((_, i) => wanted.has(i + 1)) : []
+    if (a.opt.pick && picks.length === 0) throw new Error(`Seçilen aday yok (1–${cands.length}).`)
+    const made = []
+    for (const c of picks) made.push({ pick: cands.indexOf(c) + 1, ...(await makeTopicClip(projectArg, topic, c.start, c.end)) })
+    return out({
+      topic,
+      candidates: cands.map((c, i) => ({ pick: i + 1, start: r1(c.start), end: r1(c.end), durationSec: r1(c.durationSec), hits: c.hits, score: c.score, mentions: c.mentions.map((m) => `${r1(m.t)}: ${m.text}`), text: c.text })),
+      created: made,
+      hint: made.length ? 'Klip projeleri Auto Kick projesine dokunmadan oluşturuldu.' : cands.length ? 'Bunlar ÖNERİDİR. Seçmek için --pick N (virgülle birden çok) ya da --all ekleyin.' : 'Bu konuda transkriptte geçiş bulunamadı (yazılışı değiştirip deneyin).'
+    })
   }
   if (command === 'auto-kick') {
     if (!projectArg) throw new Error('Yayın kaydı yolunu verin: auto-kick <video> [--out klasör]')
