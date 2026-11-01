@@ -116,10 +116,6 @@ export function createMockApi(): ClipforgeApi {
       push()
       void (async () => {
         for (const st of status.stages) {
-          if (st.id === 'clips') {
-            Object.assign(st, { status: 'skipped', detail: 'Bir sonraki adımda eklenecek' })
-            continue
-          }
           st.status = 'running'
           for (const f of [0.3, 0.7, 1]) {
             await sleep(70)
@@ -142,7 +138,7 @@ export function createMockApi(): ClipforgeApi {
         }
         status.status = 'done'
         status.finishedAt = Date.now()
-        status.result = { outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
+        status.result = { verified: true, outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
         push()
       })()
       return id

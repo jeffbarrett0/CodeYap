@@ -1,15 +1,15 @@
 import type { WhisperModelSize } from './types'
 
 /** Auto Kick: yayın kaydı → transkript → sessizleri kırp → "full video" kaydet → (sonraki adım) otomatik klipler */
-export type AutoKickStage = 'import' | 'transcribe' | 'silence' | 'full' | 'clips'
+export type AutoKickStage = 'import' | 'transcribe' | 'silence' | 'gaps' | 'full'
 export type AutoKickStageStatus = 'pending' | 'running' | 'done' | 'skipped' | 'failed'
 
 export const AUTOKICK_STAGES: { id: AutoKickStage; label: string }[] = [
   { id: 'import', label: 'Kaydı içe aktar' },
   { id: 'transcribe', label: 'Transkripsiyon' },
-  { id: 'silence', label: 'Sessiz alanları kırp' },
-  { id: 'full', label: 'Tam videoyu kaydet (full video)' },
-  { id: 'clips', label: 'Otomatik klipler' }
+  { id: 'silence', label: 'Sessiz alanları kes' },
+  { id: 'gaps', label: 'Boşlukları kapat' },
+  { id: 'full', label: 'Tam videoyu kaydet (full video)' }
 ]
 
 export interface AutoKickRequest {
@@ -34,6 +34,8 @@ export interface AutoKickStageState {
 }
 
 export interface AutoKickResult {
+  /** Çıktı doğrulandı: süre beklenenle eşleşiyor, görüntü ve ses var, çizelgede boşluk kalmadı */
+  verified: boolean
   outDir: string
   projectPath: string
   fullVideoPath: string

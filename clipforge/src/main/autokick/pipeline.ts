@@ -1,14 +1,15 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
 import { initialStages, type AutoKickRequest, type AutoKickResult, type AutoKickStage, type AutoKickStageState } from '../../shared/autokick'
-import { optionsFromPreset } from '../../shared/export/presets'
 import { cmd } from '../../shared/timeline/commands'
 import { clipsForVideoWithAudio } from '../../shared/timeline/create'
-import { clipEnd, nearestAspect, timelineDuration } from '../../shared/timeline/model'
+import { nearestAspect, timelineDuration } from '../../shared/timeline/model'
+import { findGaps } from '../../shared/timeline/ops'
+import { ffprobeJson } from '../ffmpeg'
+import { mergeRanges, renderFastCut, snapToFrame, type Range } from './fastcut'
 import { planSilenceCuts } from '../../shared/timeline/silence'
 import { timelineWords } from '../../shared/timeline/transcript'
-import type { ExportOptions, MediaAsset } from '../../shared/types'
 
 export interface AutoKickHooks {
   onStage(id: AutoKickStage, patch: Partial<AutoKickStageState>): void
@@ -34,14 +35,6 @@ export function autoKickPaths(videoPath: string, outDir?: string) {
   const name = basename(video, extname(video))
   const dir = resolve(outDir ?? join(dirname(video), 'AutoKick', name))
   return { video, name, dir, project: join(dir, `${name}.clipforge`), full: join(dir, `${name} - full.mp4`), state: join(dir, 'autokick.json') }
-}
-
-/** Uzun yayınlar için hızlı, yine de yüksek kaliteli kodlama; kaynak 1800 px üstüyse 4K şablonu */
-export function fullVideoOptions(asset: MediaAsset, quality: 'fast' | 'high' = 'fast'): ExportOptions {
-  const aspect = nearestAspect(asset.width, asset.height)
-  const preset = aspect === '9:16' ? 'shorts' : aspect === '1:1' ? 'square' : Math.max(asset.width, asset.height) >= 3000 ? 'youtube4k' : 'youtube'
-  const o = optionsFromPreset(preset, { maxDurationSec: undefined })
-  return quality === 'fast' ? { ...o, encoderPreset: 'veryfast', crf: 20, videoBitrateKbps: Math.min(o.videoBitrateKbps, 40000), audioBitrateKbps: 192 } : o
 }
 
 async function readState(path: string): Promise<State> {
@@ -130,8 +123,9 @@ export async function runAutoKick(req: AutoKickRequest, env: { userDataDir?: str
   s.transcripts[asset.id] = transcript
   stage('transcribe', { status: 'done', progress: 1, detail: `${transcript.words.length.toLocaleString('tr')} kelime · ${transcript.segments.length} cümle` })
 
-  // 3) sessizleri kırp ───────────────────────────────────
+  // 3) sessizleri kes ───────────────────────────────────
   check()
+  const fps = asset.fps > 0 ? asset.fps : 30
   if (state.silence) stage('silence', { status: 'done', progress: 1, detail: `Önceki çalıştırmadan: ${state.silence.cuts} kesim` })
   else {
     stage('silence', { status: 'running', progress: 0 })
@@ -139,13 +133,26 @@ export async function runAutoKick(req: AutoKickRequest, env: { userDataDir?: str
     const words = timelineWords(s.timeline, s.transcripts)
     const sil = req.silence ?? { minGapSec: settings.silenceMinGapSec, keepSec: settings.silenceKeepSec, cutFillers: settings.cutFillers }
     const plan = planSilenceCuts(words, before, sil)
-    if (plan.cuts.length > 0) s.apply(cmd.cutRanges(plan.cuts))
-    state.silence = { cuts: plan.cuts.length, removedSec: plan.removedSec, before, after: timelineDuration(s.timeline), fillers: plan.fillerCount }
+    // kesim sınırları kare ızgarasına oturur: görüntü ve ses aynı uzunlukta kalır (kayma olmaz)
+    const cuts = mergeRanges(plan.cuts.map(([x, y]) => [snapToFrame(x, fps), snapToFrame(y, fps)] as Range).filter(([x, y]) => y - x >= 1 / fps))
+    if (cuts.length > 0) s.apply(cmd.cutRanges(cuts))
+    state.silence = { cuts: cuts.length, removedSec: before - timelineDuration(s.timeline), before, after: timelineDuration(s.timeline), fillers: plan.fillerCount }
     await save()
-    stage('silence', { status: 'done', progress: 1, detail: `${plan.cuts.length} kesim · ${Math.round(plan.removedSec / 60 * 10) / 10} dk kısaldı` })
+    stage('silence', { status: 'done', progress: 1, detail: `${cuts.length} kesim · ${Math.round((state.silence.removedSec / 60) * 10) / 10} dk kısaldı` })
   }
 
-  // 4) tam video ─────────────────────────────────────────
+  // 4) boşlukları kapat ──────────────────────────────────
+  check()
+  stage('gaps', { status: 'running', progress: 0 })
+  const gapsBefore = findGaps(s.timeline).length
+  if (gapsBefore > 0) s.apply(cmd.closeGaps())
+  const left = findGaps(s.timeline)
+  if (left.length > 0) throw new Error(`Boşluklar kapatılamadı (${left.length} adet kaldı, ilki ${left[0][0].toFixed(1)} sn).`)
+  state.silence.after = timelineDuration(s.timeline)
+  await save()
+  stage('gaps', { status: 'done', progress: 1, detail: gapsBefore ? `${gapsBefore} boşluk kapatıldı` : 'Boşluk yok (kesimler kendiliğinden bitişik)' })
+
+  // 5) tam video ─────────────────────────────────────────
   check()
   let haveFull = false
   try {
@@ -154,24 +161,64 @@ export async function runAutoKick(req: AutoKickRequest, env: { userDataDir?: str
   } catch {
     haveFull = false
   }
+  // tutulan aralıklar: Video 1'deki klipler (kaynak zamanı), kayıt tek kaynaktır
+  const kept = mergeRanges(
+    s.timeline.tracks
+      .find((t) => t.id === 'V1')!
+      .clips.filter((c) => c.assetId === asset.id)
+      .map((c) => [c.srcIn, c.srcOut] as Range)
+  )
+  const expected = kept.reduce((n, [x, y]) => n + (y - x), 0)
+  if (expected <= 0) throw new Error('Kesimden sonra video kalmadı (tüm kayıt sessiz algılandı).')
+  if (Math.abs(expected - timelineDuration(s.timeline)) > 0.5) throw new Error('Çizelge süresi tutarsız (beklenen ve gerçek süre farklı); işlem durduruldu.')
   if (haveFull) stage('full', { status: 'done', progress: 1, detail: 'Önceki çalıştırmadan' })
   else {
     stage('full', { status: 'running', progress: 0 })
-    const options = fullVideoOptions(asset, req.quality ?? 'fast')
-    const total = timelineDuration(s.timeline)
-    const tl = s.timeline.aspect === options.aspect ? s.timeline : { ...s.timeline, aspect: options.aspect }
-    const id = service.exportStart({ name: `${p.name} - full`, timeline: tl, assets: s.project.assets, options, range: { start: 0, end: total }, outputPath: p.full })
-    await run(id, 'Tam video', (f) => stage('full', { progress: f }))
+    // yer kontrolü: çıktı için en az kaynağın %80'i kadar boş alan
+    try {
+      const fsStat = await statfs(p.dir)
+      const free = fsStat.bavail * fsStat.bsize
+      const need = Math.max(2e9, (await stat(p.video)).size * 0.8)
+      if (free < need) throw new Error(`Diskte yeterli boş yer yok: ${(free / 1e9).toFixed(1)} GB boş, yaklaşık ${(need / 1e9).toFixed(1)} GB gerekli. Çıkış klasörünü başka bir sürücüye alın.`)
+    } catch (e) {
+      if (e instanceof Error && /Diskte/.test(e.message)) throw e
+    }
+    const o = (req.quality ?? 'fast') === 'high' ? { crf: 14, encoderPreset: 'slow', maxrateKbps: 150000, audioKbps: 320 } : { crf: 20, encoderPreset: 'veryfast', maxrateKbps: 40000, audioKbps: 192 }
+    const tmpOut = `${p.full}.part.mp4`
+    const abort = new AbortController()
+    const onAbort = () => abort.abort()
+    hooks.signal.addEventListener('abort', onAbort, { once: true })
+    try {
+      await renderFastCut(asset, kept, o, service.tools.ffmpeg, tmpOut, { signal: abort.signal, onProgress: (f) => stage('full', { progress: f }) })
+    } catch (e) {
+      await rm(tmpOut, { force: true })
+      check()
+      throw e
+    } finally {
+      hooks.signal.removeEventListener('abort', onAbort)
+    }
+    // doğrulama: süre, görüntü ve ses var mı
+    const probe = await ffprobeJson(service.tools.ffprobe, tmpOut)
+    const vs = probe.streams?.find((x) => x.codec_type === 'video')
+    const as = probe.streams?.find((x) => x.codec_type === 'audio')
+    const fmtDur = Number(probe.format?.duration)
+    const dur = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : fmtDur)
+    const vdur = dur(vs?.duration)
+    const adur = dur(as?.duration)
+    // görüntü ve ses, beklenen süreyle ve BİRBİRİYLE eşleşmeli (kayma = kesimlerde birikmiş hata)
+    if (!vs || !as || !(Math.abs(vdur - expected) <= 0.5) || !(Math.abs(adur - expected) <= 0.5) || !(Math.abs(vdur - adur) <= 0.25)) {
+      await rm(tmpOut, { force: true })
+      throw new Error(`Çıktı doğrulanamadı: beklenen ${expected.toFixed(1)} sn; görüntü ${vdur.toFixed(1)} sn, ses ${as ? `${adur.toFixed(1)} sn` : 'YOK'}. Kaynak dosya değiştirilmedi; tekrar deneyin.`)
+    }
+    await rename(tmpOut, p.full)
     state.full = true
     await save()
     stage('full', { status: 'done', progress: 1, detail: p.full })
   }
 
-  // 5) otomatik klipler: sonraki adım ────────────────────
-  stage('clips', { status: 'skipped', progress: 0, detail: 'Bir sonraki adımda eklenecek (klip kuralları belirlenince)' })
-
-  const st = state.silence!
+  const st = state.silence
   return {
+    verified: true,
     outDir: p.dir,
     projectPath: p.project,
     fullVideoPath: p.full,

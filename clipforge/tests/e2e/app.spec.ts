@@ -931,8 +931,8 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(job).toBeVisible()
     await expect(page.getByTestId('autokick-result')).toBeVisible({ timeout: 15_000 })
     await expect(job).toHaveAttribute('data-status', 'done')
-    for (const id of ['import', 'transcribe', 'silence', 'full']) await expect(page.getByTestId(`ak-stage-${id}`)).toHaveAttribute('data-stage-status', 'done')
-    await expect(page.getByTestId('ak-stage-clips')).toHaveAttribute('data-stage-status', 'skipped') // klipler sonraki adım
+    for (const id of ['import', 'transcribe', 'silence', 'gaps', 'full']) await expect(page.getByTestId(`ak-stage-${id}`)).toHaveAttribute('data-stage-status', 'done')
+    await expect(page.getByTestId('autokick-result')).toContainText('doğrulandı')
     await expect(page.getByTestId('autokick-result')).toContainText('412 kesim')
     // iptal
     await page.getByTestId('autokick-pick').click()

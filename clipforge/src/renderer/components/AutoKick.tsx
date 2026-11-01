@@ -36,7 +36,7 @@ function Job({ job }: { job: AutoKickStatus }) {
       {r && (
         <div className="col" data-testid="autokick-result">
           <div className="hint">
-            Süre: {fmtMin(r.durationBeforeSec)} → <b>{fmtMin(r.durationAfterSec)}</b> ({fmtMin(r.removedSec)} kısaldı, {r.cuts} kesim, {r.fillers} dolgu sesi) · {r.words.toLocaleString('tr')} kelime
+            {r.verified && <b>✓ Çıktı doğrulandı (süre, görüntü, ses; boşluk yok). </b>}Süre: {fmtMin(r.durationBeforeSec)} → <b>{fmtMin(r.durationAfterSec)}</b> ({fmtMin(r.removedSec)} kısaldı, {r.cuts} kesim, {r.fillers} dolgu sesi) · {r.words.toLocaleString('tr')} kelime
           </div>
           <div className="row wrap">
             <button className="btn sm" onClick={() => void api.invoke('shell:reveal', r.fullVideoPath)} data-testid="autokick-reveal">Klasörü aç</button>
@@ -81,7 +81,7 @@ export function AutoKickDialog() {
     <Modal title="Auto Kick — yayın kaydını otomatik işle" onClose={() => openDialog(null)} wide>
       <div className="col" data-testid="autokick-dialog">
         <div className="hint">
-          Sıra: <b>içe aktar → transkripsiyon → sessiz alanları kırp → tam videoyu kaydet (full video)</b> → (sonraki adım) otomatik klipler.
+          Sıra: <b>içe aktar → transkripsiyon → sessiz alanları kes → boşlukları kapat → tam videoyu kaydet (full video)</b>. Siz hiçbir şeye dokunmazsınız.
           İş arka planda sürer; bu pencereyi kapatabilirsiniz ama uygulamayı kapatmayın. Orijinal kayda dokunulmaz.
         </div>
         <Field label="Yayın kaydı">

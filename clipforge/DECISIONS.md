@@ -279,7 +279,7 @@ Yöntemler: (1) Whisper'a **ipucu** (özel sözlük) — `whisper.cpp --prompt`,
 
 Seçili altyazının çevresinde 6 tutamaç çıkar (4 köşe + sol/sağ kenar); çekince **karşı kenar sabit kalarak** yazı büyür/küçülür (kutu yazıya gerçek ölçümle oturur: `preview/measure.ts`). Boyut **altyazı başına** `Caption.scale` çarpanıdır (0,25–5×); panelde Boyut kaydırıcısı, "Bu boyutu tüm altyazılara uygula" ve "Boyutu sıfırla" vardır. Dışa aktarmada ASS satırına `\fs` (ve kutu/kontur iç boşluğu) eklenir; önizleme ile çıktı aynı yerleşim hesabını kullanır. Ek düzeltme: "Varsayılan konuma dön" artık vurgu ve boyutu silmez. Kenarı yatay çekmek yazıyı **ölçekler** (satır kaydırmayı değiştirmez); satır başına kelime sayısı stil ayarındadır. Art arda hızlı çekmeler tek geri alma adımında birleşebilir.
 
-## 34. Auto Kick (yayın kaydını otomatik işleme)
+## 34. Auto Kick (yayın kaydını otomatik işleme) — güncel: bkz. 35
 
 **Akış:** üst çubukta **Auto Kick** → kayıt seç → *içe aktar → transkripsiyon → sessiz alanları (ve "ııı/eee"leri) kırp → tam videoyu kaydet (full video)* → *otomatik klipler (sonraki adım, henüz yok)*. CLI karşılığı: `auto-kick <video> [--out klasör] [--quality fast|high]`.
 * **Çıktı:** `<kaydın klasörü>/AutoKick/<kayıt adı>/` altında `<ad> - full.mp4` ve `<ad>.clipforge` (uygulamada açılıp elle düzenlenebilir; "Projeyi uygulamada aç" düğmesi). Klipler için ileride `klipler/` klasörü. Orijinal kayda dokunulmaz.
@@ -288,3 +288,11 @@ Seçili altyazının çevresinde 6 tutamaç çıkar (4 köşe + sol/sağ kenar);
 * **Kalite/hız (varsayım):** 2 saatlik yayında "maksimum kalite" (x264 slow, CRF 14) saatler sürer; bu yüzden varsayılan **Hızlı** (veryfast, CRF 20, 40 Mbps üst sınır, AAC 192k, kaynak kare hızı); "Maksimum" seçilebilir. Çözünürlük kaynağa göre şablonla: 16:9 → 1080p (kaynak ≥3000 px ise 4K), 9:16, 1:1. Platform süre sınırı tam videoya uygulanmaz.
 * **Sessizlik kuralı:** ayarlardaki değerler (≥0,7 sn sessizlik, 0,15 sn pay, dolgu sesleri) ya da pencerede verilenler; "Sessizleri kes" ile aynı algoritma.
 * **Bilinen sınırlar:** 2 saatlik gerçek yayında süre Whisper modeline/CPU'ya bağlıdır (denenmedi; testler 10 dk'lık yapay kayıtla). Kurgu sonrası çok sayıda kesim (yüzlerce) dışa aktarmada uzun filtre grafiği üretir; 10 dk/26 kesim ile doğrulandı. Otomatik klip aşaması kullanıcının kurallarına göre eklenecek.
+
+## 35. Auto Kick: dokunmadan, doğrulanmış tam video
+
+Aşamalar: içe aktar → transkripsiyon → **sessizleri kes → boşlukları kapat** → tam video (otomatik klip satırı şimdilik kaldırıldı). Kullanıcı hiçbir şeye dokunmaz.
+* **Ölçeklenen dışa aktarma (`autokick/fastcut.ts`):** yüzlerce kesimli uzun kayıt için kayıt TEK KEZ açılır; tutulan aralıklar `select`/`aselect` ile seçilir (genel dışa aktarıcı her klip için ayrı giriş + `amix` girişi açtığından binlerce klipte çalışmaz). Kesim sınırları kare ızgarasına oturtulur; ses çerçevesi kare süresine tam bölünecek boyuttadır (60 fps → 160 örnek) → ses/görüntü **kaymaz**. Kare hızı kesir olarak açıkça verilir (59,94 → 60000/1001); aksi halde seçimden sonra 25 fps'e düşüp kare atıyordu.
+* **Doğrulama:** çıktı geçici dosyaya yazılır; görüntü ve ses süresi beklenenle (±0,5 sn) ve birbiriyle (±0,25 sn) eşleşmezse ya da ses yoksa dosya atılır ve hata verilir (sessizce "bitti" denmez). Çizelgede boşluk kalmadığı da denetlenir. Disk yeri yetersizse işe başlamadan uyarılır.
+* **Ölçüm (yapay, 30 dk / 425 kesim, 640×360@60):** 17 dk'ya indi; görüntü 1039,95 sn = ses 1039,95 sn; kesim sonrası kare kaynakla birebir aynı; ~3 dk. Gerçek 2 saatlik yayın denenmedi; süre Whisper'a ve CPU'ya bağlı. Transkripsiyon 10 dk'lık parçalar hâlinde önbelleğe alınır, kesintide kaldığı yerden sürer.
+* **Çıktı kalitesi:** tam video kaynak çözünürlüğünde kalır (yeniden ölçeklenmez); Hızlı = veryfast/CRF 20, Maksimum = slow/CRF 14; ses normalize edilmez (özgün seviye).

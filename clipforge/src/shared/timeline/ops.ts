@@ -347,6 +347,21 @@ export function joinWithNext(tl: Timeline, clipId: ID): Timeline {
   return replaceClips(tl, updates)
 }
 
+/** Hiçbir izde içerik olmayan boşluklar [başlangıç, bitiş] (metin/altyazı izleri sayılmaz) */
+export function findGaps(tl: Timeline, tol = 1e-3): [number, number][] {
+  const spans = tl.tracks
+    .filter((t) => t.kind !== 'text' && t.kind !== 'caption')
+    .flatMap((t) => t.clips.map((c) => [c.start, clipEnd(c)] as const))
+    .sort((x, y) => x[0] - y[0])
+  const gaps: [number, number][] = []
+  let reach = 0
+  for (const [s, e] of spans) {
+    if (s > reach + tol) gaps.push([reach, s])
+    reach = Math.max(reach, e)
+  }
+  return gaps
+}
+
 /** Hiçbir izde içerik olmayan boşlukları siler (sonrası sola kayar). Metin izlerindeki tam uzunluklu klipler sayılmaz. */
 export function closeGaps(tl: Timeline): Timeline {
   const spans = tl.tracks
