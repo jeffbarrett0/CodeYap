@@ -6,6 +6,7 @@
  *  - `ClipforgeApi`: renderer'ın gördüğü yüzey. Preload bunu IPC üzerinden, tarayıcı modu ise sahte (mock)
  *    bir uygulama ile sağlar; böylece arayüz iki ortamda da aynı kodla çalışır.
  */
+import type { AutoKickRequest, AutoKickStatus } from './autokick'
 import type {
   ChatColumnMapping,
   ChatLog,
@@ -111,6 +112,10 @@ export interface IpcInvoke {
   'export:start': [[ExportRequest], string]
   'export:dialogOutput': [[string], string | null]
   'task:cancel': [[string], void]
+  /** Auto Kick: yayın kaydından otomatik tam video (+ ileride klipler); iş arka planda sürer */
+  'autokick:start': [[AutoKickRequest], string]
+  'autokick:cancel': [[string], void]
+  'autokick:list': [[], AutoKickStatus[]]
   'task:list': [[], TaskInfo[]]
   'model:download': [[WhisperModelSize], string]
   'shell:reveal': [[string], void]
@@ -122,6 +127,7 @@ export interface IpcInvoke {
 
 export interface IpcEvents {
   'task:update': TaskInfo
+  'autokick:update': AutoKickStatus
   'asset:added': MediaAsset
   'asset:updated': MediaAsset
   'transcript:ready': { assetId: string; transcript: Transcript; reused: boolean }

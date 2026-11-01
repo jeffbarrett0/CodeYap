@@ -11,6 +11,7 @@ export function TopBar() {
       <button className="btn" onClick={() => void openProject()}>Aç</button>
       <button className="btn" onClick={() => void saveProject(false)} data-testid="save">Kaydet</button>
       <button className="btn" onClick={() => void pickAndImport()}>Kayıt içe aktar</button>
+      <button className="btn primary" onClick={() => openDialog('autokick')} data-testid="autokick-btn" title="Yayın kaydını otomatik işle: transkript → sessizleri kırp → tam video → klipler">Auto Kick</button>
       <span className="projname" title={projectPath ?? ''}><b>{project.name}</b>{dirty ? ' •' : ''}</span>
       {parentProjectPath && (
         <>

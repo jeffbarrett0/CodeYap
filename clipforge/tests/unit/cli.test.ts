@@ -121,6 +121,29 @@ describe('komut satırı: sessizleri kes + altyazı + dışa aktar; arama + bağ
     expect(cli('captions', vlog, '--style', 'boxed-highlight').style).toBe('boxed-highlight')
   }, 300_000)
 
+  it('auto-kick: içe aktar → transkript → sessizleri kırp → tam video; yeniden çalıştırınca biten aşamalar atlanır', () => {
+    const video = join(tmp, 'video örnek.mp4')
+    const r = cli('auto-kick', video, '--out', join(tmp, 'Çıkış Klasörü', 'yayın'))
+    expect(r.ok).toBe(true)
+    expect(r.cuts).toBeGreaterThan(0)
+    expect(r.durationAfterSec).toBeLessThan(r.durationBeforeSec)
+    expect(existsSync(r.fullVideoPath)).toBe(true)
+    expect(r.fullVideoPath).toMatch(/ - full\.mp4$/)
+    expect(existsSync(r.projectPath)).toBe(true)
+    const proj = JSON.parse(readFileSync(r.projectPath, 'utf8'))
+    expect(proj.assets).toHaveLength(1)
+    // orijinal video değişmedi, tam video kısa
+    const ffprobe = require('@ffprobe-installer/ffprobe').path as string
+    const dur = Number(execFileSync(ffprobe, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', r.fullVideoPath]).toString())
+    expect(Math.abs(dur - r.durationAfterSec)).toBeLessThan(1.5)
+    const before = md5(r.fullVideoPath)
+    const again = cli('auto-kick', video, '--out', join(tmp, 'Çıkış Klasörü', 'yayın'))
+    expect(again.ok).toBe(true)
+    expect(md5(again.fullVideoPath)).toBe(before) // yeniden kodlanmadı
+    expect(cli('auto-kick', join(tmp, 'yok.mp4')).error).toMatch(/bulunamadı/)
+    expect(cli('auto-kick', join(tmp, 'x.txt')).error).toMatch(/video/i)
+  }, 300_000)
+
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)
     const bad = cli('bogus', proj)

@@ -211,3 +211,17 @@ test('büyük MP4: cf-media Range yanıtları doğru ve orta noktaya atlayıp oy
   }, url)
   expect(adv.t1 - adv.t0).toBeGreaterThan(1.5)
 })
+
+test('Auto Kick (gerçek Electron): arka planda içe aktar → transkript → sessizleri kırp → tam video', async () => {
+  const id = await page.evaluate((p) => window.clipforge!.invoke('autokick:start', { videoPath: p }), mkv)
+  await expect(async () => {
+    const j = (await page.evaluate(() => window.clipforge!.invoke('autokick:list'))).find((x) => x.id === id)
+    expect(j?.status).toBe('done')
+  }).toPass({ timeout: 120_000 })
+  const job = (await page.evaluate(() => window.clipforge!.invoke('autokick:list'))).find((x) => x.id === id)!
+  expect(job.stages.filter((s) => s.id !== 'clips').every((s) => s.status === 'done')).toBe(true)
+  expect(existsSync(job.result!.fullVideoPath)).toBe(true)
+  expect(job.result!.fullVideoPath).toContain('AutoKick')
+  // arayüzdeki açık projeyi etkilemez
+  await expect(page.getByTestId('asset').first()).toBeVisible()
+})

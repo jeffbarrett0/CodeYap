@@ -11,6 +11,9 @@ Bu klasörde Claude Code çalıştırıldığında videolar **komut satırı** (
 Tipik akış: `new p.clipforge` → `import p.clipforge video.mp4 --add` → `transcribe p.clipforge` → `transcript p.clipforge` (içeriği OKU) → `silence` → `captions` → `frame` (bir kareye bakıp doğrula) → `export p.clipforge --out cikti.mp4 --preset shorts`.
 Aramadan klip: `search p.clipforge "söz"` → `new-clip-project p.clipforge --query "söz" --pick 1 --sec 25 --out klip.clipforge` (ana proje değişmez).
 
+## Auto Kick (yayın kaydı → tam video)
+`auto-kick "<yayın.mkv>" [--out klasör] [--quality fast|high]`: içe aktar → transkripsiyon → sessizleri kırp → `<ad> - full.mp4` + `<ad>.clipforge` (`AutoKick/<ad>/`). Uzun sürer (2 saatlik yayın = saatler); bitmeden terminali kapatma, yeniden çalıştırırsan kalan aşamalardan sürer. Klip aşaması henüz yok; kullanıcı kurallarını verince eklenecek. Arayüzde: üst çubuk → **Auto Kick**.
+
 ## Vlog akışı (otomatik kurgu)
 Sıra önemlidir: **önce kesim, sonra yerleştirme** (kesimden sonra zamanlar kayar).
 1. `new` → `import <proje> vlog.mp4 --add --layer V3` — ana görüntü EN ALT katmana (V3). **Katman sırası: V1 en üstte çizilir**, V3 en altta; b-roll V2'ye, grafikler V1'e gider (üstteki alttakini kapatır; konuşma sesi Ses katmanında kesintisiz sürer).

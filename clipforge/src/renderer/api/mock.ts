@@ -12,6 +12,7 @@ import { buildSegments } from '@shared/transcript/sentences'
 import { applyVocabulary, fixWord, parseVocabulary, withWords } from '@shared/transcript/vocabulary'
 import { scoreCandidates, snapCandidate } from '@shared/suggest/score'
 import { newId } from '@shared/timeline/model'
+import { initialStages, type AutoKickStatus } from '@shared/autokick'
 import { buildClipProject, safeFileName } from '@shared/project/clipProject'
 import type { MediaAsset, Project, Settings, Transcript, TranscriptWord } from '@shared/types'
 import { TaskQueue, userMessage } from '../../main/tasks'
@@ -87,6 +88,8 @@ export function createMockApi(): ClipforgeApi {
   const emit = <E extends IpcEventName>(event: E, payload: IpcEvents[E]) => listeners.get(event)?.forEach((cb) => cb(payload as never))
   let settings: Settings = { ...DEFAULT_SETTINGS }
   const clipProjects = new Map<string, Project>()
+  const akJobs = new Map<string, AutoKickStatus>()
+  const akCancel = new Set<string>()
   const assets = new Map<string, MediaAsset>()
   const search = new SearchService()
   const queue = new TaskQueue()
@@ -104,6 +107,48 @@ export function createMockApi(): ClipforgeApi {
     'dialog:openMedia': () => ['/demo/2024-05-12 21-30-45.mkv'],
     'dialog:openFile': () => 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
+    'autokick:start': (req) => {
+      const id = `autokick-${akJobs.size + 1}`
+      const name = req.videoPath.split(/[\\/]/).pop() ?? req.videoPath
+      const status: AutoKickStatus = { id, videoName: name, status: 'running', stages: initialStages(), startedAt: Date.now() }
+      akJobs.set(id, status)
+      const push = () => emit('autokick:update', structuredClone(status))
+      push()
+      void (async () => {
+        for (const st of status.stages) {
+          if (st.id === 'clips') {
+            Object.assign(st, { status: 'skipped', detail: 'Bir sonraki adımda eklenecek' })
+            continue
+          }
+          st.status = 'running'
+          for (const f of [0.3, 0.7, 1]) {
+            await sleep(70)
+            if (akCancel.has(id)) {
+              status.status = 'cancelled'
+              st.status = 'pending'
+              return push()
+            }
+            st.progress = f
+            push()
+          }
+          if (/bozuk/i.test(req.videoPath) && st.id === 'transcribe') {
+            st.status = 'failed'
+            status.status = 'failed'
+            status.error = 'Transkript boş çıktı (kayıtta konuşma yok ya da Whisper kurulumu sorunlu).'
+            return push()
+          }
+          st.status = 'done'
+          push()
+        }
+        status.status = 'done'
+        status.finishedAt = Date.now()
+        status.result = { outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
+        push()
+      })()
+      return id
+    },
+    'autokick:cancel': (id) => void akCancel.add(id),
+    'autokick:list': () => [...akJobs.values()].map((s) => structuredClone(s)),
     'project:save': (p, path) => {
       const target = path ?? '/tmp/proje.clipforge'
       clipProjects.set(target, structuredClone(p)) // sahte disk: kaydedilen her proje sonradan açılabilir

@@ -2,6 +2,7 @@ import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcChannel, IpcInvoke, IpcResult } from '../shared/ipc'
 import type { AppService } from './app'
 import { userMessage } from './tasks'
+import { AutoKickManager } from './autokick/pipeline'
 
 type Handlers = { [C in IpcChannel]: (...args: IpcInvoke[C][0]) => Promise<IpcInvoke[C][1]> | IpcInvoke[C][1] }
 
@@ -14,7 +15,11 @@ const MEDIA_FILTERS = [
 
 /** Tipli IPC kanallarını bağlar. Her hata anlaşılır bir mesaja çevrilip renderer'a Result olarak döner; main çökmez. */
 export function registerIpc(app: AppService, getWindow: () => BrowserWindow | null): void {
+  const autoKick = new AutoKickManager({ userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }, (s) => getWindow()?.webContents.send('autokick:update', s))
   const handlers: Handlers = {
+    'autokick:start': (req) => autoKick.start(req),
+    'autokick:cancel': (id) => autoKick.cancel(id),
+    'autokick:list': () => autoKick.list(),
     'app:info': () => app.info(),
     'settings:get': () => app.settings.value,
     'settings:set': (patch) => app.settings.update(patch),

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AppInfo } from '@shared/ipc'
+import type { AutoKickStatus } from '@shared/autokick'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { suggestClip, nearestBoundary, type ClipWarning } from '@shared/clip/boundaries'
 import { History } from '@shared/timeline/history'
@@ -20,7 +21,7 @@ import { requireApi } from './api'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript'
-export type Dialog = null | 'settings' | 'export' | 'clip' | 'help'
+export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick'
 
 export interface Toast {
   id: string
@@ -141,6 +142,8 @@ interface State {
   userTemplates: LayoutTemplate[]
   transcripts: Record<string, Transcript>
   tasks: Record<string, TaskInfo>
+  /** Auto Kick işleri (arka planda sürer; pencere kapansa da devam eder) */
+  autoKick: Record<string, AutoKickStatus>
   toasts: Toast[]
 
   query: string
@@ -306,6 +309,7 @@ export const useStore = create<State>()((set, get) => {
     userTemplates: [],
     transcripts: {},
     tasks: {},
+    autoKick: {},
     toasts: [],
     query: '',
     results: [],
@@ -324,6 +328,13 @@ export const useStore = create<State>()((set, get) => {
       const [settings, appInfo, tasks] = await Promise.all([a.invoke('settings:get'), a.invoke('app:info'), a.invoke('task:list')])
       set({ settings, appInfo, tasks: Object.fromEntries(tasks.map((t) => [t.id, t])), ready: true })
       void get().loadTemplates()
+      void a.invoke('autokick:list').then((l) => set({ autoKick: Object.fromEntries(l.map((j) => [j.id, j])) }))
+      a.on('autokick:update', (j) => {
+        const prev = get().autoKick[j.id]
+        set((s) => ({ autoKick: { ...s.autoKick, [j.id]: j } }))
+        if (prev?.status === 'running' && j.status === 'done') get().toast('success', `Auto Kick tamamlandı: ${j.videoName}`)
+        if (prev?.status === 'running' && j.status === 'failed') get().toast('error', `Auto Kick hata verdi: ${j.error ?? ''}`)
+      })
       a.on('task:update', (t) => {
         set((s) => ({ tasks: { ...s.tasks, [t.id]: t } }))
         if (t.status === 'failed') get().toast('error', `${t.title}: ${t.error ?? 'Bilinmeyen hata'}`)

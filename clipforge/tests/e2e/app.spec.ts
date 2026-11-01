@@ -918,6 +918,29 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('cap-scale-all').click()
   })
 
+  test('Auto Kick: kayıt seç → aşamalar sırayla çalışır (transkript, sessizleri kırp, tam video) → sonuç; hata ve iptal anlaşılır', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('autokick-btn').click()
+    await expect(page.getByTestId('autokick-dialog')).toBeVisible()
+    await page.getByTestId('autokick-start').click()
+    await expect(page.getByRole('alert')).toContainText('bir yayın kaydı seçin') // kayıt seçmeden başlamaz
+    await page.getByTestId('autokick-pick').click()
+    await expect(page.getByTestId('autokick-path')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
+    await page.getByTestId('autokick-start').click()
+    const job = page.getByTestId('autokick-job').first()
+    await expect(job).toBeVisible()
+    await expect(page.getByTestId('autokick-result')).toBeVisible({ timeout: 15_000 })
+    await expect(job).toHaveAttribute('data-status', 'done')
+    for (const id of ['import', 'transcribe', 'silence', 'full']) await expect(page.getByTestId(`ak-stage-${id}`)).toHaveAttribute('data-stage-status', 'done')
+    await expect(page.getByTestId('ak-stage-clips')).toHaveAttribute('data-stage-status', 'skipped') // klipler sonraki adım
+    await expect(page.getByTestId('autokick-result')).toContainText('412 kesim')
+    // iptal
+    await page.getByTestId('autokick-pick').click()
+    await page.getByTestId('autokick-start').click()
+    await page.getByTestId('autokick-cancel').first().click()
+    await expect(page.getByTestId('autokick-job').first()).toHaveAttribute('data-status', 'cancelled')
+  })
+
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))

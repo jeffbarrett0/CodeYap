@@ -278,3 +278,13 @@ Yöntemler: (1) Whisper'a **ipucu** (özel sözlük) — `whisper.cpp --prompt`,
 ## 33. Altyazıyı önizlemede doğrudan boyutlandırma
 
 Seçili altyazının çevresinde 6 tutamaç çıkar (4 köşe + sol/sağ kenar); çekince **karşı kenar sabit kalarak** yazı büyür/küçülür (kutu yazıya gerçek ölçümle oturur: `preview/measure.ts`). Boyut **altyazı başına** `Caption.scale` çarpanıdır (0,25–5×); panelde Boyut kaydırıcısı, "Bu boyutu tüm altyazılara uygula" ve "Boyutu sıfırla" vardır. Dışa aktarmada ASS satırına `\fs` (ve kutu/kontur iç boşluğu) eklenir; önizleme ile çıktı aynı yerleşim hesabını kullanır. Ek düzeltme: "Varsayılan konuma dön" artık vurgu ve boyutu silmez. Kenarı yatay çekmek yazıyı **ölçekler** (satır kaydırmayı değiştirmez); satır başına kelime sayısı stil ayarındadır. Art arda hızlı çekmeler tek geri alma adımında birleşebilir.
+
+## 34. Auto Kick (yayın kaydını otomatik işleme)
+
+**Akış:** üst çubukta **Auto Kick** → kayıt seç → *içe aktar → transkripsiyon → sessiz alanları (ve "ııı/eee"leri) kırp → tam videoyu kaydet (full video)* → *otomatik klipler (sonraki adım, henüz yok)*. CLI karşılığı: `auto-kick <video> [--out klasör] [--quality fast|high]`.
+* **Çıktı:** `<kaydın klasörü>/AutoKick/<kayıt adı>/` altında `<ad> - full.mp4` ve `<ad>.clipforge` (uygulamada açılıp elle düzenlenebilir; "Projeyi uygulamada aç" düğmesi). Klipler için ileride `klipler/` klasörü. Orijinal kayda dokunulmaz.
+* **Arka planda, izole:** iş kendi `AppService` örneğinde çalışır (arayüzde açık projeyi etkilemez); pencere kapatılabilir, ilerleme/iptal/hata Auto Kick penceresinde görünür; aynı anda tek iş çalışır (CPU). Uygulama kapanırsa iş durur.
+* **Kesintiye dayanıklı:** her aşamadan sonra proje ve `autokick.json` kaydedilir; aynı kaydı yeniden başlatınca biten aşamalar atlanır, transkript önbellekten gelir.
+* **Kalite/hız (varsayım):** 2 saatlik yayında "maksimum kalite" (x264 slow, CRF 14) saatler sürer; bu yüzden varsayılan **Hızlı** (veryfast, CRF 20, 40 Mbps üst sınır, AAC 192k, kaynak kare hızı); "Maksimum" seçilebilir. Çözünürlük kaynağa göre şablonla: 16:9 → 1080p (kaynak ≥3000 px ise 4K), 9:16, 1:1. Platform süre sınırı tam videoya uygulanmaz.
+* **Sessizlik kuralı:** ayarlardaki değerler (≥0,7 sn sessizlik, 0,15 sn pay, dolgu sesleri) ya da pencerede verilenler; "Sessizleri kes" ile aynı algoritma.
+* **Bilinen sınırlar:** 2 saatlik gerçek yayında süre Whisper modeline/CPU'ya bağlıdır (denenmedi; testler 10 dk'lık yapay kayıtla). Kurgu sonrası çok sayıda kesim (yüzlerce) dışa aktarmada uzun filtre grafiği üretir; 10 dk/26 kesim ile doğrulandı. Otomatik klip aşaması kullanıcının kurallarına göre eklenecek.

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { copyFile, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -14,10 +15,21 @@ export function defaultUserData(): string {
   return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'ClipForge')
 }
 
-export async function makeService(): Promise<AppService> {
+/** `resources/` klasörünü bulur: derleme çıktısındaki konum (parça dosyaları alt klasöre düşebilir) değişse de çalışır */
+export function findResources(): string {
+  let dir = __dirname
+  for (let i = 0; i < 5; i++) {
+    const cand = join(dir, 'resources')
+    if (existsSync(join(cand, 'world.json'))) return cand
+    dir = dirname(dir)
+  }
+  return resolve(__dirname, '..', '..', 'resources')
+}
+
+export async function makeService(opts: { userDataDir?: string; resourcesDir?: string } = {}): Promise<AppService> {
   const s = new AppService({
-    userDataDir: defaultUserData(),
-    resourcesDir: resolve(__dirname, '..', '..', 'resources'),
+    userDataDir: opts.userDataDir ?? defaultUserData(),
+    resourcesDir: opts.resourcesDir ?? findResources(),
     version: 'cli',
     platform: process.platform,
     emit: () => undefined,
@@ -30,11 +42,12 @@ export async function makeService(): Promise<AppService> {
 export const log = (msg: string) => process.stderr.write(`${msg}\n`)
 
 /** Bir görevin bitmesini bekler; hata durumunda anlaşılır mesajla fırlatır. İlerlemeyi stderr'e yazar. */
-export function waitTask(service: AppService, id: string, label: string): Promise<void> {
+export function waitTask(service: AppService, id: string, label: string, onProgress?: (fraction: number) => void): Promise<void> {
   return new Promise((ok, bad) => {
     let last = -1
     const check = (t: { id: string; status: string; progress: number; error?: string }) => {
       if (t.id !== id) return
+      onProgress?.(t.progress)
       const pct = Math.floor(t.progress * 100)
       if (pct !== last && pct % 10 === 0) (last = pct, log(`${label}: %${pct}`))
       if (t.status === 'done') (off(), ok())
@@ -72,8 +85,8 @@ export class Session {
     return new Session(svc, abs, project, transcripts)
   }
 
-  static async create(path: string, name: string): Promise<Session> {
-    const svc = await makeService()
+  static async create(path: string, name: string, service?: AppService): Promise<Session> {
+    const svc = service ?? (await makeService())
     const abs = resolve(path)
     svc.newProject()
     const now = new Date().toISOString()

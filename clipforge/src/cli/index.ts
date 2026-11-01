@@ -17,6 +17,7 @@ import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems
 import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
+import { runAutoKick } from '../main/autokick/pipeline'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { clipsAt, timelineToSource } from '../shared/timeline/ops'
 import { buildSegments } from '../shared/transcript/sentences'
@@ -62,6 +63,8 @@ const r1 = (n: number) => Math.round(n * 100) / 100
 const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON döndürür)
 
   info                                   ffmpeg/ffprobe/whisper durumu
+  auto-kick <video> [--out klasör] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
+                                         yayın kaydı → transkript → sessizleri kırp → tam video (<out>/<ad> - full.mp4 + proje); biten aşamalar yeniden çalıştırmada atlanır
   new <proje> [--name ad]                boş proje oluşturur
   import <proje> <dosya...> [--add] [--layer V3]   medya ekler (--add: ilk videoyu --layer'a (varsayılan V1), 0. sn'den, sesiyle yerleştirir)
   show <proje>                           katmanlar, klipler, altyazılar, süre
@@ -165,6 +168,15 @@ async function main(argv: string[]): Promise<unknown> {
   if (command === 'info') {
     const svc = await makeService()
     return out(await svc.info())
+  }
+  if (command === 'auto-kick') {
+    if (!projectArg) throw new Error('Yayın kaydı yolunu verin: auto-kick <video> [--out klasör]')
+    const r = await runAutoKick(
+      { videoPath: projectArg, outDir: str(a.opt.out), language: str(a.opt.lang), model: str(a.opt.model) as never, track: num(a.opt.track, 'track'), quality: a.opt.quality === 'high' ? 'high' : 'fast', silence: a.opt['min-gap'] || a.opt.keep || a.opt['no-fillers'] ? { minGapSec: num(a.opt['min-gap'], 'min-gap') ?? 0.7, keepSec: num(a.opt.keep, 'keep') ?? 0.15, cutFillers: !a.opt['no-fillers'] } : undefined },
+      {},
+      { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }
+    )
+    return out({ ok: true, ...r, note: 'Otomatik klip aşaması henüz yok. Proje uygulamada açılabilir.' })
   }
   if (!projectArg) throw new Error('Proje dosyası yolu gerekli. `help` komutuna bakın.')
 
