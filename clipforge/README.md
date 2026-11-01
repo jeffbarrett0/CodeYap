@@ -164,3 +164,19 @@ Yalnızca *OpenAI Whisper API* ya da *bulut embedding* seçersen ses/metin dış
 ## Bilinen sınırlar
 Bkz. [`DECISIONS.md`](DECISIONS.md#15-kapsam-dışı-bırakılanlar--ertelenenler): gerçek Whisper modeliyle doğruluk ölçülmedi, macOS/Windows'ta çalıştırılmadı,
 HUD tespiti yok, GPU kodlama yok, geçiş/efekt/renk düzeltme kapsam dışı.
+
+
+## Yapay zekâ ile editleme (komut satırı)
+
+Aynı iş mantığı arayüzsüz de çalışır; bir yapay zekâ asistanı (Claude Code) videoyu komutlarla editleyebilir. Ayrıntı ve çalışma kuralları: `CLAUDE.md`.
+
+```bash
+npm run build                      # CLI'ı derler (out/main/cli.js)
+npm run cli -- help                # komut listesi
+npm run cli -- new "D:\Videolar\proje.clipforge"
+npm run cli -- import "D:\Videolar\proje.clipforge" "D:\Videolar\kayit.mp4" --add
+npm run cli -- transcribe "D:\Videolar\proje.clipforge"
+npm run cli -- silence "D:\Videolar\proje.clipforge"
+npm run cli -- captions "D:\Videolar\proje.clipforge"
+npm run cli -- export "D:\Videolar\proje.clipforge" --out "D:\Videolar\cikti.mp4" --preset shorts
+```

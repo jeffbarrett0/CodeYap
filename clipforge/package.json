@@ -10,6 +10,7 @@
     "dev": "electron-vite dev",
     "dev:web": "vite --config vite.web.config.mts",
     "build": "electron-vite build",
+    "cli": "node out/main/cli.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",

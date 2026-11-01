@@ -30,6 +30,8 @@ export interface AppDeps {
   version: string
   platform: string
   emit: <E extends IpcEventName>(event: E, payload: IpcEvents[E]) => void
+  /** Komut satırı: önizleme kopyaları (proxy) arka planda üretilmez */
+  headless?: boolean
 }
 
 /**
@@ -103,7 +105,7 @@ export class AppService {
           const asset = await importMedia(file, this.tools, this.dataDir, { signal: ctx.signal, progress: ctx.progress })
           this.assets.set(asset.id, asset)
           this.deps.emit('asset:added', asset)
-          if (asset.kind !== 'image') this.queueProxy(asset)
+          if (asset.kind !== 'image' && !this.deps.headless) this.queueProxy(asset)
         }
       })
       return task.id
