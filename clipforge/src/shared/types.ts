@@ -266,6 +266,8 @@ export interface Caption {
   text: string
   /** Bu altyazının merkezi (0..1, kareye göre). Yoksa stildeki varsayılan konum kullanılır. */
   pos?: { x: number; y: number }
+  /** Vurgulu kelimeler: kelime sırası aralığı [from, to] (dahil) ve rengi. Metin düzenlenirse sınırlara kırpılır. */
+  hl?: { from: number; to: number; color: string }
 }
 
 export interface CaptionStyle {
@@ -280,6 +282,16 @@ export interface CaptionStyle {
   positionY: number
   uppercase: boolean
   maxCharsPerLine: number
+  /** Eğik (italik) yazı */
+  italic?: boolean
+  /** Metnin arkasındaki, metne oturan yarı saydam kutu */
+  box?: { enabled: boolean; color: string; opacity: number }
+  /** Satırdaki son kelime(ler)i renkle vurgular; renkler satır satır döner */
+  highlight?: { enabled: boolean; colors: string[] }
+  /** Bir altyazı satırındaki en fazla kelime (0/yok: yalnızca karakter sınırı) */
+  maxWords?: number
+  /** Yazı gölgesi (px, 1080 tabanlı) */
+  shadow?: number
 }
 
 export type AspectRatio = '9:16' | '1:1' | '16:9'

@@ -14,7 +14,8 @@ import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
 import { EXPORT_PRESETS } from '@shared/export/presets'
 import { PROJECT_VERSION } from '@shared/types'
 import { BUILTIN_TEMPLATES, templateFromTimeline } from '@shared/timeline/templates'
-import type { ChatLog, ClipCandidate, ExportOptions, LayoutTemplate, NormRect, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
+import { presetById } from '@shared/timeline/captionStyles'
+import type { Caption, CaptionStyle, ChatLog, ClipCandidate, ExportOptions, LayoutTemplate, NormRect, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
 import { requireApi } from './api'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
@@ -207,6 +208,8 @@ interface State {
   /** Kütüphaneden birden çok dosyayı tek onayla kaldırır (diskteki dosyalara dokunmaz) */
   removeAssets(ids: string[]): void
   clearResults(): void
+  /** Hazır altyazı stilini uygular (ör. 'boxed-highlight'); satırlar kısa parçalara yeniden üretilsin mi diye sorar */
+  applyCaptionPreset(id: string): void
   setNewClipSec(sec: number): void
   /** Arama sonucunun etrafından `sec` sn'lik (cümle sınırlarına yapışan) klibi YENİ, bağımsız bir projede açar; ana proje değişmez */
   createClipProjectFromResult(r: SearchResult, sec?: number): Promise<void>
@@ -758,6 +761,23 @@ export const useStore = create<State>()((set, get) => {
       if (s.dirty) await get().saveProject()
       if (get().dirty) return
       await get().openProject(s.parentProjectPath)
+    },
+    applyCaptionPreset(id) {
+      const s = get()
+      const tl = s.project.timeline
+      const preset = presetById(id)
+      const style: CaptionStyle = { ...tl.captionStyle, ...preset.style, enabled: true, positionY: tl.captionStyle.positionY }
+      if (id === 'classic') {
+        delete style.box
+        delete style.highlight
+      }
+      let caps: Caption[] | undefined
+      const wordsChange = (style.maxWords ?? 0) !== (tl.captionStyle.maxWords ?? 0)
+      if (tl.captions.length > 0 && wordsChange && Object.keys(s.transcripts).length > 0 && window.confirm('Altyazı satırları da yeni stile göre (satır başına en fazla ' + (style.maxWords || 'sınırsız') + ' kelime) yeniden üretilsin mi? Elle yaptığınız düzenlemeler kaybolur; Ctrl+Z geri alır.')) {
+        caps = captionsForTimeline({ ...tl, captionStyle: style }, Object.fromEntries(Object.entries(s.transcripts).map(([k, t]) => [k, t.words])))
+      }
+      get().exec(cmd.captionPreset(style, caps, `Altyazı stili: ${preset.name}`))
+      get().toast('success', `Altyazı stili: ${preset.name}${tl.captions.length && !caps && wordsChange ? '. Kısa satırlar için "Transkriptten altyazı üret"e basın.' : ''}`)
     },
     clearResults() {
       set({ results: [], selectedResults: [] })

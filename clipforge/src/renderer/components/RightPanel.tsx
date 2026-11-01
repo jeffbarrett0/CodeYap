@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CAPTION_PRESETS } from '@shared/timeline/captionStyles'
 import { cmd } from '@shared/timeline/commands'
 import { clipDuration, findClip, groupMembers, TRACK_IDS } from '@shared/timeline/model'
 import type { AspectRatio, LayoutPreset } from '@shared/types'
@@ -143,7 +144,7 @@ function AudioMixer() {
 }
 
 function Captions() {
-  const { project, exec, generateCaptions, selectedCaptionId, selectCaption, deleteCaptions } = useStore()
+  const { project, exec, generateCaptions, selectedCaptionId, selectCaption, deleteCaptions, applyCaptionPreset } = useStore()
   const [checked, setChecked] = useState<string[]>([])
   const tl = project.timeline
   const st = tl.captionStyle
@@ -153,6 +154,31 @@ function Captions() {
       <div className="section-title">Otomatik altyazı</div>
       <button className="btn primary" onClick={generateCaptions} data-testid="gen-captions">Transkriptten altyazı üret</button>
       <label className="check"><input type="checkbox" checked={st.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> Altyazıyı göster / dışa aktar</label>
+      <Field label="Hazır stil">
+        <select aria-label="Altyazı stili" value="" onChange={(e) => e.target.value && applyCaptionPreset(e.target.value)} data-testid="cap-preset">
+          <option value="">Seçin…</option>
+          {CAPTION_PRESETS.map((p) => <option key={p.id} value={p.id} title={p.description}>{p.name}</option>)}
+        </select>
+      </Field>
+      <div className="row wrap">
+        <label className="check"><input type="checkbox" checked={!!st.italic} onChange={(e) => set({ italic: e.target.checked })} data-testid="cap-italic" /> Eğik</label>
+        <label className="check"><input type="checkbox" checked={!!st.box?.enabled} onChange={(e) => set({ box: { color: '#6B6B6B', opacity: 0.88, ...st.box, enabled: e.target.checked } })} data-testid="cap-box-on" /> Arka plan kutusu</label>
+        <label className="check"><input type="checkbox" checked={!!st.highlight?.enabled} onChange={(e) => exec(cmd.captionPreset({ ...st, highlight: { colors: ['#FFE600', '#FF1A1A', '#18C8FF'], ...st.highlight, enabled: e.target.checked } }))} data-testid="cap-hl-on" /> Son kelimeleri renklendir</label>
+      </div>
+      {st.box?.enabled && (
+        <div className="grid2">
+          <Field label="Kutu rengi"><input type="color" value={st.box.color} onChange={(e) => set({ box: { ...st.box!, color: e.target.value } })} aria-label="Kutu rengi" /></Field>
+          <Slider label="Kutu saydamlığı" value={st.box.opacity} min={0.1} max={1} onChange={(v) => set({ box: { ...st.box!, opacity: v } })} format={(v) => `${Math.round(v * 100)}%`} />
+        </div>
+      )}
+      {st.highlight?.enabled && (
+        <Field label="Vurgu renkleri (satır satır döner)">
+          <div className="row">
+            {st.highlight.colors.map((c, i) => <input key={i} type="color" value={c} aria-label={`Vurgu rengi ${i + 1}`} onChange={(e) => exec(cmd.captionPreset({ ...st, highlight: { enabled: true, colors: st.highlight!.colors.map((x, j) => (j === i ? e.target.value : x)) } }))} />)}
+          </div>
+        </Field>
+      )}
+      <Slider label="Satır başına en fazla kelime (0 = sınırsız)" value={st.maxWords ?? 0} min={0} max={8} step={1} onChange={(v) => set({ maxWords: v })} format={(v) => (v ? String(v) : 'sınırsız')} />
       <Field label="Yazı tipi"><select value={st.fontFamily} onChange={(e) => set({ fontFamily: e.target.value })} aria-label="Yazı tipi">{FONTS.map((f) => <option key={f}>{f}</option>)}</select></Field>
       <Slider label="Boyut" value={st.fontSize} min={24} max={140} step={1} onChange={(v) => set({ fontSize: v })} format={(v) => `${v}px`} />
       <div className="grid2">

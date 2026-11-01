@@ -1,5 +1,6 @@
 import type { Caption, CaptionStyle, Clip, ID, LayoutPreset, AspectRatio, LayoutTemplate, NormRect, Placement, TextSpec, Timeline, TrackKind, TrackRole } from '../types'
 import { applyTemplate } from './templates'
+import { assignHighlights } from './captionStyles'
 import { makeCommand, type Command } from './history'
 import * as ops from './ops'
 
@@ -26,6 +27,9 @@ export const cmd = {
   captions: (captions: Caption[]): TimelineCommand => makeCommand('Altyazıları güncelle', (t) => ops.setCaptions(t, captions)),
   captionStyle: (patch: Partial<CaptionStyle>, coalesce = true): TimelineCommand =>
     makeCommand('Altyazı stili', (t) => ({ ...t, captionStyle: { ...t.captionStyle, ...patch } }), coalesce ? `cap:${Object.keys(patch).join(',')}` : undefined),
+  /** Stili topluca değiştirir; altyazı satırları verilirse onlarla değişir, verilmezse yalnızca vurguları yeniden atanır (tek geri alma adımı) */
+  captionPreset: (style: CaptionStyle, captions?: Caption[], label = 'Altyazı stili'): TimelineCommand =>
+    makeCommand(label, (t) => ({ ...t, captionStyle: style, captions: captions ?? assignHighlights(t.captions, style) })),
   captionPos: (id: ID, pos: { x: number; y: number } | undefined, coalesce = true): TimelineCommand =>
     makeCommand('Altyazı konumu', (t) => ops.setCaptionPos(t, id, pos), coalesce ? `cpos:${id}` : undefined),
   allCaptionPos: (pos: { x: number; y: number } | undefined): TimelineCommand => makeCommand('Tüm altyazı konumu', (t) => ops.setAllCaptionPos(t, pos)),

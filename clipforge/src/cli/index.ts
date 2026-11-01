@@ -12,6 +12,7 @@ import { promisify } from 'node:util'
 import { nearestBoundary, suggestClip } from '../shared/clip/boundaries'
 import { cmd } from '../shared/timeline/commands'
 import { captionsForTimeline } from '../shared/timeline/captions'
+import { CAPTION_PRESETS, presetById } from '../shared/timeline/captionStyles'
 import { clipItemsForSource, clipsForVideoWithAudio, retargetItems } from '../shared/timeline/create'
 import { clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { clipsAt, timelineToSource } from '../shared/timeline/ops'
@@ -69,7 +70,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          ana projeyi DEĞİŞTİRMEDEN bağımsız klip projesi üretir
   silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
-  captions <proje> [--max-chars 22]      transkriptten altyazı üretir
+  captions <proje> [--style classic|boxed-highlight] [--max-chars 22]   transkriptten altyazı üretir (boxed-highlight: referans stil)
   delete-lane <proje> <V1|V2|V3|I1|I2|A1|CC>                      o katmandaki her şeyi siler
   frame <proje> --at sn --out resim.jpg  çizelgedeki bir anın karesini kaydeder (görsel kontrol)
   export <proje> --out dosya.mp4 [--preset shorts|…]               dışa aktarır
@@ -242,12 +243,21 @@ async function main(argv: string[]): Promise<unknown> {
       return out({ ok: true, removedSec: r1(to - from), newDurationSec: r1(timelineDuration(s.timeline)) })
     }
     case 'captions': {
+      const styleId = str(a.opt.style)
+      if (styleId) {
+        const p = presetById(styleId)
+        if (p.id !== styleId) throw new Error(`Bilinmeyen stil: ${styleId}. Seçenekler: ${CAPTION_PRESETS.map((x) => x.id).join(', ')}`)
+        const st = { ...s.timeline.captionStyle, ...p.style, enabled: true, positionY: s.timeline.captionStyle.positionY }
+        if (p.id === 'classic') (delete st.box, delete st.highlight)
+        s.apply(cmd.captionPreset(st))
+      }
       const words = Object.fromEntries(Object.entries(s.transcripts).map(([id, t]) => [id, t.words]))
       const caps = captionsForTimeline(s.timeline, words, { maxCharsPerLine: num(a.opt['max-chars'], 'max-chars') ?? s.timeline.captionStyle.maxCharsPerLine })
       if (caps.length === 0) throw new Error('Altyazı üretilemedi: zaman çizelgesi boş ya da kliplerin transkripti yok.')
       s.apply(cmd.captions(caps), cmd.captionStyle({ enabled: true }, false))
+      const style = s.timeline.captionStyle.box?.enabled ? 'boxed-highlight' : 'classic'
       await s.save()
-      return out({ ok: true, captions: caps.length, sample: caps.slice(0, 5).map((c) => ({ start: r1(c.start), end: r1(c.end), text: c.text })) })
+      return out({ ok: true, style, captions: caps.length, sample: caps.slice(0, 5).map((c) => ({ start: r1(c.start), end: r1(c.end), text: c.text, highlight: c.hl })) })
     }
     case 'delete-lane': {
       const lane = rest[0]

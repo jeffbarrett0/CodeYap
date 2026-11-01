@@ -855,6 +855,31 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.locator('.tl-clip.sel')).toHaveCount(0)
   })
 
+  test('altyazı stili: "Vurgulu kutulu" hazır stil — kısa satırlar (en fazla 4 kelime), kutu, eğik, kelime vurgusu; klasiğe dönülür', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V1')
+    await page.getByTestId('rtab-captions').click()
+    await page.getByTestId('gen-captions').click()
+    const classicCount = await page.getByTestId('cap-clip').count()
+    // stili uygula; satırlar yeniden üretilsin (onay)
+    page.once('dialog', (d) => void d.accept())
+    await page.getByTestId('cap-preset').selectOption('boxed-highlight')
+    await expect(page.getByTestId('cap-italic')).toBeChecked()
+    await expect(page.getByTestId('cap-box-on')).toBeChecked()
+    await expect(page.getByTestId('cap-hl-on')).toBeChecked()
+    expect(await page.getByTestId('cap-clip').count()).toBeGreaterThanOrEqual(classicCount) // kısa parçalar: satır sayısı artar
+    const texts = await page.getByTestId('cap-clip').allTextContents()
+    expect(texts.every((t) => t.split(/\s+/).filter(Boolean).length <= 4)).toBe(true)
+    // geri al → önceki stil
+    await page.keyboard.press('Control+z')
+    await expect(page.getByTestId('cap-box-on')).not.toBeChecked()
+    // klasik hazır stil
+    await page.getByTestId('cap-preset').selectOption('classic')
+    await expect(page.getByTestId('cap-box-on')).not.toBeChecked()
+    await expect(page.getByTestId('cap-hl-on')).not.toBeChecked()
+  })
+
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))

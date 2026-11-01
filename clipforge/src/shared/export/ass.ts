@@ -1,5 +1,6 @@
 import type { Caption, CaptionStyle, TextSpec } from '../types'
 import { wrapCaption } from '../timeline/captions'
+import { wordsWithHighlight } from '../timeline/captionStyles'
 
 /** #RRGGBB → ASS &HAABBGGRR (AA=00 opak) */
 export function assColor(hex: string, alpha = 0): string {
@@ -18,6 +19,18 @@ function assTime(sec: number): string {
 
 function escapeAss(text: string): string {
   return text.replace(/\\/g, '＼').replace(/[{}]/g, '').replace(/\r?\n/g, '\\N')
+}
+
+/** Satırları kelime düzeyinde vurgu renkleriyle böler: [{text,color?}][] (satır başına) */
+export function highlightedLines(text: string, lines: string[], hl: Caption['hl']): { text: string; color?: string }[][] {
+  const words = wordsWithHighlight(text, hl)
+  let k = 0
+  return lines.map((l) => {
+    const n = l.split(/\s+/).filter(Boolean).length
+    const seg = words.slice(k, k + n)
+    k += n
+    return seg
+  })
 }
 
 export interface TextEvent {
@@ -101,7 +114,9 @@ export function buildAss(captions: Caption[], style: CaptionStyle, W: number, H:
     '',
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-    `Style: Default,${style.fontFamily.replace(/,/g, ' ')},${fs},${assColor(style.color)},${assColor(style.color)},${assColor(style.outlineColor)},${assColor('#000000', 128)},${style.bold ? -1 : 0},0,0,0,100,100,0,0,1,${outline},0,5,${Math.round(W * 0.06)},${Math.round(W * 0.06)},0,1`,
+    `Style: Default,${style.fontFamily.replace(/,/g, ' ')},${fs},${assColor(style.color)},${assColor(style.color)},${assColor(style.outlineColor)},${assColor('#000000', 110)},${style.bold ? -1 : 0},${style.italic ? -1 : 0},0,0,100,100,0,0,1,${outline},${Math.round((style.shadow ?? 0) * scale * 10) / 10},5,${Math.round(W * 0.06)},${Math.round(W * 0.06)},0,1`,
+    // Kutu: BorderStyle 3 = metne oturan opak kutu (OutlineColour = kutu rengi, Outline = iç boşluk); metnin kendisi görünmez
+    ...(style.box?.enabled ? [`Style: Box,${style.fontFamily.replace(/,/g, ' ')},${fs},${assColor('#000000', 255)},${assColor('#000000', 255)},${assColor(style.box.color, Math.round((1 - Math.min(1, Math.max(0, style.box.opacity))) * 255))},${assColor('#000000', 255)},${style.bold ? -1 : 0},${style.italic ? -1 : 0},0,0,100,100,0,0,3,${Math.round(fs * 0.22 * 10) / 10},0,5,${Math.round(W * 0.06)},${Math.round(W * 0.06)},0,1`] : []),
     ...styleKeys.map((k, i) => {
       const [font, size, color, oc, ow, bold, italic] = JSON.parse(k) as [string, number, string, string, number, boolean, boolean | undefined]
       return `Style: Txt${i},${String(font).replace(/,/g, ' ')},${Math.round(size * scale)},${assColor(color)},${assColor(color)},${assColor(oc)},${assColor('#000000', 128)},${bold ? -1 : 0},${italic ? -1 : 0},0,0,100,100,0,0,1,${Math.round(ow * scale * 10) / 10},0,5,0,0,0,1`
@@ -115,8 +130,16 @@ export function buildAss(captions: Caption[], style: CaptionStyle, W: number, H:
     const end = Math.min(c.end, rangeEnd) - rangeStart
     if (end <= 0 || start >= end) continue
     const lay = captionLayout(style, c, W, H)
-    const body = escapeAss(lay.lines.join('\n'))
-    lines.push(`Dialogue: 0,${assTime(Math.max(0, start))},${assTime(end)},Default,,0,0,0,,{\\an5\\pos(${lay.cx},${lay.cy})}${body}`)
+    const plain = escapeAss(lay.lines.join('\n'))
+    const upper = style.uppercase ? c.text.toLocaleUpperCase('tr-TR') : c.text
+    const segs = highlightedLines(upper, lay.lines, c.hl)
+    const body = style.highlight?.enabled && c.hl
+      ? segs.map((line) => line.map((w) => (w.color ? `{\\1c${assColor(w.color)}&}${escapeAss(w.text)}{\\1c${assColor(style.color)}&}` : escapeAss(w.text))).join(' ')).join('\\N')
+      : plain
+    const t0 = assTime(Math.max(0, start))
+    const t1 = assTime(end)
+    if (style.box?.enabled) lines.push(`Dialogue: 0,${t0},${t1},Box,,0,0,0,,{\\an5\\pos(${lay.cx},${lay.cy})}${plain}`)
+    lines.push(`Dialogue: ${style.box?.enabled ? 1 : 0},${t0},${t1},Default,,0,0,0,,{\\an5\\pos(${lay.cx},${lay.cy})}${body}`)
   }
   texts.forEach((t, i) => {
     const start = Math.max(0, t.start)
@@ -124,7 +147,7 @@ export function buildAss(captions: Caption[], style: CaptionStyle, W: number, H:
     if (end <= start) return
     const { lines: wrapped } = wrapTextForRect(t.spec, t.rect.w, scale)
     const body = wrapped.map(escapeAss).join('\\N')
-    lines.push(`Dialogue: 1,${assTime(start)},${assTime(end)},Txt${textStyles[i]},,0,0,0,,${textTags(t.spec, Math.round(t.rect.x + t.rect.w / 2), Math.round(t.rect.y + t.rect.h / 2), end - start)}${body}`)
+    lines.push(`Dialogue: 2,${assTime(start)},${assTime(end)},Txt${textStyles[i]},,0,0,0,,${textTags(t.spec, Math.round(t.rect.x + t.rect.w / 2), Math.round(t.rect.y + t.rect.h / 2), end - start)}${body}`)
   })
   return lines.join('\n') + '\n'
 }

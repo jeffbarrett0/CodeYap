@@ -1,4 +1,5 @@
 import type { Caption, ID, Timeline, Transcript, TranscriptWord } from '../types'
+import { assignHighlights } from './captionStyles'
 import { timelineWords } from './transcript'
 
 export interface CaptionOptions {
@@ -7,9 +8,11 @@ export interface CaptionOptions {
   maxDurationSec: number
   /** Bu kadar sessizlik satırı böler */
   gapSec: number
+  /** Satır başına en fazla kelime (0: sınırsız) */
+  maxWords: number
 }
 
-export const DEFAULT_CAPTION_OPTIONS: CaptionOptions = { maxCharsPerLine: 22, maxLines: 2, maxDurationSec: 3.2, gapSec: 0.6 }
+export const DEFAULT_CAPTION_OPTIONS: CaptionOptions = { maxCharsPerLine: 22, maxLines: 2, maxDurationSec: 3.2, gapSec: 0.6, maxWords: 0 }
 
 const END_PUNCT = /[.!?…]$/u
 
@@ -33,9 +36,10 @@ export function captionsFromWords(words: TranscriptWord[], from: number, to: num
     const prev = cur[cur.length - 1]
     const text = [...cur, w].map((x) => x.text.trim()).join(' ')
     const tooLong = text.length > o.maxCharsPerLine * o.maxLines
+    const tooManyWords = o.maxWords > 0 && cur.length >= o.maxWords
     const tooLongTime = cur.length > 0 && w.end - cur[0].start > o.maxDurationSec
     const gap = prev ? w.start - prev.end > o.gapSec : false
-    if (prev && (tooLong || tooLongTime || gap)) flush()
+    if (prev && (tooLong || tooLongTime || gap || tooManyWords)) flush()
     cur.push(w)
     if (END_PUNCT.test(w.text.trim())) flush()
   }
@@ -55,7 +59,9 @@ export function captionsForTimeline(
 ): Caption[] {
   const fake = Object.fromEntries(Object.entries(wordsByAsset).map(([id, words]) => [id, { words } as unknown as Transcript]))
   const words = timelineWords(tl, fake)
-  return captionsFromWords(words, 0, Infinity, { maxCharsPerLine: tl.captionStyle.maxCharsPerLine, ...opts })
+  const st = tl.captionStyle
+  const caps = captionsFromWords(words, 0, Infinity, { maxCharsPerLine: st.maxCharsPerLine, maxWords: st.maxWords ?? 0, ...(st.maxWords ? { maxLines: 1, maxDurationSec: 2.4 } : {}), ...opts })
+  return assignHighlights(caps, st)
 }
 
 /** Satırı `maxChars` genişlikte sarar (kelime ortasında bölmez). */

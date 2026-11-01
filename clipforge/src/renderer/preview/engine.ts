@@ -3,7 +3,7 @@ import { resolveLayout } from '@shared/export/layout'
 import { aspectSize, clipDuration, clipEnd } from '@shared/timeline/model'
 import { clipsAt, timelineToSource } from '@shared/timeline/ops'
 import { wrapCaption } from '@shared/timeline/captions'
-import { captionLayout, wrapTextForRect } from '@shared/export/ass'
+import { captionLayout, highlightedLines, wrapTextForRect } from '@shared/export/ass'
 import type { Clip, MediaAsset, NormRect, TextSpec, Timeline, Track } from '@shared/types'
 
 /** Kaynak karenin hedefi dolduracak (cover) bölgesi */
@@ -288,18 +288,43 @@ export class PreviewEngine {
     if (!cap) return
     const scale = Math.min(W, H) / 1080
     const { lines, fontPx, cx, cy } = captionLayout(st, cap, W, H)
+    const upper = st.uppercase ? cap.text.toLocaleUpperCase('tr-TR') : cap.text
+    const segs = highlightedLines(upper, lines, cap.hl)
     ctx.save()
-    ctx.font = `${st.bold ? '700' : '400'} ${fontPx}px "${st.fontFamily}", Arial, sans-serif`
-    ctx.textAlign = 'center'
+    ctx.font = `${st.italic ? 'italic ' : ''}${st.bold ? '700' : '400'} ${fontPx}px "${st.fontFamily}", Impact, Arial, sans-serif`
+    ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
     ctx.lineJoin = 'round'
+    const lh = fontPx * 1.15
+    const space = ctx.measureText(' ').width
+    const widthOf = (line: { text: string }[]) => line.reduce((n, w, i) => n + ctx.measureText(w.text).width + (i ? space : 0), 0)
+    // kutu: metne oturan tek dikdörtgen (dışa aktarmadaki BorderStyle 3 kutusuyla aynı mantık)
+    if (st.box?.enabled) {
+      const pad = fontPx * 0.22
+      ctx.globalAlpha = Math.min(1, Math.max(0, st.box.opacity))
+      ctx.fillStyle = st.box.color
+      segs.forEach((line, i) => {
+        const w = widthOf(line) + pad * 2
+        const ly = cy + (i - (segs.length - 1) / 2) * lh
+        ctx.fillRect(cx - w / 2, ly - lh / 2 - pad * 0.1, w, lh + pad * 0.2)
+      })
+      ctx.globalAlpha = 1
+    }
     ctx.lineWidth = st.outlineWidth * scale * 2
     ctx.strokeStyle = st.outlineColor
-    ctx.fillStyle = st.color
-    lines.forEach((l, i) => {
-      const ly = cy + (i - (lines.length - 1) / 2) * fontPx * 1.15
-      ctx.strokeText(l, cx, ly)
-      ctx.fillText(l, cx, ly)
+    segs.forEach((line, i) => {
+      const ly = cy + (i - (segs.length - 1) / 2) * lh
+      let x = cx - widthOf(line) / 2
+      for (const w of line) {
+        if (st.shadow) {
+          ctx.fillStyle = 'rgba(0,0,0,.45)'
+          ctx.fillText(w.text, x + st.shadow * scale, ly + st.shadow * scale)
+        }
+        ctx.strokeText(w.text, x, ly)
+        ctx.fillStyle = w.color ?? st.color
+        ctx.fillText(w.text, x, ly)
+        x += ctx.measureText(w.text).width + space
+      }
     })
     ctx.restore()
   }
