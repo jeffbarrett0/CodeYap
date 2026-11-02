@@ -1,7 +1,7 @@
 import { access, mkdir, readFile, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
-import { initialStages, type AutoKickRequest, type AutoKickResult, type AutoKickStage, type AutoKickStageState } from '../../shared/autokick'
+import { initialStages, transcriptionReadiness, type AutoKickRequest, type AutoKickResult, type AutoKickStage, type AutoKickStageState } from '../../shared/autokick'
 import { cmd } from '../../shared/timeline/commands'
 import { clipsForVideoWithAudio } from '../../shared/timeline/create'
 import { nearestAspect, timelineDuration } from '../../shared/timeline/model'
@@ -62,11 +62,16 @@ export async function runAutoKick(req: AutoKickRequest, env: { userDataDir?: str
   const check = () => {
     if (hooks.signal.aborted) throw new AutoKickCancelled()
   }
-  await mkdir(p.dir, { recursive: true })
   const service = await makeService(env)
   const settings = service.settings.value
+  // 0) ön kontrol: whisper/ffmpeg hazır mı? Uzun işe başlamadan, anlaşılır mesajla (içe aktarmadan ÖNCE) ───
+  const info = await service.info()
+  if (!info.ffmpeg.ok || !info.ffprobe.ok) throw new Error(`ffmpeg/ffprobe çalışmıyor (${info.ffmpeg.error ?? info.ffprobe.error ?? 'bulunamadı'}). Uygulamayı yeniden kurun ya da Ayarlar'dan yolunu gösterin.`)
+  const ready = transcriptionReadiness(settings, info)
+  if (!ready.ok) throw new Error(`Transkripsiyon başlatılamaz: ${ready.problems.join(' ')}`)
+  await mkdir(p.dir, { recursive: true })
   /** Kuyruktaki bir görevi bekler; iptalde görevi durdurur */
-  const run = async (id: string, label: string, onProgress: (f: number) => void) => {
+  const run = async (id: string, label: string, onProgress: (f: number, message?: string) => void) => {
     const onAbort = () => service.queue.cancel(id)
     hooks.signal.addEventListener('abort', onAbort, { once: true })
     try {
@@ -99,7 +104,8 @@ export async function runAutoKick(req: AutoKickRequest, env: { userDataDir?: str
   else {
     stage('import', { status: 'running', progress: 0 })
     const ids = service.importMedia([p.video])
-    for (const id of ids) await run(id, 'İçe aktarma', (f) => stage('import', { progress: f }))
+    stage('import', { detail: 'Kayıt inceleniyor ve hazırlanıyor…' })
+    for (const id of ids) await run(id, 'İçe aktarma', (f) => stage('import', { progress: f, detail: `Kayıt içe aktarılıyor %${Math.round(f * 100)}` }))
     asset = [...service.assets.values()].find((a) => a.path === p.video)
     if (!asset) throw new Error('Kayıt içe aktarılamadı.')
     if (asset.kind !== 'video') throw new Error('Bu bir video değil.')
@@ -116,10 +122,37 @@ export async function runAutoKick(req: AutoKickRequest, env: { userDataDir?: str
   // 2) transkripsiyon ────────────────────────────────────
   check()
   stage('transcribe', { status: 'running', progress: 0 })
-  const tid = await service.transcriptStart({ assetId: asset.id, track: req.track ?? asset.transcriptionTrack ?? 0, language: req.language ?? settings.language, model: req.model })
-  await run(tid, 'Transkripsiyon', (f) => stage('transcribe', { progress: f }))
-  const transcript = await service.transcriptGet(asset.id)
-  if (!transcript || transcript.words.length === 0) throw new Error('Transkript boş çıktı (kayıtta konuşma yok ya da Whisper kurulumu sorunlu).')
+  const lang = req.language ?? settings.language
+  try {
+    // model yoksa kendiliğinden indirilir (kullanıcı ayrıca bir şey yapmaz)
+    if (ready.needsModelDownload) {
+      stage('transcribe', { detail: `Whisper "${ready.needsModelDownload}" modeli indiriliyor (yalnızca ilk sefer)…` })
+      const mid = service.downloadModel(ready.needsModelDownload)
+      await run(mid, 'Model indirme', (f, m) => stage('transcribe', { progress: f, detail: `Whisper modeli indiriliyor ${m ?? ''}`.trim() }))
+      stage('transcribe', { progress: 0 })
+    }
+    // konuşma hangi ses track'inde? (çok track'li OBS kayıtları)
+    let track = req.track
+    const existing = await service.transcriptGet(asset.id)
+    if (track === undefined && existing) track = existing.audioTrack // önceki çalıştırmadan: aynı track
+    if (track === undefined && asset.audioStreams.length > 1) {
+      stage('transcribe', { detail: `Konuşmanın hangi ses track'inde olduğu denetleniyor (${asset.audioStreams.length} track)…` })
+      const d = await service.detectSpeechTrack(asset.id, lang, req.model, hooks.signal)
+      track = d.track
+      stage('transcribe', { detail: `Konuşma Track ${track + 1}'de bulundu (kelime sayıları: ${d.words.join(' / ')})` })
+    }
+    track ??= asset.transcriptionTrack ?? 0
+    const tid = await service.transcriptStart({ assetId: asset.id, track, language: lang, model: req.model })
+    await run(tid, 'Transkripsiyon', (f, m) => stage('transcribe', { progress: f, detail: m ? `Track ${track! + 1} · ${m}` : undefined }))
+    const tr = await service.transcriptGet(asset.id)
+    if (!tr || tr.words.length === 0) {
+      throw new Error(`Whisper çalıştı ama konuşma bulunamadı (Track ${track + 1}, dil: ${lang}, model: ${req.model ?? settings.whisperModel}). Kayıtta konuşma yoksa ya da yanlış track/dil seçiliyse olur; Ayarlar'dan dili ve modeli kontrol edin.`)
+    }
+  } catch (e) {
+    check()
+    throw new Error(`Transkripsiyon aşamasında hata: ${e instanceof Error ? e.message : String(e)}`)
+  }
+  const transcript = (await service.transcriptGet(asset.id))!
   s.transcripts[asset.id] = transcript
   stage('transcribe', { status: 'done', progress: 1, detail: `${transcript.words.length.toLocaleString('tr')} kelime · ${transcript.segments.length} cümle` })
 
@@ -249,7 +282,7 @@ export class AutoKickManager {
 
   start(req: AutoKickRequest): string {
     const id = `autokick-${++this.seq}`
-    const status: import('../../shared/autokick').AutoKickStatus = { id, videoName: basename(req.videoPath), status: 'running', stages: initialStages(), startedAt: Date.now() }
+    const status: import('../../shared/autokick').AutoKickStatus = { id, request: req, videoName: basename(req.videoPath), status: 'running', stages: initialStages(), startedAt: Date.now() }
     const ctrl = new AbortController()
     this.jobs.set(id, { status, ctrl })
     const push = () => this.emit(structuredClone(status))

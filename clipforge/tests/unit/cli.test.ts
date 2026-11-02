@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -165,6 +165,48 @@ describe('komut satırı: sessizleri kes + altyazı + dışa aktar; arama + bağ
     expect(clip.tracks.find((t: any) => t.id === 'A1').clips.length).toBeGreaterThan(0)
     expect(cli('topic-clips', dir, '--topic', 'Neymar').candidates).toEqual([])
     expect(cli('topic-clips', dir, '--topic', 'Viktor', '--pick', '9').error).toMatch(/Seçilen aday yok/)
+  }, 300_000)
+
+  it('auto-kick: whisper yoksa İÇE AKTARMADAN ÖNCE anlaşılır hata; çok track\'li kayıtta konuşma track\'i otomatik bulunur', () => {
+    const ud2 = join(tmp, 'ud2')
+    mkdirSync(join(ud2, 'models'), { recursive: true })
+    writeFileSync(join(ud2, 'models', 'ggml-tiny.bin'), Buffer.alloc(12_000_000))
+    const run2 = (...args: string[]) => {
+      try {
+        return JSON.parse(execFileSync(process.execPath, [join(root, 'out/main/cli.js'), ...args], { env: { ...process.env, CLIPFORGE_USER_DATA: ud2 }, stdio: ['ignore', 'pipe', 'ignore'], timeout: 120_000 }).toString())
+      } catch (e) {
+        return JSON.parse((e as { stdout: Buffer }).stdout.toString())
+      }
+    }
+    // 1) whisper yolu yanlış
+    writeFileSync(join(ud2, 'settings.json'), JSON.stringify({ whisperCppPath: join(tmp, 'yok', 'whisper-cli.exe'), whisperModelDir: join(ud2, 'models'), whisperModel: 'tiny', language: 'tr' }))
+    const bad = run2('auto-kick', join(tmp, 'video örnek.mp4'), '--out', join(tmp, 'ak-bad'))
+    expect(bad.ok).toBe(false)
+    expect(bad.error).toMatch(/Transkripsiyon başlatılamaz.*whisper\.cpp bulunamadı.*yolunu gösterin/)
+    expect(existsSync(join(tmp, 'ak-bad', 'video örnek.clipforge'))).toBe(false) // içe aktarmaya bile geçilmedi
+
+    // 2) iki ses track'li kayıt: konuşma 2. track'te (sahte whisper yalnızca p_1.wav örneğinde ve tam parçalarda kelime verir)
+    const fake = join(tmp, 'whisper-t2')
+    writeFileSync(
+      fake,
+      `#!/usr/bin/env node
+const fs = require('fs'); const a = process.argv; const val = (f) => a[a.indexOf(f) + 1]
+const base = val('-f').split(/[\\/\\\\]/).pop()
+const speak = !/^p_/.test(base) || base === 'p_1.wav'
+const tr = [{ offsets: { from: 0, to: 100 }, text: '[_BEG_]' }]
+if (speak) { let t = 3000; for (const w of ['Bu', 'bir', 'deneme', 'cümlesi', 'tamam', 'mı']) { tr.push({ offsets: { from: t, to: t + 350 }, text: ' ' + w }); t += 450 } }
+fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
+`
+    )
+    chmodSync(fake, 0o755)
+    writeFileSync(join(ud2, 'settings.json'), JSON.stringify({ whisperCppPath: fake, whisperModelDir: join(ud2, 'models'), whisperModel: 'tiny', language: 'tr' }))
+    const ffmpeg = require('ffmpeg-static') as string
+    const two = join(tmp, 'iki track.mkv')
+    execFileSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30:duration=40', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=40', '-f', 'lavfi', '-i', 'sine=frequency=500:duration=40', '-map', '0:v', '-map', '1:a', '-map', '2:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', two])
+    const r = run2('auto-kick', two, '--out', join(tmp, 'ak-two'))
+    expect(r.ok).toBe(true)
+    const transcriptFile = readdirSync(join(tmp, 'ak-two', 'iki track.clipforge-data', 'transcripts')).find((f) => f.endsWith('.json'))!
+    expect(JSON.parse(readFileSync(join(tmp, 'ak-two', 'iki track.clipforge-data', 'transcripts', transcriptFile), 'utf8')).audioTrack).toBe(1) // Track 2
   }, 300_000)
 
   it('katman silme ve anlaşılır hata', () => {

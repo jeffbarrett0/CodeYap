@@ -63,3 +63,19 @@ describe('kare hızı ve ses çerçevesi', () => {
     expect(audioFrameSamples(59.94)).toBe(40)
   })
 })
+
+describe('transkripsiyon hazırlık denetimi', () => {
+  const ok = { whisperCpp: { ok: true, path: 'C:/w/whisper-cli.exe' }, models: [{ size: 'small' as const, installed: true, path: 'C:/m/ggml-small.bin' }, { size: 'tiny' as const, installed: false, path: 'C:/m/ggml-tiny.bin' }] }
+  it('hazır; model eksikse kendiliğinden indirilir (ok kalır); program yoksa durur; anahtar yoksa durur', async () => {
+    const { transcriptionReadiness: r } = await import('../../src/shared/autokick')
+    expect(r({ provider: 'whisper-cpp', whisperModel: 'small' }, ok)).toMatchObject({ ok: true, problems: [] })
+    const noModel = r({ provider: 'whisper-cpp', whisperModel: 'tiny' }, ok)
+    expect(noModel).toMatchObject({ ok: true, needsModelDownload: 'tiny' })
+    expect(noModel.problems[0]).toMatch(/otomatik indirilir/)
+    const noBin = r({ provider: 'whisper-cpp', whisperModel: 'small' }, { ...ok, whisperCpp: { ok: false, path: 'whisper-cli' } })
+    expect(noBin.ok).toBe(false)
+    expect(noBin.problems[0]).toMatch(/whisper-cli\.exe.*yolunu gösterin/)
+    expect(r({ provider: 'openai', whisperModel: 'small', openaiApiKey: '' }, ok).ok).toBe(false)
+    expect(r({ provider: 'openai', whisperModel: 'small', openaiApiKey: 'sk-x' }, ok).ok).toBe(true)
+  })
+})

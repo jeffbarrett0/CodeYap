@@ -1,4 +1,4 @@
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { parseChatLog } from '../shared/chat/parse'
 import { DEFAULT_SEARCH_OPTIONS } from '../shared/search/engine'
@@ -10,7 +10,7 @@ import type { AppInfo, ChatImportRequest, ExportRequest, IpcEventName, IpcEvents
 import type { ChatLog, MediaAsset, Marker, Project, SearchResult, Transcript, WhisperModelSize } from '../shared/types'
 import { runExport } from './export'
 import { resolveFfmpegPath, resolveFfprobePath, ToolError, toolVersion } from './ffmpeg'
-import { audioLevelSeries, detectScenes } from './media/audio'
+import { audioLevelSeries, detectScenes, extractWavChunk } from './media/audio'
 import { importMedia, loadMarkers, type MediaTools } from './media/import'
 import { makeProxy } from './media/proxy'
 import { access } from 'node:fs/promises'
@@ -144,6 +144,43 @@ export class AppService {
   }
 
   // ───── transkripsiyon ─────
+
+  /**
+   * Çok ses track'li kayıtlarda (OBS: oyun / mikrofon / karışım) KONUŞMANIN hangi track'te olduğunu bulur: her track'ten
+   * ~60 sn'lik örnek (kaydın %30'u ve gerekirse %60'ı) kısa transkribe edilir, en çok kelime çıkan track seçilir.
+   * Tek track varsa soru yoktur. Hiçbirinden kelime çıkmazsa dosyanın varsayılan track'i döner.
+   */
+  async detectSpeechTrack(assetId: string, language: string, model?: WhisperModelSize, signal?: AbortSignal): Promise<{ track: number; words: number[] }> {
+    const asset = this.assets.get(assetId)
+    if (!asset) throw new ToolError('Medya bulunamadı.')
+    const n = asset.audioStreams.length
+    const fallback = Math.min(asset.transcriptionTrack ?? 0, Math.max(0, n - 1))
+    if (n <= 1) return { track: 0, words: [] }
+    const s = this.settings.value
+    const m = model ?? s.whisperModel
+    const provider = createProvider(s, this.modelDir, join(this.deps.resourcesDir, 'faster_whisper_cli.py'), this.whisperBin)
+    const len = Math.min(60, asset.durationSec)
+    const work = join(this.dataDir, 'tmp', `probe-${asset.id}`)
+    await mkdir(work, { recursive: true })
+    const words = new Array<number>(n).fill(0)
+    try {
+      for (const frac of [0.3, 0.6]) {
+        const start = Math.max(0, (asset.durationSec - len) * frac)
+        for (let t = 0; t < n; t++) {
+          if (signal?.aborted) throw new ToolError('İptal edildi.')
+          const wav = join(work, `p_${t}.wav`)
+          await extractWavChunk(asset, t, start, len, wav, this.tools, signal)
+          const w = await provider.transcribeChunk({ wavPath: wav, offsetSec: start, language, model: m, signal, workDir: work })
+          words[t] += w.length
+        }
+        if (Math.max(...words) >= 8) break
+      }
+    } finally {
+      await rm(work, { recursive: true, force: true }).catch(() => undefined)
+    }
+    const best = Math.max(...words)
+    return { track: best > 0 ? words.indexOf(best) : fallback, words }
+  }
 
   async transcriptStart(req: TranscribeRequest): Promise<string> {
     const asset = this.assets.get(req.assetId)

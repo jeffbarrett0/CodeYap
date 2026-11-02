@@ -110,7 +110,7 @@ export function createMockApi(): ClipforgeApi {
     'autokick:start': (req) => {
       const id = `autokick-${akJobs.size + 1}`
       const name = req.videoPath.split(/[\\/]/).pop() ?? req.videoPath
-      const status: AutoKickStatus = { id, videoName: name, status: 'running', stages: initialStages(), startedAt: Date.now() }
+      const status: AutoKickStatus = { id, request: req, videoName: name, status: 'running', stages: initialStages(), startedAt: Date.now() }
       akJobs.set(id, status)
       const push = () => emit('autokick:update', structuredClone(status))
       push()
@@ -149,6 +149,7 @@ export function createMockApi(): ClipforgeApi {
       { id: 'c2', start: 900, end: 922, durationSec: 22, hits: 2, score: 6.1, mentions: [{ t: 905, text: 'Osimen' }], text: 'Osimen kadar iyi bir forvet yok bence.' }
     ]),
     'autokick:makeClip': (r) => ({ projectPath: `/yayin/AutoKick/kayit/kayit-klipler/${r.topic} · ${Math.round(r.end - r.start)} sn.clipforge`, durationSec: r.end - r.start }),
+    'autokick:check': () => (w.__mock?.fail?.whisper ? { ok: false, provider: 'whisper-cpp', model: 'small', problems: [w.__mock.fail.whisper] } : { ok: true, provider: 'whisper-cpp', model: 'small', problems: [] }),
     'autokick:list': () => [...akJobs.values()].map((s) => structuredClone(s)),
     'project:save': (p, path) => {
       const target = path ?? '/tmp/proje.clipforge'

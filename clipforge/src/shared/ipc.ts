@@ -6,7 +6,7 @@
  *  - `ClipforgeApi`: renderer'ın gördüğü yüzey. Preload bunu IPC üzerinden, tarayıcı modu ise sahte (mock)
  *    bir uygulama ile sağlar; böylece arayüz iki ortamda da aynı kodla çalışır.
  */
-import type { AutoKickRequest, AutoKickStatus } from './autokick'
+import type { AutoKickRequest, AutoKickStatus, TranscriptionReadiness } from './autokick'
 import type { TopicCandidate } from './topic'
 import type {
   ChatColumnMapping,
@@ -117,6 +117,8 @@ export interface IpcInvoke {
   'autokick:start': [[AutoKickRequest], string]
   'autokick:cancel': [[string], void]
   'autokick:list': [[], AutoKickStatus[]]
+  /** Auto Kick başlamadan transkripsiyon hazır mı (whisper programı, model, anahtar) */
+  'autokick:check': [[], TranscriptionReadiness]
   /** Konu klibi: Auto Kick projesinin transkriptinde konuyu arar, aday klipleri önerir (projeyi değiştirmez) */
   'autokick:topic': [[{ projectPath: string; topic: string; maxSec?: number; minSec?: number }], TopicCandidate[]]
   /** Seçilen adaydan bağımsız klip projesi üretir (Auto Kick projesi değişmez) */

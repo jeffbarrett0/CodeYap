@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { TopicCandidate } from '@shared/topic'
 import { LANGUAGES } from '@shared/settings'
-import type { AutoKickStatus } from '@shared/autokick'
+import type { AutoKickStatus, TranscriptionReadiness } from '@shared/autokick'
 import { requireApi } from '../api'
 import { useStore } from '../store'
 import { Field, Modal, Num, Progress } from './ui'
@@ -33,6 +33,7 @@ function Job({ job }: { job: AutoKickStatus }) {
         </div>
       ))}
       {job.error && <div className="warnbox" role="alert" data-testid="autokick-error">{job.error}</div>}
+      {(job.status === 'failed' || job.status === 'cancelled') && <button className="btn sm" onClick={() => void api.invoke('autokick:start', job.request)} data-testid="autokick-retry" title="Biten aşamalar atlanır, kaldığı yerden sürer">Yeniden dene (kaldığı yerden)</button>}
       {job.status === 'running' && <button className="btn sm danger" onClick={() => void api.invoke('autokick:cancel', job.id)} data-testid="autokick-cancel">İptal</button>}
       {r && (
         <div className="col" data-testid="autokick-result">
@@ -133,6 +134,21 @@ function TopicClips({ initialProject }: { initialProject: string }) {
   )
 }
 
+function Readiness() {
+  const api = requireApi()
+  const [r, setR] = useState<TranscriptionReadiness | null>(null)
+  const check = () => void api.invoke('autokick:check').then(setR)
+  useEffect(check, []) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!r) return null
+  return (
+    <div className={r.ok ? 'hint' : 'warnbox'} role={r.ok ? undefined : 'alert'} data-testid="autokick-readiness" data-ok={r.ok}>
+      {r.ok && r.problems.length === 0 && <>✓ Transkripsiyon hazır ({r.provider}, {r.model}).</>}
+      {r.problems.map((p, i) => <div key={i}>{r.ok ? 'ℹ ' : '⚠ '}{p}</div>)}
+      {!r.ok && <button className="btn sm" onClick={check} data-testid="autokick-recheck">Yeniden denetle</button>}
+    </div>
+  )
+}
+
 export function AutoKickDialog() {
   const { settings, openDialog, autoKick } = useStore()
   const api = requireApi()
@@ -169,6 +185,7 @@ export function AutoKickDialog() {
           Sıra: <b>içe aktar → transkripsiyon → sessiz alanları kes → boşlukları kapat → tam videoyu kaydet (full video)</b>. Siz hiçbir şeye dokunmazsınız.
           İş arka planda sürer; bu pencereyi kapatabilirsiniz ama uygulamayı kapatmayın. Orijinal kayda dokunulmaz.
         </div>
+        <Readiness />
         <Field label="Yayın kaydı">
           <div className="row">
             <input type="text" readOnly value={video} placeholder="Henüz seçilmedi" aria-label="Yayın kaydı yolu" data-testid="autokick-path" style={{ flex: 1 }} />

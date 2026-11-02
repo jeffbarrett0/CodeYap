@@ -304,3 +304,13 @@ Aşamalar: içe aktar → transkripsiyon → **sessizleri kes → boşlukları k
 * **Öneri, otomatik üretim değil:** adaylar listelenir, kullanıcı seçer (kurgu kararı kullanıcıda). Seçilen aday, **kesilmiş çizelgenin** [başlangıç, bitiş] aralığıdır (sessizsiz, boşluksuz); bağımsız proje olarak `<AutoKick projesi>-klipler/` altına yazılır, transkript ve önizleme taşınır → sonra altyazı/düzen eklenebilir. Auto Kick projesi değişmez (testle doğrulandı).
 * **Arayüz/CLI:** Auto Kick penceresi → *Konu klibi* (proje seç, konu yaz, aday listesi, "klip projesi oluştur", "Uygulamada aç"); CLI `topic-clips`.
 * **Sınırlar:** yalnızca kelime eşleşmesi (anlamsal/eş anlamlı arama yok: "forvet" yazınca "Osimhen" bulunmaz); adayın klip olarak ilginçliği (komik/heyecanlı) değerlendirilmez; çok kelimeli konuda herhangi bir anahtar kelime eşleşir.
+
+## 37. Auto Kick: ön kontrol, otomatik model indirme, konuşma track'i seçimi, anlaşılır hata
+
+**Sorun:** "Auto Kick'i başlat" deyince transkripsiyon aşamasında hata çıkıyordu; nedeni kullanıcıya görünmüyordu ve uzun bir işin sonunda ortaya çıkıyordu.
+* **Sıra (istenen):** başlat → kayıt otomatik içe aktarılır (ilerleme yüzdesiyle) → transkripsiyon → sessizleri kes → boşlukları kapat → tam videoyu kaydet. Kullanıcı hiçbir adımda dokunmaz.
+* **Ön kontrol (içe aktarmadan ÖNCE, saniyeler):** ffmpeg/ffprobe, whisper programı, API anahtarı. Eksikse işe başlanmaz ve ne yapılacağı yazılır ("whisper-cli.exe yolunu gösterin"). Pencere açılınca aynı denetim *Transkripsiyon hazır ✓ / ⚠ …* olarak görünür.
+* **Model kendiliğinden iner:** whisper.cpp modeli kurulu değilse (ör. "small", ~470 MB) Auto Kick onu indirir (yalnızca ilk sefer; ilerleme gösterilir) ve devam eder.
+* **Konuşma hangi ses track'inde:** çok track'li OBS kayıtlarında her track'ten ~60 sn'lik örnek (kaydın %30'u, gerekirse %60'ı) kısa transkribe edilir; en çok kelime çıkan track seçilir (`detectSpeechTrack`). Tek track'te soru yok; önceki çalıştırmada seçilen track tekrar kullanılır. (Eski davranış: dosyadaki varsayılan track; konuşma başka track'teyse "boş transkript" hatası verirdi.)
+* **Hata görünürlüğü:** hata, aşama adıyla ve çözümüyle gösterilir ("Transkripsiyon aşamasında hata: …"); boş transkriptte track/dil/model yazılır. Başarısız/iptal işte **"Yeniden dene (kaldığı yerden)"**: biten aşamalar ve 10 dk'lık transkript parçaları atlanır.
+* **Sınırlar:** whisper programının kendisi (whisper-cli) otomatik kurulmaz; yolu bir kez Ayarlar'da gösterilmelidir. Track denetimi her track için ~birkaç on sn ek süre ekler. Gerçek 2 saatlik yayın hâlâ denenmedi.

@@ -922,6 +922,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await boot(page)
     await page.getByTestId('autokick-btn').click()
     await expect(page.getByTestId('autokick-dialog')).toBeVisible()
+    await expect(page.getByTestId('autokick-readiness')).toHaveAttribute('data-ok', 'true') // transkripsiyon hazır
     await page.getByTestId('autokick-start').click()
     await expect(page.getByRole('alert')).toContainText('bir yayın kaydı seçin') // kayıt seçmeden başlamaz
     await page.getByTestId('autokick-pick').click()
@@ -960,6 +961,14 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('topic-input').fill('yok böyle bir şey')
     await page.getByTestId('topic-search').click()
     await expect(page.getByTestId('topic-none')).toBeVisible()
+  })
+
+  test('Auto Kick: başlamadan transkripsiyon hazırlığı gösterilir; hazır değilse nedeni ve çözümü yazar', async ({ page }) => {
+    await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { whisper: 'whisper.cpp bulunamadı (whisper-cli). Ayarlar → Transkripsiyon bölümünde "whisper-cli.exe" dosyasının yolunu gösterin.' } }))
+    await boot(page)
+    await page.getByTestId('autokick-btn').click()
+    await expect(page.getByTestId('autokick-readiness')).toHaveAttribute('data-ok', 'false')
+    await expect(page.getByTestId('autokick-readiness')).toContainText('yolunu gösterin')
   })
 
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {

@@ -50,6 +50,8 @@ export interface AutoKickResult {
 
 export interface AutoKickStatus {
   id: string
+  /** başlatılan istek (hata sonrası "yeniden dene" için) */
+  request: AutoKickRequest
   videoName: string
   status: 'running' | 'done' | 'failed' | 'cancelled'
   stages: AutoKickStageState[]
@@ -60,3 +62,35 @@ export interface AutoKickStatus {
 }
 
 export const initialStages = (): AutoKickStageState[] => AUTOKICK_STAGES.map((s) => ({ ...s, status: 'pending', progress: 0 }))
+
+/** Transkripsiyonun çalışıp çalışmayacağı: Auto Kick başlamadan (ve pencerede) gösterilir; sorun varsa ne yapılacağı yazar */
+export interface TranscriptionReadiness {
+  ok: boolean
+  provider: string
+  model: string
+  problems: string[]
+  /** whisper.cpp modeli yok ama indirilebilir: Auto Kick kendisi indirir */
+  needsModelDownload?: WhisperModelSize
+}
+
+export function transcriptionReadiness(
+  s: { provider: string; whisperModel: WhisperModelSize; openaiApiKey?: string },
+  info: { whisperCpp: { ok: boolean; path: string }; models: { size: WhisperModelSize; installed: boolean; path: string }[] }
+): TranscriptionReadiness {
+  const r: TranscriptionReadiness = { ok: true, provider: s.provider, model: s.whisperModel, problems: [] }
+  if (s.provider === 'whisper-cpp') {
+    if (!info.whisperCpp.ok) {
+      r.problems.push(`whisper.cpp bulunamadı (${info.whisperCpp.path}). Ayarlar → Transkripsiyon bölümünde "whisper-cli.exe" dosyasının yolunu gösterin.`)
+    }
+    const m = info.models.find((x) => x.size === s.whisperModel)
+    if (m && !m.installed) {
+      r.needsModelDownload = s.whisperModel
+      r.problems.push(`Whisper "${s.whisperModel}" modeli kurulu değil (${m.path}). Auto Kick başlayınca otomatik indirilir.`)
+    }
+    r.ok = info.whisperCpp.ok // model eksikliği otomatik giderilir; program eksikliği giderilemez
+  } else if (s.provider === 'openai' && !s.openaiApiKey) {
+    r.ok = false
+    r.problems.push('OpenAI API anahtarı girilmemiş (Ayarlar → Transkripsiyon).')
+  }
+  return r
+}

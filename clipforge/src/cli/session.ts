@@ -42,12 +42,12 @@ export async function makeService(opts: { userDataDir?: string; resourcesDir?: s
 export const log = (msg: string) => process.stderr.write(`${msg}\n`)
 
 /** Bir görevin bitmesini bekler; hata durumunda anlaşılır mesajla fırlatır. İlerlemeyi stderr'e yazar. */
-export function waitTask(service: AppService, id: string, label: string, onProgress?: (fraction: number) => void): Promise<void> {
+export function waitTask(service: AppService, id: string, label: string, onProgress?: (fraction: number, message?: string) => void): Promise<void> {
   return new Promise((ok, bad) => {
     let last = -1
     const check = (t: { id: string; status: string; progress: number; error?: string }) => {
       if (t.id !== id) return
-      onProgress?.(t.progress)
+      onProgress?.(t.progress, (t as { message?: string }).message)
       const pct = Math.floor(t.progress * 100)
       if (pct !== last && pct % 10 === 0) (last = pct, log(`${label}: %${pct}`))
       if (t.status === 'done') (off(), ok())
