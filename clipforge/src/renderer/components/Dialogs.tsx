@@ -99,7 +99,7 @@ export function HelpDialog() {
   )
 }
 
-type Tab = 'trans' | 'search' | 'clip' | 'chat' | 'export' | 'tools'
+type Tab = 'trans' | 'search' | 'ideas' | 'clip' | 'chat' | 'export' | 'tools'
 
 export function SettingsDialog() {
   const { settings, updateSettings, openDialog, appInfo } = useStore()
@@ -107,7 +107,7 @@ export function SettingsDialog() {
   const [s, setS] = useState<Settings>(settings)
   const api = requireApi()
   const set = (p: Partial<Settings>) => setS((x) => ({ ...x, ...p }))
-  const tabs: [Tab, string][] = [['trans', 'Transkripsiyon'], ['search', 'Arama'], ['clip', 'Klip'], ['chat', 'Sohbet'], ['export', 'Dışa aktarma'], ['tools', 'FFmpeg / Araçlar']]
+  const tabs: [Tab, string][] = [['trans', 'Transkripsiyon'], ['search', 'Arama'], ['ideas', 'Başlık önerileri'], ['clip', 'Klip'], ['chat', 'Sohbet'], ['export', 'Dışa aktarma'], ['tools', 'FFmpeg / Araçlar']]
   const save = async () => {
     await updateSettings(s)
     openDialog(null)
@@ -194,6 +194,26 @@ export function SettingsDialog() {
         </div>
       )}
 
+      {tab === 'ideas' && (
+        <div className="col" data-testid="settings-ideas">
+          <div className="hint">Öneriler sekmesi, uzun yayını konu bölümlerine ayırıp her birine YouTube başlığı önerir. Başlıkları bir yapay zekâ modeli yazarsa çok daha iyi olur; kapalıysa anahtar kelimelerden taslak başlık üretilir (internet ve anahtar gerekmez). Bölümün konuşma metni seçtiğiniz sağlayıcıya gönderilir.</div>
+          <Field label="Yapay zekâ sağlayıcısı">
+            <select value={s.llmProvider} onChange={(e) => set({ llmProvider: e.target.value as Settings['llmProvider'] })} aria-label="Yapay zekâ sağlayıcısı" data-testid="llm-provider">
+              <option value="off">Kapalı (taslak başlıklar)</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI uyumlu (OpenAI, OpenRouter, yerel Ollama…)</option>
+            </select>
+          </Field>
+          {s.llmProvider === 'anthropic' && <Field label="Anthropic API anahtarı"><input type="password" value={s.anthropicApiKey} onChange={(e) => set({ anthropicApiKey: e.target.value })} autoComplete="off" aria-label="Anthropic API anahtarı" /></Field>}
+          {s.llmProvider === 'openai' && (
+            <div className="grid2">
+              <Field label="API anahtarı"><input type="password" value={s.openaiApiKey} onChange={(e) => set({ openaiApiKey: e.target.value })} autoComplete="off" aria-label="OpenAI API anahtarı" /></Field>
+              <Field label="Taban URL"><input type="text" value={s.openaiBaseUrl} onChange={(e) => set({ openaiBaseUrl: e.target.value })} /></Field>
+            </div>
+          )}
+          {s.llmProvider !== 'off' && <Field label={`Model (boş = ${s.llmProvider === 'anthropic' ? 'claude-haiku-5-5' : 'gpt-4o-mini'})`}><input type="text" value={s.llmModel} onChange={(e) => set({ llmModel: e.target.value })} aria-label="Model" /></Field>}
+        </div>
+      )}
       {tab === 'clip' && (
         <div className="col">
           <div className="grid3">

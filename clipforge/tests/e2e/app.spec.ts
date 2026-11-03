@@ -971,6 +971,30 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autokick-readiness')).toContainText('yolunu gösterin')
   })
 
+  test('Öneriler: transkriptten ayrı video olabilecek konu bölümleri ve YouTube başlık önerileri; klip taslağına çevrilir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('import-btn').click()
+    await expect(page.getByTestId('asset')).toHaveCount(1)
+    await page.getByTestId('asset').first().click()
+    await page.getByTestId('tab-ideas').click()
+    // transkript yokken uyarı
+    await expect(page.getByTestId('ideas-run')).toBeDisabled()
+    await page.getByTestId('tab-source').click()
+    await page.getByTestId('transcribe-btn').click()
+    await expect(page.getByText('Transkript hazır')).toBeVisible()
+    await page.getByTestId('tab-ideas').click()
+    await page.getByTestId('ideas-run').click()
+    await expect(page.getByTestId('idea')).toHaveCount(2)
+    const first = page.getByTestId('idea').first()
+    await expect(first).toContainText('15 dk')
+    await expect(first).toContainText('yapay zeka')
+    await expect(first.getByTestId('idea-title')).toContainText('Yapay zeka hakkında konuştuklarım') // taslak başlık
+    await expect(first).toContainText('Taslak başlıklar')
+    // klip taslağına çevir
+    await first.getByTestId('idea-draft').click()
+    await expect(page.getByTestId('draft-panel')).toBeVisible()
+  })
+
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))

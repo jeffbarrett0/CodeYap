@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { AppInfo } from '@shared/ipc'
 import type { AutoKickStatus } from '@shared/autokick'
+import type { IdeasResult } from '@shared/ideas'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { suggestClip, nearestBoundary, type ClipWarning } from '@shared/clip/boundaries'
 import { History } from '@shared/timeline/history'
@@ -20,7 +21,7 @@ import type { Caption, CaptionStyle, ChatLog, ClipCandidate, ExportOptions, Layo
 import { requireApi } from './api'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
-export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript'
+export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas'
 export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick'
 
 export interface Toast {
@@ -142,6 +143,11 @@ interface State {
   userTemplates: LayoutTemplate[]
   transcripts: Record<string, Transcript>
   tasks: Record<string, TaskInfo>
+  /** Video önerileri (kayıt kimliğine göre) */
+  ideas: Record<string, IdeasResult>
+  ideasBusy: boolean
+  ideasError: string
+  generateIdeas(useAi: boolean): Promise<void>
   /** Auto Kick işleri (arka planda sürer; pencere kapansa da devam eder) */
   autoKick: Record<string, AutoKickStatus>
   toasts: Toast[]
@@ -310,6 +316,9 @@ export const useStore = create<State>()((set, get) => {
     transcripts: {},
     tasks: {},
     autoKick: {},
+    ideas: {},
+    ideasBusy: false,
+    ideasError: '',
     toasts: [],
     query: '',
     results: [],
@@ -750,6 +759,18 @@ export const useStore = create<State>()((set, get) => {
       get().exec(cmd.removeMany(t.clips.map((c) => c.id), true, `${t.name}: hepsini sil`))
       set({ selection: [] })
       get().toast('info', `"${t.name}" katmanındaki ${n} öğe silindi (diğer katmanlar etkilenmedi). Geri almak için Ctrl+Z.`)
+    },
+    async generateIdeas(useAi) {
+      const id = get().selectedAssetId
+      if (!id) return set({ ideasError: 'Önce kütüphaneden bir kayıt seçin.' })
+      set({ ideasBusy: true, ideasError: '' })
+      try {
+        const r = await api().invoke('ideas:generate', { assetId: id, useAi })
+        set((s) => ({ ideas: { ...s.ideas, [id]: r }, ideasBusy: false }))
+        if (r.ideas.length === 0) set({ ideasError: 'Bu kayıtta ayrı bir video olabilecek belirgin konu bölümü bulunamadı (kayıt çok kısa ya da tek konulu olabilir).' })
+      } catch (e) {
+        set({ ideasBusy: false, ideasError: errText(e) })
+      }
     },
     setNewClipSec: (sec) => set({ newClipSec: Math.min(300, Math.max(3, Math.round(sec) || 20)) }),
     async createClipProjectFromResult(r, sec) {

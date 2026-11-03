@@ -83,6 +83,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   broll-plan <proje> --folder klasör [--asset a] [--dur 3.5] [--layer V2] [--apply]       dosya adlarındaki kelimeleri konuşmada arar, yerleşim ÖNERİR (--apply: uygular)
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
+  ideas <proje> [--asset a] [--max 8] [--ai]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
   silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
   captions <proje> [--style classic|boxed-highlight] [--max-chars 22]   transkriptten altyazı üretir (boxed-highlight: referans stil)
@@ -385,6 +386,17 @@ async function main(argv: string[]): Promise<unknown> {
       const r = placeOnLayer(s, asset, layer, at)
       await s.save()
       return out({ ok: true, type, file: outFile, layer, start: r1(r.start), end: r1(r.end), note: 'Grafik kapalı kalan görüntünün üstüne biner; konuşma sesi devam eder.' })
+    }
+    case 'ideas': {
+      const asset = s.asset(str(a.opt.asset))
+      const r = await s.service.ideasGenerate({ assetId: asset.id, max: num(a.opt.max, 'max'), useAi: !!a.opt.ai })
+      return out({
+        asset: asset.name,
+        totalSec: r1(r.totalSec),
+        ai: r.ai,
+        ideas: r.ideas.map((i) => ({ id: i.id, start: r1(i.start), end: r1(i.end), durationSec: r1(i.durationSec), score: i.score, keywords: i.keywords, titles: i.titles, titleSource: i.titleSource, hook: i.hook, summary: i.summary })),
+        hint: 'Bunlar ÖNERİDİR. Başlıkları yazarken önce `transcript --from <başlangıç> --to <bitiş>` ile bölümün metnini okuyun; yalnızca konuşulanlara dayanın, çağrı/yönlendirme metni yazmayın.'
+      })
     }
     case 'silence': {
       const words = timelineWords(s.timeline, s.transcripts)

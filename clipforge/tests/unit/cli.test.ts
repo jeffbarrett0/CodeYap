@@ -209,6 +209,47 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(JSON.parse(readFileSync(join(tmp, 'ak-two', 'iki track.clipforge-data', 'transcripts', transcriptFile), 'utf8')).audioTrack).toBe(1) // Track 2
   }, 300_000)
 
+  it('ideas: uzun transkriptten ayrı video olabilecek konu bölümleri (öneri, projeyi değiştirmez); transkript yoksa anlaşılır hata', () => {
+    const proj2 = join(tmp, 'oneri.clipforge')
+    cli('new', proj2)
+    const imp = cli('import', proj2, join(tmp, 'video örnek.mp4'))
+    const id = imp.added[0].id as string
+    expect(cli('ideas', proj2).error).toMatch(/transkripsiyonunu yapın/)
+    // 3 konulu, 36 dakikalık yapay transkript (her konunun kendi kelime dağarcığı)
+    const vocab = [['oyun', 'bölüm', 'boss', 'seviye', 'karakter', 'silah', 'görev', 'harita'], ['yapay', 'zeka', 'model', 'veri', 'eğitim', 'algoritma', 'öğrenme', 'chatbot'], ['transfer', 'forvet', 'taraftar', 'penaltı', 'kadro', 'sezon', 'lig', 'teknik']]
+    const common = ['gerçekten', 'şimdi', 'arkadaşlar', 'konuşuyoruz', 'oldukça', 'durum', 'mesele', 'taraf']
+    let seed = 11
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296)
+    const words: unknown[] = []
+    let t = 0
+    for (const v of vocab) {
+      const end = t + 12 * 60
+      while (t < end) {
+        const n = 9
+        for (let i = 0; i < n; i++) {
+          const w = rnd() < 0.45 ? v[Math.floor(rnd() * v.length)] : common[Math.floor(rnd() * common.length)]
+          words.push({ text: i === n - 1 ? `${w}.` : w, start: t, end: t + 0.4, confidence: 1 })
+          t += 0.45
+        }
+        t += 0.5
+      }
+    }
+    const dir = join(`${proj2}-data`, 'transcripts')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, `${id}.json`), JSON.stringify({ id: 'tr', assetId: id, language: 'tr', model: 'small', provider: 'whisper-cpp', audioTrack: 0, createdAt: '', durationSec: t, words, segments: [] }))
+    const before = md5(proj2)
+    const r = cli('ideas', proj2)
+    expect(r.ideas.length).toBeGreaterThanOrEqual(2)
+    const ai = r.ideas.find((i: any) => /yapay|zeka|model|veri/.test(i.keywords.join(' ')))
+    expect(ai).toBeTruthy()
+    expect(ai.durationSec).toBeGreaterThan(9 * 60)
+    expect(ai.titles[0]).toMatch(/hakkında|üzerine|dakika|sohbet|anlattıklarım/)
+    expect(ai.titleSource).toBe('draft')
+    expect(r.ai.requested).toBe(false)
+    expect(md5(proj2)).toBe(before) // yalnızca öneri
+    expect(cli('ideas', proj2, '--ai').ai.error).toMatch(/kapalı/) // anahtar yokken nedeni söyler
+  }, 120_000)
+
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)
     const bad = cli('bogus', proj)

@@ -77,6 +77,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       return r.canceled ? null : (r.filePath ?? null)
     },
     'task:cancel': (id) => app.queue.cancel(id),
+    'ideas:generate': (req) => app.ideasGenerate(req),
     'task:list': () => app.queue.list(),
     'model:download': (size) => app.downloadModel(size),
     'shell:reveal': (p) => shell.showItemInFolder(p),

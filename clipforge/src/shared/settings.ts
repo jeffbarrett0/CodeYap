@@ -29,7 +29,10 @@ export const DEFAULT_SETTINGS: Settings = {
   silenceKeepSec: 0.15,
   cutFillers: true,
   vocabulary: '',
-  transcribeFillers: true
+  transcribeFillers: true,
+  llmProvider: 'off',
+  llmModel: '',
+  anthropicApiKey: ''
 }
 
 export const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium'] as const

@@ -149,6 +149,15 @@ export function createMockApi(): ClipforgeApi {
       { id: 'c2', start: 900, end: 922, durationSec: 22, hits: 2, score: 6.1, mentions: [{ t: 905, text: 'Osimen' }], text: 'Osimen kadar iyi bir forvet yok bence.' }
     ]),
     'autokick:makeClip': (r) => ({ projectPath: `/yayin/AutoKick/kayit/kayit-klipler/${r.topic} · ${Math.round(r.end - r.start)} sn.clipforge`, durationSec: r.end - r.start }),
+    'ideas:generate': (req) => {
+      const t = search.get(req.assetId)
+      if (!t) throw new Error('Önce bu kaydın transkripsiyonunu yapın (Kaynak sekmesi → Transkripsiyonu başlat).')
+      const ideas = [
+        { id: 'idea1', start: 1200, end: 2100, durationSec: 900, keywords: ['yapay zeka', 'model', 'veri'], summary: 'Yapay zekanın günlük hayatı nasıl değiştirdiğini anlatıyorum. Modeller veriyle eğitiliyor ve sonuçlar şaşırtıcı.', score: 0.82, firstWord: 0, lastWord: 5, titles: req.useAi ? ['Yapay Zeka Hayatımızı Nasıl Değiştiriyor?', 'Yapay Zeka ve Veri: Modeller Nasıl Öğreniyor?', '15 Dakikada Yapay Zeka'] : ['Yapay zeka hakkında konuştuklarım', 'Yapay zeka ve model: yayında anlattıklarım'], titleSource: req.useAi ? ('ai' as const) : ('draft' as const), hook: req.useAi ? 'Beş yıl önce hayal bile edemediğimiz bir şey artık telefonumuzda.' : undefined },
+        { id: 'idea2', start: 4000, end: 4800, durationSec: 800, keywords: ['transfer', 'forvet'], summary: 'Transfer dönemindeki forvet arayışını konuşuyorum.', score: 0.61, firstWord: 6, lastWord: 12, titles: ['Transfer hakkında konuştuklarım'], titleSource: 'draft' as const }
+      ]
+      return { ideas, totalSec: 7200, ai: { requested: !!req.useAi, used: !!req.useAi, provider: 'openai' } }
+    },
     'autokick:check': () => (w.__mock?.fail?.whisper ? { ok: false, provider: 'whisper-cpp', model: 'small', problems: [w.__mock.fail.whisper] } : { ok: true, provider: 'whisper-cpp', model: 'small', problems: [] }),
     'autokick:list': () => [...akJobs.values()].map((s) => structuredClone(s)),
     'project:save': (p, path) => {

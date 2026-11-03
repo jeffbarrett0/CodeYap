@@ -456,6 +456,11 @@ export interface Settings {
   vocabulary: string
   /** ııı / eee gibi dolgu seslerini de yazıya dökmesi için whisper'a ipucu ver */
   transcribeFillers: boolean
+  /** Video önerilerinde başlık yazan yapay zekâ: kapalı | OpenAI uyumlu (openaiApiKey/openaiBaseUrl kullanılır) | Anthropic */
+  llmProvider: 'off' | 'openai' | 'anthropic'
+  /** boşsa sağlayıcının varsayılanı (OpenAI: gpt-4o-mini, Anthropic: claude-haiku-5-5) */
+  llmModel: string
+  anthropicApiKey: string
 }
 
 // ───────────────────────────── Proje ─────────────────────────────

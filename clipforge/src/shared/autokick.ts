@@ -88,7 +88,7 @@ export function transcriptionReadiness(
       r.problems.push(`Whisper "${s.whisperModel}" modeli kurulu değil (${m.path}). Auto Kick başlayınca otomatik indirilir.`)
     }
     r.ok = info.whisperCpp.ok // model eksikliği otomatik giderilir; program eksikliği giderilemez
-  } else if (s.provider === 'openai' && !s.openaiApiKey) {
+  } else if (s.provider === 'openai-api' && !s.openaiApiKey) {
     r.ok = false
     r.problems.push('OpenAI API anahtarı girilmemiş (Ayarlar → Transkripsiyon).')
   }

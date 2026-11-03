@@ -8,6 +8,7 @@
  */
 import type { AutoKickRequest, AutoKickStatus, TranscriptionReadiness } from './autokick'
 import type { TopicCandidate } from './topic'
+import type { IdeasResult } from './ideas'
 import type {
   ChatColumnMapping,
   ChatLog,
@@ -113,6 +114,8 @@ export interface IpcInvoke {
   'export:start': [[ExportRequest], string]
   'export:dialogOutput': [[string], string | null]
   'task:cancel': [[string], void]
+  /** Video önerileri: transkriptten ayrı video olabilecek konu bölümleri + başlık önerileri */
+  'ideas:generate': [[{ assetId: string; max?: number; useAi?: boolean }], IdeasResult]
   /** Auto Kick: yayın kaydından otomatik tam video (+ ileride klipler); iş arka planda sürer */
   'autokick:start': [[AutoKickRequest], string]
   'autokick:cancel': [[string], void]

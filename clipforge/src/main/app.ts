@@ -23,6 +23,8 @@ import { downloadModel, modelInstalled } from './transcribe/models'
 import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pipeline'
 import { applyVocabulary, buildPrompt, fixWord, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
+import { findVideoIdeas, type IdeasResult } from '../shared/ideas'
+import { enhanceIdeas, llmConfigured } from './ideas/llm'
 
 export interface AppDeps {
   userDataDir: string
@@ -180,6 +182,31 @@ export class AppService {
     }
     const best = Math.max(...words)
     return { track: best > 0 ? words.indexOf(best) : fallback, words }
+  }
+
+  /**
+   * Video önerileri: transkriptten ayrı video olabilecek konu bölümlerini bulur; `useAi` ve sağlayıcı ayarlıysa
+   * başlıkları yapay zekâ yazar (hata olursa taslak başlıklar kalır ve nedeni döner).
+   */
+  async ideasGenerate(req: { assetId: string; max?: number; useAi?: boolean }): Promise<IdeasResult> {
+    const asset = this.assets.get(req.assetId)
+    if (!asset) throw new ToolError('Medya bulunamadı.')
+    const t = await this.transcriptGet(req.assetId)
+    if (!t || t.words.length === 0) throw new ToolError('Önce bu kaydın transkripsiyonunu yapın (Kaynak sekmesi → Transkripsiyonu başlat).')
+    let ideas = findVideoIdeas(t.words, req.max ? { max: req.max } : {})
+    const s = this.settings.value
+    const ai: IdeasResult['ai'] = { requested: !!req.useAi, used: false, provider: s.llmProvider }
+    if (req.useAi && ideas.length > 0) {
+      const problem = llmConfigured(s)
+      if (problem) ai.error = problem
+      else {
+        const r = await enhanceIdeas(ideas, (i) => t.words.slice(i.firstWord, i.lastWord + 1).map((w) => w.text.trim()).join(' '), s)
+        ideas = r.ideas
+        ai.used = r.failed < ideas.length
+        if (r.error) ai.error = r.failed === ideas.length ? r.error : `${r.failed} öneride başlık yazılamadı (taslak başlık kaldı): ${r.error}`
+      }
+    }
+    return { ideas, totalSec: t.durationSec || asset.durationSec, ai }
   }
 
   async transcriptStart(req: TranscribeRequest): Promise<string> {
