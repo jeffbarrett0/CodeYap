@@ -1,7 +1,7 @@
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Settings, TranscriptWord, WhisperModelSize } from '../../shared/types'
-import { runTool, ToolError } from '../ffmpeg'
+import { cpuThreads, runTool, ToolError } from '../ffmpeg'
 import { CancelledError } from '../tasks'
 
 export interface ChunkRequest {
@@ -66,8 +66,13 @@ export class WhisperCppProvider implements TranscriptionProvider {
   constructor(
     private readonly binary: string,
     private readonly modelDir: string,
-    private readonly threads = Math.max(1, Math.min(8, (globalThis.navigator?.hardwareConcurrency ?? 4) - 1))
+    private readonly threadsOverride?: number
   ) {}
+
+  /** "dengeli" kipte çekirdeklerin yarısı (bilgisayar kullanılabilir kalır), "tam"da hepsi */
+  private get threads(): number {
+    return this.threadsOverride ?? Math.min(16, cpuThreads(0.5))
+  }
 
   async transcribeChunk(req: ChunkRequest): Promise<TranscriptWord[]> {
     const model = whisperModelFile(this.modelDir, req.model)

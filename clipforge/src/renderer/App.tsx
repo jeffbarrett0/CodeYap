@@ -64,10 +64,45 @@ function useShortcuts() {
   }, [])
 }
 
+/**
+ * Boşluğa tıklayınca (önizleme arka planı, sol panelin boş yeri, üst çubuk boşluğu) klip/altyazı seçimi kalkar; Esc de bırakır.
+ * Zaman çizelgesi kendi boşluk tıklamasını yönetir (sürükle-kutu); düğmeler, alanlar, paneller ve seçili öğenin tutamaçları etkilenmez.
+ */
+function useBlankClickDeselect() {
+  useEffect(() => {
+    const IGNORE = 'button,input,select,textarea,a,label,summary,[role=slider],[role=tab],[role=button],.tl-clip,.cap-box,.cap-h,.hd,.ly,.ctx-menu,.modal-back,.timeline,.panel.right,.asset,.crop-overlay,.marquee'
+    const clear = () => {
+      const st = useStore.getState()
+      if (st.selection.length) st.select([])
+      if (st.selectedCaptionId || st.selectedCaptionIds.length) {
+        st.selectCaption(null)
+        useStore.setState({ selectedCaptionIds: [] })
+      }
+    }
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0 || useStore.getState().dialog) return
+      const t = e.target as HTMLElement | null
+      if (!t || t.closest(IGNORE)) return
+      if (t.closest('.stage-area,.panel,.topbar,.app')) clear()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      if (e.key === 'Escape' && !useStore.getState().dialog && !/^(INPUT|TEXTAREA|SELECT)$/.test(el?.tagName ?? '')) setTimeout(clear, 0) // menüler Esc'yi önce işlesin (yeniden çizim dinleyicilerini yenilediğinden aynı olayda kaçabilirdi)
+    }
+    window.addEventListener('pointerdown', onDown)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [])
+}
+
 export function App() {
   const { init, ready, dialog } = useStore()
   useEffect(() => { void init() }, [init])
   useShortcuts()
+  useBlankClickDeselect()
   if (!ready) return <div style={{ padding: 24 }}>Yükleniyor…</div>
   return (
     <div className="app">

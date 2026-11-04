@@ -457,6 +457,8 @@ export interface Settings {
   /** ııı / eee gibi dolgu seslerini de yazıya dökmesi için whisper'a ipucu ver */
   transcribeFillers: boolean
   /** Video önerilerinde başlık yazan yapay zekâ: kapalı | OpenAI uyumlu (openaiApiKey/openaiBaseUrl kullanılır) | Anthropic */
+  /** Arka plan işleri: dengeli (düşük öncelik, çekirdeklerin yarısı; bilgisayar kullanılabilir kalır) | tam hız */
+  cpuMode: 'balanced' | 'full'
   llmProvider: 'off' | 'openai' | 'anthropic'
   /** boşsa sağlayıcının varsayılanı (OpenAI: gpt-4o-mini, Anthropic: claude-haiku-5-5) */
   llmModel: string

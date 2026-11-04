@@ -55,7 +55,7 @@ describe('video önerileri (konu bölümleri)', () => {
     expect(ai.durationSec).toBeGreaterThan(13 * 60)
     expect(ai.durationSec).toBeLessThan(17 * 60)
     expect(ai.titles.length).toBeGreaterThanOrEqual(2)
-    expect(ai.titles[0]).toMatch(/(Yapay zeka|Zeka yapay)/)
+    expect(ai.headline).toMatch(/hakkında konuşmuşsun$/)
     expect(ai.titleSource).toBe('draft')
     expect(ai.summary.length).toBeGreaterThan(20)
     expect(ai.firstWord).toBeLessThan(ai.lastWord)
@@ -66,5 +66,58 @@ describe('video önerileri (konu bölümleri)', () => {
     expect(findVideoIdeas(words.slice(0, 40))).toEqual([])
     expect(draftTitles(['yapay zeka', 'model'], 900)[0]).toBe('Yapay zeka hakkında konuştuklarım')
     expect(draftTitles([], 60)).toHaveLength(1)
+  })
+})
+
+describe('özel isim yoğunluğu: "X hakkında konuşmuşsun"', () => {
+  /** Maç değerlendirmesi; 6 dk boyunca Batrakov anılıyor (büyük harfli, cümle başı değil), kısa bir yerde Stuttgart 2 kez geçiyor */
+  function matchStream(): { words: TranscriptWord[]; batStart: number; batEnd: number } {
+    let seed = 5
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296)
+    const talk = ['maçın', 'ilk', 'yarısı', 'savunma', 'hücum', 'tempo', 'skor', 'hakem', 'penaltı', 'kadro', 'oyun', 'pas', 'şut', 'korner', 'rakip', 'bölge']
+    const words: TranscriptWord[] = []
+    let t = 0
+    let batStart = 0
+    let batEnd = 0
+    const sentence = (extra?: string) => {
+      const n = 9
+      for (let i = 0; i < n; i++) {
+        const w = extra && i === 3 ? extra : talk[Math.floor(rnd() * talk.length)]
+        words.push({ text: i === n - 1 ? `${w}.` : i === 0 ? w.charAt(0).toLocaleUpperCase('tr-TR') + w.slice(1) : w, start: t, end: t + 0.4, confidence: 1 } as TranscriptWord)
+        t += 0.45
+      }
+      t += 0.6
+    }
+    while (t < 20 * 60) sentence(rnd() < 0.03 ? "Stuttgart'ın" : undefined)
+    batStart = t
+    while (t < batStart + 6 * 60) sentence(rnd() < 0.4 ? "Batrakov'un" : undefined)
+    batEnd = t
+    while (t < 40 * 60) sentence()
+    return { words, batStart, batEnd }
+  }
+  const { words, batStart, batEnd } = matchStream()
+  const ideas = findVideoIdeas(words)
+
+  it('Batrakov bölümü bulunur: etiket, ≈6 dk, 2–30 dk aralığında', () => {
+    const bat = ideas.find((x) => x.kind === 'entity' && /batrakov/i.test(x.label))
+    expect(bat, ideas.map((x) => `${x.label}:${Math.round(x.start)}-${Math.round(x.end)}`).join(' | ')).toBeTruthy()
+    expect(bat!.headline).toBe('Batrakov hakkında konuşmuşsun')
+    expect(Math.abs(bat!.start - batStart)).toBeLessThan(60)
+    expect(Math.abs(bat!.end - batEnd)).toBeLessThan(60)
+    expect(bat!.durationSec).toBeGreaterThanOrEqual(120)
+    expect(bat!.durationSec).toBeLessThanOrEqual(1800)
+    expect(bat!.mentions).toBeGreaterThanOrEqual(8)
+  })
+  it('az geçen isim (Stuttgart) öneri olmaz; hiçbir öneri 2 dk\'dan kısa ya da 30 dk\'dan uzun değil; örtüşme yok', () => {
+    expect(ideas.some((x) => /stuttgart/i.test(x.label))).toBe(false)
+    for (const x of ideas) {
+      expect(x.durationSec).toBeGreaterThanOrEqual(100)
+      expect(x.durationSec).toBeLessThanOrEqual(1810)
+    }
+    for (const [i, a] of ideas.entries()) for (const b of ideas.slice(i + 1)) expect(Math.min(a.end, b.end) - Math.max(a.start, b.start)).toBeLessThanOrEqual(0.5 * Math.min(a.durationSec, b.durationSec))
+  })
+  it('mastar ve genel sözcükler konu olmaz ("dinlemek", "kendine", "böyle")', () => {
+    const w = words.map((x, i) => (i % 40 === 5 ? { ...x, text: 'dinlemek' } : i % 40 === 9 ? { ...x, text: 'kendine' } : x))
+    for (const x of findVideoIdeas(w)) expect(x.keywords.join(' ')).not.toMatch(/dinlemek|kendine|böyle/)
   })
 })

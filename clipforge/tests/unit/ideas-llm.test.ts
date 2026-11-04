@@ -3,7 +3,7 @@ import { buildIdeaPrompt, enhanceIdeas, isCtaText, llmConfigured, parseIdeaJson,
 import { DEFAULT_SETTINGS } from '../../src/shared/settings'
 import type { VideoIdea } from '../../src/shared/ideas'
 
-const idea = (n: number): VideoIdea => ({ id: `idea${n}`, start: n * 100, end: n * 100 + 900, durationSec: 900, keywords: ['yapay zeka', 'model'], summary: 's', score: 0.8, firstWord: 0, lastWord: 5, titles: ['Taslak'], titleSource: 'draft' })
+const idea = (n: number): VideoIdea => ({ id: `idea${n}`, label: 'Yapay zeka', headline: 'Yapay zeka hakkında konuşmuşsun', kind: 'topic', start: n * 100, end: n * 100 + 900, durationSec: 900, keywords: ['yapay zeka', 'model'], summary: 's', score: 0.8, firstWord: 0, lastWord: 5, titles: ['Taslak'], titleSource: 'draft' })
 
 afterEach(() => vi.unstubAllGlobals())
 

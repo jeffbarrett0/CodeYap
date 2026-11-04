@@ -1,4 +1,4 @@
-import { runTool } from '../ffmpeg'
+import { limitThreads, runTool } from '../ffmpeg'
 import { join } from 'node:path'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -94,7 +94,7 @@ export async function renderFastCut(asset: MediaAsset, ranges: Range[], o: FastC
   try {
     await writeFile(join(dir, 'filters.txt'), plan.filters, 'utf8')
     await mkdir(dirname(outputPath), { recursive: true })
-    await runTool(ffmpeg, plan.args, { cwd: dir, signal: opts.signal, durationSec: plan.durationSec, onProgress: opts.onProgress })
+    await runTool(ffmpeg, limitThreads(plan.args), { cwd: dir, signal: opts.signal, durationSec: plan.durationSec, onProgress: opts.onProgress })
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

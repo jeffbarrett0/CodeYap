@@ -9,7 +9,7 @@ import { scoreCandidates, snapCandidate, DEFAULT_KEYWORDS } from '../shared/sugg
 import type { AppInfo, ChatImportRequest, ExportRequest, IpcEventName, IpcEvents, OpenedProject, SearchRequest, SuggestRequest, ToolStatus, TranscribeRequest } from '../shared/ipc'
 import type { ChatLog, MediaAsset, Marker, Project, SearchResult, Transcript, WhisperModelSize } from '../shared/types'
 import { runExport } from './export'
-import { resolveFfmpegPath, resolveFfprobePath, ToolError, toolVersion } from './ffmpeg'
+import { resolveFfmpegPath, resolveFfprobePath, setCpuMode, ToolError, toolVersion } from './ffmpeg'
 import { audioLevelSeries, detectScenes, extractWavChunk } from './media/audio'
 import { importMedia, loadMarkers, type MediaTools } from './media/import'
 import { makeProxy } from './media/proxy'
@@ -59,6 +59,7 @@ export class AppService {
 
   async init(): Promise<void> {
     await this.settings.load()
+    setCpuMode(this.settings.value.cpuMode)
     await this.templates.load()
     await mkdir(this.dataDir, { recursive: true })
   }

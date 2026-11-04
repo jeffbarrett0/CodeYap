@@ -7,33 +7,26 @@ const mm = (s: number) => `${String(Math.floor(s / 3600)).padStart(1, '0')}:${St
 
 function IdeaCard({ idea, i, assetId }: { idea: VideoIdea; i: number; assetId: string }) {
   const { openDraftFromRange, setSourceTime, setViewMode, toast } = useStore()
-  const [copied, setCopied] = useState(-1)
-  const copy = (t: string, k: number) => {
-    void navigator.clipboard?.writeText(t).catch(() => undefined)
-    setCopied(k)
-    toast('info', 'Başlık kopyalandı.')
-  }
+  const title = idea.titleSource === 'ai' ? idea.titles[0] : undefined
+  const mins = Math.max(1, Math.round(idea.durationSec / 60))
   return (
-    <div className="col idea-card" data-testid="idea" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, gap: 6 }}>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <b>{i + 1}. öneri · {mm(idea.start)}–{mm(idea.end)} · {Math.round(idea.durationSec / 60)} dk</b>
-        <span className="badge" title="Ayrı video adayı olma skoru">{Math.round(idea.score * 100)}</span>
-      </div>
-      <div className="col" style={{ gap: 3 }}>
-        <div className="hint">{idea.titleSource === 'ai' ? 'Önerilen YouTube başlıkları' : 'Taslak başlıklar (daha iyisi için Ayarlar → Başlık önerileri)'}</div>
-        {idea.titles.map((t, k) => (
-          <div key={k} className="row" style={{ justifyContent: 'space-between', gap: 6 }}>
-            <span data-testid={k === 0 ? 'idea-title' : undefined} style={{ fontWeight: k === 0 ? 700 : 400 }}>{k === 0 ? '★ ' : '• '}{t}</span>
-            <button className="btn ghost sm" onClick={() => copy(t, k)} aria-label="Başlığı kopyala">{copied === k ? '✓' : 'Kopyala'}</button>
-          </div>
-        ))}
-      </div>
-      {idea.hook && <div className="hint">Açılış fikri: “{idea.hook}”</div>}
-      <div className="row wrap">{idea.keywords.map((k) => <span key={k} className="badge blue">{k}</span>)}</div>
-      <div className="hint" style={{ maxHeight: 74, overflow: 'auto' }}>{idea.description ?? idea.summary}</div>
+    <div className="col idea-card" data-testid="idea" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, gap: 4 }}>
+      <div style={{ fontWeight: 700, fontSize: 14 }} data-testid="idea-headline">{i + 1}. {idea.headline}</div>
+      <div className="hint" data-testid="idea-meta">{mm(idea.start)} – {mm(idea.end)} · <b>{mins} dk</b>{idea.mentions ? ` · ${idea.mentions} kez anıldı` : ''}</div>
+      {title && (
+        <div className="row" style={{ justifyContent: 'space-between', gap: 6 }}>
+          <span data-testid="idea-title">YouTube başlığı: <b>{title}</b></span>
+          <button className="btn ghost sm" onClick={() => { void navigator.clipboard?.writeText(title).catch(() => undefined); toast('info', 'Başlık kopyalandı.') }}>Kopyala</button>
+        </div>
+      )}
+      <details>
+        <summary className="hint" style={{ cursor: 'pointer' }}>Ne konuşulmuş?</summary>
+        <div className="hint" style={{ marginTop: 4 }}>{idea.description ?? idea.summary}</div>
+        {idea.hook && <div className="hint">Açılış fikri: “{idea.hook}”</div>}
+      </details>
       <div className="row wrap">
         <button className="btn sm" onClick={() => { setViewMode('source'); setSourceTime(idea.start) }}>Kaynakta git</button>
-        <button className="btn sm primary" onClick={() => openDraftFromRange(assetId, idea.start, idea.end, idea.firstWord, idea.lastWord)} data-testid="idea-draft" title="Bu bölümü klip taslağı olarak açar; oradan 'Yeni projede aç' ile ayrı bir proje yapabilirsiniz">Klip taslağı aç</button>
+        <button className="btn sm primary" onClick={() => openDraftFromRange(assetId, idea.start, idea.end, idea.firstWord, idea.lastWord)} data-testid="idea-draft" title="Bu bölümü klip taslağı olarak açar; oradan 'Yeni projede aç' ile ayrı bir proje yapabilirsiniz">Klip yap</button>
       </div>
     </div>
   )
@@ -50,15 +43,15 @@ export function IdeasPanel() {
 
   return (
     <div className="panel-body" data-testid="ideas-panel">
-      <div className="infobox">Yayının transkriptine bakar; <b>ayrı bir video olabilecek konu bölümlerini</b> (ör. 15 dakika boyunca yapay zekâ konuşulmuş) bulur, her biri için YouTube başlığı önerir. Karar sizindir: önerileri klip taslağına çevirmek ya da yok saymak size kalmış.</div>
+      <div className="infobox">Transkripti okur ve <b>YouTube'da klip olarak paylaşabileceğiniz 2–30 dakikalık bölümleri</b> bulur (ör. "Batrakov hakkında konuşmuşsun · 6 dk"). Hangisini klip yapacağınıza siz karar verirsiniz.</div>
       {!asset && <div className="empty">Soldaki kütüphaneden bir kayıt seçin.</div>}
       {asset && !hasTranscript && <div className="warnbox">Bu kayıt henüz transkribe edilmemiş: Kaynak sekmesi → "Transkripsiyonu başlat".</div>}
       {asset && (
         <>
           <label className="check" title={aiReady ? '' : 'Ayarlar → Başlık önerileri bölümünden bir sağlayıcı ve API anahtarı girin'}>
-            <input type="checkbox" checked={useAi && aiReady} disabled={!aiReady} onChange={(e) => setUseAi(e.target.checked)} data-testid="ideas-ai" /> Başlıkları yapay zekâ yazsın
+            <input type="checkbox" checked={useAi && aiReady} disabled={!aiReady} onChange={(e) => setUseAi(e.target.checked)} data-testid="ideas-ai" /> YouTube başlığı da önersin (yapay zekâ)
           </label>
-          {!aiReady && <div className="hint">Yapay zekâ kapalı: taslak başlıklar anahtar kelimelerden üretilir. Daha iyi başlıklar için <a href="#" onClick={(e) => { e.preventDefault(); openDialog('settings') }}>Ayarlar → Başlık önerileri</a>.</div>}
+          {!aiReady && <div className="hint">Başlık önerisi için <a href="#" onClick={(e) => { e.preventDefault(); openDialog('settings') }}>Ayarlar → Başlık önerileri</a>.</div>}
           <button className="btn primary" disabled={!hasTranscript || ideasBusy} onClick={() => void generateIdeas(useAi && aiReady)} data-testid="ideas-run">{ideasBusy ? 'Bölümler inceleniyor…' : 'Video önerilerini bul'}</button>
         </>
       )}

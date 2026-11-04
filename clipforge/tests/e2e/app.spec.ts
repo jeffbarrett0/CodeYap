@@ -918,49 +918,27 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('cap-scale-all').click()
   })
 
-  test('Auto Kick: kayıt seç → aşamalar sırayla çalışır (transkript, sessizleri kırp, tam video) → sonuç; hata ve iptal anlaşılır', async ({ page }) => {
+  test('Auto Kick: kayıt seçilince iş KENDİLİĞİNDEN başlar (başlat düğmesi yok); genel ilerleme çubuğu %100\'e dolar; aşamalar sırayla biter; iptal çalışır', async ({ page }) => {
     await boot(page)
     await page.getByTestId('autokick-btn').click()
     await expect(page.getByTestId('autokick-dialog')).toBeVisible()
     await expect(page.getByTestId('autokick-readiness')).toHaveAttribute('data-ok', 'true') // transkripsiyon hazır
-    await page.getByTestId('autokick-start').click()
-    await expect(page.getByRole('alert')).toContainText('bir yayın kaydı seçin') // kayıt seçmeden başlamaz
+    await expect(page.getByTestId('autokick-start')).toHaveCount(0) // ayrıca başlatmaya gerek yok
     await page.getByTestId('autokick-pick').click()
-    await expect(page.getByTestId('autokick-path')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
-    await page.getByTestId('autokick-start').click()
+    await expect(page.getByTestId('autokick-path')).toContainText('2024-05-12 21-30-45.mkv')
     const job = page.getByTestId('autokick-job').first()
     await expect(job).toBeVisible()
+    await expect(page.getByTestId('autokick-overall').first()).toBeVisible()
     await expect(page.getByTestId('autokick-result')).toBeVisible({ timeout: 15_000 })
     await expect(job).toHaveAttribute('data-status', 'done')
+    await expect(page.getByTestId('autokick-overall').first()).toContainText('%100')
     for (const id of ['import', 'transcribe', 'silence', 'gaps', 'full']) await expect(page.getByTestId(`ak-stage-${id}`)).toHaveAttribute('data-stage-status', 'done')
     await expect(page.getByTestId('autokick-result')).toContainText('doğrulandı')
     await expect(page.getByTestId('autokick-result')).toContainText('412 kesim')
-    // iptal
+    // ikinci kayıt: seçer seçmez başlar, iptal edilir
     await page.getByTestId('autokick-pick').click()
-    await page.getByTestId('autokick-start').click()
     await page.getByTestId('autokick-cancel').first().click()
     await expect(page.getByTestId('autokick-job').first()).toHaveAttribute('data-status', 'cancelled')
-  })
-
-  test('Auto Kick konu klibi: proje seç, konuyu yaz → aday klipler → seçileni bağımsız projeye çıkar; konu yoksa anlaşılır mesaj', async ({ page }) => {
-    await boot(page)
-    await page.getByTestId('autokick-btn').click()
-    await page.getByTestId('topic-search').click()
-    await expect(page.getByTestId('topic-error')).toContainText('Auto Kick projesi seçin')
-    await page.getByTestId('topic-pick-project').click()
-    await expect(page.getByTestId('topic-project')).not.toHaveValue('')
-    await page.getByTestId('topic-search').click()
-    await expect(page.getByTestId('topic-error')).toContainText('Konuyu yazın')
-    await page.getByTestId('topic-input').fill("Osimhen'le ilgili")
-    await page.getByTestId('topic-search').click()
-    await expect(page.getByTestId('topic-cand')).toHaveCount(2)
-    await expect(page.getByTestId('topic-cand').first()).toContainText('geçiş')
-    await page.getByTestId('topic-make').first().click()
-    await expect(page.getByTestId('topic-made')).toHaveCount(1)
-    await expect(page.getByTestId('topic-open')).toBeVisible()
-    await page.getByTestId('topic-input').fill('yok böyle bir şey')
-    await page.getByTestId('topic-search').click()
-    await expect(page.getByTestId('topic-none')).toBeVisible()
   })
 
   test('Auto Kick: başlamadan transkripsiyon hazırlığı gösterilir; hazır değilse nedeni ve çözümü yazar', async ({ page }) => {
@@ -986,13 +964,53 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('ideas-run').click()
     await expect(page.getByTestId('idea')).toHaveCount(2)
     const first = page.getByTestId('idea').first()
-    await expect(first).toContainText('15 dk')
-    await expect(first).toContainText('yapay zeka')
-    await expect(first.getByTestId('idea-title')).toContainText('Yapay zeka hakkında konuştuklarım') // taslak başlık
-    await expect(first).toContainText('Taslak başlıklar')
+    await expect(first.getByTestId('idea-headline')).toContainText('Batrakov hakkında konuşmuşsun')
+    await expect(first.getByTestId('idea-meta')).toContainText('6 dk')
+    await expect(first.getByTestId('idea-meta')).toContainText('11 kez anıldı')
+    await expect(first.getByTestId('idea-title')).toHaveCount(0) // yapay zekâ kapalı: yalnızca "ne konuşulmuş" cümlesi, başlık listesi yok
+    await first.getByText('Ne konuşulmuş?').click()
+    await expect(first).toContainText('performansını')
     // klip taslağına çevir
     await first.getByTestId('idea-draft').click()
     await expect(page.getByTestId('draft-panel')).toBeVisible()
+  })
+
+  test('boşluğa tıklayınca (önizleme, sol panel boşluğu) ve Esc ile klip seçimi kalkar; düğmelere ve panellere tıklamak seçimi bozmaz', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V1')
+    const clip = page.getByTestId('lane-V1').getByTestId('clip').first()
+    await clip.click()
+    await expect(page.locator('.tl-clip.sel')).not.toHaveCount(0)
+    // sağ paneldeki bir sekmeye tıklamak seçimi bozmaz
+    await page.getByTestId('rtab-layout').click()
+    await expect(page.locator('.tl-clip.sel')).not.toHaveCount(0)
+    // önizleme alanının boşluğuna tıkla → seçim kalkar
+    const area = (await page.locator('.stage-area').boundingBox())!
+    await page.mouse.click(area.x + 6, area.y + 6)
+    await expect(page.locator('.tl-clip.sel')).toHaveCount(0)
+    // yeniden seç → Esc
+    await clip.click()
+    await expect(page.locator('.tl-clip.sel')).not.toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.tl-clip.sel')).toHaveCount(0)
+    // sol panelin boş yerine tıkla
+    await clip.click()
+    const left = (await page.locator('aside.panel').first().boundingBox())!
+    await page.mouse.click(left.x + left.width / 2, left.y + left.height - 8)
+    await expect(page.locator('.tl-clip.sel')).toHaveCount(0)
+  })
+
+  test('Ayarlar: arka plan işlemci kullanımı seçeneği (dengeli/tam) kaydedilir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('settings-btn').click()
+    await page.getByRole('tab', { name: 'FFmpeg / Araçlar' }).click()
+    await expect(page.getByTestId('cpu-mode')).toHaveValue('balanced')
+    await page.getByTestId('cpu-mode').selectOption('full')
+    await page.getByTestId('settings-save').click()
+    await page.getByTestId('settings-btn').click()
+    await page.getByRole('tab', { name: 'FFmpeg / Araçlar' }).click()
+    await expect(page.getByTestId('cpu-mode')).toHaveValue('full')
   })
 
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {

@@ -259,6 +259,13 @@ export function SettingsDialog() {
 
       {tab === 'tools' && (
         <div className="col">
+          <Field label="Arka plan işleri (önizleme kopyası, transkripsiyon, kodlama) ve bilgisayar">
+            <select value={s.cpuMode} onChange={(e) => set({ cpuMode: e.target.value as Settings['cpuMode'] })} aria-label="Arka plan işlemci kullanımı" data-testid="cpu-mode">
+              <option value="balanced">Dengeli — bilgisayarı kullanırken donmasın (önerilen)</option>
+              <option value="full">Tam hız — tüm çekirdekler, en hızlı (bilgisayar yavaşlar)</option>
+            </select>
+          </Field>
+          <div className="hint">Dengeli: ağır işler düşük öncelikle ve çekirdeklerin yarısıyla çalışır; siz başka program açınca onlara öncelik verilir. İş biraz daha uzun sürebilir.</div>
           <Field label="FFmpeg yolu (boş = paketle gelen / PATH)"><input type="text" value={s.ffmpegPath} onChange={(e) => set({ ffmpegPath: e.target.value })} /></Field>
           <Field label="FFprobe yolu"><input type="text" value={s.ffprobePath} onChange={(e) => set({ ffprobePath: e.target.value })} /></Field>
           <dl className="kv">

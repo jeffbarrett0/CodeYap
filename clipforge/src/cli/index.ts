@@ -394,7 +394,7 @@ async function main(argv: string[]): Promise<unknown> {
         asset: asset.name,
         totalSec: r1(r.totalSec),
         ai: r.ai,
-        ideas: r.ideas.map((i) => ({ id: i.id, start: r1(i.start), end: r1(i.end), durationSec: r1(i.durationSec), score: i.score, keywords: i.keywords, titles: i.titles, titleSource: i.titleSource, hook: i.hook, summary: i.summary })),
+        ideas: r.ideas.map((i) => ({ id: i.id, headline: i.headline, kind: i.kind, mentions: i.mentions, start: r1(i.start), end: r1(i.end), durationSec: r1(i.durationSec), score: i.score, keywords: i.keywords, titles: i.titles, titleSource: i.titleSource, hook: i.hook, summary: i.summary })),
         hint: 'Bunlar ÖNERİDİR. Başlıkları yazarken önce `transcript --from <başlangıç> --to <bitiş>` ile bölümün metnini okuyun; yalnızca konuşulanlara dayanın, çağrı/yönlendirme metni yazmayın.'
       })
     }

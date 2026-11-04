@@ -9,6 +9,10 @@ import { Field, Modal, Num, Progress } from './ui'
 const STATUS_LABEL: Record<string, string> = { pending: 'Bekliyor', running: 'Çalışıyor', done: 'Bitti', skipped: 'Sonra', failed: 'Hata' }
 const fmtMin = (s: number) => `${Math.floor(s / 3600) ? `${Math.floor(s / 3600)} sa ` : ''}${Math.round((s % 3600) / 60)} dk`
 
+/** Aşama ağırlıkları: genel ilerleme çubuğu (transkripsiyon ve kodlama en uzun) */
+const WEIGHT: Record<string, number> = { import: 0.05, transcribe: 0.55, silence: 0.05, gaps: 0.02, full: 0.33 }
+export const overallProgress = (job: AutoKickStatus) => job.stages.reduce((n, s) => n + (WEIGHT[s.id] ?? 0) * (s.status === 'done' || s.status === 'skipped' ? 1 : s.progress), 0)
+
 function Job({ job }: { job: AutoKickStatus }) {
   const api = requireApi()
   const openProject = useStore((s) => s.openProject)
@@ -21,6 +25,13 @@ function Job({ job }: { job: AutoKickStatus }) {
         <span className={`badge ${job.status === 'done' ? 'blue' : job.status === 'failed' ? 'red' : ''}`} data-testid="autokick-status">
           {{ running: 'Çalışıyor', done: 'Tamamlandı', failed: 'Hata', cancelled: 'İptal edildi' }[job.status]}
         </span>
+      </div>
+      <div className="col" style={{ gap: 3 }} data-testid="autokick-overall">
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <span>Genel ilerleme</span>
+          <b>%{Math.round(overallProgress(job) * 100)}</b>
+        </div>
+        <Progress value={overallProgress(job)} fail={job.status === 'failed'} />
       </div>
       {job.stages.map((s) => (
         <div key={s.id} className="col" style={{ gap: 3 }} data-testid={`ak-stage-${s.id}`} data-stage-status={s.status}>
@@ -161,18 +172,18 @@ export function AutoKickDialog() {
   const [err, setErr] = useState('')
   const jobs = Object.values(autoKick).sort((a, b) => b.startedAt - a.startedAt)
 
+  /** Kayıt seçilir seçilmez iş BAŞLAR: içe aktarma → transkripsiyon → sessizleri kes → boşlukları kapat → tam video. Başka bir tuşa basmak gerekmez. */
   const pick = async () => {
     const paths = await api.invoke('dialog:openMedia')
     const v = paths.find((p) => /\.(mkv|mp4|mov|flv|m4v|webm)$/i.test(p))
-    if (v) (setVideo(v), setErr(''))
-    else if (paths.length) setErr('Bir video dosyası seçin (MKV, MP4, MOV, FLV…).')
-  }
-  const start = async () => {
-    if (!video) return setErr('Önce bir yayın kaydı seçin.')
+    if (!v) {
+      if (paths.length) setErr('Bir video dosyası seçin (MKV, MP4, MOV, FLV…).')
+      return
+    }
+    setVideo(v)
+    setErr('')
     try {
-      await api.invoke('autokick:start', { videoPath: video, outDir: outDir.trim() || undefined, language, quality, silence: { minGapSec: minGap, keepSec: settings.silenceKeepSec, cutFillers: fillers } })
-      setVideo('')
-      setErr('')
+      await api.invoke('autokick:start', { videoPath: v, outDir: outDir.trim() || undefined, language, quality, silence: { minGapSec: minGap, keepSec: settings.silenceKeepSec, cutFillers: fillers } })
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     }
@@ -182,34 +193,34 @@ export function AutoKickDialog() {
     <Modal title="Auto Kick — yayın kaydını otomatik işle" onClose={() => openDialog(null)} wide>
       <div className="col" data-testid="autokick-dialog">
         <div className="hint">
-          Sıra: <b>içe aktar → transkripsiyon → sessiz alanları kes → boşlukları kapat → tam videoyu kaydet (full video)</b>. Siz hiçbir şeye dokunmazsınız.
+          Sıra: <b>içe aktar → transkripsiyon → sessiz alanları kes → boşlukları kapat → tam videoyu kaydet (full video)</b>. Kaydı seçmeniz yeter: iş kendiliğinden başlar ve biter.
           İş arka planda sürer; bu pencereyi kapatabilirsiniz ama uygulamayı kapatmayın. Orijinal kayda dokunulmaz.
         </div>
         <Readiness />
-        <Field label="Yayın kaydı">
-          <div className="row">
-            <input type="text" readOnly value={video} placeholder="Henüz seçilmedi" aria-label="Yayın kaydı yolu" data-testid="autokick-path" style={{ flex: 1 }} />
-            <button className="btn" onClick={() => void pick()} data-testid="autokick-pick">Kayıt seç…</button>
-          </div>
-        </Field>
-        <Field label="Çıkış klasörü (boşsa kaydın yanında AutoKick/<kayıt adı>/)">
-          <input type="text" value={outDir} onChange={(e) => setOutDir(e.target.value)} aria-label="Çıkış klasörü" placeholder="Varsayılan" />
-        </Field>
-        <div className="grid2">
-          <Field label="Konuşma dili">
-            <select value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Dil">{LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}</select>
-          </Field>
-          <Field label="Tam video kalitesi">
-            <select value={quality} onChange={(e) => setQuality(e.target.value as 'fast' | 'high')} aria-label="Kalite" data-testid="autokick-quality">
-              <option value="fast">Hızlı (önerilen — uzun yayın)</option>
-              <option value="high">Maksimum (çok daha yavaş)</option>
-            </select>
-          </Field>
-          <Field label="Şu kadar sn'den uzun sessizlik kırpılır"><Num value={minGap} min={0.2} max={10} step={0.1} label="Sessizlik süresi" onChange={setMinGap} /></Field>
-          <label className="check"><input type="checkbox" checked={fillers} onChange={(e) => setFillers(e.target.checked)} /> "ııı / eee" dolgu seslerini de kes</label>
-        </div>
+        <button className="btn primary" style={{ padding: '14px 16px', fontSize: 15 }} onClick={() => void pick()} data-testid="autokick-pick">Yayın kaydını seç ve başlat…</button>
+        {video && <div className="hint" data-testid="autokick-path" style={{ wordBreak: 'break-all' }}>Seçilen: {video}</div>}
         {err && <div className="warnbox" role="alert">{err}</div>}
-        <button className="btn primary" onClick={() => void start()} data-testid="autokick-start">Auto Kick'i başlat</button>
+        <details>
+          <summary>Gelişmiş ayarlar (bir sonraki kayıt için)</summary>
+          <div className="col" style={{ marginTop: 8 }}>
+            <Field label="Çıkış klasörü (boşsa kaydın yanında AutoKick/<kayıt adı>/)">
+              <input type="text" value={outDir} onChange={(e) => setOutDir(e.target.value)} aria-label="Çıkış klasörü" placeholder="Varsayılan" />
+            </Field>
+            <div className="grid2">
+              <Field label="Konuşma dili">
+                <select value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Dil">{LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}</select>
+              </Field>
+              <Field label="Tam video kalitesi">
+                <select value={quality} onChange={(e) => setQuality(e.target.value as 'fast' | 'high')} aria-label="Kalite" data-testid="autokick-quality">
+                  <option value="fast">Hızlı (önerilen — uzun yayın)</option>
+                  <option value="high">Maksimum (çok daha yavaş)</option>
+                </select>
+              </Field>
+              <Field label="Şu kadar sn'den uzun sessizlik kesilir"><Num value={minGap} min={0.2} max={10} step={0.1} label="Sessizlik süresi" onChange={setMinGap} /></Field>
+              <label className="check"><input type="checkbox" checked={fillers} onChange={(e) => setFillers(e.target.checked)} /> "ııı / eee" dolgu seslerini de kes</label>
+            </div>
+          </div>
+        </details>
 
         {jobs.length > 0 && <div className="section-title">İşler</div>}
         {jobs.map((j) => <Job key={j.id} job={j} />)}

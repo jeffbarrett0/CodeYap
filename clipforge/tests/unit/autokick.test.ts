@@ -79,3 +79,19 @@ describe('transkripsiyon hazırlık denetimi', () => {
     expect(r({ provider: 'openai-api', whisperModel: 'small', openaiApiKey: 'sk-x' }, ok).ok).toBe(true)
   })
 })
+
+describe('işlemci politikası (bilgisayar kilitlenmesin)', () => {
+  it('dengeli: çekirdek payı ve ffmpeg iş parçacığı sınırı; tam: dokunmaz', async () => {
+    const { cpuPolicy, setCpuMode, cpuThreads, limitThreads } = await import('../../src/main/ffmpeg')
+    cpuPolicy.cores = 16
+    setCpuMode('balanced')
+    expect(cpuThreads(0.5)).toBe(8)
+    const a = limitThreads(['-y', '-i', 'in.mkv', '-c:v', 'libx264', 'out.mp4'])
+    expect(a).toEqual(['-filter_threads', '8', '-filter_complex_threads', '8', '-y', '-threads', '8', '-i', 'in.mkv', '-c:v', 'libx264', '-threads', '8', 'out.mp4'])
+    expect(limitThreads(['-y', '-i', 'a', '-threads', '2', 'o.mp4'])).toEqual(['-y', '-i', 'a', '-threads', '2', 'o.mp4']) // elle verilen korunur
+    setCpuMode('full')
+    expect(cpuThreads(0.5)).toBe(16)
+    expect(limitThreads(['-i', 'a', 'o.mp4'])).toEqual(['-i', 'a', 'o.mp4'])
+    setCpuMode('balanced')
+  })
+})

@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cutFillers: true,
   vocabulary: '',
   transcribeFillers: true,
+  cpuMode: 'balanced',
   llmProvider: 'off',
   llmModel: '',
   anthropicApiKey: ''

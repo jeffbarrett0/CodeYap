@@ -2,6 +2,7 @@ import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcChannel, IpcInvoke, IpcResult } from '../shared/ipc'
 import type { AppService } from './app'
 import { userMessage } from './tasks'
+import { setCpuMode } from './ffmpeg'
 import { AutoKickManager } from './autokick/pipeline'
 import { transcriptionReadiness } from '../shared/autokick'
 import { makeTopicClip, topicCandidates } from './autokick/clips'
@@ -27,7 +28,11 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     'autokick:makeClip': (r) => makeTopicClip(r.projectPath, r.topic, r.start, r.end, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'app:info': () => app.info(),
     'settings:get': () => app.settings.value,
-    'settings:set': (patch) => app.settings.update(patch),
+    'settings:set': async (patch) => {
+      const v = await app.settings.update(patch)
+      setCpuMode(v.cpuMode)
+      return v
+    },
     'dialog:openMedia': async () => {
       const r = await dialog.showOpenDialog(getWindow() ?? (undefined as never), { title: 'Medya seç (video, ses, görsel)', properties: ['openFile', 'multiSelections'], filters: MEDIA_FILTERS })
       return r.canceled ? [] : r.filePaths

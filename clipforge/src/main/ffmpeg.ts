@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
+import { constants as osConstants, cpus as osCpus, setPriority } from 'node:os'
 import type { FfprobeJson } from '../shared/media/probe'
 import { CancelledError } from './tasks'
 
@@ -56,6 +57,20 @@ export function resolveFfprobePath(setting = ''): string {
   return setting || process.env.CLIPFORGE_FFPROBE || bundled('@ffprobe-installer/ffprobe', (m) => (m as { path: string }).path) || 'ffprobe'
 }
 
+/**
+ * İşlemci politikası: arka plan işleri (önizleme kopyası, transkripsiyon, kodlama) bilgisayarı kilitlemesin.
+ * "dengeli" (varsayılan): alt süreçler DÜŞÜK ÖNCELİKLE çalışır (siz başka program açınca onlara öncelik verilir) ve
+ * çekirdeklerin yarısı kullanılır. "tam": önceliği düşürmez, tüm çekirdekleri kullanır (en hızlı).
+ */
+export const cpuPolicy: { mode: 'balanced' | 'full'; cores: number } = { mode: 'balanced', cores: Math.max(1, osCpus().length) }
+export function setCpuMode(mode: string | undefined): void {
+  cpuPolicy.mode = mode === 'full' ? 'full' : 'balanced'
+}
+/** Çekirdek payı kadar iş parçacığı ("tam"da hepsi) */
+export function cpuThreads(fraction = 0.5): number {
+  return cpuPolicy.mode === 'full' ? cpuPolicy.cores : Math.max(2, Math.floor(cpuPolicy.cores * fraction))
+}
+
 export interface RunOptions {
   cwd?: string
   signal?: AbortSignal
@@ -78,6 +93,13 @@ export function runTool(bin: string, args: string[], opts: RunOptions = {}, frie
   return new Promise((resolve, reject) => {
     if (opts.signal?.aborted) return reject(new CancelledError())
     const child = spawn(bin, args, { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+    if (cpuPolicy.mode === 'balanced' && child.pid) {
+      try {
+        setPriority(child.pid, osConstants.priority.PRIORITY_BELOW_NORMAL)
+      } catch {
+        /* öncelik değiştirilemezse normal sürer */
+      }
+    }
     let stdout = ''
     let stderr = ''
     let carry = ''
@@ -133,8 +155,18 @@ export function runTool(bin: string, args: string[], opts: RunOptions = {}, frie
   })
 }
 
-export const runFfmpeg = (ffmpeg: string, args: string[], opts: RunOptions = {}) =>
-  runTool(ffmpeg, ['-hide_banner', '-nostdin', ...args], opts)
+export const runFfmpeg = (ffmpeg: string, args: string[], opts: RunOptions = {}) => runTool(ffmpeg, ['-hide_banner', '-nostdin', ...limitThreads(args)], opts)
+
+/** ffmpeg bağımsız değişkenlerine iş parçacığı sınırı ekler: çözücü (ilk -i'den önce) ve kodlayıcı (çıkıştan önce) */
+export function limitThreads(args: string[], n = cpuThreads(0.5)): string[] {
+  if (cpuPolicy.mode === 'full' || args.includes('-threads')) return args
+  const out = [...args]
+  const last = out.length - 1
+  if (last >= 0 && (!out[last].startsWith('-') || out[last] === '-')) out.splice(last, 0, '-threads', String(n))
+  const i = out.indexOf('-i')
+  if (i >= 0) out.splice(i, 0, '-threads', String(n))
+  return ['-filter_threads', String(n), '-filter_complex_threads', String(n), ...out]
+}
 
 export async function ffprobeJson(ffprobe: string, file: string, signal?: AbortSignal): Promise<FfprobeJson> {
   const { stdout } = await runTool(

@@ -97,6 +97,7 @@ function SourcePlayer() {
   }, [sourceTime])
 
   useEffect(() => {
+    if (!playing) return // duraklatılmışken kare döngüsü çalışmaz (boşta işlemci kullanımı sıfır)
     let raf = 0
     const tick = () => {
       const m = master()
@@ -198,7 +199,7 @@ function SourcePlayer() {
           setMenu({ x: e.clientX, y: e.clientY, clipId: null })
         }}
       >
-        {asset && isVideo && <video ref={vref} src={videoUrl ?? undefined} muted={!hasSound} playsInline preload="auto" data-testid="source-video" onLoadedMetadata={restoreTime} />}
+        {asset && isVideo && <video ref={vref} src={videoUrl ?? undefined} muted={!hasSound} playsInline preload="metadata" data-testid="source-video" onLoadedMetadata={restoreTime} />}
         {asset && isImage && <img src={imageUrl ?? undefined} alt={asset.name} className="source-image" data-testid="source-image" />}
         {asset && asset.kind === 'audio' && <div className="empty" data-testid="source-audio">Ses dosyası: {asset.name}</div>}
         {!asset && <div className="empty">Soldaki kütüphaneden bir dosya seçin.</div>}
@@ -313,7 +314,7 @@ function TimelinePreview() {
         const st = useStore.getState()
         const ctx = c?.getContext('2d')
         if (eng && c && ctx) eng.draw(ctx, c.width, c.height, st.project.timeline, st.project.assets, st.playhead, true)
-      }, 250)
+      }, 1000) // durağan önizleme: saniyede bir (yüklenen kareleri yakalamak için); sürekli çizim işlemciyi yorardı
       return () => clearInterval(id)
     }
   }, [playing])
