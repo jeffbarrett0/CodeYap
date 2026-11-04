@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { AppInfo } from '@shared/ipc'
 import type { AutoKickStatus } from '@shared/autokick'
 import type { IdeasResult } from '@shared/ideas'
+import type { ChaptersResult } from '@shared/chapters'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { suggestClip, nearestBoundary, type ClipWarning } from '@shared/clip/boundaries'
 import { History } from '@shared/timeline/history'
@@ -21,7 +22,7 @@ import type { Caption, CaptionStyle, ChatLog, ClipCandidate, ExportOptions, Layo
 import { requireApi } from './api'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
-export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas'
+export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
 export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick'
 
 export interface Toast {
@@ -148,6 +149,13 @@ interface State {
   ideasBusy: boolean
   ideasError: string
   generateIdeas(useAi: boolean): Promise<void>
+  /** YouTube zaman damgaları: düzenlenmiş zaman çizelgesinin konu bölümleri */
+  chapters: ChaptersResult | null
+  chaptersText: string
+  chaptersBusy: boolean
+  chaptersError: string
+  generateChapters(useAi: boolean): Promise<void>
+  setChaptersText(t: string): void
   /** Auto Kick işleri (arka planda sürer; pencere kapansa da devam eder) */
   autoKick: Record<string, AutoKickStatus>
   toasts: Toast[]
@@ -244,7 +252,7 @@ interface State {
   newProject(): Promise<void>
   openProject(path?: string | null): Promise<boolean>
   saveProject(saveAs?: boolean): Promise<void>
-  startExport(opts: { options: ExportOptions; name: string; mode: 'all' | 'each' | 'selection' }): Promise<void>
+  startExport(opts: { options: ExportOptions; name: string; mode: 'all' | 'each' | 'selection'; timestamps?: boolean }): Promise<void>
   cancelTask(id: string): void
 
   selectLayer(id: string | null): void
@@ -322,6 +330,10 @@ export const useStore = create<State>()((set, get) => {
     ideas: {},
     captionsTranslating: false,
     ideasBusy: false,
+    chapters: null,
+    chaptersText: '',
+    chaptersBusy: false,
+    chaptersError: '',
     ideasError: '',
     toasts: [],
     query: '',
@@ -367,8 +379,9 @@ export const useStore = create<State>()((set, get) => {
         set({ suggesting: false })
         get().toast('info', candidates.length ? `${candidates.length} aday bulundu.` : 'Belirgin bir tepki anı bulunamadı.')
       })
-      a.on('export:done', ({ outputPath, warnings }) => {
+      a.on('export:done', ({ outputPath, warnings, timestampsPath }) => {
         set({ lastExport: outputPath })
+        if (timestampsPath) get().toast('success', `YouTube zaman damgaları yazıldı: ${timestampsPath}`)
         for (const w of warnings ?? []) get().toast('info', w)
       })
       a.on('menu:command', (c) => {
@@ -865,6 +878,18 @@ export const useStore = create<State>()((set, get) => {
       const lang = get().project.timeline.captionLang
       if (lang) void get().setCaptionLang(lang) // seçili dil özgün değilse yeni satırlar da çevrilir
     },
+    async generateChapters(useAi) {
+      const tl = get().project.timeline
+      if (timelineDuration(tl) <= 0) return set({ chaptersError: 'Zaman çizelgesi boş: önce videoyu çizelgeye koyun ve düzenleyin.' })
+      set({ chaptersBusy: true, chaptersError: '' })
+      try {
+        const r = await api().invoke('chapters:generate', { timeline: tl, useAi })
+        set({ chapters: r, chaptersText: r.text, chaptersBusy: false })
+      } catch (e) {
+        set({ chaptersBusy: false, chaptersError: errText(e) })
+      }
+    },
+    setChaptersText: (t) => set({ chaptersText: t }),
     async setCaptionLang(lang) {
       const tl = get().project.timeline
       if (lang === 'orig') return get().exec(cmd.captionLang('orig'))
@@ -928,7 +953,7 @@ export const useStore = create<State>()((set, get) => {
     },
 
     // ───── dışa aktarma ─────
-    async startExport({ options, name, mode }) {
+    async startExport({ options, name, mode, timestamps }) {
       const { project } = get()
       // Çıkış oranı şablondan gelir; düzen kuralları aynı orana göre çözülsün
       const tl = project.timeline.aspect === options.aspect ? project.timeline : { ...project.timeline, aspect: options.aspect }
@@ -949,7 +974,7 @@ export const useStore = create<State>()((set, get) => {
         }
         if (ranges.length === 0) ranges.push({ name: base, start: 0, end: total, path: first })
         for (const r of ranges) {
-          await api().invoke('export:start', { name: r.name, timeline: tl, assets: project.assets, options, range: { start: r.start, end: r.end }, outputPath: r.path })
+          await api().invoke('export:start', { name: r.name, timeline: tl, assets: project.assets, options, range: { start: r.start, end: r.end }, outputPath: r.path, timestamps: !!timestamps && mode === 'all' })
         }
         set({ dialog: null })
         get().toast('info', `${ranges.length} dışa aktarma kuyruğa eklendi.`)

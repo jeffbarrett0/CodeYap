@@ -39,6 +39,8 @@ export interface AutoKickResult {
   outDir: string
   projectPath: string
   fullVideoPath: string
+  /** YouTube zaman damgaları (.txt), bulunabildiyse */
+  timestampsPath?: string
   durationBeforeSec: number
   durationAfterSec: number
   removedSec: number

@@ -52,6 +52,7 @@ function Job({ job }: { job: AutoKickStatus }) {
             {r.verified && <b>✓ Çıktı doğrulandı (süre, görüntü, ses; boşluk yok). </b>}Süre: {fmtMin(r.durationBeforeSec)} → <b>{fmtMin(r.durationAfterSec)}</b> ({fmtMin(r.removedSec)} kısaldı, {r.cuts} kesim, {r.fillers} dolgu sesi) · {r.words.toLocaleString('tr')} kelime
           </div>
           <div className="row wrap">
+            {r.timestampsPath && <div className="hint" data-testid="autokick-timestamps" style={{ wordBreak: 'break-all' }}>YouTube zaman damgaları: {r.timestampsPath}</div>}
             <button className="btn sm" onClick={() => void api.invoke('shell:reveal', r.fullVideoPath)} data-testid="autokick-reveal">Klasörü aç</button>
             <button className="btn sm" onClick={() => void openProject(r.projectPath).then((ok) => ok && closeDialog(null))} data-testid="autokick-open">Projeyi uygulamada aç</button>
           </div>

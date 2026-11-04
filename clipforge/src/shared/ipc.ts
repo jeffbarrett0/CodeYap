@@ -9,6 +9,7 @@
 import type { AutoKickRequest, AutoKickStatus, TranscriptionReadiness } from './autokick'
 import type { TopicCandidate } from './topic'
 import type { IdeasResult } from './ideas'
+import type { ChaptersResult } from './chapters'
 import type {
   ChatColumnMapping,
   ChatLog,
@@ -70,6 +71,8 @@ export interface SuggestRequest {
 
 export interface ExportRequest {
   name: string
+  /** Dışa aktarma bitince YouTube bölüm zamanlarını (.txt) videonun yanına da yaz */
+  timestamps?: boolean
   timeline: Timeline
   assets: MediaAsset[]
   options: ExportOptions
@@ -116,6 +119,10 @@ export interface IpcInvoke {
   'task:cancel': [[string], void]
   /** Altyazı çevirisi: aynı sayıda satır, aynı sırada (zamanlamalar korunur) */
   'captions:translate': [[{ texts: string[]; to: string }], { texts: string[] }]
+  /** YouTube bölüm zamanları (timestamp): düzenlenmiş çizelgenin konu bölümleri ve başlıkları */
+  'chapters:generate': [[{ timeline: Timeline; useAi?: boolean }], ChaptersResult]
+  /** Metni dosyaya yazar (zaman damgaları .txt) */
+  'file:writeText': [[string, string], void]
   /** Video önerileri: transkriptten ayrı video olabilecek konu bölümleri + başlık önerileri */
   'ideas:generate': [[{ assetId: string; max?: number; useAi?: boolean }], IdeasResult]
   /** Auto Kick: yayın kaydından otomatik tam video (+ ileride klipler); iş arka planda sürer */
@@ -144,7 +151,7 @@ export interface IpcEvents {
   'asset:updated': MediaAsset
   'transcript:ready': { assetId: string; transcript: Transcript; reused: boolean }
   'suggest:ready': { assetId: string; candidates: ClipCandidate[] }
-  'export:done': { taskId: string; outputPath: string; warnings?: string[] }
+  'export:done': { taskId: string; outputPath: string; warnings?: string[]; timestampsPath?: string }
   'menu:command': 'open' | 'save' | 'saveAs' | 'import' | 'export'
 }
 

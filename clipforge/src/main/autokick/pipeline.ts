@@ -1,6 +1,7 @@
 import { access, mkdir, readFile, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
+import { llmConfigured } from '../ideas/llm'
 import { initialStages, transcriptionReadiness, type AutoKickRequest, type AutoKickResult, type AutoKickStage, type AutoKickStageState } from '../../shared/autokick'
 import { cmd } from '../../shared/timeline/commands'
 import { clipsForVideoWithAudio } from '../../shared/timeline/create'
@@ -249,12 +250,25 @@ export async function runAutoKick(req: AutoKickRequest, env: { userDataDir?: str
     stage('full', { status: 'done', progress: 1, detail: p.full })
   }
 
+  // YouTube zaman damgaları (tam videonun yanına .txt); hata olursa iş yine başarılıdır
+  let timestampsPath: string | undefined
+  try {
+    const ch = await service.chaptersGenerate({ timeline: s.timeline, useAi: llmConfigured(settings) === null })
+    if (ch.chapters.length >= 3) {
+      timestampsPath = p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
+      await writeFile(timestampsPath, ch.text + '\n', 'utf8')
+    }
+  } catch {
+    timestampsPath = undefined
+  }
+
   const st = state.silence
   return {
     verified: true,
     outDir: p.dir,
     projectPath: p.project,
     fullVideoPath: p.full,
+    timestampsPath,
     durationBeforeSec: st.before,
     durationAfterSec: st.after,
     removedSec: st.removedSec,

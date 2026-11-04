@@ -250,6 +250,47 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(cli('ideas', proj2, '--ai').ai.error).toMatch(/kapalı/) // anahtar yokken nedeni söyler
   }, 120_000)
 
+  it('chapters: düzenlenmiş çizelgenin YouTube zaman damgaları (0:00, ≥3 bölüm, başlıklar), dosyaya yazılır, proje değişmez', () => {
+    const proj3 = join(tmp, 'bolum.clipforge')
+    cli('new', proj3)
+    const imp = cli('import', proj3, join(tmp, 'video örnek.mp4'), '--add')
+    const id = imp.added[0].id as string
+    const vocab = [['oyun', 'bölüm', 'boss', 'seviye', 'karakter', 'silah', 'görev', 'harita'], ['yapay', 'zeka', 'model', 'veri', 'eğitim', 'algoritma', 'öğrenme', 'chatbot'], ['transfer', 'forvet', 'taraftar', 'penaltı', 'kadro', 'sezon', 'lig', 'teknik']]
+    const common = ['gerçekten', 'şimdi', 'arkadaşlar', 'konuşuyoruz', 'oldukça', 'durum', 'mesele', 'taraf']
+    let seed = 13
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296)
+    const words: unknown[] = []
+    let t = 0
+    for (const v of vocab) {
+      const end = t + 10 * 60
+      while (t < end) {
+        for (let i = 0; i < 9; i++) {
+          const w = rnd() < 0.45 ? v[Math.floor(rnd() * v.length)] : common[Math.floor(rnd() * common.length)]
+          words.push({ text: i === 8 ? `${w}.` : w, start: t, end: t + 0.4, confidence: 1 })
+          t += 0.45
+        }
+        t += 0.5
+      }
+    }
+    const dir = join(`${proj3}-data`, 'transcripts')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, `${id}.json`), JSON.stringify({ id: 'tr', assetId: id, language: 'tr', model: 'small', provider: 'whisper-cpp', audioTrack: 0, createdAt: '', durationSec: t, words, segments: [] }))
+    // çizelgedeki klipleri kaynağın tamamına uzat (düzenlenmiş 30 dk'lık video gibi)
+    const pj = JSON.parse(readFileSync(proj3, 'utf8'))
+    for (const tr of pj.timeline.tracks) for (const c of tr.clips) c.srcOut = t
+    writeFileSync(proj3, JSON.stringify(pj))
+    const before = md5(proj3)
+    const out = join(tmp, 'zd', 'zaman damgalari.txt')
+    const r = cli('chapters', proj3, '--out', out)
+    expect(r.chapters.length).toBeGreaterThanOrEqual(3)
+    expect(r.chapters[0].time).toBe('0:00')
+    expect(r.text.split('\n')[0]).toMatch(/^0:00 \S/)
+    expect(r.warnings).toEqual([])
+    expect(readFileSync(out, 'utf8').trim()).toBe(r.text)
+    expect(md5(proj3)).toBe(before)
+    expect(cli('chapters', proj3, '--ai').ai.error).toMatch(/kapalı/) // anahtar yokken nedeni söyler
+  }, 120_000)
+
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)
     const bad = cli('bogus', proj)

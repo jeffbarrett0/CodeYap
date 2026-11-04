@@ -179,3 +179,56 @@ export async function translateLines(lines: string[], s: Settings, to = 'English
   for (let i = 0; i < lines.length; i += BATCH) out.push(...(await run(lines.slice(i, i + BATCH))))
   return out
 }
+
+// ───────────────────────── bölüm başlıkları ─────────────────────────
+
+export function buildChapterPrompt(text: string, minutes: number): string {
+  return `Aşağıda bir YouTube videosunun ${minutes} dakikalık bir bölümünün konuşma metni var (uzunsa parçalar "[…]" ile ayrılmıştır). Bu bölüm için YouTube "bölüm zamanları" (chapters) listesine yazılacak KISA bir başlık ver.
+
+Yalnızca şu JSON'u döndür: {"title": "başlık"}
+
+Kurallar:
+- Türkçe, 2-6 kelime, en fazla 45 karakter; bölümde konuşulan asıl konuyu söylesin (ör. "Batrakov'un performansı", "Yapay zekâ ve gelecek").
+- Yalnızca metinde GERÇEKTEN konuşulanlara dayan; uydurma ya da abartı yok; tık tuzağı yok.
+- "Beğenin", "abone olun", "kanalıma gelin" gibi çağrı/yönlendirme metni YAZMA.
+- Özel isimleri metindeki gibi yaz. Sonuna nokta koyma.
+
+METİN:
+${text}`
+}
+
+export function parseChapterTitle(raw: string): string | null {
+  const m = raw.match(/\{[\s\S]*\}/)
+  if (!m) return null
+  try {
+    const t = (JSON.parse(m[0]) as { title?: unknown }).title
+    const s = typeof t === 'string' ? t.trim().replace(/[.。]+$/, '') : ''
+    return s && s.length <= 60 && !isCtaText(s) ? s : null
+  } catch {
+    return null
+  }
+}
+
+/** Bölümlere yapay zekâ başlıkları yazar (3 eşzamanlı istek); hata olan bölümde taslak başlık kalır */
+export async function aiChapterTitles(texts: string[], minutes: number[], s: Settings, signal?: AbortSignal): Promise<{ titles: (string | null)[]; failed: number; error?: string }> {
+  const titles: (string | null)[] = texts.map(() => null)
+  let failed = 0
+  let firstError: string | undefined
+  let next = 0
+  const worker = async () => {
+    while (next < texts.length) {
+      const i = next++
+      try {
+        const raw = await ask(s, buildChapterPrompt(sampleTranscript(texts[i], 3500, 5), minutes[i]), signal, 150)
+        const t = parseChapterTitle(raw)
+        if (!t) throw new Error('Yapay zekâ başlığı okunamadı.')
+        titles[i] = t
+      } catch (e) {
+        failed++
+        firstError ??= e instanceof Error ? e.message : String(e)
+      }
+    }
+  }
+  await Promise.all([worker(), worker(), worker()])
+  return { titles, failed, error: firstError }
+}

@@ -153,6 +153,18 @@ export function createMockApi(): ClipforgeApi {
       if (w.__mock?.fail?.translate) throw new Error(w.__mock.fail.translate)
       return { texts: req.texts.map((t) => `EN: ${t}`) }
     },
+    'chapters:generate': (req) => {
+      if (w.__mock?.fail?.chapters) throw new Error(w.__mock.fail.chapters)
+      const chapters = [
+        { start: 0, end: 600, title: 'Giriş', keywords: [], titleSource: 'draft' as const },
+        { start: 600, end: 1500, title: req.useAi ? 'Maçın analizi' : 'Batrakov hakkında', keywords: ['Batrakov'], titleSource: req.useAi ? ('ai' as const) : ('draft' as const) },
+        { start: 1500, end: 2400, title: 'Yapay zeka ve model', keywords: ['yapay zeka'], titleSource: 'draft' as const },
+        { start: 2400, end: 3735, title: 'Transfer ve forvet', keywords: ['transfer'], titleSource: 'draft' as const }
+      ]
+      const ts = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`)
+      return { chapters, totalSec: 3735, text: chapters.map((c) => `${ts(c.start)} ${c.title}`).join('\n'), warnings: [], ai: { requested: !!req.useAi, used: !!req.useAi } }
+    },
+    'file:writeText': () => undefined,
     'ideas:generate': (req) => {
       const t = search.get(req.assetId)
       if (!t) throw new Error('Önce bu kaydın transkripsiyonunu yapın (Kaynak sekmesi → Transkripsiyonu başlat).')

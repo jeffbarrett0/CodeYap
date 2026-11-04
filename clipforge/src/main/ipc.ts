@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { writeFile } from 'node:fs/promises'
 import type { IpcChannel, IpcInvoke, IpcResult } from '../shared/ipc'
 import type { AppService } from './app'
 import { userMessage } from './tasks'
@@ -83,6 +84,10 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     },
     'task:cancel': (id) => app.queue.cancel(id),
     'ideas:generate': (req) => app.ideasGenerate(req),
+    'chapters:generate': (req) => app.chaptersGenerate(req),
+    'file:writeText': async (path, text) => {
+      await writeFile(path, text, 'utf8')
+    },
     'captions:translate': (req) => app.translateTexts(req),
     'task:list': () => app.queue.list(),
     'model:download': (size) => app.downloadModel(size),

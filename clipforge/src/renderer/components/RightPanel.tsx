@@ -12,6 +12,7 @@ import { MediaDetail } from './MediaPanel'
 import { SearchPanel } from './SearchPanel'
 import { TranscriptPanel } from './TranscriptPanel'
 import { IdeasPanel } from './IdeasPanel'
+import { ChaptersPanel } from './ChaptersPanel'
 import { fmt, Field, Num, Slider } from './ui'
 
 const FONTS = ['Arial', 'Impact', 'Verdana', 'Tahoma', 'Georgia', 'Trebuchet MS', 'Courier New']
@@ -253,7 +254,7 @@ export function RightPanel() {
   const { rightTab, setRightTab, clipDraft } = useStore()
   // İki sıra: düzenleme araçları / bulma ve kaynak (sol panel yalnızca kütüphane olduğu için buraya taşındı)
   const edit: [typeof rightTab, string][] = [['inspector', 'Klip'], ['layout', 'Katmanlar'], ['audio', 'Ses'], ['captions', 'Altyazı']]
-  const find: [typeof rightTab, string][] = [['source', 'Kaynak'], ['search', 'Arama'], ['transcript', 'Transkript'], ['ideas', 'Öneriler']]
+  const find: [typeof rightTab, string][] = [['source', 'Kaynak'], ['search', 'Arama'], ['transcript', 'Transkript'], ['ideas', 'Öneriler'], ['chapters', 'Zaman damgası']]
   const tab = (id: typeof rightTab, name: string) => (
     <button key={id} role="tab" aria-selected={rightTab === id} className={`tab${rightTab === id ? ' active' : ''}`} onClick={() => setRightTab(id)} data-testid={id === 'inspector' || id === 'layout' || id === 'audio' || id === 'captions' ? `rtab-${id}` : `tab-${id}`}>{name}</button>
   )
@@ -273,6 +274,7 @@ export function RightPanel() {
           {rightTab === 'search' && <SearchPanel />}
           {rightTab === 'transcript' && <TranscriptPanel />}
           {rightTab === 'ideas' && <IdeasPanel />}
+          {rightTab === 'chapters' && <ChaptersPanel />}
         </>
       )}
     </aside>

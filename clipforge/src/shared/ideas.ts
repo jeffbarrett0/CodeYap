@@ -63,12 +63,12 @@ const STOP = new Set(
   söylüyor söyledi biliyorum bilmiyorum düşünüyorum sanırım galiba herhalde acaba nasılsa ayrıca üstelik fazla az biraz tam gerçekten kesinlikle
   kendi kendine kendini kendisi kendime kendimi böyle şöyle öyle herkes kimse hiçbir başka tane defa kere zaman insan insanlar adam şeyin şeyde bunda orada burada`.split(/\s+/)
 )
-const STOP_KEYS = new Set([...STOP].map((w) => key(w)))
+export const STOP_KEYS = new Set([...STOP].map((w) => key(w)))
 
 /** Türkçe çekim eklerini kabaca birleştirmek için: aksansız küçük harf, ilk 5 harf ("yapay", "zeka", "model" aynı kökte toplanır) */
 const stem = (k: string) => (k.length > 5 ? k.slice(0, 5) : k)
 
-function tokens(text: string): { surface: string; stem: string }[] {
+export function tokens(text: string): { surface: string; stem: string }[] {
   const out: { surface: string; stem: string }[] = []
   for (const raw of text.split(/\s+/)) {
     const surface = raw.replace(/[^\p{L}\p{N}'’]/gu, '').split(/['’]/)[0]
@@ -104,7 +104,7 @@ interface Unit {
   tf: Vec
 }
 
-const cap = (s: string) => s.charAt(0).toLocaleUpperCase('tr-TR') + s.slice(1)
+export const cap = (s: string) => s.charAt(0).toLocaleUpperCase('tr-TR') + s.slice(1)
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
 
 /** Taslak başlıklar (yapay zekâ yoksa): anahtar kelimelerden basit kalıplar */
@@ -255,7 +255,7 @@ function topicIdeas(words: TranscriptWord[], segs: Segment[], o: IdeaOptions): V
     .map(({ _idx, ...i }) => (void _idx, i))
 }
 
-const NOT_ENTITY = new Set(['ocak', 'subat', 'mart', 'nisan', 'mayis', 'haziran', 'temmuz', 'agustos', 'eylul', 'ekim', 'kasim', 'aralik', 'pazartesi', 'sali', 'carsamba', 'persembe', 'cuma', 'cumartesi', 'pazar', 'evet', 'hayir', 'tamam', 'peki', 'allah'])
+export const NOT_ENTITY = new Set(['ocak', 'subat', 'mart', 'nisan', 'mayis', 'haziran', 'temmuz', 'agustos', 'eylul', 'ekim', 'kasim', 'aralik', 'pazartesi', 'sali', 'carsamba', 'persembe', 'cuma', 'cumartesi', 'pazar', 'evet', 'hayir', 'tamam', 'peki', 'allah'])
 
 /**
  * Özel isim yoğunluğu: büyük harfle yazılmış (cümle başı olmayan) bir ad bir bölümde tekrar tekrar anılıyorsa

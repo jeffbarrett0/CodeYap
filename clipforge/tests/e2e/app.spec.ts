@@ -1050,6 +1050,41 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('cap-lang')).toHaveValue('orig')
   })
 
+  test('Zaman damgası: düzenlenmiş çizelgeden YouTube bölümleri (0:00 …), kopyala; hata anlaşılır; dışa aktarmada .txt seçeneği', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V1')
+    await page.getByTestId('tab-chapters').click()
+    await page.getByTestId('chapters-run').click()
+    const text = page.getByTestId('chapters-text')
+    await expect(text).toBeVisible()
+    await expect(text).toHaveValue(/^0:00 Giriş\n10:00 Batrakov hakkında\n25:00 Yapay zeka ve model\n40:00 Transfer ve forvet$/)
+    await expect(page.getByTestId('chapters-warning')).toHaveCount(0)
+    // düzenlenebilir
+    await text.fill('0:00 Açılış\n10:00 Maç')
+    await expect(text).toHaveValue('0:00 Açılış\n10:00 Maç')
+    await page.getByTestId('chapters-copy').click()
+    await expect(page.getByTestId('toast').filter({ hasText: 'kopyalandı' })).toBeVisible()
+    // dışa aktarma penceresinde seçenek (kısa videoda varsayılan kapalı; yalnızca "tüm çizelge" kapsamında)
+    await page.getByTestId('export-btn').click()
+    await expect(page.getByTestId('export-timestamps')).not.toBeChecked()
+    await page.getByTestId('export-timestamps').check()
+    await expect(page.getByTestId('export-timestamps')).toBeChecked()
+  })
+
+  test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {
+    await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { chapters: 'Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.' } }))
+    await boot(page)
+    await page.getByTestId('tab-chapters').click()
+    await expect(page.getByTestId('chapters-run')).toBeDisabled() // çizelge boş
+    await page.getByTestId('import-btn').click()
+    await page.getByTestId('asset').first().click()
+    await dropAsset(page, 0, 'V1')
+    await page.getByTestId('tab-chapters').click()
+    await page.getByTestId('chapters-run').click()
+    await expect(page.getByTestId('chapters-error')).toContainText('transkripti yok')
+  })
+
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))

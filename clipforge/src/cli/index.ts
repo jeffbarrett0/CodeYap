@@ -6,7 +6,7 @@
  *   node out/main/cli.js <komut> <proje.clipforge> [seçenekler]      (kısa: npm run cli -- <komut> ...)
  */
 import { execFile } from 'node:child_process'
-import { mkdir, readdir, rm } from 'node:fs/promises'
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { nearestBoundary, suggestClip } from '../shared/clip/boundaries'
@@ -18,6 +18,7 @@ import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
 import { runAutoKick } from '../main/autokick/pipeline'
+import { chapterTimestamp } from '../shared/chapters'
 import { makeTopicClip, topicCandidates } from '../main/autokick/clips'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { clipsAt, timelineToSource } from '../shared/timeline/ops'
@@ -84,6 +85,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
   ideas <proje> [--asset a] [--max 8] [--ai]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
+  chapters <proje> [--ai] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
   silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
   captions <proje> [--style classic|boxed-highlight] [--max-chars 22] [--lang en]   transkriptten altyazı üretir (--lang en: İngilizce çeviri, yapay zekâ ayarı gerekir) (boxed-highlight: referans stil)
@@ -397,6 +399,15 @@ async function main(argv: string[]): Promise<unknown> {
         ideas: r.ideas.map((i) => ({ id: i.id, headline: i.headline, kind: i.kind, mentions: i.mentions, start: r1(i.start), end: r1(i.end), durationSec: r1(i.durationSec), score: i.score, keywords: i.keywords, titles: i.titles, titleSource: i.titleSource, hook: i.hook, summary: i.summary })),
         hint: 'Bunlar ÖNERİDİR. Başlıkları yazarken önce `transcript --from <başlangıç> --to <bitiş>` ile bölümün metnini okuyun; yalnızca konuşulanlara dayanın, çağrı/yönlendirme metni yazmayın.'
       })
+    }
+    case 'chapters': {
+      const r = await s.service.chaptersGenerate({ timeline: s.timeline, useAi: !!a.opt.ai })
+      const outFile = str(a.opt.out)
+      if (outFile) {
+        await mkdir(dirname(resolve(outFile)), { recursive: true })
+        await writeFile(resolve(outFile), r.text + '\n', 'utf8')
+      }
+      return out({ totalSec: r1(r.totalSec), chapters: r.chapters.map((c) => ({ time: chapterTimestamp(c.start), startSec: r1(c.start), durationSec: r1(c.end - c.start), title: c.title, keywords: c.keywords, titleSource: c.titleSource })), text: r.text, warnings: r.warnings, ai: r.ai, written: outFile ? resolve(outFile) : undefined, hint: 'Zamanlar projenin (düzenlenmiş) zaman çizelgesine göredir: dışa aktarılan videoyla aynıdır. Başlıkları kullanıcıya sun; istenirse düzelt.' })
     }
     case 'silence': {
       const words = timelineWords(s.timeline, s.transcripts)

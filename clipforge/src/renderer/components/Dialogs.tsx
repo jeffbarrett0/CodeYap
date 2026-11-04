@@ -17,6 +17,7 @@ export function ExportDialog() {
   const saved = EXPORT_PRESETS.find((p) => p.id === settings.exportDefaults.presetId)
   const initial = saved && saved.options.aspect === tl.aspect ? saved.id : byAspect
   const [preset, setPreset] = useState(initial)
+  const [timestamps, setTimestamps] = useState(total >= 600) // 10 dakikadan uzun videolarda varsayılan açık
   const [opts, setOpts] = useState<ExportOptions>(() => optionsFromPreset(initial, settings.exportDefaults))
   const [name, setName] = useState(project.name === 'Adsız proje' ? 'klip' : project.name)
   const [mode, setMode] = useState<'all' | 'each' | 'selection'>('all')
@@ -44,7 +45,7 @@ export function ExportDialog() {
       footer={
         <>
           <button className="btn" onClick={() => openDialog(null)}>Vazgeç</button>
-          <button className="btn primary" disabled={!ack || total <= 0} onClick={() => void startExport({ options: opts, name, mode })} data-testid="export-go">Kuyruğa ekle ve dışa aktar</button>
+          <button className="btn primary" disabled={!ack || total <= 0} onClick={() => void startExport({ options: opts, name, mode, timestamps })} data-testid="export-go">Kuyruğa ekle ve dışa aktar</button>
         </>
       }
     >
@@ -84,6 +85,7 @@ export function ExportDialog() {
       </fieldset>
       {warnings.map((w, i) => <div key={i} className="warnbox" role="alert" data-testid="export-warning">⚠ {w}</div>)}
       <div className="infobox" data-testid="copyright-notice">{COPYRIGHT_NOTICE}</div>
+      <label className="check"><input type="checkbox" checked={timestamps && mode === 'all'} disabled={mode !== 'all'} onChange={(e) => setTimestamps(e.target.checked)} data-testid="export-timestamps" /> YouTube zaman damgalarını da yaz (videonun yanına “… - zaman damgaları.txt”; transkript gerekir)</label>
       <label className="check"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} data-testid="export-ack" /> Hatırlatmayı okudum</label>
     </Modal>
   )

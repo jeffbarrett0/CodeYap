@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { parseChatLog } from '../shared/chat/parse'
 import { DEFAULT_SEARCH_OPTIONS } from '../shared/search/engine'
@@ -7,7 +7,7 @@ import { estimateOffsetSec } from '../shared/media/sync'
 import { newId } from '../shared/timeline/model'
 import { scoreCandidates, snapCandidate, DEFAULT_KEYWORDS } from '../shared/suggest/score'
 import type { AppInfo, ChatImportRequest, ExportRequest, IpcEventName, IpcEvents, OpenedProject, SearchRequest, SuggestRequest, ToolStatus, TranscribeRequest } from '../shared/ipc'
-import type { ChatLog, MediaAsset, Marker, Project, SearchResult, Transcript, WhisperModelSize } from '../shared/types'
+import type { ChatLog, MediaAsset, Marker, Project, SearchResult, Timeline, Transcript, WhisperModelSize } from '../shared/types'
 import { runExport } from './export'
 import { resolveFfmpegPath, resolveFfprobePath, setCpuMode, ToolError, toolVersion } from './ffmpeg'
 import { audioLevelSeries, detectScenes, extractWavChunk } from './media/audio'
@@ -24,7 +24,9 @@ import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pi
 import { applyVocabulary, buildPrompt, fixWord, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
 import { findVideoIdeas, type IdeasResult } from '../shared/ideas'
-import { enhanceIdeas, llmConfigured, translateLines } from './ideas/llm'
+import { chapterWarnings, findChapters, formatChapters, type ChaptersResult } from '../shared/chapters'
+import { timelineWords } from '../shared/timeline/transcript'
+import { aiChapterTitles, enhanceIdeas, llmConfigured, translateLines } from './ideas/llm'
 
 export interface AppDeps {
   userDataDir: string
@@ -217,6 +219,33 @@ export class AppService {
     return { texts: await translateLines(req.texts, this.settings.value, name) }
   }
 
+  /**
+   * YouTube bölüm zamanları: verilen çizelgenin (düzenlenmiş video: kesimler, boşluk kapatma sonrası) transkriptinden
+   * ardışık konu bölümleri ve başlıkları. Zamanlar çizelge zamanıdır = dışa aktarılan videonun zamanı.
+   */
+  async chaptersGenerate(req: { timeline: Timeline; useAi?: boolean }): Promise<ChaptersResult> {
+    const ids = [...new Set(req.timeline.tracks.flatMap((t) => t.clips.map((c) => c.assetId)))]
+    const transcripts: Record<string, Transcript | undefined> = {}
+    for (const id of ids) transcripts[id] = (await this.transcriptGet(id)) ?? undefined
+    const words = timelineWords(req.timeline, transcripts)
+    if (words.length === 0) throw new ToolError('Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.')
+    const totalSec = words[words.length - 1].end
+    let chapters = findChapters(words)
+    const ai: ChaptersResult['ai'] = { requested: !!req.useAi, used: false }
+    if (req.useAi && chapters.length > 0) {
+      const problem = llmConfigured(this.settings.value)
+      if (problem) ai.error = problem
+      else {
+        const texts = chapters.map((c) => words.filter((w) => w.start >= c.start - 0.01 && w.end <= c.end + 0.5).map((w) => w.text.trim()).join(' '))
+        const r = await aiChapterTitles(texts, chapters.map((c) => Math.max(1, Math.round((c.end - c.start) / 60))), this.settings.value)
+        chapters = chapters.map((c, i) => (r.titles[i] ? { ...c, title: r.titles[i]!, titleSource: 'ai' as const } : c))
+        ai.used = r.failed < chapters.length
+        if (r.error) ai.error = r.failed === chapters.length ? r.error : `${r.failed} bölümde yapay zekâ başlığı yazılamadı (taslak başlık kaldı): ${r.error}`
+      }
+    }
+    return { chapters, totalSec, text: formatChapters(chapters), warnings: chapterWarnings(chapters), ai }
+  }
+
   async transcriptStart(req: TranscribeRequest): Promise<string> {
     const asset = this.assets.get(req.assetId)
     if (!asset) throw new ToolError('Medya bulunamadı.')
@@ -340,7 +369,20 @@ export class AppService {
       title: `Dışa aktarma: ${req.name}`,
       run: async (ctx) => {
         const { outputPath, warnings } = await runExport(req, this.tools, { signal: ctx.signal, progress: ctx.progress })
-        this.deps.emit('export:done', { taskId: ctx.id, outputPath, warnings })
+        // YouTube bölüm zamanları: dışa aktarılan videonun yanına .txt (yalnızca tam video; hata dışa aktarmayı bozmaz)
+        let timestampsPath: string | undefined
+        if (req.timestamps && req.range.start <= 0.01) {
+          try {
+            const r = await this.chaptersGenerate({ timeline: req.timeline, useAi: llmConfigured(this.settings.value) === null })
+            if (r.chapters.length >= 3) {
+              timestampsPath = outputPath.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
+              await writeFile(timestampsPath, r.text + '\n', 'utf8')
+            } else warnings.push('Zaman damgaları yazılmadı: ' + (r.warnings[0] ?? 'yeterli bölüm bulunamadı.'))
+          } catch (e) {
+            warnings.push('Zaman damgaları yazılamadı: ' + (e instanceof Error ? e.message : String(e)))
+          }
+        }
+        this.deps.emit('export:done', { taskId: ctx.id, outputPath, warnings, timestampsPath })
       }
     }).id
   }
