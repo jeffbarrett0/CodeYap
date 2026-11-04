@@ -50,7 +50,7 @@ export function captionLayout(style: CaptionStyle, cap: Caption, W: number, H: n
   const scale = Math.min(W, H) / 1080
   const fontPx = Math.max(6, Math.round(style.fontSize * scale * (cap.scale ?? 1)))
   const text = style.uppercase ? cap.text.toLocaleUpperCase('tr-TR') : cap.text
-  const lines = wrapCaption(text, style.maxCharsPerLine)
+  const lines = wrapCaption(text, cap.maxChars ?? style.maxCharsPerLine)
   const cx = Math.round(cap.pos ? cap.pos.x * W : W / 2)
   const cy = Math.round(cap.pos ? cap.pos.y * H : H * (0.88 - 0.76 * style.positionY))
   const pad = style.outlineWidth * scale

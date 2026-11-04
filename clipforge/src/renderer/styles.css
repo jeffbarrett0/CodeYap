@@ -251,3 +251,4 @@ kbd { background: var(--panel3); border: 1px solid var(--border); border-bottom-
 .cap-h-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
 .cap-h-w { left: -6px; top: calc(50% - 6px); cursor: ew-resize; }
 .cap-h-e { right: -6px; top: calc(50% - 6px); cursor: ew-resize; }
+.cap-h-wrap { right: -34px; top: calc(50% - 10px); width: 22px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 13px; line-height: 1; color: #000; background: #ffe066; border-radius: 10px; cursor: ew-resize; user-select: none; }

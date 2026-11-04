@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildAss, highlightedLines } from '@shared/export/ass'
+import { buildAss, captionLayout, highlightedLines } from '@shared/export/ass'
 import { captionsFromWords } from '@shared/timeline/captions'
 import { assignHighlights, CAPTION_PRESETS, highlightCount, presetById, wordsWithHighlight } from '@shared/timeline/captionStyles'
-import { DEFAULT_CAPTION_STYLE } from '@shared/timeline/model'
+import { createDefaultTimeline, DEFAULT_CAPTION_STYLE } from '@shared/timeline/model'
+import { setCaptionBox } from '@shared/timeline/ops'
 import type { Caption, CaptionStyle, TranscriptWord } from '@shared/types'
 
 const ref: CaptionStyle = { ...DEFAULT_CAPTION_STYLE, ...presetById('boxed-highlight').style } as CaptionStyle
@@ -10,7 +11,7 @@ const words = (t: string): TranscriptWord[] => t.split(' ').map((w, i) => ({ tex
 
 describe('referans altyazı stili (vurgulu kutulu)', () => {
   it('hazır stiller: klasik ve referans', () => {
-    expect(CAPTION_PRESETS.map((p) => p.id)).toEqual(['classic', 'boxed-highlight'])
+    expect(CAPTION_PRESETS.map((p) => p.id)).toEqual(['classic', 'boxed-highlight', 'premium-gold'])
     expect(ref).toMatchObject({ italic: true, uppercase: true, maxWords: 4, box: { enabled: true }, highlight: { enabled: true } })
     expect(ref.highlight!.colors).toHaveLength(3) // sarı, kırmızı, mavi
   })
@@ -72,5 +73,25 @@ describe('altyazı boyutu (önizlemede çekerek)', () => {
     expect(lines.find((l) => l.includes('MERHABA') && l.includes(',Default,'))).toMatch(/\\fs132\\bord/) // 66 × 2
     expect(lines.find((l) => l.includes('MERHABA') && l.includes(',Box,'))).toMatch(/\\fs132\\bord29/)
     expect(lines.find((l) => l.includes('SELAM') && l.includes(',Default,'))).not.toContain('\\fs')
+  })
+})
+
+describe('Premium altın stili ve satır genişliği', () => {
+  it('altın sarısı yazı, ince siyah kontur, kutusuz', () => {
+    const st = { ...DEFAULT_CAPTION_STYLE, ...presetById('premium-gold').style } as CaptionStyle
+    expect(st.color.toUpperCase()).toBe('#F2B705')
+    expect(st.outlineColor).toBe('#000000')
+    expect(st.outlineWidth).toBeLessThanOrEqual(3)
+    expect(st.box).toBeUndefined()
+  })
+  it('altyazıya özel satır genişliği: sekiz kelime tek satıra yayılır, sıfırlayınca stile döner', () => {
+    const st = { ...DEFAULT_CAPTION_STYLE, maxCharsPerLine: 14 } as CaptionStyle
+    const cap = { id: 'c', start: 0, end: 2, text: 'bir iki üç dört beş altı yedi sekiz' }
+    expect(captionLayout(st, cap, 1080, 1920).lines.length).toBeGreaterThan(2)
+    expect(captionLayout(st, { ...cap, maxChars: 60 }, 1080, 1920).lines).toHaveLength(1)
+    const tl = { ...createDefaultTimeline(), captions: [cap] }
+    const w = setCaptionBox(tl, 'c', { maxChars: 500 })
+    expect(w.captions[0].maxChars).toBe(60) // üst sınır
+    expect(setCaptionBox(w, 'c', { maxChars: null }).captions[0].maxChars).toBeUndefined()
   })
 })

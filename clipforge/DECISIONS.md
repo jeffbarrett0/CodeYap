@@ -350,6 +350,12 @@ Aşamalar: içe aktar → transkripsiyon → **sessizleri kes → boşlukları k
 * **CLI:** `captions <proje> --lang en`.
 * **Sınırlar:** yalnızca İngilizce (dil listesi genişletilebilir); çeviri kalitesi modele bağlı; internet ve anahtar gerekir. Whisper'ın kendi çeviri kipi (`--translate`, çevrimdışı) kullanılmadı: kelime zamanlaması kaba ve her dil için ayrı transkripsiyon gerekirdi.
 
+## 43. Premium altın altyazı stili ve altyazı başına satır genişliği
+
+**İstek:** beyaz/siyah yerine altın-sarı, ince siyah konturlu "premium" altyazı; 8 kelimelik altyazı üst üste (çok satıra) yığılıyorsa sağa çekerek düzenleyebilmek.
+* **Stil:** `premium-gold` hazır stili — Arial Black, altın (#F2B705), 3 px siyah kontur, hafif gölge, kutusuz, satır başına ≤4 kelime, son kelimeler açık sarı. Altyazı panelindeki "Altyazı stili" listesinde; CLI `captions --style premium-gold`.
+* **Satır genişliği:** `Caption.maxChars` (altyazıya özel, yoksa stildeki). Seçili altyazının sağında ↔ tutamacı: sağa çek → kelimeler daha az satıra yayılır, yazı boyutu değişmez; sol kenar sabit kalır. Panelde aynı ayar kaydırıcı + "tüm altyazılara uygula" + sıfırla. Önizleme ve dışa aktarma aynı `captionLayout`'u kullanır.
+
 ## 42. YouTube zaman damgaları (bölüm listesi)
 
 **İstek:** 2 saatlik yayını düzenleyip kaydettikten sonra YouTube açıklaması için "şu dakika arası şunu konuştum" listesi.

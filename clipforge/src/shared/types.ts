@@ -270,6 +270,8 @@ export interface Caption {
   hl?: { from: number; to: number; color: string }
   /** Bu altyazının boyut çarpanı (1 = stil boyutu). Önizlemede köşe/kenar tutamaçlarıyla ayarlanır. */
   scale?: number
+  /** Bu altyazının satır genişliği (karakter); yoksa stildeki. Önizlemede sağdaki ↔ tutamacından çekilir: kelimeler daha az satıra yayılır. */
+  maxChars?: number
   /** Çeviriler: dil kodu → o dildeki metin (+ o metne göre vurgu). `text` her zaman özgün (konuşulan) dildir. */
   tr?: Record<string, { text: string; hl?: { from: number; to: number; color: string } }>
 }

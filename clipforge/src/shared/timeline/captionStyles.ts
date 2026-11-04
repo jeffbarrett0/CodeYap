@@ -33,6 +33,26 @@ export const CAPTION_PRESETS: CaptionPreset[] = [
       box: { enabled: true, color: '#6B6B6B', opacity: 0.88 },
       highlight: { enabled: true, colors: ['#FFE600', '#FF1A1A', '#18C8FF'] }
     }
+  },
+  {
+    id: 'premium-gold',
+    name: 'Premium altın',
+    description: 'Altın sarısı kalın yazı, ince siyah kontur, hafif gölge; kutusuz. Son kelimeler açık sarıyla öne çıkar',
+    style: {
+      fontFamily: 'Arial Black',
+      fontSize: 60,
+      color: '#F2B705',
+      outlineColor: '#000000',
+      outlineWidth: 3,
+      bold: true,
+      italic: false,
+      uppercase: true,
+      maxCharsPerLine: 24,
+      maxWords: 4,
+      shadow: 2,
+      box: undefined,
+      highlight: { enabled: true, colors: ['#FFE766', '#FFD21F'] }
+    }
   }
 ]
 

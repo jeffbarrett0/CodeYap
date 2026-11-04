@@ -880,6 +880,30 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('cap-hl-on')).not.toBeChecked()
   })
 
+  test('altyazı: Premium altın stili; ↔ tutamacıyla satır genişliği (yazı boyutu sabit) ve panelden ayar', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V1')
+    await page.getByTestId('rtab-captions').click()
+    await page.getByTestId('gen-captions').click()
+    await page.getByTestId('cap-preset').selectOption('premium-gold')
+    await page.getByTestId('cap-clip').first().click()
+    await expect(page.getByTestId('cap-box').first()).toBeVisible()
+    const hw = page.getByTestId('cap-h-wrap')
+    await expect(hw).toBeVisible()
+    const slider = page.getByTestId('caption-detail').getByRole('slider', { name: /Satır genişliği/ })
+    const n0 = Number(await slider.inputValue())
+    const h = (await hw.boundingBox())!
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(h.x + 90, h.y + h.height / 2, { steps: 6 })
+    await page.mouse.up()
+    expect(Number(await page.getByTestId('caption-detail').getByRole('slider', { name: /Satır genişliği/ }).inputValue())).toBeGreaterThan(n0)
+    await expect(page.getByTestId('caption-detail')).toContainText('Boyut')
+    await page.getByTestId('cap-wrap-reset').click()
+    expect(Number(await page.getByTestId('caption-detail').getByRole('slider', { name: /Satır genişliği/ }).inputValue())).toBe(n0)
+  })
+
   test('altyazı: önizlemede kenar/köşe tutamaçlarıyla büyütüp küçültme (boyut ve konum), tek geri alma', async ({ page }) => {
     await boot(page)
     await importAndTranscribe(page)

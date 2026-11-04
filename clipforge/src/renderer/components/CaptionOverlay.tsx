@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { captionLayout } from '@shared/export/ass'
-import { MAX_CAPTION_SCALE, MIN_CAPTION_SCALE } from '@shared/timeline/ops'
+import { MAX_CAPTION_CHARS, MAX_CAPTION_SCALE, MIN_CAPTION_CHARS, MIN_CAPTION_SCALE } from '@shared/timeline/ops'
 import { cmd } from '@shared/timeline/commands'
 import { localizeCaption } from '@shared/timeline/captions'
 import { previewSize } from '../preview/engine'
@@ -21,6 +21,8 @@ export function CaptionOverlay() {
   const drag = useRef<{ id: string; x0: number; y0: number; cx: number; cy: number; moved: boolean } | null>(null)
   /** Köşe/kenar tutamaçlarıyla boyutlandırma: karşı kenar sabit kalır, yazı boyutu genişliğe göre ölçeklenir */
   const resize = useRef<{ id: string; handle: string; x0: number; w0: number; h0: number; cx0: number; cy0: number; s0: number } | null>(null)
+  /** ↔ tutamacı: yazı boyutu değişmeden satır genişliği (karakter) değişir; sol kenar sabit kalır */
+  const wrapDrag = useRef<{ id: string; x0: number; n0: number; w0: number; cx0: number; charPx: number } | null>(null)
   const { width: W, height: H } = previewSize(tl)
   if (!tl.captionStyle.enabled) return null
   const active = tl.captions.filter((c) => playhead >= c.start && playhead < c.end)
@@ -79,6 +81,32 @@ export function CaptionOverlay() {
     exec(cmd.captionBox(r.id, { scale: s1, pos: { x: cx / W, y: cy / H } }))
   }
 
+  const downWrap = (e: React.PointerEvent, id: string) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    const cap = localizeCaption(tl.captions.find((c) => c.id === id)!, tl.captionLang)
+    const m = measureCaption(tl.captionStyle, cap, W, H)
+    const lay = captionLayout(tl.captionStyle, cap, W, H)
+    wrapDrag.current = { id, x0: e.clientX, n0: cap.maxChars ?? tl.captionStyle.maxCharsPerLine, w0: m.w, cx0: m.cx, charPx: lay.fontPx * 0.52 }
+  }
+  const moveWrap = (e: React.PointerEvent) => {
+    const r = wrapDrag.current
+    const box = ref.current?.getBoundingClientRect()
+    if (!r || !box) return
+    if (e.buttons === 0) {
+      wrapDrag.current = null
+      return
+    }
+    const dx = ((e.clientX - r.x0) / box.width) * W
+    const n1 = Math.min(MAX_CAPTION_CHARS, Math.max(MIN_CAPTION_CHARS, Math.round(r.n0 + dx / r.charPx)))
+    const w1 = Math.min(W, Math.max(12, r.w0 + (n1 - r.n0) * r.charPx))
+    const cy = tl.captions.find((c) => c.id === r.id)?.pos?.y
+    const cap = localizeCaption(tl.captions.find((c) => c.id === r.id)!, tl.captionLang)
+    const lay = captionLayout(tl.captionStyle, cap, W, H)
+    exec(cmd.captionBox(r.id, { maxChars: n1, pos: { x: (r.cx0 - r.w0 / 2 + w1 / 2) / W, y: cy ?? lay.cy / H } }))
+  }
+
   return (
     <div className="caption-overlay" ref={ref}>
       {active.map((c) => {
@@ -111,6 +139,18 @@ export function CaptionOverlay() {
                   data-testid={`cap-h-${h}`}
                 />
               ))}
+            {sel && (
+              <span
+                className="cap-h cap-h-wrap"
+                onPointerDown={(e) => downWrap(e, c.id)}
+                onPointerMove={moveWrap}
+                onPointerUp={() => (wrapDrag.current = null)}
+                onPointerCancel={() => (wrapDrag.current = null)}
+                onLostPointerCapture={() => (wrapDrag.current = null)}
+                title="Sağa çekin: kelimeler daha az satıra yayılır (yazı boyutu değişmez); sola çekin: daha çok satıra bölünür"
+                data-testid="cap-h-wrap"
+              >↔</span>
+            )}
           </div>
         )
       })}

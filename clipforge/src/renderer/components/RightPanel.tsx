@@ -216,6 +216,11 @@ function Captions() {
               <Field label="Y (%)"><Num value={Math.round(py * 1000) / 10} step={1} min={0} max={100} label="Altyazı Y" onChange={(v) => exec(cmd.captionPos(cap.id, { x: px, y: v / 100 }))} /></Field>
             </div>
             <Slider label="Boyut (önizlemede kenar/köşeden de çekilir)" value={cap.scale ?? 1} min={0.25} max={3} onChange={(v) => exec(cmd.captionBox(cap.id, { scale: v }))} format={(v) => `${Math.round(v * 100)}%`} />
+            <Slider label="Satır genişliği (karakter; önizlemede ↔ tutamacından çekilir)" value={cap.maxChars ?? st.maxCharsPerLine} min={6} max={60} step={1} onChange={(v) => exec(cmd.captionBox(cap.id, { maxChars: v }))} format={(v) => String(Math.round(v))} />
+            <div className="row wrap">
+              <button className="btn sm" onClick={() => exec(cmd.allCaptionMaxChars(cap.maxChars ?? st.maxCharsPerLine))} data-testid="cap-wrap-all">Bu genişliği tüm altyazılara uygula</button>
+              <button className="btn sm" onClick={() => exec(cmd.captionBox(cap.id, { maxChars: null }, false))} disabled={cap.maxChars === undefined} data-testid="cap-wrap-reset">Genişliği sıfırla</button>
+            </div>
             <div className="row wrap">
               <button className="btn sm" onClick={() => exec(cmd.allCaptionScale(cap.scale ?? null))} data-testid="cap-scale-all">Bu boyutu tüm altyazılara uygula</button>
               <button className="btn sm" onClick={() => exec(cmd.captionBox(cap.id, { scale: null }, false))} disabled={!cap.scale} data-testid="cap-scale-reset">Boyutu sıfırla</button>

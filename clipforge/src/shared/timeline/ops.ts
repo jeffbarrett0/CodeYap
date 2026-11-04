@@ -396,7 +396,9 @@ export const MIN_CAPTION_SCALE = 0.25
 export const MAX_CAPTION_SCALE = 5
 
 /** Altyazının boyut çarpanını (ve istenirse konumunu) tek işlemde ayarlar; scale undefined → stil boyutuna dön */
-export function setCaptionBox(tl: Timeline, id: ID, patch: { scale?: number | null; pos?: { x: number; y: number } }): Timeline {
+export const MIN_CAPTION_CHARS = 6
+export const MAX_CAPTION_CHARS = 60
+export function setCaptionBox(tl: Timeline, id: ID, patch: { scale?: number | null; pos?: { x: number; y: number }; maxChars?: number | null }): Timeline {
   const clamp = (v: number) => Math.min(1, Math.max(0, v))
   return {
     ...tl,
@@ -405,6 +407,8 @@ export function setCaptionBox(tl: Timeline, id: ID, patch: { scale?: number | nu
       const next = { ...c }
       if (patch.scale === null) delete next.scale
       else if (patch.scale !== undefined) next.scale = Math.min(MAX_CAPTION_SCALE, Math.max(MIN_CAPTION_SCALE, patch.scale))
+      if (patch.maxChars === null) delete next.maxChars
+      else if (patch.maxChars !== undefined) next.maxChars = Math.min(MAX_CAPTION_CHARS, Math.max(MIN_CAPTION_CHARS, Math.round(patch.maxChars)))
       if (patch.pos) next.pos = { x: clamp(patch.pos.x), y: clamp(patch.pos.y) }
       return next
     })
@@ -414,6 +418,11 @@ export function setCaptionBox(tl: Timeline, id: ID, patch: { scale?: number | nu
 /** Aynı boyut çarpanını tüm altyazılara uygular */
 export function setAllCaptionScale(tl: Timeline, scale: number | null): Timeline {
   return tl.captions.reduce((acc, c) => setCaptionBox(acc, c.id, { scale }), tl)
+}
+
+/** Tüm altyazılara aynı satır genişliğini uygular (null: hepsini stile döndürür). */
+export function setAllCaptionMaxChars(tl: Timeline, maxChars: number | null): Timeline {
+  return tl.captions.reduce((acc, c) => setCaptionBox(acc, c.id, { maxChars }), tl)
 }
 
 /** Tüm altyazılara aynı konumu uygular (ya da hepsini varsayılana döndürür). */
