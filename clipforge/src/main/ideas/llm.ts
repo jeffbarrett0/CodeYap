@@ -188,7 +188,7 @@ export function buildChapterPrompt(text: string, minutes: number): string {
 Yalnızca şu JSON'u döndür: {"title": "başlık"}
 
 Kurallar:
-- Türkçe, 2-6 kelime, en fazla 45 karakter; bölümde konuşulan asıl konuyu söylesin (ör. "Batrakov'un performansı", "Yapay zekâ ve gelecek").
+- Çok kısa: bölümde konuşulan kişi/takım/konu ADI (ör. "Rafael Leao", "Papa Gueye", "Ederson"). Birden çok isim konuşulduysa virgülle sırala (ör. "Chevalier, Salah, Guirassy"). En fazla 4 kelime, 45 karakter; cümle kurma, fiil kullanma.
 - Yalnızca metinde GERÇEKTEN konuşulanlara dayan; uydurma ya da abartı yok; tık tuzağı yok.
 - "Beğenin", "abone olun", "kanalıma gelin" gibi çağrı/yönlendirme metni YAZMA.
 - Özel isimleri metindeki gibi yaz. Sonuna nokta koyma.

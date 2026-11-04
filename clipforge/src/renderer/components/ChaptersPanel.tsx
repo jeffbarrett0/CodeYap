@@ -3,16 +3,18 @@ import { timelineDuration } from '@shared/timeline/model'
 import { requireApi } from '../api'
 import { useStore } from '../store'
 import { fmt } from './ui'
+import type { ChapterDensity } from '@shared/chapters'
 
 /**
  * YouTube zaman damgaları: DÜZENLENMİŞ videonun (kesimler ve boşluk kapatma sonrası zaman çizelgesi) konu bölümleri.
- * Çıktı, YouTube açıklamasına yapıştırılacak metindir ("0:00 Giriş", "12:34 Batrakov hakkında", …); metni burada düzenleyebilirsiniz.
+ * Çıktı, YouTube açıklamasına yapıştırılacak metindir ("Saniyeler:" ardından "00:00:00 - Giriş", "00:12:42 - Ederson", …); metni burada düzenleyebilirsiniz.
  */
 export function ChaptersPanel() {
   const { project, chapters, chaptersText, chaptersBusy, chaptersError, generateChapters, setChaptersText, settings, openDialog, toast } = useStore()
   const api = requireApi()
   const aiReady = settings.llmProvider !== 'off'
   const [useAi, setUseAi] = useState(true)
+  const [density, setDensity] = useState<ChapterDensity>('medium')
   const total = timelineDuration(project.timeline)
 
   const copy = () => {
@@ -33,8 +35,15 @@ export function ChaptersPanel() {
       <label className="check" title={aiReady ? '' : 'Ayarlar → Yapay zekâ bölümünden bir sağlayıcı ve anahtar girin'}>
         <input type="checkbox" checked={useAi && aiReady} disabled={!aiReady} onChange={(e) => setUseAi(e.target.checked)} data-testid="chapters-ai" /> Başlıkları yapay zekâ yazsın
       </label>
-      {!aiReady && <div className="hint">Kapalıyken başlıklar özel adlardan/anahtar kelimelerden üretilir ("Batrakov hakkında"). Daha doğal başlıklar için <a href="#" onClick={(e) => { e.preventDefault(); openDialog('settings') }}>Ayarlar → Yapay zekâ</a>.</div>}
-      <button className="btn primary" disabled={chaptersBusy || total <= 0} onClick={() => void generateChapters(useAi && aiReady)} data-testid="chapters-run">{chaptersBusy ? 'Bölümler çıkarılıyor…' : 'Zaman damgalarını oluştur'}</button>
+      {!aiReady && <div className="hint">Kapalıyken başlıklar konuşulan kişi/takım adlarından üretilir ("Rafael Leao", "Chevalier, Salah"). Daha doğal başlıklar için <a href="#" onClick={(e) => { e.preventDefault(); openDialog('settings') }}>Ayarlar → Yapay zekâ</a>.</div>}
+      <label className="row" style={{ gap: 6 }}>Bölüm sıklığı
+        <select value={density} onChange={(e) => setDensity(e.target.value as ChapterDensity)} aria-label="Bölüm sıklığı" data-testid="chapters-density">
+          <option value="low">Az (≈7 dk)</option>
+          <option value="medium">Orta (≈3,5 dk)</option>
+          <option value="high">Çok (≈2 dk)</option>
+        </select>
+      </label>
+      <button className="btn primary" disabled={chaptersBusy || total <= 0} onClick={() => void generateChapters(useAi && aiReady, density)} data-testid="chapters-run">{chaptersBusy ? 'Bölümler çıkarılıyor…' : 'Zaman damgalarını oluştur'}</button>
       {chaptersError && <div className="warnbox" role="alert" data-testid="chapters-error">{chaptersError}</div>}
       {chapters?.ai.error && <div className="warnbox" data-testid="chapters-ai-error">Yapay zekâ başlığı: {chapters.ai.error}</div>}
       {chapters?.warnings.map((w, i) => <div key={i} className="warnbox" data-testid="chapters-warning">⚠ {w}</div>)}

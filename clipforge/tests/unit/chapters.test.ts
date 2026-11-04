@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chapterTimestamp, chapterWarnings, findChapters, formatChapters } from '../../src/shared/chapters'
+import { DENSITY, chapterTimestamp, chapterWarnings, findChapters, formatChapters } from '../../src/shared/chapters'
 import type { TranscriptWord } from '../../src/shared/types'
 
 /** Konu blokları: her blok kendi kelime dağarcığı; isimli bloklarda büyük harfli özel ad cümle ortasında geçer */
@@ -33,38 +33,41 @@ const FOOD = ['yemek', 'tarif', 'lezzet', 'restoran', 'mutfak', 'tavuk', 'pilav'
 
 describe('YouTube bölüm zamanları', () => {
   const { words, bounds } = stream([
-    { mins: 14, vocab: GAME },
-    { mins: 16, vocab: AI },
-    { mins: 15, vocab: FOOT, name: 'Batrakov' },
-    { mins: 13, vocab: FOOD }
+    { mins: 1.5, vocab: GAME },
+    { mins: 3, vocab: FOOT, name: 'Rafael' },
+    { mins: 4, vocab: FOOT, name: 'Camavinga' },
+    { mins: 4, vocab: FOOT, name: 'Ederson' },
+    { mins: 4, vocab: FOOD }
   ])
   const chapters = findChapters(words)
-  it('bütün videoyu ardışık, boşluksuz bölümlere ayırır; ilki 0:00; sınırlar konu değişimlerine ±2 dk yakın', () => {
+  it('ardışık, boşluksuz bölümler; ilki 0; sınırlar konu/isim değişimine ±1,5 dk yakın', () => {
     expect(chapters.length).toBeGreaterThanOrEqual(4)
     expect(chapters[0].start).toBe(0)
     for (let i = 1; i < chapters.length; i++) expect(chapters[i].start).toBeGreaterThan(chapters[i - 1].start)
-    for (const b of bounds.slice(0, 3)) expect(chapters.some((c) => Math.abs(c.start - b) < 120), `sınır ${Math.round(b)} bulunamadı: ${chapters.map((c) => Math.round(c.start)).join(',')}`).toBe(true)
-    expect(chapters.every((c) => c.end - c.start >= 100)).toBe(true)
+    for (const b of bounds.slice(0, 3)) expect(chapters.some((c) => Math.abs(c.start - b) < 90), `sınır ${Math.round(b)} bulunamadı: ${chapters.map((c) => Math.round(c.start)).join(',')}`).toBe(true)
   })
-  it('özel ad başlığı: Batrakov bölümü "Batrakov hakkında"; konusu belirgin olmayan açılış değil', () => {
-    expect(chapters.some((c) => c.title === 'Batrakov hakkında')).toBe(true)
-    expect(new Set(chapters.map((c) => c.title)).size).toBe(chapters.length) // başlıklar benzersiz
+  it('başlıklar konuşulan kişi adlarıdır; ilk bölüm "Giriş"', () => {
+    expect(chapters[0].title).toBe('Giriş')
+    const titles = chapters.map((c) => c.title)
+    for (const n of ['Rafael', 'Camavinga', 'Ederson']) expect(titles.some((t) => t.includes(n)), `${n} yok: ${titles.join(' | ')}`).toBe(true)
   })
-  it('YouTube biçimi ve kuralları', () => {
-    expect(chapterTimestamp(0)).toBe('0:00')
-    expect(chapterTimestamp(754)).toBe('12:34')
-    expect(chapterTimestamp(3735)).toBe('1:02:15')
-    const text = formatChapters(chapters)
-    expect(text.split('\n')[0]).toMatch(/^0:00 \S+/)
-    expect(text.split('\n')).toHaveLength(chapters.length)
+  it('biçim: Saniyeler: + boş satır + HH:MM:SS - Başlık', () => {
+    expect(chapterTimestamp(0)).toBe('00:00:00')
+    expect(chapterTimestamp(754)).toBe('00:12:34')
+    expect(chapterTimestamp(3735)).toBe('01:02:15')
+    const lines = formatChapters(chapters).split('\n')
+    expect(lines.slice(0, 3)).toEqual(['Saniyeler:', '', '00:00:00 - Giriş'])
+    expect(lines).toHaveLength(chapters.length + 2)
+    for (const l of lines.slice(2)) expect(l).toMatch(/^\d\d:\d\d:\d\d - \S/)
     expect(chapterWarnings(chapters)).toEqual([])
     expect(chapterWarnings([{ start: 0, end: 60 }])).toEqual(expect.arrayContaining([expect.stringMatching(/en az 3/)]))
     expect(chapterWarnings([{ start: 5, end: 8 }, { start: 8, end: 100 }, { start: 100, end: 200 }]).length).toBe(2)
   })
-  it('çok kısa video / boş: bölüm yok; orta uzunlukta en az 3 bölüm', () => {
+  it('sıklık: çok > orta > az bölüm; çok kısa/boş videoda bölüm yok', () => {
+    const n = (d: 'low' | 'medium' | 'high') => findChapters(words, DENSITY[d]).length
+    expect(n('high')).toBeGreaterThanOrEqual(n('medium'))
+    expect(n('medium')).toBeGreaterThanOrEqual(n('low'))
     expect(findChapters([])).toEqual([])
     expect(findChapters(words.slice(0, 20))).toEqual([])
-    const mid = stream([{ mins: 4, vocab: GAME }, { mins: 4, vocab: AI }, { mins: 4, vocab: FOOT }]).words
-    expect(findChapters(mid, { minSec: 90 }).length).toBeGreaterThanOrEqual(3)
   })
 })

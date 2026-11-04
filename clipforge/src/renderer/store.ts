@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { AppInfo } from '@shared/ipc'
 import type { AutoKickStatus } from '@shared/autokick'
 import type { IdeasResult } from '@shared/ideas'
-import type { ChaptersResult } from '@shared/chapters'
+import type { ChapterDensity, ChaptersResult } from '@shared/chapters'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { suggestClip, nearestBoundary, type ClipWarning } from '@shared/clip/boundaries'
 import { History } from '@shared/timeline/history'
@@ -154,7 +154,7 @@ interface State {
   chaptersText: string
   chaptersBusy: boolean
   chaptersError: string
-  generateChapters(useAi: boolean): Promise<void>
+  generateChapters(useAi: boolean, density?: ChapterDensity): Promise<void>
   setChaptersText(t: string): void
   /** Auto Kick işleri (arka planda sürer; pencere kapansa da devam eder) */
   autoKick: Record<string, AutoKickStatus>
@@ -878,12 +878,12 @@ export const useStore = create<State>()((set, get) => {
       const lang = get().project.timeline.captionLang
       if (lang) void get().setCaptionLang(lang) // seçili dil özgün değilse yeni satırlar da çevrilir
     },
-    async generateChapters(useAi) {
+    async generateChapters(useAi, density) {
       const tl = get().project.timeline
       if (timelineDuration(tl) <= 0) return set({ chaptersError: 'Zaman çizelgesi boş: önce videoyu çizelgeye koyun ve düzenleyin.' })
       set({ chaptersBusy: true, chaptersError: '' })
       try {
-        const r = await api().invoke('chapters:generate', { timeline: tl, useAi })
+        const r = await api().invoke('chapters:generate', { timeline: tl, useAi, density })
         set({ chapters: r, chaptersText: r.text, chaptersBusy: false })
       } catch (e) {
         set({ chaptersBusy: false, chaptersError: errText(e) })

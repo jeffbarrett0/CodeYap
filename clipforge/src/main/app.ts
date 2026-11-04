@@ -24,7 +24,7 @@ import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pi
 import { applyVocabulary, buildPrompt, fixWord, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
 import { findVideoIdeas, type IdeasResult } from '../shared/ideas'
-import { chapterWarnings, findChapters, formatChapters, type ChaptersResult } from '../shared/chapters'
+import { chapterWarnings, DENSITY, findChapters, formatChapters, type ChapterDensity, type ChaptersResult } from '../shared/chapters'
 import { timelineWords } from '../shared/timeline/transcript'
 import { aiChapterTitles, enhanceIdeas, llmConfigured, translateLines } from './ideas/llm'
 
@@ -223,14 +223,14 @@ export class AppService {
    * YouTube bölüm zamanları: verilen çizelgenin (düzenlenmiş video: kesimler, boşluk kapatma sonrası) transkriptinden
    * ardışık konu bölümleri ve başlıkları. Zamanlar çizelge zamanıdır = dışa aktarılan videonun zamanı.
    */
-  async chaptersGenerate(req: { timeline: Timeline; useAi?: boolean }): Promise<ChaptersResult> {
+  async chaptersGenerate(req: { timeline: Timeline; useAi?: boolean; density?: ChapterDensity }): Promise<ChaptersResult> {
     const ids = [...new Set(req.timeline.tracks.flatMap((t) => t.clips.map((c) => c.assetId)))]
     const transcripts: Record<string, Transcript | undefined> = {}
     for (const id of ids) transcripts[id] = (await this.transcriptGet(id)) ?? undefined
     const words = timelineWords(req.timeline, transcripts)
     if (words.length === 0) throw new ToolError('Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.')
     const totalSec = words[words.length - 1].end
-    let chapters = findChapters(words)
+    let chapters = findChapters(words, DENSITY[req.density ?? 'medium'])
     const ai: ChaptersResult['ai'] = { requested: !!req.useAi, used: false }
     if (req.useAi && chapters.length > 0) {
       const problem = llmConfigured(this.settings.value)

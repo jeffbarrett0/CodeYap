@@ -85,7 +85,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
   ideas <proje> [--asset a] [--max 8] [--ai]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
-  chapters <proje> [--ai] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
+  chapters <proje> [--ai] [--density low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
   silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
   captions <proje> [--style classic|boxed-highlight] [--max-chars 22] [--lang en]   transkriptten altyazı üretir (--lang en: İngilizce çeviri, yapay zekâ ayarı gerekir) (boxed-highlight: referans stil)
@@ -401,7 +401,7 @@ async function main(argv: string[]): Promise<unknown> {
       })
     }
     case 'chapters': {
-      const r = await s.service.chaptersGenerate({ timeline: s.timeline, useAi: !!a.opt.ai })
+      const r = await s.service.chaptersGenerate({ timeline: s.timeline, useAi: !!a.opt.ai, density: (['low', 'medium', 'high'] as const).find((d) => d === str(a.opt.density)) })
       const outFile = str(a.opt.out)
       if (outFile) {
         await mkdir(dirname(resolve(outFile)), { recursive: true })
