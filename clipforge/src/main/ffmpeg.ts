@@ -150,7 +150,7 @@ export function runTool(bin: string, args: string[], opts: RunOptions = {}, frie
       opts.signal?.removeEventListener('abort', onAbort)
       if (opts.signal?.aborted) return reject(new CancelledError())
       if (code === 0) return resolve({ stdout, stderr })
-      reject(new ToolError(friendly(stderr || `çıkış kodu ${code ?? signal}`), stderr.slice(-4000)))
+      reject(new ToolError(friendly(stderr || `çıkış kodu ${code ?? signal}`), stderr.slice(-12000)))
     })
   })
 }

@@ -1,5 +1,5 @@
 import { readFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { isAbsolute, join, relative } from 'node:path'
 import type { Settings, TranscriptWord, WhisperModelSize } from '../../shared/types'
 import { cpuThreads, runTool, ToolError } from '../ffmpeg'
 import { CancelledError } from '../tasks'
@@ -61,6 +61,26 @@ export function whisperModelFile(dir: string, size: WhisperModelSize): string {
   return join(dir, `ggml-${size}.bin`)
 }
 
+/** whisper-cli "error: unknown argument: -sow" gibi bir satır basıp kullanım metnine düşerse bayrağın adı */
+export function unknownArgument(stderr: string): string | null {
+  const m = /unknown argument:?\s+(\S+)/i.exec(stderr)
+  return m ? m[1] : null
+}
+
+/** whisper-cli hata çıktısından anlaşılır mesaj: asıl "error:" satırı (kullanım metninin sonu değil) */
+export function describeWhisperError(stderr: string, model: string): string {
+  if (/failed to open|no such file|could not open|error: failed to load/i.test(stderr) && /ggml|model/i.test(stderr)) {
+    return `Whisper modeli yüklenemedi: ${model}. Ayarlar → Transkripsiyon bölümünden modeli indirin.`
+  }
+  const lines = stderr.trim().split(/\r?\n/)
+  const err = lines.filter((l) => /error|unknown|invalid|failed|cannot|could not/i.test(l) && !/^\s*-/.test(l)).slice(0, 2)
+  if (/usage:/i.test(stderr)) {
+    const bad = unknownArgument(stderr)
+    return `whisper.cpp komut satırını anlamadı${bad ? ` ("${bad}" tanınmıyor)` : ''}${err.length ? `: ${err.join(' · ').slice(0, 220)}` : ''}. Whisper sürümünüz farklı olabilir; güncel "whisper-cli" kullanın.`
+  }
+  return `whisper.cpp hatası: ${(err.length ? err : lines.slice(-2)).join(' · ').slice(0, 300)}`
+}
+
 export class WhisperCppProvider implements TranscriptionProvider {
   readonly kind = 'whisper-cpp' as const
   constructor(
@@ -76,22 +96,35 @@ export class WhisperCppProvider implements TranscriptionProvider {
 
   async transcribeChunk(req: ChunkRequest): Promise<TranscriptWord[]> {
     const model = whisperModelFile(this.modelDir, req.model)
-    const prefix = join(req.workDir, `wcpp_${Math.round(req.offsetSec)}`)
-    const args = ['-m', model, '-f', req.wavPath, '-l', req.language, '-ojf', '-of', prefix, '-ml', '1', '-sow', '-t', String(this.threads), '-np']
-    if (req.prompt) args.push('--prompt', req.prompt)
-    try {
-      await runTool(this.binary, args, { signal: req.signal }, (stderr) => {
-        if (/failed to open|no such file|could not open|error: failed to load/i.test(stderr) && /ggml|model/i.test(stderr)) {
-          return `Whisper modeli yüklenemedi: ${model}. Ayarlar → Transkripsiyon bölümünden modeli indirin.`
+    // Windows'ta whisper-cli bağımsız değişkenleri ANSI kod sayfasıyla okur: Türkçe karakterli/köşeli parantezli klasör adları
+    // ("HER GENCİN … [abc].clipforge-data") yolu bozup kullanım metnini basıyordu. Bu yüzden çalışma klasöründe (cwd) ve
+    // yalnızca ASCII, göreli dosya adlarıyla çalıştırılır; klasör yolu hiçbir bağımsız değişkende geçmez.
+    const rel = relative(req.workDir, req.wavPath)
+    const wavArg = rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : req.wavPath
+    const prefixName = `wcpp_${Math.round(req.offsetSec)}`
+    const prefix = join(req.workDir, prefixName)
+    // vazgeçilebilir bayraklar: sürüm bir bayrağı tanımazsa ("unknown argument") o bayrak çıkarılıp bir kez daha denenir
+    let optional: [string, string?][] = [['-sow'], ['-np'], ['-t', String(this.threads)]]
+    if (req.prompt) optional.push(['--prompt', req.prompt])
+    let lastErr: unknown
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const args = ['-m', model, '-f', wavArg, '-l', req.language, '-ojf', '-of', prefixName, '-ml', '1', ...optional.flatMap((o) => (o[1] === undefined ? [o[0]] : [o[0], o[1]]))]
+      try {
+        await runTool(this.binary, args, { signal: req.signal, cwd: req.workDir }, (stderr) => describeWhisperError(stderr, model))
+        lastErr = undefined
+        break
+      } catch (e) {
+        lastErr = e
+        if (e instanceof ToolError && /bulunamadı/.test(e.userMessage)) {
+          throw new ToolError('whisper.cpp bulunamadı. Ayarlar → Transkripsiyon bölümünden "whisper-cli" yolunu belirtin (README: Kurulum).', e.detail)
         }
-        return `whisper.cpp hatası: ${stderr.trim().split(/\r?\n/).slice(-2).join(' · ').slice(0, 300)}`
-      })
-    } catch (e) {
-      if (e instanceof ToolError && /bulunamadı/.test(e.userMessage)) {
-        throw new ToolError('whisper.cpp bulunamadı. Ayarlar → Transkripsiyon bölümünden "whisper-cli" yolunu belirtin (README: Kurulum).', e.detail)
+        const bad = e instanceof ToolError ? unknownArgument(e.detail ?? '') : null
+        const idx = bad ? optional.findIndex((o) => o[0] === bad) : -1
+        if (idx < 0) throw e
+        optional = optional.filter((_, i) => i !== idx) // tanınmayan bayrağı çıkar, yeniden dene
       }
-      throw e
     }
+    if (lastErr) throw lastErr
     const out = `${prefix}.json`
     const json = JSON.parse(await readFile(out, 'utf8')) as WhisperCppJson
     await rm(out, { force: true })
