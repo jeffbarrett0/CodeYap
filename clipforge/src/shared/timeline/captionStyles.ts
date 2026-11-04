@@ -49,14 +49,20 @@ export function highlightCount(words: number): number {
  */
 export function assignHighlights(captions: Caption[], style: Pick<CaptionStyle, 'highlight'>): Caption[] {
   const colors = style.highlight?.enabled ? style.highlight.colors.filter(Boolean) : []
+  const hlOf = (text: string, i: number): Caption['hl'] => {
+    if (colors.length === 0) return undefined
+    const n = text.split(/\s+/).filter(Boolean).length
+    if (n === 0) return undefined
+    const k = Math.min(n, highlightCount(n))
+    return { from: n - k, to: n - 1, color: colors[i % colors.length] }
+  }
   return captions.map((c, i) => {
     const { hl: _old, ...rest } = c
     void _old
-    if (colors.length === 0) return rest
-    const n = c.text.split(/\s+/).filter(Boolean).length
-    if (n === 0) return rest
-    const k = Math.min(n, highlightCount(n))
-    return { ...rest, hl: { from: n - k, to: n - 1, color: colors[i % colors.length] } }
+    const hl = hlOf(c.text, i)
+    // çevirilerin vurgusu da kendi metnine göre yeniden atanır (kelime sayısı dile göre değişir)
+    const tr = c.tr ? Object.fromEntries(Object.entries(c.tr).map(([lang, v]) => [lang, { text: v.text, hl: hlOf(v.text, i) }])) : undefined
+    return { ...rest, ...(hl ? { hl } : {}), ...(tr ? { tr } : {}) }
   })
 }
 

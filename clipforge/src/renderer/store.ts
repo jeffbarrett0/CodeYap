@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import { suggestClip, nearestBoundary, type ClipWarning } from '@shared/clip/boundaries'
 import { History } from '@shared/timeline/history'
 import { cmd, type TimelineCommand } from '@shared/timeline/commands'
-import { captionsForTimeline } from '@shared/timeline/captions'
+import { captionsForTimeline, untranslated } from '@shared/timeline/captions'
 import { planSilenceCuts } from '@shared/timeline/silence'
 import { timelineWords } from '@shared/timeline/transcript'
 import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems } from '@shared/timeline/create'
@@ -233,6 +233,9 @@ interface State {
   /** Dosyayı kütüphaneden kaldırır (diskteki dosyaya dokunmaz); zaman çizelgesinde kullanılıyorsa onay ister */
   removeAsset(id: string): void
   generateCaptions(): void
+  /** Altyazı dilini değiştirir; İngilizce seçilirse eksik çeviriler yapay zekâyla yapılır (zamanlamalar korunur) */
+  setCaptionLang(lang: string): Promise<void>
+  captionsTranslating: boolean
   setPlayhead(t: number): void
   setSourceTime(t: number): void
   setPlaying(p: boolean): void
@@ -317,6 +320,7 @@ export const useStore = create<State>()((set, get) => {
     tasks: {},
     autoKick: {},
     ideas: {},
+    captionsTranslating: false,
     ideasBusy: false,
     ideasError: '',
     toasts: [],
@@ -809,6 +813,7 @@ export const useStore = create<State>()((set, get) => {
         caps = captionsForTimeline({ ...tl, captionStyle: style }, Object.fromEntries(Object.entries(s.transcripts).map(([k, t]) => [k, t.words])))
       }
       get().exec(cmd.captionPreset(style, caps, `Altyazı stili: ${preset.name}`))
+      if (caps && get().project.timeline.captionLang) void get().setCaptionLang(get().project.timeline.captionLang!)
       get().toast('success', `Altyazı stili: ${preset.name}${tl.captions.length && !caps && wordsChange ? '. Kısa satırlar için "Transkriptten altyazı üret"e basın.' : ''}`)
     },
     clearResults() {
@@ -857,6 +862,27 @@ export const useStore = create<State>()((set, get) => {
       get().exec(cmd.captions(caps))
       if (!s.project.timeline.captionStyle.enabled) get().exec(cmd.captionStyle({ enabled: true }, false)) // üretilen altyazı görünür olsun
       get().toast('success', `${caps.length} altyazı satırı üretildi.`)
+      const lang = get().project.timeline.captionLang
+      if (lang) void get().setCaptionLang(lang) // seçili dil özgün değilse yeni satırlar da çevrilir
+    },
+    async setCaptionLang(lang) {
+      const tl = get().project.timeline
+      if (lang === 'orig') return get().exec(cmd.captionLang('orig'))
+      const missing = untranslated(tl, lang)
+      if (tl.captions.length === 0) return get().exec(cmd.captionLang(lang)) // altyazı yoksa yalnızca dil seçilir; üretilince çevrilir
+      if (missing.length === 0) return get().exec(cmd.captionLang(lang))
+      set({ captionsTranslating: true })
+      try {
+        const r = await api().invoke('captions:translate', { texts: missing.map((c) => c.text), to: lang })
+        const map: Record<string, string> = {}
+        missing.forEach((c, i) => (map[c.id] = r.texts[i]))
+        get().exec(cmd.captionTranslations(lang, map))
+        get().toast('success', `${missing.length} altyazı satırı çevrildi. Geri almak için Ctrl+Z.`)
+      } catch (e) {
+        get().toast('error', `Çeviri yapılamadı: ${errText(e)}`)
+      } finally {
+        set({ captionsTranslating: false })
+      }
     },
     setPlayhead: (t) => set({ playhead: Math.max(0, t) }),
     setSourceTime: (t) => set({ sourceTime: Math.max(0, t) }),

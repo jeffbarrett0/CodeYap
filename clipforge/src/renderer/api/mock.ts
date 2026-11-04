@@ -149,6 +149,10 @@ export function createMockApi(): ClipforgeApi {
       { id: 'c2', start: 900, end: 922, durationSec: 22, hits: 2, score: 6.1, mentions: [{ t: 905, text: 'Osimen' }], text: 'Osimen kadar iyi bir forvet yok bence.' }
     ]),
     'autokick:makeClip': (r) => ({ projectPath: `/yayin/AutoKick/kayit/kayit-klipler/${r.topic} · ${Math.round(r.end - r.start)} sn.clipforge`, durationSec: r.end - r.start }),
+    'captions:translate': (req) => {
+      if (w.__mock?.fail?.translate) throw new Error(w.__mock.fail.translate)
+      return { texts: req.texts.map((t) => `EN: ${t}`) }
+    },
     'ideas:generate': (req) => {
       const t = search.get(req.assetId)
       if (!t) throw new Error('Önce bu kaydın transkripsiyonunu yapın (Kaynak sekmesi → Transkripsiyonu başlat).')

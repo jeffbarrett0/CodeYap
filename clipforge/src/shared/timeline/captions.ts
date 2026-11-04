@@ -77,3 +77,20 @@ export function wrapCaption(text: string, maxChars: number): string[] {
   if (cur) lines.push(cur)
   return lines
 }
+
+export const CAPTION_LANGS: { code: string; name: string }[] = [
+  { code: 'orig', name: 'Özgün (konuşulan dil)' },
+  { code: 'en', name: 'English (İngilizce)' }
+]
+
+/** Altyazının seçili dildeki görünümü: metin ve vurgu çeviriden gelir; çeviri yoksa özgün metin */
+export function localizeCaption(c: Caption, lang?: string): Caption {
+  if (!lang || lang === 'orig') return c
+  const t = c.tr?.[lang]
+  return t ? { ...c, text: t.text, hl: t.hl } : c
+}
+
+export const localizeCaptions = (tl: Pick<Timeline, 'captions' | 'captionLang'>): Caption[] => (tl.captionLang && tl.captionLang !== 'orig' ? tl.captions.map((c) => localizeCaption(c, tl.captionLang)) : tl.captions)
+
+/** Seçili dilde çevirisi olmayan altyazılar */
+export const untranslated = (tl: Pick<Timeline, 'captions'>, lang: string): Caption[] => tl.captions.filter((c) => !c.tr?.[lang]?.text)

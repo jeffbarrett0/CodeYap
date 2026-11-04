@@ -1,3 +1,4 @@
+import { localizeCaptions } from '../timeline/captions'
 import type { Clip, ExportOptions, ID, MediaAsset, Timeline, Track } from '../types'
 import { clipEnd, timelineDuration } from '../timeline/model'
 import { resolveLayout, toPx, type PxRect } from './layout'
@@ -164,7 +165,7 @@ export function buildExportPlan(
   const files: ExportPlan['files'] = []
   const hasCaptions = tl.captionStyle.enabled && tl.captions.length > 0
   if (hasCaptions || textEvents.length > 0) {
-    const ass = buildAss(hasCaptions ? tl.captions : [], tl.captionStyle, W, H, rs, re, textEvents)
+    const ass = buildAss(hasCaptions ? localizeCaptions(tl) : [], tl.captionStyle, W, H, rs, re, textEvents)
     files.push({ name: 'captions.ass', content: ass })
     lines.push(`[${cur}]ass=captions.ass[vtxt]`)
     cur = 'vtxt'

@@ -25,6 +25,20 @@ export const cmd = {
   track: (trackId: ID, patch: Parameters<typeof ops.updateTrack>[2], coalesce = false): TimelineCommand =>
     makeCommand('İz ayarı', (t) => ops.updateTrack(t, trackId, patch), coalesce ? `trk:${trackId}:${Object.keys(patch).join(',')}` : undefined),
   captions: (captions: Caption[]): TimelineCommand => makeCommand('Altyazıları güncelle', (t) => ops.setCaptions(t, captions)),
+  /** Altyazı dilini değiştirir (özgün/İngilizce…) */
+  captionLang: (lang: string): TimelineCommand => makeCommand(lang === 'orig' ? 'Altyazı dili: özgün' : `Altyazı dili: ${lang}`, (t) => ({ ...t, captionLang: lang === 'orig' ? undefined : lang })),
+  /** Çevirileri ekler (id → metin) ve dili açar; çevirinin vurgusu stile göre atanır. Tek geri alma adımı. */
+  captionTranslations: (lang: string, texts: Record<ID, string>): TimelineCommand =>
+    makeCommand(`Altyazı çevirisi (${lang})`, (t) => {
+      const withTr = t.captions.map((c) => (texts[c.id] ? { ...c, tr: { ...c.tr, [lang]: { text: texts[c.id] } } } : c))
+      return { ...t, captions: assignHighlights(withTr, t.captionStyle), captionLang: lang }
+    }),
+  /** Seçili dildeki altyazı metnini düzenler: özgün dilde `text`, çeviri dilinde `tr[lang].text` */
+  captionText: (id: ID, text: string, lang?: string): TimelineCommand =>
+    makeCommand('Altyazı metni', (t) => {
+      const cs = t.captions.map((c) => (c.id !== id ? c : !lang || lang === 'orig' ? { ...c, text } : { ...c, tr: { ...c.tr, [lang]: { text } } }))
+      return { ...t, captions: assignHighlights(cs, t.captionStyle) }
+    }, `ctext:${id}:${lang ?? 'orig'}`),
   captionStyle: (patch: Partial<CaptionStyle>, coalesce = true): TimelineCommand =>
     makeCommand('Altyazı stili', (t) => ({ ...t, captionStyle: { ...t.captionStyle, ...patch } }), coalesce ? `cap:${Object.keys(patch).join(',')}` : undefined),
   /** Stili topluca değiştirir; altyazı satırları verilirse onlarla değişir, verilmezse yalnızca vurguları yeniden atanır (tek geri alma adımı) */

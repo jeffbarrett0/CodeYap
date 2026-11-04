@@ -1013,6 +1013,43 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('cpu-mode')).toHaveValue('full')
   })
 
+  test('altyazı dili: English seçilince satırlar çevrilir (zamanlar aynı), önizleme/şerit/panel çeviriyi gösterir; özgüne dönülür; hata anlaşılır', async ({ page }) => {
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V1')
+    await page.getByTestId('rtab-captions').click()
+    await page.getByTestId('gen-captions').click()
+    const n = await page.getByTestId('cap-clip').count()
+    expect(n).toBeGreaterThan(2)
+    const orig = (await page.getByTestId('cap-clip').first().textContent())!
+    await expect(page.getByTestId('cap-lang')).toHaveValue('orig')
+    await page.getByTestId('cap-lang').selectOption('en')
+    await expect(page.getByTestId('cap-clip').first()).toContainText('EN: ')
+    await expect(page.getByTestId('cap-clip')).toHaveCount(n) // satır sayısı ve zamanlar aynı
+    await expect(page.getByRole('textbox', { name: 'Altyazı 1', exact: true })).toHaveValue(/^EN: /)
+    // İngilizce modunda düzenle → çeviri değişir
+    await page.getByRole('textbox', { name: 'Altyazı 1', exact: true }).fill('Hello everyone')
+    await expect(page.getByTestId('cap-clip').first()).toContainText('Hello everyone')
+    // özgüne dön: özgün metin korunmuş
+    await page.getByTestId('cap-lang').selectOption('orig')
+    await expect(page.getByTestId('cap-clip').first()).toHaveText(orig)
+    // tekrar İngilizce: çeviri önbellekte, yeniden istek yok (düzenlenen metin durur)
+    await page.getByTestId('cap-lang').selectOption('en')
+    await expect(page.getByTestId('cap-clip').first()).toContainText('Hello everyone')
+  })
+
+  test('altyazı dili: çeviri yapılamazsa neden söylenir ve dil değişmez', async ({ page }) => {
+    await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { translate: 'Çeviri için yapay zekâ gerekli. Yapay zekâ kapalı (Ayarlar → Yapay zekâ).' } }))
+    await boot(page)
+    await importAndTranscribe(page)
+    await dropAsset(page, 0, 'V1')
+    await page.getByTestId('rtab-captions').click()
+    await page.getByTestId('gen-captions').click()
+    await page.getByTestId('cap-lang').selectOption('en')
+    await expect(page.getByTestId('toast').filter({ hasText: 'Çeviri yapılamadı' })).toBeVisible()
+    await expect(page.getByTestId('cap-lang')).toHaveValue('orig')
+  })
+
   test('otomatik en-boy oranı: video eklenmeden dayatılmaz; video eklenince videonun boyutuna göre; elle seçince otomatik kapanır', async ({ page }) => {
     await boot(page)
     await page.evaluate(() => (window as unknown as { __cfApi: NonNullable<Window['clipforge']> }).__cfApi.invoke('media:import', ['/k/yatay.mp4', '/k/dikey video.mp4']))

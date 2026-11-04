@@ -270,6 +270,8 @@ export interface Caption {
   hl?: { from: number; to: number; color: string }
   /** Bu altyazının boyut çarpanı (1 = stil boyutu). Önizlemede köşe/kenar tutamaçlarıyla ayarlanır. */
   scale?: number
+  /** Çeviriler: dil kodu → o dildeki metin (+ o metne göre vurgu). `text` her zaman özgün (konuşulan) dildir. */
+  tr?: Record<string, { text: string; hl?: { from: number; to: number; color: string } }>
 }
 
 export interface CaptionStyle {
@@ -311,6 +313,8 @@ export interface Timeline {
   layout: LayoutPreset
   tracks: Track[]
   captions: Caption[]
+  /** Gösterilen/dışa aktarılan altyazı dili: yok ya da 'orig' = özgün; 'en' = İngilizce çeviri */
+  captionLang?: string
   captionStyle: CaptionStyle
   /** Kamera overlay varsayılanı (yalnızca katman konumu olmayan eski projeler için) */
   webcamOverlay: NormRect

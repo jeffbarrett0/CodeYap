@@ -2,7 +2,7 @@ import type { ClipforgeApi } from '@shared/ipc'
 import { resolveLayout } from '@shared/export/layout'
 import { aspectSize, clipDuration, clipEnd } from '@shared/timeline/model'
 import { clipsAt, timelineToSource } from '@shared/timeline/ops'
-import { wrapCaption } from '@shared/timeline/captions'
+import { localizeCaption, wrapCaption } from '@shared/timeline/captions'
 import { captionLayout, highlightedLines, wrapTextForRect } from '@shared/export/ass'
 import { captionFont } from './measure'
 import type { Clip, MediaAsset, NormRect, TextSpec, Timeline, Track } from '@shared/types'
@@ -285,8 +285,9 @@ export class PreviewEngine {
   private drawCaption(ctx: CanvasRenderingContext2D, W: number, H: number, tl: Timeline, t: number) {
     const st = tl.captionStyle
     if (!st.enabled) return
-    const cap = tl.captions.find((c) => t >= c.start && t < c.end)
-    if (!cap) return
+    const found = tl.captions.find((c) => t >= c.start && t < c.end)
+    if (!found) return
+    const cap = localizeCaption(found, tl.captionLang)
     const scale = Math.min(W, H) / 1080
     const { lines, fontPx, cx, cy } = captionLayout(st, cap, W, H)
     const upper = st.uppercase ? cap.text.toLocaleUpperCase('tr-TR') : cap.text

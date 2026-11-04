@@ -24,7 +24,7 @@ import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pi
 import { applyVocabulary, buildPrompt, fixWord, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
 import { findVideoIdeas, type IdeasResult } from '../shared/ideas'
-import { enhanceIdeas, llmConfigured } from './ideas/llm'
+import { enhanceIdeas, llmConfigured, translateLines } from './ideas/llm'
 
 export interface AppDeps {
   userDataDir: string
@@ -208,6 +208,13 @@ export class AppService {
       }
     }
     return { ideas, totalSec: t.durationSec || asset.durationSec, ai }
+  }
+
+  /** Altyazı satırlarını çevirir (yapay zekâ sağlayıcısı Ayarlar → Yapay zekâ'nde seçilir); aynı sayıda metin döner */
+  async translateTexts(req: { texts: string[]; to: string }): Promise<{ texts: string[] }> {
+    if (req.texts.length === 0) return { texts: [] }
+    const name = req.to === 'en' ? 'English' : req.to
+    return { texts: await translateLines(req.texts, this.settings.value, name) }
   }
 
   async transcriptStart(req: TranscribeRequest): Promise<string> {

@@ -114,6 +114,8 @@ export interface IpcInvoke {
   'export:start': [[ExportRequest], string]
   'export:dialogOutput': [[string], string | null]
   'task:cancel': [[string], void]
+  /** Altyazı çevirisi: aynı sayıda satır, aynı sırada (zamanlamalar korunur) */
+  'captions:translate': [[{ texts: string[]; to: string }], { texts: string[] }]
   /** Video önerileri: transkriptten ayrı video olabilecek konu bölümleri + başlık önerileri */
   'ideas:generate': [[{ assetId: string; max?: number; useAi?: boolean }], IdeasResult]
   /** Auto Kick: yayın kaydından otomatik tam video (+ ileride klipler); iş arka planda sürer */

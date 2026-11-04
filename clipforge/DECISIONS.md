@@ -338,3 +338,14 @@ Aşamalar: içe aktar → transkripsiyon → **sessizleri kes → boşlukları k
 * **Muhtemel neden:** Auto Kick proje klasörü kaydın adından türer ("HER GENCİN İZLEMESİ GEREKEN VİDEO [IMouIMdFvWs]…"). Windows'ta whisper-cli bağımsız değişkenleri ANSI kod sayfasıyla okur; `İ` gibi karakterler ve köşeli parantez yolu bozar. (Normal projeler ASCII oturum klasöründe olduğundan sorun görülmemişti.) Gerçek whisper'la doğrulayamadım; düzeltme bu varsayıma ve aşağıdaki sağlamlaştırmaya dayanır.
 * **Düzeltme:** whisper artık **çalışma klasöründe (cwd)** ve yalnızca **ASCII göreli dosya adlarıyla** (`-f chunk_0.wav -of wcpp_600`) çalıştırılır; klasör yolu hiçbir bağımsız değişkende geçmez. Sürüm bir isteğe bağlı bayrağı (`-sow`, `-np`, `-t`, `--prompt`) tanımazsa o bayrak çıkarılıp yeniden denenir. Hâlâ hata olursa **asıl neden** gösterilir (ör. `"-ml" tanınmıyor`), kullanım metninin sonu değil.
 * **Hâlâ olursa:** whisper-cli sürümünüz çok eski/farklı olabilir; güncel sürüm kullanın. Mesajda tanınmayan bayrak adı yazar.
+
+## 41. Altyazı dili: İngilizce çeviri
+
+**İstek:** Altyazı bölümünde İngilizce seçeneği; seçilince altyazılar İngilizceye çevrilsin.
+* **Arayüz:** Altyazı sekmesi → **Altyazı dili**: *Özgün* / *English*. English seçilince satırlar çevrilir; önizleme, zaman çizelgesi şeridi, satır listesi ve **dışa aktarma** çeviriyi kullanır. Özgüne dönmek tek seçim; çeviriler saklanır (tekrar İngilizceye geçince yeniden çevrilmez). Ctrl+Z geri alır.
+* **Zamanlama korunur:** çeviri satır satır yapılır (aynı sayı, aynı sıra); satırlar konuşma parçaları olduğundan model komşu satırları bağlam olarak görür ama her çıktıya yalnızca kendi karşılığını yazar. Sayı tutmazsa parti ikiye bölünüp yeniden denenir; olmazsa hata verilir (yarım çeviri uygulanmaz).
+* **Motor:** Ayarlar → **Yapay zekâ** (Anthropic ya da OpenAI uyumlu) — başlık önerileriyle aynı anahtar. **Anahtar yoksa çeviri yapılamaz** ve nedeni söylenir; dil değişmez. Çevrilen satırların metni seçilen sağlayıcıya gönderilir. İstem "ekleme yok, çağrı metni yok" der.
+* **Veri:** `Caption.tr[dil]` = çeviri metni + o metne göre vurgu (kelime sayısı dile göre değiştiğinden vurgu İngilizce metin üzerinden atanır; stil değişince yenilenir); `Timeline.captionLang`. `text` her zaman özgün konuşmadır.
+* **Düzenleme:** İngilizce seçiliyken satır listesinde düzenlemek çeviriyi düzenler, özgün metin korunur. Özgün metin sonradan değiştirilirse çeviri otomatik yenilenmez (satır silinip dil yeniden seçilerek ya da altyazı yeniden üretilerek yenilenir). Yeni üretilen altyazılar, İngilizce seçiliyse kendiliğinden çevrilir.
+* **CLI:** `captions <proje> --lang en`.
+* **Sınırlar:** yalnızca İngilizce (dil listesi genişletilebilir); çeviri kalitesi modele bağlı; internet ve anahtar gerekir. Whisper'ın kendi çeviri kipi (`--translate`, çevrimdışı) kullanılmadı: kelime zamanlaması kaba ve her dil için ayrı transkripsiyon gerekirdi.

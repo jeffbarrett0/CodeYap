@@ -48,10 +48,10 @@ export function IdeasPanel() {
       {asset && !hasTranscript && <div className="warnbox">Bu kayıt henüz transkribe edilmemiş: Kaynak sekmesi → "Transkripsiyonu başlat".</div>}
       {asset && (
         <>
-          <label className="check" title={aiReady ? '' : 'Ayarlar → Başlık önerileri bölümünden bir sağlayıcı ve API anahtarı girin'}>
+          <label className="check" title={aiReady ? '' : 'Ayarlar → Yapay zekâ bölümünden bir sağlayıcı ve API anahtarı girin'}>
             <input type="checkbox" checked={useAi && aiReady} disabled={!aiReady} onChange={(e) => setUseAi(e.target.checked)} data-testid="ideas-ai" /> YouTube başlığı da önersin (yapay zekâ)
           </label>
-          {!aiReady && <div className="hint">Başlık önerisi için <a href="#" onClick={(e) => { e.preventDefault(); openDialog('settings') }}>Ayarlar → Başlık önerileri</a>.</div>}
+          {!aiReady && <div className="hint">Başlık önerisi için <a href="#" onClick={(e) => { e.preventDefault(); openDialog('settings') }}>Ayarlar → Yapay zekâ</a>.</div>}
           <button className="btn primary" disabled={!hasTranscript || ideasBusy} onClick={() => void generateIdeas(useAi && aiReady)} data-testid="ideas-run">{ideasBusy ? 'Bölümler inceleniyor…' : 'Video önerilerini bul'}</button>
         </>
       )}

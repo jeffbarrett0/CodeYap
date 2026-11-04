@@ -86,7 +86,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   ideas <proje> [--asset a] [--max 8] [--ai]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
   silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
-  captions <proje> [--style classic|boxed-highlight] [--max-chars 22]   transkriptten altyazı üretir (boxed-highlight: referans stil)
+  captions <proje> [--style classic|boxed-highlight] [--max-chars 22] [--lang en]   transkriptten altyazı üretir (--lang en: İngilizce çeviri, yapay zekâ ayarı gerekir) (boxed-highlight: referans stil)
   delete-lane <proje> <V1|V2|V3|I1|I2|A1|CC>                      o katmandaki her şeyi siler
   frame <proje> --at sn --out resim.jpg  çizelgedeki bir anın karesini kaydeder (görsel kontrol)
   export <proje> --out dosya.mp4 [--preset shorts|…]               dışa aktarır
@@ -430,6 +430,11 @@ async function main(argv: string[]): Promise<unknown> {
       const caps = captionsForTimeline(s.timeline, words, { maxCharsPerLine: num(a.opt['max-chars'], 'max-chars') ?? s.timeline.captionStyle.maxCharsPerLine })
       if (caps.length === 0) throw new Error('Altyazı üretilemedi: zaman çizelgesi boş ya da kliplerin transkripti yok.')
       s.apply(cmd.captions(caps), cmd.captionStyle({ enabled: true }, false))
+      const lang = str(a.opt.lang)
+      if (lang && lang !== 'orig') {
+        const tr = await s.service.translateTexts({ texts: s.timeline.captions.map((c) => c.text), to: lang })
+        s.apply(cmd.captionTranslations(lang, Object.fromEntries(s.timeline.captions.map((c, i) => [c.id, tr.texts[i]]))))
+      }
       const style = s.timeline.captionStyle.box?.enabled ? 'boxed-highlight' : 'classic'
       await s.save()
       return out({ ok: true, style, captions: caps.length, sample: caps.slice(0, 5).map((c) => ({ start: r1(c.start), end: r1(c.end), text: c.text, highlight: c.hl })) })

@@ -83,6 +83,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     },
     'task:cancel': (id) => app.queue.cancel(id),
     'ideas:generate': (req) => app.ideasGenerate(req),
+    'captions:translate': (req) => app.translateTexts(req),
     'task:list': () => app.queue.list(),
     'model:download': (size) => app.downloadModel(size),
     'shell:reveal': (p) => shell.showItemInFolder(p),

@@ -68,19 +68,19 @@ export function parseIdeaJson(raw: string): IdeaAi | null {
 }
 
 export function llmConfigured(s: Pick<Settings, 'llmProvider' | 'openaiApiKey' | 'anthropicApiKey'>): string | null {
-  if (s.llmProvider === 'openai') return s.openaiApiKey ? null : 'OpenAI API anahtarı girilmemiş (Ayarlar → Başlık önerileri).'
-  if (s.llmProvider === 'anthropic') return s.anthropicApiKey ? null : 'Anthropic API anahtarı girilmemiş (Ayarlar → Başlık önerileri).'
-  return 'Yapay zekâ kapalı (Ayarlar → Başlık önerileri).'
+  if (s.llmProvider === 'openai') return s.openaiApiKey ? null : 'OpenAI API anahtarı girilmemiş (Ayarlar → Yapay zekâ).'
+  if (s.llmProvider === 'anthropic') return s.anthropicApiKey ? null : 'Anthropic API anahtarı girilmemiş (Ayarlar → Yapay zekâ).'
+  return 'Yapay zekâ kapalı (Ayarlar → Yapay zekâ).'
 }
 
-async function ask(s: Settings, prompt: string, signal?: AbortSignal): Promise<string> {
+export async function ask(s: Settings, prompt: string, signal?: AbortSignal, maxTokens = 700): Promise<string> {
   const timeout = AbortSignal.timeout(90_000)
   const sig = signal ? AbortSignal.any([signal, timeout]) : timeout
   if (s.llmProvider === 'anthropic') {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': s.anthropicApiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: s.llmModel || 'claude-haiku-5-5', max_tokens: 700, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: s.llmModel || 'claude-haiku-5-5', max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }),
       signal: sig
     })
     if (!res.ok) throw new Error(`Anthropic yanıtı: HTTP ${res.status} ${(await res.text()).slice(0, 160)}`)
@@ -121,4 +121,61 @@ export async function enhanceIdeas(ideas: VideoIdea[], textOf: (i: VideoIdea) =>
   }
   await Promise.all([worker(), worker(), worker()])
   return { ideas: out, failed, error: firstError }
+}
+
+// ───────────────────────── altyazı çevirisi ─────────────────────────
+
+export function buildTranslatePrompt(lines: string[], to: string, from = 'Türkçe'): string {
+  const numbered = lines.map((l, i) => `${i + 1}. ${l}`).join('\n')
+  return `Below are consecutive subtitle lines of a video, in ${from}, numbered. Translate each line into ${to}.
+
+Rules:
+- Return ONLY a JSON array of strings with exactly ${lines.length} items, in the same order (item i = translation of line i).
+- The lines are fragments of continuous speech: use the surrounding lines for context, but put in each item only the translation of THAT line (do not merge or split lines).
+- Keep each translation short and natural, like a subtitle. Keep proper names (people, teams, places) as they are.
+- Do not add explanations, quotes, numbering or any text that is not in the original (no calls to action).
+
+LINES:
+${numbered}`
+}
+
+/** Modelin yanıtını (JSON dizi ya da {"1": …} nesnesi) satır sayısı doğrulanmış metin listesine çevirir; tutarsızsa null */
+export function parseTranslation(raw: string, expected: number): string[] | null {
+  const arr = raw.match(/\[[\s\S]*\]/)
+  try {
+    if (arr) {
+      const j = JSON.parse(arr[0]) as unknown
+      if (Array.isArray(j) && j.length === expected && j.every((x) => typeof x === 'string')) return (j as string[]).map((x) => x.trim())
+    }
+    const obj = raw.match(/\{[\s\S]*\}/)
+    if (obj) {
+      const o = JSON.parse(obj[0]) as Record<string, unknown>
+      const out = Array.from({ length: expected }, (_, i) => o[String(i + 1)])
+      if (out.every((x) => typeof x === 'string')) return (out as string[]).map((x) => x.trim())
+    }
+  } catch {
+    /* geçersiz JSON */
+  }
+  return null
+}
+
+/**
+ * Altyazı satırlarını çevirir (aynı sayıda, aynı sırada: zamanlamalar korunur). Satır sayısı tutmazsa parti ikiye bölünüp
+ * yeniden denenir; çok küçük partide de tutmazsa hata verir.
+ */
+export async function translateLines(lines: string[], s: Settings, to = 'English', signal?: AbortSignal, from = 'Türkçe'): Promise<string[]> {
+  const problem = llmConfigured(s)
+  if (problem) throw new Error(`Çeviri için yapay zekâ gerekli. ${problem}`)
+  const out: string[] = []
+  const run = async (part: string[]): Promise<string[]> => {
+    const raw = await ask(s, buildTranslatePrompt(part, to, from), signal, Math.min(4000, 200 + part.join(' ').length * 2))
+    const parsed = parseTranslation(raw, part.length)
+    if (parsed) return parsed
+    if (part.length <= 3) throw new Error('Çeviri yanıtı okunamadı (satır sayısı tutmadı). Tekrar deneyin.')
+    const mid = Math.ceil(part.length / 2)
+    return [...(await run(part.slice(0, mid))), ...(await run(part.slice(mid)))]
+  }
+  const BATCH = 40
+  for (let i = 0; i < lines.length; i += BATCH) out.push(...(await run(lines.slice(i, i + BATCH))))
+  return out
 }

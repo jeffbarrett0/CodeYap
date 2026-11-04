@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cmd } from '@shared/timeline/commands'
+import { localizeCaption } from '@shared/timeline/captions'
 import { clipDuration, clipEnd, groupMembers, timelineDuration } from '@shared/timeline/model'
 import { snapDropTime, snapPoints } from '@shared/timeline/ops'
 import type { Clip, Track } from '@shared/types'
@@ -283,7 +284,7 @@ export function Timeline() {
             ))}
             <div className={`tl-lane${activeLane === 'CC' ? ' active' : ''}`} data-testid="lane-CC" onContextMenu={(e) => openLaneMenu(e, 'CC')} onPointerDown={(e) => { if (e.target === e.currentTarget && e.button === 0) startMarquee(e, 'CC') }}>
               {tl.captions.map((c) => (
-                <div key={c.id} className={`tl-clip cap${selectedCaptionId === c.id || selectedCaptionIds.includes(c.id) ? ' sel' : ''}`} style={{ left: c.start * zoom, width: Math.max(4, (c.end - c.start) * zoom), cursor: 'pointer' }} title={`${c.text}\n(tıkla: seç ve önizlemede göster)`} onPointerDown={(e) => { e.stopPropagation(); useStore.getState().selectCaption(c.id, true); useStore.getState().setActiveLane('CC') }} data-cap-id={c.id} data-testid="cap-clip">{c.text}</div>
+                <div key={c.id} className={`tl-clip cap${selectedCaptionId === c.id || selectedCaptionIds.includes(c.id) ? ' sel' : ''}`} style={{ left: c.start * zoom, width: Math.max(4, (c.end - c.start) * zoom), cursor: 'pointer' }} title={`${localizeCaption(c, tl.captionLang).text}\n(tıkla: seç ve önizlemede göster)`} onPointerDown={(e) => { e.stopPropagation(); useStore.getState().selectCaption(c.id, true); useStore.getState().setActiveLane('CC') }} data-cap-id={c.id} data-testid="cap-clip">{localizeCaption(c, tl.captionLang).text}</div>
               ))}
             </div>
             <div className="tl-playhead" style={{ left: playhead * zoom }} data-testid="playhead" />

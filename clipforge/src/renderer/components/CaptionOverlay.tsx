@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { captionLayout } from '@shared/export/ass'
 import { MAX_CAPTION_SCALE, MIN_CAPTION_SCALE } from '@shared/timeline/ops'
 import { cmd } from '@shared/timeline/commands'
+import { localizeCaption } from '@shared/timeline/captions'
 import { previewSize } from '../preview/engine'
 import { measureCaption } from '../preview/measure'
 import { useStore } from '../store'
@@ -28,7 +29,7 @@ export function CaptionOverlay() {
     if (e.button !== 0) return
     e.stopPropagation()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    const cap = tl.captions.find((c) => c.id === id)!
+    const cap = localizeCaption(tl.captions.find((c) => c.id === id)!, tl.captionLang)
     const lay = captionLayout(tl.captionStyle, cap, W, H)
     selectCaption(id)
     drag.current = { id, x0: e.clientX, y0: e.clientY, cx: lay.cx / W, cy: lay.cy / H, moved: false }
@@ -54,7 +55,7 @@ export function CaptionOverlay() {
     if (e.button !== 0) return
     e.stopPropagation()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    const cap = tl.captions.find((c) => c.id === id)!
+    const cap = localizeCaption(tl.captions.find((c) => c.id === id)!, tl.captionLang)
     const m = measureCaption(tl.captionStyle, cap, W, H)
     resize.current = { id, handle, x0: e.clientX, w0: m.w, h0: m.h, cx0: m.cx, cy0: m.cy, s0: cap.scale ?? 1 }
   }
@@ -81,7 +82,7 @@ export function CaptionOverlay() {
   return (
     <div className="caption-overlay" ref={ref}>
       {active.map((c) => {
-        const lay = measureCaption(tl.captionStyle, c, W, H)
+        const lay = measureCaption(tl.captionStyle, localizeCaption(c, tl.captionLang), W, H)
         const sel = c.id === selected
         return (
           <div

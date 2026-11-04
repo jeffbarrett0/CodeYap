@@ -107,7 +107,7 @@ export function SettingsDialog() {
   const [s, setS] = useState<Settings>(settings)
   const api = requireApi()
   const set = (p: Partial<Settings>) => setS((x) => ({ ...x, ...p }))
-  const tabs: [Tab, string][] = [['trans', 'Transkripsiyon'], ['search', 'Arama'], ['ideas', 'Başlık önerileri'], ['clip', 'Klip'], ['chat', 'Sohbet'], ['export', 'Dışa aktarma'], ['tools', 'FFmpeg / Araçlar']]
+  const tabs: [Tab, string][] = [['trans', 'Transkripsiyon'], ['search', 'Arama'], ['ideas', 'Yapay zekâ'], ['clip', 'Klip'], ['chat', 'Sohbet'], ['export', 'Dışa aktarma'], ['tools', 'FFmpeg / Araçlar']]
   const save = async () => {
     await updateSettings(s)
     openDialog(null)
@@ -196,7 +196,7 @@ export function SettingsDialog() {
 
       {tab === 'ideas' && (
         <div className="col" data-testid="settings-ideas">
-          <div className="hint">Öneriler sekmesi, uzun yayını konu bölümlerine ayırıp her birine YouTube başlığı önerir. Başlıkları bir yapay zekâ modeli yazarsa çok daha iyi olur; kapalıysa anahtar kelimelerden taslak başlık üretilir (internet ve anahtar gerekmez). Bölümün konuşma metni seçtiğiniz sağlayıcıya gönderilir.</div>
+          <div className="hint">Yapay zekâ iki yerde kullanılır: Öneriler sekmesindeki YouTube başlıkları ve altyazıyı İngilizceye çevirme (zamanlamalar korunur). Başlıkları bir yapay zekâ modeli yazarsa çok daha iyi olur; kapalıysa anahtar kelimelerden taslak başlık üretilir (internet ve anahtar gerekmez). Bölümün konuşma metni seçtiğiniz sağlayıcıya gönderilir.</div>
           <Field label="Yapay zekâ sağlayıcısı">
             <select value={s.llmProvider} onChange={(e) => set({ llmProvider: e.target.value as Settings['llmProvider'] })} aria-label="Yapay zekâ sağlayıcısı" data-testid="llm-provider">
               <option value="off">Kapalı (taslak başlıklar)</option>

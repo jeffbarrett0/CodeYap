@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CAPTION_PRESETS } from '@shared/timeline/captionStyles'
+import { CAPTION_LANGS, localizeCaption } from '@shared/timeline/captions'
 import { cmd } from '@shared/timeline/commands'
 import { clipDuration, findClip, groupMembers, TRACK_IDS } from '@shared/timeline/model'
 import type { AspectRatio, LayoutPreset } from '@shared/types'
@@ -145,13 +146,20 @@ function AudioMixer() {
 }
 
 function Captions() {
-  const { project, exec, generateCaptions, selectedCaptionId, selectCaption, deleteCaptions, applyCaptionPreset } = useStore()
+  const { project, exec, generateCaptions, selectedCaptionId, selectCaption, deleteCaptions, applyCaptionPreset, setCaptionLang, captionsTranslating } = useStore()
   const [checked, setChecked] = useState<string[]>([])
   const tl = project.timeline
   const st = tl.captionStyle
   const set = (p: Partial<typeof st>) => exec(cmd.captionStyle(p))
   return (
     <div className="col" data-testid="captions-panel">
+      <Field label="Altyazı dili">
+        <select value={tl.captionLang ?? 'orig'} disabled={captionsTranslating} onChange={(e) => void setCaptionLang(e.target.value)} aria-label="Altyazı dili" data-testid="cap-lang">
+          {CAPTION_LANGS.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
+        </select>
+      </Field>
+      {captionsTranslating && <div className="hint" data-testid="cap-translating">Altyazılar İngilizceye çevriliyor… (zamanlamalar korunur)</div>}
+      {tl.captionLang && tl.captionLang !== 'orig' && <div className="hint">İngilizce seçili: önizleme ve dışa aktarma çeviriyi kullanır. Satırları burada düzenlerseniz çeviri düzenlenir; özgün metin korunur. Çeviri için Ayarlar → Yapay zekâ'nden yapay zekâ sağlayıcısı (Anthropic/OpenAI) seçili olmalıdır.</div>}
       <div className="section-title">Otomatik altyazı</div>
       <button className="btn primary" onClick={generateCaptions} data-testid="gen-captions">Transkriptten altyazı üret</button>
       <label className="check"><input type="checkbox" checked={st.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> Altyazıyı göster / dışa aktar</label>
@@ -233,7 +241,7 @@ function Captions() {
           <div key={c.id} className="capline" style={c.id === selectedCaptionId ? { outline: '1px solid #ffb224', borderRadius: 6 } : undefined}>
             <input type="checkbox" checked={checked.includes(c.id)} onChange={(e) => setChecked(e.target.checked ? [...checked, c.id] : checked.filter((x) => x !== c.id))} aria-label={`Altyazı ${i + 1} seç`} data-testid="cap-check" />
             <button className="btn ghost sm tc" style={{ minWidth: 0, padding: '0 4px' }} onClick={() => selectCaption(c.id, true)} title="Seç ve önizlemede göster">{fmt(c.start)}</button>
-            <input type="text" value={c.text} aria-label={`Altyazı ${i + 1}`} onChange={(e) => exec(cmd.captions(tl.captions.map((x) => (x.id === c.id ? { ...x, text: e.target.value } : x))))} />
+            <input type="text" value={localizeCaption(c, tl.captionLang).text} aria-label={`Altyazı ${i + 1}`} onChange={(e) => exec(cmd.captionText(c.id, e.target.value, tl.captionLang))} />
           </div>
         ))}
       </div>
