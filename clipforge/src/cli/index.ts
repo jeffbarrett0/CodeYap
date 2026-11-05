@@ -72,13 +72,19 @@ const num = (v: string | true | undefined, name: string): number | undefined => 
 }
 const str = (v: string | true | undefined): string | undefined => (typeof v === 'string' ? v : undefined)
 
+const parseFocus = (v: string | undefined): { x: number; y: number } | undefined => {
+  if (!v) return undefined
+  const n = v.split(/[,\s]+/).map(Number)
+  if (n.length !== 2 || n.some((x) => !Number.isFinite(x) || x < 0 || x > 1)) throw new Error('--face-focus "x,y" (0..1, ör. 0.5,0.58) verin.')
+  return { x: n[0], y: n[1] }
+}
 const out = (o: unknown) => process.stdout.write(`${JSON.stringify(o, null, 2)}\n`)
 const r1 = (n: number) => Math.round(n * 100) / 100
 
 const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON döndürür)
 
   info                                   ffmpeg/ffprobe/whisper durumu
-  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 90] [--max 12] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--screen-zoom 1.15]
+  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 90] [--max 12] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.4] [--face-focus 0.495,0.58] [--screen-zoom 1.15]
                                          transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
@@ -221,7 +227,7 @@ async function main(argv: string[]): Promise<unknown> {
     if (a.opt.export) {
       const rect0 = str(a.opt.face) ? parseRect(str(a.opt.face)!) : null
       if (str(a.opt.face) && !rect0) throw new Error('--face "x,y,w,h" (0..1) verin.')
-      const res = await runAutoClips({ projectPath: projectArg, minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max'), face: rect0 ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom'), exportVideos: true }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
+      const res = await runAutoClips({ projectPath: projectArg, minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max'), face: rect0 ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), faceZoom: num(a.opt['face-zoom'], 'face-zoom'), faceFocus: parseFocus(str(a.opt['face-focus'])), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom'), exportVideos: true }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
       return out({ ok: true, dir: res.dir, count: res.clips.length, clips: res.clips.map((x) => ({ subject: x.subject, headline: x.headline, start: r1(x.start), end: r1(x.end), project: x.projectPath, video: x.videoPath, error: x.error })) })
     }
     const r = await autoClipCandidates(projectArg, { minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max') }, {})
@@ -231,7 +237,7 @@ async function main(argv: string[]): Promise<unknown> {
     const rect = str(a.opt.face) ? parseRect(str(a.opt.face)!) : null
     if (str(a.opt.face) && !rect) throw new Error('--face "x,y,w,h" (0..1, ör. 0.7,0.64,0.29,0.34) verin.')
     const made = []
-    for (const p of picks) made.push({ id: p.id, ...(await makeAutoClip(projectArg, p, { face: rect ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom') }, {})) })
+    for (const p of picks) made.push({ id: p.id, ...(await makeAutoClip(projectArg, p, { face: rect ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), faceZoom: num(a.opt['face-zoom'], 'face-zoom'), faceFocus: parseFocus(str(a.opt['face-focus'])), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom') }, {})) })
     return out({
       project: r.projectPath,
       totalSec: r1(r.totalSec),

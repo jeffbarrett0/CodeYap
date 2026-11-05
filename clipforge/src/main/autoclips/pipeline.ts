@@ -1,5 +1,5 @@
 import { Session, makeService } from '../../cli/session'
-import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, findAutoClips, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
+import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, faceCrop, findAutoClips, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
 import { newId, timelineDuration } from '../../shared/timeline/model'
 import { cutRange } from '../../shared/timeline/ops'
 import { applyTemplate } from '../../shared/timeline/templates'
@@ -44,7 +44,9 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
   // alttaki konuşulan görüntü: biraz yakınlaştırılmış, ortalı kırpma (yüz kutusu altta görünmesin)
   const crop = screenCrop({ face, faceShare: layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare, screenZoom: layout.screenZoom ?? DEFAULT_AUTOCLIP_LAYOUT.screenZoom }, asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 16 / 9)
   tl = { ...tl, tracks: tl.tracks.map((t) => (t.id === 'V1' ? { ...t, clips: t.clips.map((c) => (c.assetId === asset.id ? { ...c, crop } : c)) } : t)) }
-  const faceClips: Clip[] = screenClips.map((c) => ({ ...c, id: newId('clip'), trackId: 'V2', crop: { ...face }, label: 'Yüz', groupId: undefined }))
+  const srcAspect = asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 16 / 9
+  const faceRect = faceCrop({ face, faceShare: layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare, faceZoom: layout.faceZoom ?? DEFAULT_AUTOCLIP_LAYOUT.faceZoom, faceFocus: layout.faceFocus ?? DEFAULT_AUTOCLIP_LAYOUT.faceFocus }, srcAspect)
+  const faceClips: Clip[] = screenClips.map((c) => ({ ...c, id: newId('clip'), trackId: 'V2', crop: faceRect, label: 'Yüz', groupId: undefined }))
   tl = {
     ...tl,
     tracks: tl.tracks.some((t) => t.id === 'V2') ? tl.tracks.map((t) => (t.id === 'V2' ? { ...t, clips: faceClips } : t)) : [...tl.tracks, { id: 'V2', name: 'Video 2', kind: 'video' as const, role: 'webcam' as const, clips: faceClips, muted: false, locked: false, volume: 1 }]

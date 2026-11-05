@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, findAutoClips, parseRect, screenCrop } from '@shared/autoclips'
+import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, faceCrop, findAutoClips, parseRect, screenCrop } from '@shared/autoclips'
 import type { TranscriptWord } from '@shared/types'
 import { chainAutoClips } from '../../src/main/autoclips/run'
 
@@ -151,5 +151,32 @@ describe('Zincir: Auto Kick → Auto Clips (gözetimsiz)', () => {
     expect(started).toHaveLength(0)
     chainAutoClips({ id: 'c', status: 'done', result: { projectPath: '/p' } }, new Set(), { ...settings, autoClipsExport: false }, manager)
     expect(started[0]).toMatchObject({ exportVideos: false })
+  })
+})
+
+describe('Auto Clips: yüze odaklı üst kırpma', () => {
+  const L = DEFAULT_AUTOCLIP_LAYOUT
+  const slot = 1080 / (1920 * L.faceShare)
+  it('kamera kutusunun İÇİNDE kalır (üstündeki sayfa şeridi görünmez), alan oranına uyar, kafa üstte küçük payla durur', () => {
+    const c = faceCrop(L, 16 / 9)
+    expect(c.x).toBeGreaterThanOrEqual(L.face.x - 1e-9)
+    expect(c.y).toBeGreaterThanOrEqual(L.face.y - 1e-9)
+    expect(c.x + c.w).toBeLessThanOrEqual(L.face.x + L.face.w + 1e-9)
+    expect(c.y + c.h).toBeLessThanOrEqual(L.face.y + L.face.h + 1e-9)
+    expect((c.w * 16) / (c.h * 9)).toBeCloseTo(slot, 3)
+    expect(c.h).toBeLessThan(L.face.h) // yakınlaştırıldı
+    // kafa merkezi kırpmanın üst ~%42'sinde: üstte büyük boşluk kalmaz
+    const headY = L.face.y + L.faceFocus.y * L.face.h
+    expect((headY - c.y) / c.h).toBeGreaterThan(0.3)
+    expect((headY - c.y) / c.h).toBeLessThanOrEqual(0.5)
+  })
+  it('yakınlık arttıkça kırpma küçülür; 1 = kutunun tamamına yakın; odak değişince kırpma kayar; sınırlar korunur', () => {
+    expect(faceCrop({ ...L, faceZoom: 2 }, 16 / 9).h).toBeLessThan(faceCrop({ ...L, faceZoom: 1.3 }, 16 / 9).h)
+    expect(faceCrop({ ...L, faceZoom: 1 }, 16 / 9).h).toBeGreaterThan(L.face.h * 0.9)
+    const left = faceCrop({ ...L, faceFocus: { x: 0.2, y: 0.5 } }, 16 / 9)
+    const right = faceCrop({ ...L, faceFocus: { x: 0.8, y: 0.5 } }, 16 / 9)
+    expect(left.x).toBeLessThan(right.x)
+    expect(left.x).toBeGreaterThanOrEqual(L.face.x - 1e-9)
+    expect(faceCrop({ ...L, faceZoom: 0.1, faceFocus: { x: -3, y: 9 } }, 16 / 9).h).toBeLessThanOrEqual(L.face.h + 1e-9) // saçma değerler sınırlanır
   })
 })

@@ -38,7 +38,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     'autoclips:find': (r) => autoClipCandidates(r.projectPath, { ...(r.minSec ? { minSec: r.minSec } : {}), ...(r.maxSec ? { maxSec: r.maxSec } : {}), ...(r.max ? { max: r.max } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:make': async (r) => {
       const out = []
-      for (const p of r.picks) out.push(await makeAutoClip(r.projectPath, p, { face: r.face, facePos: r.facePos, faceShare: r.faceShare, screenZoom: r.screenZoom }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }))
+      for (const p of r.picks) out.push(await makeAutoClip(r.projectPath, p, { face: r.face, facePos: r.facePos, faceShare: r.faceShare, faceZoom: r.faceZoom, faceFocus: r.faceFocus, screenZoom: r.screenZoom }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }))
       return out
     },
     'story:start': (req) => story.start(req),

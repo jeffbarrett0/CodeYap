@@ -28,6 +28,8 @@ export function AutoClipsDialog() {
   const [face, setFace] = useState<NormRect>(DEFAULT_AUTOCLIP_LAYOUT.face)
   const [facePos, setFacePos] = useState<'top' | 'bottom'>('top')
   const [maxSec, setMaxSec] = useState(90)
+  const [faceZoom, setFaceZoom] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceZoom * 100))
+  const [focus, setFocus] = useState({ x: Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceFocus.x * 100), y: Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceFocus.y * 100) })
   const [zoom, setZoom] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.screenZoom * 100))
   const [share, setShare] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceShare * 1000) / 10)
 
@@ -68,7 +70,7 @@ export function AutoClipsDialog() {
     setError('')
     try {
       const picks = cands.filter((c) => picked.has(c.id)).map((c) => ({ start: c.start, end: c.end, subject: c.subject }))
-      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100, screenZoom: zoom / 100 }))
+      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100, faceZoom: faceZoom / 100, faceFocus: { x: focus.x / 100, y: focus.y / 100 }, screenZoom: zoom / 100 }))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -155,6 +157,9 @@ export function AutoClipsDialog() {
                   <label className="row" style={{ gap: 4 }}>Genişlik (%) <Num value={Math.round(face.w * 100)} step={1} min={5} max={100} label="Yüz bölgesi genişlik" onChange={(v) => setF('w', v)} /></label>
                   <label className="row" style={{ gap: 4 }}>Yükseklik (%) <Num value={Math.round(face.h * 100)} step={1} min={5} max={100} label="Yüz bölgesi yükseklik" onChange={(v) => setF('h', v)} /></label>
                   <label className="row" style={{ gap: 4 }}>Yüz alanı (% kare yüksekliği) <Num value={share} step={1} min={20} max={70} label="Yüz alanı yüksekliği" onChange={setShare} /></label>
+                  <label className="row" style={{ gap: 4 }}>Yüz yakınlığı (%) <Num value={faceZoom} step={5} min={100} max={300} label="Yüz yakınlığı" onChange={(v) => setFaceZoom(Math.round(v))} /></label>
+                  <label className="row" style={{ gap: 4 }}>Kafa konumu: yatay (%) <Num value={focus.x} step={1} min={0} max={100} label="Kafa yatay konumu" onChange={(v) => setFocus((f) => ({ ...f, x: Math.round(v) }))} /></label>
+                  <label className="row" style={{ gap: 4 }}>dikey (%) <Num value={focus.y} step={1} min={0} max={100} label="Kafa dikey konumu" onChange={(v) => setFocus((f) => ({ ...f, y: Math.round(v) }))} /></label>
                   <label className="row" style={{ gap: 4 }}>Alt görüntü yakınlığı (%) <Num value={zoom} step={5} min={100} max={200} label="Alt görüntü yakınlığı" onChange={(v) => setZoom(Math.round(v))} /></label>
                   <label className="row" style={{ gap: 4 }}>Yüz
                     <select value={facePos} onChange={(e) => setFacePos(e.target.value as 'top' | 'bottom')} aria-label="Yüz konumu" data-testid="autoclips-facepos">

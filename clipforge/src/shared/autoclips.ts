@@ -101,11 +101,44 @@ export interface AutoClipLayout {
   facePos: 'top' | 'bottom'
   /** yüz alanının kare yüksekliğine oranı */
   faceShare: number
+  /** üstteki yüzün yakınlığı: 1 = kamera kutusunun tamamı; 1,4 = yüze odaklı (kafanın üstünde boş duvar/beyazlık kalmaz) */
+  faceZoom: number
+  /** yüzün (kafa merkezinin) kamera kutusu içindeki yeri, 0..1 (x sol→sağ, y üst→alt) */
+  faceFocus: { x: number; y: number }
   /** alttaki konuşulan görüntünün yakınlığı (1 = kareyi alanı dolduracak kadar; 1,15 = biraz daha büyük, ortalı) */
   screenZoom: number
 }
 /** Varsayılan yüz bölgesi kullanıcının örnek ekran görüntüsünden ölçüldü: kaynak karenin sağ altındaki kamera kutusu (x %70,3–100, y %60,6–98,1) */
-export const DEFAULT_AUTOCLIP_LAYOUT: AutoClipLayout = { face: { x: 0.703, y: 0.606, w: 0.297, h: 0.375 }, facePos: 'top', faceShare: 0.415, screenZoom: 1.15 }
+export const DEFAULT_AUTOCLIP_LAYOUT: AutoClipLayout = { face: { x: 0.703, y: 0.606, w: 0.297, h: 0.375 }, facePos: 'top', faceShare: 0.415, faceZoom: 1.4, faceFocus: { x: 0.495, y: 0.58 }, screenZoom: 1.15 }
+
+/**
+ * Üstteki yüz için kaynak kırpması: kamera kutusunun içinde, yüze (kafa merkezi `faceFocus`) odaklı ve `faceZoom` kadar yakın;
+ * üst alanın en-boy oranına uyar. Kafa, kırpmanın üst ~%42'sinde durur: kafanın üstünde yalnızca küçük pay kalır (boş duvar/beyazlık yok).
+ * Kırpma her zaman kamera kutusunun içinde kalır (kutunun üstündeki sayfa şeridi görünmez).
+ */
+export function faceCrop(layout: Pick<AutoClipLayout, 'face' | 'faceShare' | 'faceZoom' | 'faceFocus'>, srcAspect: number): NormRect {
+  const f = layout.face
+  const share = Math.min(0.7, Math.max(0.2, layout.faceShare))
+  const slotRatio = 1080 / (1920 * share) // üst alanın piksel oranı
+  const z = Math.min(4, Math.max(1, layout.faceZoom))
+  let h = f.h / z
+  let w = (h * slotRatio) / srcAspect
+  if (w > f.w) {
+    w = f.w
+    h = (w * srcAspect) / slotRatio
+  }
+  if (h > f.h) {
+    h = f.h
+    w = (h * slotRatio) / srcAspect
+  }
+  const fx = Math.min(1, Math.max(0, layout.faceFocus.x))
+  const fy = Math.min(1, Math.max(0, layout.faceFocus.y))
+  const headX = f.x + fx * f.w
+  const headY = f.y + fy * f.h
+  const x = Math.min(f.x + f.w - w, Math.max(f.x, headX - w / 2))
+  const y = Math.min(f.y + f.h - h, Math.max(f.y, headY - 0.42 * h))
+  return { x, y, w, h }
+}
 
 /**
  * Alttaki konuşulan görüntü için kaynak kırpması (kare ortalı, `zoom` kadar yakın), alt alanın en-boy oranına uyar (bozulma yok).
@@ -175,6 +208,8 @@ export interface AutoClipsRequest {
   face?: NormRect
   facePos?: 'top' | 'bottom'
   faceShare?: number
+  faceZoom?: number
+  faceFocus?: { x: number; y: number }
   screenZoom?: number
   /** klipleri MP4 olarak da dışa aktar */
   exportVideos?: boolean
