@@ -465,6 +465,21 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(cli('auto-clips', proj4, '--face', '0.9,0.9,0.5,0.5').ok).toBe(false)
   }, 180_000)
 
+  it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
+    const f = join(tmp, 'oneriler.json')
+    writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))
+    expect(cli('ideas', proj, '--write', f).saved).toBe(1)
+    const r = cli('ideas', proj)
+    expect(r.source).toBe('claude')
+    expect(r.ideas[0]).toMatchObject({ headline: 'Viktor Nelsen hakkında konuşmuşsun' })
+    expect(r.ideas[0].start).toBe(3)
+    expect(cli('ideas', proj, '--auto').source).toBe('auto')
+    writeFileSync(f, JSON.stringify([{ start: 10, end: 5, headline: 'x' }]))
+    expect(cli('ideas', proj, '--write', f).ok).toBe(false)
+    expect(cli('ideas', proj, '--clear').cleared).toBe(true)
+    expect(cli('ideas', proj).source).toBe('auto')
+  }, 120_000)
+
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)
     const bad = cli('bogus', proj)

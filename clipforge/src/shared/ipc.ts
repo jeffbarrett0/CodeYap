@@ -127,7 +127,7 @@ export interface IpcInvoke {
   /** Metni dosyaya yazar (zaman damgaları .txt) */
   'file:writeText': [[string, string], void]
   /** Video önerileri: transkriptten ayrı video olabilecek konu bölümleri + başlık önerileri */
-  'ideas:generate': [[{ assetId: string; max?: number; useAi?: boolean }], IdeasResult]
+  'ideas:generate': [[{ assetId: string; max?: number; useAi?: boolean; auto?: boolean }], IdeasResult]
   /** Auto Kick: yayın kaydından otomatik tam video (+ ileride klipler); iş arka planda sürer */
   'autokick:start': [[AutoKickRequest], string]
   'autokick:cancel': [[string], void]

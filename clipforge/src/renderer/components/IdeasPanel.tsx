@@ -54,7 +54,7 @@ export function IdeasPanel() {
       )}
       {ideasError && <div className="warnbox" role="alert" data-testid="ideas-error">{ideasError}</div>}
       {res?.ai.error && <div className="warnbox" data-testid="ideas-ai-error">Yapay zekâ başlığı: {res.ai.error}</div>}
-      {res && res.ideas.length > 0 && <div className="hint">{res.ideas.length} öneri · kayıt {fmt(res.totalSec)} · skora göre sıralı</div>}
+      {res && res.ideas.length > 0 && <div className="hint" data-testid="ideas-count">{res.ideas.length} öneri · kayıt {fmt(res.totalSec)} · {res.source === 'claude' ? 'Claude Code önerisi (transkripti okuyup yazdı)' : 'otomatik bulundu'}</div>}
       {res?.ideas.map((idea, i) => <IdeaCard key={idea.id} idea={idea} i={i} assetId={selectedAssetId!} />)}
     </div>
   )

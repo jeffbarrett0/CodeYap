@@ -192,11 +192,20 @@ export class AppService {
    * Video önerileri: transkriptten ayrı video olabilecek konu bölümlerini bulur; `useAi` ve sağlayıcı ayarlıysa
    * başlıkları yapay zekâ yazar (hata olursa taslak başlıklar kalır ve nedeni döner).
    */
-  async ideasGenerate(req: { assetId: string; max?: number; useAi?: boolean }): Promise<IdeasResult> {
+  async ideasGenerate(req: { assetId: string; max?: number; useAi?: boolean; auto?: boolean }): Promise<IdeasResult> {
     const asset = this.assets.get(req.assetId)
     if (!asset) throw new ToolError('Medya bulunamadı.')
     const t = await this.transcriptGet(req.assetId)
     if (!t || t.words.length === 0) throw new ToolError('Önce bu kaydın transkripsiyonunu yapın (Kaynak sekmesi → Transkripsiyonu başlat).')
+    // Claude Code'un yazdığı (kayıtlı) öneriler varsa onlar gösterilir; `auto` ile kurallı bulucuya dönülür
+    if (!req.auto) {
+      try {
+        const saved = JSON.parse(await readFile(join(this.dataDir, 'ideas', `${req.assetId}.json`), 'utf8')) as IdeasResult['ideas']
+        if (Array.isArray(saved) && saved.length) return { ideas: saved, totalSec: t.durationSec || asset.durationSec, ai: { requested: false, used: false }, source: 'claude' }
+      } catch {
+        /* kayıtlı öneri yok */
+      }
+    }
     let ideas = findVideoIdeas(t.words, req.max ? { max: req.max } : {})
     const s = this.settings.value
     const ai: IdeasResult['ai'] = { requested: !!req.useAi, used: false, provider: s.llmProvider }
@@ -210,7 +219,29 @@ export class AppService {
         if (r.error) ai.error = r.failed === ideas.length ? r.error : `${r.failed} öneride başlık yazılamadı (taslak başlık kaldı): ${r.error}`
       }
     }
-    return { ideas, totalSec: t.durationSec || asset.durationSec, ai }
+    return { ideas, totalSec: t.durationSec || asset.durationSec, ai, source: 'auto' }
+  }
+
+  /** Claude Code'un (ya da kullanıcının) yazdığı klip önerilerini kaydeder: [{ start, end, headline, summary, title?, hook? }] (kaynak zamanı, sn) */
+  async ideasSave(assetId: string, items: { start: number; end: number; headline: string; summary: string; title?: string; hook?: string }[]): Promise<number> {
+    const t = await this.transcriptGet(assetId)
+    if (!t) throw new ToolError('Önce transkripsiyon gerekli.')
+    const list = items.filter((x) => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end > x.start && String(x.headline ?? '').trim()).sort((p, q) => p.start - q.start)
+    if (list.length === 0) throw new ToolError('Geçerli öneri yok: her öneride start, end (sn) ve headline gerekli.')
+    const ideas = list.map((x, i) => {
+      const fw = Math.max(0, t.words.findIndex((w) => w.end > x.start))
+      let lw = t.words.length - 1
+      for (let k = t.words.length - 1; k >= 0; k--) if (t.words[k].start < x.end) { lw = k; break }
+      const title = x.title?.trim()
+      return { id: `claude${i + 1}`, label: x.headline, headline: x.headline.trim(), kind: 'topic' as const, start: x.start, end: x.end, durationSec: x.end - x.start, keywords: [], summary: String(x.summary ?? '').slice(0, 420), score: 1, firstWord: fw, lastWord: Math.max(fw, lw), titles: title ? [title] : [], titleSource: title ? ('ai' as const) : ('draft' as const), ...(x.hook ? { hook: x.hook } : {}), description: String(x.summary ?? '').slice(0, 420) }
+    })
+    await mkdir(join(this.dataDir, 'ideas'), { recursive: true })
+    await writeFile(join(this.dataDir, 'ideas', `${assetId}.json`), JSON.stringify(ideas, null, 2), 'utf8')
+    return ideas.length
+  }
+
+  async ideasClear(assetId: string): Promise<void> {
+    await rm(join(this.dataDir, 'ideas', `${assetId}.json`), { force: true })
   }
 
   /** Altyazı satırlarını çevirir (yapay zekâ sağlayıcısı Ayarlar → Yapay zekâ'nde seçilir); aynı sayıda metin döner */

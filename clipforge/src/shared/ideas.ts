@@ -52,6 +52,8 @@ export interface IdeasResult {
   ideas: VideoIdea[]
   totalSec: number
   ai: { requested: boolean; used: boolean; error?: string; provider?: string }
+  /** claude: Claude Code'un transkripti okuyup yazdığı öneriler (kayıtlı); auto: kurallı bulucu */
+  source?: 'claude' | 'auto'
 }
 
 const STOP = new Set(

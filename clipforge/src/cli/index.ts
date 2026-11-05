@@ -103,7 +103,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   broll-plan <proje> --folder klasör [--asset a] [--dur 3.5] [--layer V2] [--apply]       dosya adlarındaki kelimeleri konuşmada arar, yerleşim ÖNERİR (--apply: uygular)
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
-  ideas <proje> [--asset a] [--max 8] [--ai]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
+  ideas <proje> [--asset a] [--max 8] [--ai] [--auto | --write oneriler.json | --clear]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
   chapters <proje> [--ai | --titles basliklar.json] [--density low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
   silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
@@ -528,10 +528,21 @@ async function main(argv: string[]): Promise<unknown> {
     }
     case 'ideas': {
       const asset = s.asset(str(a.opt.asset))
-      const r = await s.service.ideasGenerate({ assetId: asset.id, max: num(a.opt.max, 'max'), useAi: !!a.opt.ai })
+      // Claude Code transkripti okuyup kendi önerilerini yazdıysa: --write oneriler.json = [{ "start": sn, "end": sn, "headline": "Lemina hakkında konuşmuşsun", "summary": "…", "title"?, "hook"? }] (kaynak zamanı)
+      if (str(a.opt.write)) {
+        const items = JSON.parse(await readFile(resolve(str(a.opt.write)!), 'utf8')) as Parameters<typeof s.service.ideasSave>[1]
+        const n = await s.service.ideasSave(asset.id, items)
+        return out({ ok: true, saved: n, hint: 'Öneriler kaydedildi: uygulamada sağ panel → Öneriler bunları gösterir ("Klip yap" düğmesiyle). Kuralla bulunanlara dönmek için `ideas --clear`.' })
+      }
+      if (a.opt.clear) {
+        await s.service.ideasClear(asset.id)
+        return out({ ok: true, cleared: true })
+      }
+      const r = await s.service.ideasGenerate({ assetId: asset.id, max: num(a.opt.max, 'max'), useAi: !!a.opt.ai, auto: !!a.opt.auto })
       return out({
         asset: asset.name,
         totalSec: r1(r.totalSec),
+        source: r.source,
         ai: r.ai,
         ideas: r.ideas.map((i) => ({ id: i.id, headline: i.headline, kind: i.kind, mentions: i.mentions, start: r1(i.start), end: r1(i.end), durationSec: r1(i.durationSec), score: i.score, keywords: i.keywords, titles: i.titles, titleSource: i.titleSource, hook: i.hook, summary: i.summary })),
         hint: 'Bunlar ÖNERİDİR. Başlıkları yazarken önce `transcript --from <başlangıç> --to <bitiş>` ile bölümün metnini okuyun; yalnızca konuşulanlara dayanın, çağrı/yönlendirme metni yazmayın.'
