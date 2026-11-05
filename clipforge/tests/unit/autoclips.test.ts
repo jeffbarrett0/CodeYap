@@ -168,7 +168,7 @@ describe('Auto Clips: yüze odaklı üst kırpma', () => {
     // kafa merkezi kırpmanın üst ~%42'sinde: üstte büyük boşluk kalmaz
     const headY = L.face.y + L.faceFocus.y * L.face.h
     expect((headY - c.y) / c.h).toBeGreaterThan(0.3)
-    expect((headY - c.y) / c.h).toBeLessThanOrEqual(0.5)
+    expect((headY - c.y) / c.h).toBeLessThanOrEqual(0.6)
   })
   it('yakınlık arttıkça kırpma küçülür; 1 = kutunun tamamına yakın; odak değişince kırpma kayar; sınırlar korunur', () => {
     expect(faceCrop({ ...L, faceZoom: 2 }, 16 / 9).h).toBeLessThan(faceCrop({ ...L, faceZoom: 1.3 }, 16 / 9).h)

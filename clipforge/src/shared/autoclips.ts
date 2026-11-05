@@ -101,7 +101,7 @@ export interface AutoClipLayout {
   facePos: 'top' | 'bottom'
   /** yüz alanının kare yüksekliğine oranı */
   faceShare: number
-  /** üstteki yüzün yakınlığı: 1 = kamera kutusunun tamamı; 1,4 = yüze odaklı (kafanın üstünde boş duvar/beyazlık kalmaz) */
+  /** üstteki yüzün yakınlığı: 1 = kamera kutusunun tamamı; 1,12 = hafif yüze odaklı (kafanın üstünde boş duvar/beyazlık kalmaz) */
   faceZoom: number
   /** yüzün (kafa merkezinin) kamera kutusu içindeki yeri, 0..1 (x sol→sağ, y üst→alt) */
   faceFocus: { x: number; y: number }
@@ -109,7 +109,7 @@ export interface AutoClipLayout {
   screenZoom: number
 }
 /** Varsayılan yüz bölgesi kullanıcının örnek ekran görüntüsünden ölçüldü: kaynak karenin sağ altındaki kamera kutusu (x %70,3–100, y %60,6–98,1) */
-export const DEFAULT_AUTOCLIP_LAYOUT: AutoClipLayout = { face: { x: 0.703, y: 0.606, w: 0.297, h: 0.375 }, facePos: 'top', faceShare: 0.415, faceZoom: 1.4, faceFocus: { x: 0.495, y: 0.58 }, screenZoom: 1.15 }
+export const DEFAULT_AUTOCLIP_LAYOUT: AutoClipLayout = { face: { x: 0.703, y: 0.606, w: 0.297, h: 0.375 }, facePos: 'top', faceShare: 0.415, faceZoom: 1.12, faceFocus: { x: 0.495, y: 0.58 }, screenZoom: 1.15 }
 
 /**
  * Üstteki yüz için kaynak kırpması: kamera kutusunun içinde, yüze (kafa merkezi `faceFocus`) odaklı ve `faceZoom` kadar yakın;

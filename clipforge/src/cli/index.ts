@@ -84,7 +84,7 @@ const r1 = (n: number) => Math.round(n * 100) / 100
 const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON döndürür)
 
   info                                   ffmpeg/ffprobe/whisper durumu
-  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 90] [--max 12] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.4] [--face-focus 0.495,0.58] [--screen-zoom 1.15]
+  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 90] [--max 12] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.12] [--face-focus 0.495,0.58] [--screen-zoom 1.15]
                                          transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
