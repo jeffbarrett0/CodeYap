@@ -96,3 +96,10 @@ export function transcriptionReadiness(
   }
   return r
 }
+
+/** Geçen süreyi okunur yazar: "1 sa 12 dk 5 sn", "3 dk 20 sn", "45 sn". */
+export function fmtElapsed(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000))
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
+  return [h ? `${h} sa` : '', h || m ? `${m} dk` : '', !h ? `${sec} sn` : ''].filter(Boolean).join(' ')
+}

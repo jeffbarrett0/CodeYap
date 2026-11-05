@@ -226,3 +226,12 @@ describe('Auto Clips: sosyal medya şeridi yerleşimi', () => {
     expect(e.y + e.h).toBeLessThanOrEqual(1 + 1e-9)
   })
 })
+
+describe('geçen süre biçimi', () => {
+  it('saat/dakika/saniye', async () => {
+    const { fmtElapsed } = await import('@shared/autokick')
+    expect(fmtElapsed(45_000)).toBe('45 sn')
+    expect(fmtElapsed(200_000)).toBe('3 dk 20 sn')
+    expect(fmtElapsed(4_325_000)).toBe('1 sa 12 dk')
+  })
+})

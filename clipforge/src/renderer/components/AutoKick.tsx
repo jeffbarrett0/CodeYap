@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { TopicCandidate } from '@shared/topic'
 import { LANGUAGES } from '@shared/settings'
-import type { AutoKickStatus, TranscriptionReadiness } from '@shared/autokick'
+import { fmtElapsed, type AutoKickStatus, type TranscriptionReadiness } from '@shared/autokick'
 import { requireApi } from '../api'
 import { claudeEditPrompt } from '../claudePrompt'
 import { useStore } from '../store'
@@ -45,6 +45,7 @@ function Job({ job }: { job: AutoKickStatus }) {
           {s.detail && <div className="hint" style={{ wordBreak: 'break-all' }}>{s.detail}</div>}
         </div>
       ))}
+      {job.finishedAt && job.status === 'done' && <div className="hint" data-testid="autokick-elapsed"><b>⏱ Toplam süre: {fmtElapsed(job.finishedAt - job.startedAt)}</b></div>}
       {job.error && <div className="warnbox" role="alert" data-testid="autokick-error">{job.error}</div>}
       {(job.status === 'failed' || job.status === 'cancelled') && <button className="btn sm" onClick={() => void api.invoke('autokick:start', job.request)} data-testid="autokick-retry" title="Biten aşamalar atlanır, kaldığı yerden sürer">Yeniden dene (kaldığı yerden)</button>}
       {job.status === 'running' && <button className="btn sm danger" onClick={() => void api.invoke('autokick:cancel', job.id)} data-testid="autokick-cancel">İptal</button>}

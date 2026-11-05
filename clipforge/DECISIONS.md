@@ -406,3 +406,6 @@ Kullanıcı ortamında whisper-cli çalışma klasörünü (cwd) uygulamıyor ya
 ## 49. Auto Clips: süre 20–178 sn ve sosyal medya şeridi
 - Klip süresi 20 sn ile 2 dk 58 sn arasında; konu bölümü 178 sn'yi aşmadıkça bölünmez.
 - Kullanıcının sosyal medya şeridi (şeffaf PNG) her klibe I1 katmanında, yüz/görüntü kesişim çizgisine ortalı eklenir (genişlik %86; kullanıcı "çok az küçült" dedi). Kapatma/değiştirme: `autoClipsOverlay`, `autoClipsOverlayPath`, CLI `--no-overlay/--overlay`.
+
+## 50. Toplam süre göstergesi
+Auto Kick ve Auto Clips işleri bittiğinde ("Tamamlandı") kartta "⏱ Toplam süre: 1 sa 12 dk" yazar (`finishedAt − startedAt`, `fmtElapsed`). Auto Clips süresi klip üretme + MP4 dışa aktarmayı kapsar.

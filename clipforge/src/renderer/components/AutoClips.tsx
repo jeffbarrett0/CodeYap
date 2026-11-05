@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AutoClipCandidate } from '@shared/autoclips'
 import { DEFAULT_AUTOCLIP_LAYOUT, MAX_CLIP_SEC } from '@shared/autoclips'
+import { fmtElapsed } from '@shared/autokick'
 import type { NormRect } from '@shared/types'
 import { requireApi } from '../api'
 import { useStore } from '../store'
@@ -103,6 +104,7 @@ export function AutoClipsDialog() {
                   {s.status === 'running' && <Progress value={s.progress} />}
                 </div>
               ))}
+              {job.finishedAt && job.status === 'done' && <div className="hint" data-testid="autoclips-elapsed"><b>⏱ Toplam süre: {fmtElapsed(job.finishedAt - job.startedAt)}</b>{job.result?.clips.some((c) => c.videoPath) ? ' (klipleri üretme + MP4 dışa aktarma dahil)' : ''}</div>}
               {job.error && <div className="warnbox" role="alert" data-testid="autoclips-job-error">{job.error}</div>}
               {job.status === 'running' && <button className="btn sm danger" onClick={() => void api.invoke('autoclips:cancel', job.id)} data-testid="autoclips-cancel">İptal</button>}
               {job.result && job.result.clips.length === 0 && <div className="hint" data-testid="autoclips-none">Klip olabilecek net bir konu bulunamadı.</div>}

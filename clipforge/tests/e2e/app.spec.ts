@@ -963,6 +963,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     for (const id of ['import', 'transcribe', 'silence', 'gaps', 'full']) await expect(page.getByTestId(`ak-stage-${id}`)).toHaveAttribute('data-stage-status', 'done')
     await expect(page.getByTestId('autokick-result')).toContainText('doğrulandı')
     await expect(page.getByTestId('autokick-result')).toContainText('412 kesim')
+    await expect(page.getByTestId('autokick-elapsed')).toContainText('Toplam süre')
     // ikinci kayıt: seçer seçmez başlar, iptal edilir
     await page.getByTestId('autokick-pick').click()
     await page.getByTestId('autokick-cancel').first().click()
@@ -1180,6 +1181,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-reveal')).toHaveCount(3) // her klip için MP4
     await expect(page.getByTestId('autoclips-open-job')).toHaveCount(3)
     await expect(page.getByTestId('autoclips-results')).toContainText('3 klip hazır')
+    await expect(page.getByTestId('autoclips-elapsed')).toContainText('Toplam süre')
     await expect(page.getByTestId('autoclips-cand')).toHaveCount(0) // otomatik çalıştığı için elle öneri listesi ikinci kez üretilmez
   })
 
