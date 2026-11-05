@@ -6,6 +6,7 @@ import { buildMap } from '../../shared/graphics/scenes'
 import { findPlace, type World } from '../../shared/graphics/geo'
 import { footballScene, footballTextAss } from '../../shared/story/footballAss'
 import { Raster, hexRgb } from '../../shared/story/raster'
+import { themeForTeam } from '../../shared/story/teams'
 import { buildBackdropAss, buildStoryAss } from '../../shared/story/scenes'
 import type { StoryContent, StoryTheme } from '../../shared/story/types'
 import { runTool } from '../ffmpeg'
@@ -63,6 +64,17 @@ export function mediaArgs(c: Extract<StoryContent, { type: 'media' }>, file: str
 export async function renderStoryScene(content: StoryContent, theme: StoryTheme, size: StoryRenderSize, dur: number, ffmpeg: string, outPath: string, opts: { world?: World; backdrop?: string; baseDir?: string; signal?: AbortSignal } = {}): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), 'cf-story-'))
   try {
+    // takıma özgü sahne rengi (team alanı): vurgu rengi takımın rengi olur; zemin görüntüsü de o renkle yeniden çizilir
+    const team = 'team' in content ? content.team : undefined
+    const themed = themeForTeam(theme, team)
+    if (themed.accent !== theme.accent) {
+      theme = themed
+      if (opts.backdrop) {
+        const bgPath = join(dir, 'zemin.png')
+        opts = { ...opts, backdrop: bgPath }
+        await renderBackdrop(theme, size, ffmpeg, bgPath)
+      }
+    }
     if (content.type === 'football') return await renderFootballVideo(content, theme, size, dur, ffmpeg, outPath, { signal: opts.signal })
     await writeFile(join(dir, 'scene.ass'), storyAss(content, theme, size, dur, opts.world), 'utf8')
     await mkdir(dirname(outPath), { recursive: true })

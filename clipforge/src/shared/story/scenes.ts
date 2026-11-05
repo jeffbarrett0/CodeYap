@@ -289,6 +289,7 @@ function mediaScene(a: StoryAss, c: Extract<StoryContent, { type: 'media' }>): v
 /** Harita dışındaki sahnelerin tam ASS metni. Harita sahnesi `main/story/render.ts` içinde mevcut harita çiziciyle yapılır. */
 export function buildStoryAss(content: Exclude<StoryContent, { type: 'place' }>, theme: StoryTheme, W: number, H: number, dur: number): string {
   const a = new StoryAss(W, H, theme, dur)
+  if ('source' in content && content.source) a.text(0.8, 'Small', 80 * a.k, H - 50 * a.k, `KAYNAK: ${upper(content.source)}`, { an: 1, slide: 0 })
   switch (content.type) {
     case 'stats':
       statsScene(a, content)

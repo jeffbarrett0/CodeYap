@@ -76,8 +76,17 @@ export type FbAction =
   | { do: 'line'; at: number; from: FbSpot | string; to: FbSpot | string; dur?: number }
   | { do: 'camera'; at: number; mode: FbCameraMode }
 export interface FbTeam {
+  /** Veritabanındaki takım adı ('Bayern Münih', 'Galatasaray'…): forma renkleri/deseni otomatik gelir (`story teams` ile bak) */
+  team?: string
   name?: string
+  /** forma ana rengi / ikinci rengi / şort / çorap (#RRGGBB) ve desen: takım verisini ezer */
   color?: string
+  color2?: string
+  shorts?: string
+  socks?: string
+  pattern?: 'solid' | 'halves' | 'stripes'
+  /** true: yedek (deplasman) forma */
+  alt?: boolean
   /** '4-3-3' gibi: adı verilmeyen diğer oyuncular otomatik dizilir (arka plan oyuncuları) */
   formation?: string
 }
@@ -96,12 +105,12 @@ export interface FootballContent {
 
 export type StoryContent =
   | FootballContent
-  | { type: 'stats'; kicker?: string; title?: string; cards: StatCard[] }
-  | { type: 'timeline'; kicker?: string; title?: string; periods: TimelinePeriod[] }
-  | { type: 'list'; kicker?: string; title?: string; items: StoryItem[] }
-  | { type: 'person'; role?: string; name: string; sub?: string }
-  | { type: 'quote'; text: string; by?: string }
-  | { type: 'title'; text: string; sub?: string }
+  | { type: 'stats'; kicker?: string; title?: string; cards: StatCard[]; team?: string; source?: string }
+  | { type: 'timeline'; kicker?: string; title?: string; periods: TimelinePeriod[]; team?: string; source?: string }
+  | { type: 'list'; kicker?: string; title?: string; items: StoryItem[]; team?: string; source?: string }
+  | { type: 'person'; role?: string; name: string; sub?: string; team?: string }
+  | { type: 'quote'; text: string; by?: string; team?: string; source?: string }
+  | { type: 'title'; text: string; sub?: string; team?: string }
   | { type: 'place'; to: string; from?: string; label?: string; sub?: string }
   /** Hazır görsel/video (gerçekçi sahne, 2D/3D karakter render'ı…): tam kare ya da şeffaf PNG karakter; altta isteğe bağlı yazı */
   | { type: 'media'; file: string; fit?: 'cover' | 'contain'; align?: 'left' | 'center' | 'right'; zoom?: 'in' | 'out' | 'none'; title?: string; caption?: string }
@@ -139,6 +148,8 @@ export interface StoryPlan {
   /** Planı nasıl çıkardığımız: bilgi amaçlı */
   planner: 'auto' | 'ai'
   warnings: string[]
+  /** Araştırma notları: web'den doğrulanan bilgiler ve kaynakları (forma, rakam…). Ekranda görünmez; kullanıcıya gösterilir. */
+  research?: { claim: string; source: string }[]
 }
 
 /** Metni sahnede güvenle gösterilecek hale getirir: çağrı/yönlendirme metni yok, uzunluk sınırlı */

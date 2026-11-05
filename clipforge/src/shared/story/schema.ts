@@ -45,6 +45,11 @@ export const STORY_SCHEMA = {
       'İsim etiketi yalnızca name verilen oyunculara çıkar. Anlatılan ana göre kamera: genel=broadcast, hareketi izle=follow, taktik görünüm=top, şut anı=behind/goal.'
     ]
   },
+  teams: {
+    about: 'Takım adı verilirse formalar/renkler OTOMATİK gelir: football için home/away { "team":"Bayern Münih" } (oyuncular o takımın formasını giyer, tribün ev sahibinin renginde olur; renkler karışırsa deplasman takımı yedek forma giyer). Diğer sahnelerde content.team: "Galatasaray" → vurgu rengi takımın rengi olur. `story teams [ad]` ile listele/ara.',
+    override: 'Veritabanında olmayan ya da farklı sezon formasında: home/away { "color":"#RRGGBB", "color2", "shorts", "socks", "pattern":"solid|halves|stripes", "alt":true }. Formalar SEZONLUKtur: anlatılan sezonun formasını web\'den doğrula, gerekirse ez.',
+    research: 'plan.research: [{ "claim":"Kane 2025/26 Bundesliga 36 gol", "source":"https://…" }] — web\'den doğruladığın her bilgiyi kaynağıyla yaz; ekranda göstermek istersen sahneye "source":"Bundesliga.com" ekle (alt köşede "KAYNAK: …").'
+  },
   fields: {
     at: 'sahne BAŞINDAN saniye: kart/madde konuşulduğu an belirsin (transkript zamanından sahne start\'ını çıkar). Yoksa eşit aralıkla belirir.',
     tone: 'good (olumlu) | bad (olumsuz) | warn (uyarı/risk) | neutral'
@@ -53,6 +58,7 @@ export const STORY_SCHEMA = {
     'Yalnızca anlatımda GERÇEKTEN geçenleri yaz; rakam, ad, sezon uydurma.',
     'Çağrı/yönlendirme metni yok (beğen, abone ol, kanala gel…).',
     'Her sahne ortalama 5-30 sn; çakışma yok; start artan.',
+    'Anlatıda geçen takım/oyuncu/sezon/rakam için ÖNCE web\'den doğrula (forma rengi, gol sayısı, tarih…); anlatım ile web çelişirse kullanıcıya sor, kendi kafana göre düzeltme.',
     'Çizmeden önce `story preview plan.json` ile kareleri kontrol et.'
   ],
   example: {

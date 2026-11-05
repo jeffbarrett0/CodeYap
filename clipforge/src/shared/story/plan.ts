@@ -3,6 +3,7 @@ import type { Segment, TranscriptWord } from '../types'
 import { findChapters, DENSITY } from '../chapters'
 import { key } from '../graphics/geo'
 import { simulateFootball } from './football'
+import { resolveKits } from './teams'
 import { CTA_RE, DEFAULT_STORY_THEME, type StatCard, type StoryContent, type StoryItem, type StoryPlan, type StoryScene, type StoryTheme, type StoryTone, type TimelinePeriod } from './types'
 
 const NUM_WORDS: Record<string, number> = { bir: 1, iki: 2, üç: 3, dört: 4, beş: 5, altı: 6, yedi: 7, sekiz: 8, dokuz: 9, on: 10, yirmi: 20, otuz: 30, kırk: 40, elli: 50, altmış: 60, yetmiş: 70, seksen: 80, doksan: 90, yüz: 100 }
@@ -223,7 +224,7 @@ export function sanitizeContent(raw: unknown): StoryContent | null {
         if (CTA_RE.test(value)) return []
         return value ? [{ label: str(o.label, 32), value, unit: str(o.unit, 14), sub: str(o.sub, 48), tone: tone(o.tone), at: at(o.at) }] : []
       })
-      return cards.length ? { type: 'stats', kicker: str(c.kicker, 30), title: str(c.title, 40), cards } : null
+      return cards.length ? { type: 'stats', kicker: str(c.kicker, 30), title: str(c.title, 40), cards, team: str(c.team, 40), source: str(c.source, 80) } : null
     }
     case 'timeline': {
       const periods = (Array.isArray(c.periods) ? c.periods : []).slice(0, 5).flatMap((x) => {
@@ -231,23 +232,23 @@ export function sanitizeContent(raw: unknown): StoryContent | null {
         const label = str(o.label, 12)
         return label ? [{ label, items: items(o.items, 4), at: at(o.at) }] : []
       })
-      return periods.length ? { type: 'timeline', kicker: str(c.kicker, 30), title: str(c.title, 40), periods } : null
+      return periods.length ? { type: 'timeline', kicker: str(c.kicker, 30), title: str(c.title, 40), periods, team: str(c.team, 40), source: str(c.source, 80) } : null
     }
     case 'list': {
       const it = items(c.items, 6)
-      return it.length ? { type: 'list', kicker: str(c.kicker, 30), title: str(c.title, 40), items: it } : null
+      return it.length ? { type: 'list', kicker: str(c.kicker, 30), title: str(c.title, 40), items: it, team: str(c.team, 40), source: str(c.source, 80) } : null
     }
     case 'person': {
       const name = str(c.name, 32)
-      return name ? { type: 'person', role: str(c.role, 32), name, sub: str(c.sub, 40) } : null
+      return name ? { type: 'person', role: str(c.role, 32), name, sub: str(c.sub, 40), team: str(c.team, 40) } : null
     }
     case 'quote': {
       const text = str(c.text, 160)
-      return text ? { type: 'quote', text, by: str(c.by, 40) } : null
+      return text ? { type: 'quote', text, by: str(c.by, 40), team: str(c.team, 40), source: str(c.source, 80) } : null
     }
     case 'title': {
       const text = str(c.text, 60)
-      return text ? { type: 'title', text, sub: str(c.sub, 60) } : null
+      return text ? { type: 'title', text, sub: str(c.sub, 60), team: str(c.team, 40) } : null
     }
     case 'place': {
       const to = str(c.to, 40)
@@ -258,7 +259,12 @@ export function sanitizeContent(raw: unknown): StoryContent | null {
       const players = (Array.isArray(c.players) ? c.players : []).slice(0, 30).filter((x) => x && typeof (x as { id?: unknown }).id === 'string')
       const actions = (Array.isArray(c.actions) ? c.actions : []).slice(0, 80).filter((x) => x && ACTS.includes(String((x as { do?: unknown }).do)) && Number.isFinite((x as { at?: unknown }).at))
       if (players.length === 0) return null
-      const cleanTeam = (t: unknown) => (t && typeof t === 'object' ? { name: str((t as { name?: unknown }).name, 30), color: typeof (t as { color?: unknown }).color === 'string' && /^#[0-9a-f]{6}$/i.test((t as { color: string }).color) ? (t as { color: string }).color : undefined, formation: typeof (t as { formation?: unknown }).formation === 'string' ? (t as { formation: string }).formation.slice(0, 12) : undefined } : undefined)
+      const hex = (v: unknown) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : undefined)
+      const cleanTeam = (t: unknown) => {
+        if (!t || typeof t !== 'object') return undefined
+        const o = t as Record<string, unknown>
+        return { team: str(o.team, 40), name: str(o.name, 30), color: hex(o.color), color2: hex(o.color2), shorts: hex(o.shorts), socks: hex(o.socks), pattern: o.pattern === 'halves' || o.pattern === 'stripes' || o.pattern === 'solid' ? o.pattern : undefined, alt: o.alt === true ? true : undefined, formation: typeof o.formation === 'string' ? o.formation.slice(0, 12) : undefined }
+      }
       const fb = { type: 'football', home: cleanTeam(c.home), away: cleanTeam(c.away), players, actions, ball: c.ball && typeof c.ball === 'object' ? c.ball : undefined, attack: c.attack === 'left' ? 'left' : undefined, camera: ['broadcast', 'follow', 'top', 'behind', 'goal'].includes(String(c.camera)) ? c.camera : undefined, title: str(c.title, 50) } as unknown as StoryContent
       for (const a of actions as { text?: unknown }[]) if (typeof a.text === 'string' && CTA_RE.test(a.text)) return null
       return fb
@@ -281,6 +287,7 @@ export function contentProblem(c: StoryContent): string | null {
   if (c.type !== 'football') return null
   try {
     simulateFootball(c, 10)
+    resolveKits(c.home, c.away)
     return null
   } catch (e) {
     return e instanceof Error ? e.message : String(e)

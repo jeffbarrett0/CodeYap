@@ -1,6 +1,7 @@
 import { assColor } from '../export/ass'
 import { strokePolygon } from '../graphics/scenes'
 import { hexRgb, Raster } from './raster'
+import { resolveKits, type Kit, type ResolvedKits } from './teams'
 import { GOAL_TARGETS, PITCH_L, PITCH_W, simulateFootball, type FootballSim } from './football'
 import type { FbCameraMode, FootballContent, StoryTheme } from './types'
 
@@ -134,7 +135,12 @@ const LINES: V3[][] = (() => {
   ]
 })()
 
-const STAND_COLORS = ['#6E0A1C', '#A80F29', '#C8102E', '#8E0C24', '#D01535', '#7C0A1F', '#B3102B', '#E8E8E8']
+/** Tribün renkleri: ev sahibi takımın renginin tonları (kalabalık o takımın taraftarı) */
+function standPalette(base: string): string[] {
+  const [r, g, b] = hexRgb(base)
+  const mix = (m: number, to: number) => `#${[r, g, b].map((v) => Math.round(v + (to - v) * m).toString(16).padStart(2, '0')).join('')}`
+  return [mix(0.55, 0), mix(0.3, 0), mix(0, 0), mix(0.45, 0), mix(0.15, 255), mix(0.35, 0), mix(0.2, 0)]
+}
 
 export interface FootballScene {
   frames: number
@@ -151,8 +157,8 @@ export function footballScene(c: FootballContent, theme: StoryTheme, W: number, 
   const sim = simulateFootball(c, dur)
   const k = H / 1080
   const frames = Math.max(1, Math.round(dur * fps))
-  const homeColor = c.home?.color ?? theme.accent
-  const awayColor = c.away?.color ?? '#F2F2F2'
+  const kits = resolveKits(c.home, c.away, { home: theme.accent, away: '#F2F2F2' })
+  const stands = standPalette(kits.stand)
   let tgt: V3 | null = null
   const dt = 1 / fps
   const camAt = (t: number, ball: V3): { e: V3; target: V3; fov: number } => {
@@ -177,7 +183,7 @@ export function footballScene(c: FootballContent, theme: StoryTheme, W: number, 
       const ballS = sim.ball(t)
       const cam = camAt(t, [ballS.x, ballS.y, 0])
       const f = new Painter(r, Math.round(t * 100) / 100, Math.round(((i + 1) / fps) * 100) / 100)
-      drawFrame(f, c, sim, makeCam(cam.e, cam.target, cam.fov, W, H), t, ballS, k, homeColor, awayColor, theme)
+      drawFrame(f, c, sim, makeCam(cam.e, cam.target, cam.fov, W, H), t, ballS, k, kits, stands, theme)
       f.flush()
       return f.texts
     }
@@ -211,7 +217,7 @@ export function footballTextAss(c: FootballContent, theme: StoryTheme, W: number
   ].join('\n')
 }
 
-function drawFrame(f: Painter, c: FootballContent, sim: FootballSim, cam: Cam, t: number, ball: { x: number; y: number; z: number; holder?: string }, k: number, homeColor: string, awayColor: string, theme: StoryTheme): void {
+function drawFrame(f: Painter, c: FootballContent, sim: FootballSim, cam: Cam, t: number, ball: { x: number; y: number; z: number; holder?: string }, k: number, kits: ResolvedKits, stands: string[], theme: StoryTheme): void {
   const W = cam.W
   const H = cam.H
   // 1) tribünler (dört kenar: eğimli basamak sıraları)
@@ -222,7 +228,7 @@ function drawFrame(f: Painter, c: FootballContent, sim: FootballSim, cam: Cam, t
       const lerp3 = (p: V3, q: V3, u: number): V3 => [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u, p[2] + (q[2] - p[2]) * u]
       for (let s = 0; s < segs; s++) {
         // koltuk blokları: bitişik parçalar birbirinden hafif farklı renkte (kalabalık dokusu)
-        const col = STAND_COLORS[((r * 3 + s * 5 + tint) * 7) % 7]
+        const col = stands[((r * 3 + s * 5 + tint) * 7) % 7]
         f.poly(projectPoly(cam, [lerp3(a(r), b(r), s / segs), lerp3(a(r), b(r), (s + 1) / segs), lerp3(a(r + 1), b(r + 1), (s + 1) / segs), lerp3(a(r + 1), b(r + 1), s / segs)]), col, 1, 0)
       }
     }
@@ -296,14 +302,22 @@ function drawFrame(f: Painter, c: FootballContent, sim: FootballSim, cam: Cam, t
     .filter((x) => x.q)
     .sort((a, b) => b.q!.z - a.q!.z)
   drawn.forEach(({ p, pos, q }, i) => {
-    const color = p.team === 'home' ? homeColor : awayColor
     const layer = 10 + i
     const px = (m: number) => (m * cam.F) / q!.z
     f.poly(projectPoly(cam, ellipse(pos[0], pos[1], 0.75, 0.55, 12)), '#000000', 0.32, layer)
-    const kit = p.keeper ? '#18C8FF' : color
-    const legs = ribbon(cam, [[pos[0], pos[1], 0.05], [pos[0], pos[1], 0.95]], 0.42)
-    for (const poly of legs) f.poly(poly, p.team === 'home' ? '#1A1A1A' : '#2A2A2A', 1, layer)
-    for (const poly of ribbon(cam, [[pos[0], pos[1], 0.9], [pos[0], pos[1], 1.55]], 0.5)) f.poly(poly, kit, 1, layer)
+    const kit: Kit = p.keeper ? kits.keeper : p.team === 'home' ? kits.home : kits.away
+    // çorap (alt bacak) → şort → gövde (desenli): uzaktan yakına tek tek boyanır
+    for (const poly of ribbon(cam, [[pos[0], pos[1], 0.05], [pos[0], pos[1], 0.58]], 0.34)) f.poly(poly, kit.socks, 1, layer)
+    for (const poly of ribbon(cam, [[pos[0], pos[1], 0.52], [pos[0], pos[1], 0.97]], 0.44)) f.poly(poly, kit.shorts, 1, layer)
+    const lo: V3 = [pos[0], pos[1], 0.93]
+    const hi: V3 = [pos[0], pos[1], 1.55]
+    const side = (n: number): V3[] => [[lo[0] + cam.r[0] * n, lo[1] + cam.r[1] * n, lo[2]], [hi[0] + cam.r[0] * n, hi[1] + cam.r[1] * n, hi[2]]]
+    if (kit.pattern === 'halves') {
+      for (const poly of ribbon(cam, side(-0.125), 0.25)) f.poly(poly, kit.primary, 1, layer)
+      for (const poly of ribbon(cam, side(0.125), 0.25)) f.poly(poly, kit.secondary, 1, layer)
+    } else if (kit.pattern === 'stripes') {
+      for (let n = 0; n < 4; n++) for (const poly of ribbon(cam, side(-0.19 + n * 0.127), 0.127)) f.poly(poly, n % 2 ? kit.secondary : kit.primary, 1, layer)
+    } else for (const poly of ribbon(cam, side(0), 0.5)) f.poly(poly, kit.primary, 1, layer)
     const hq = project(cam, [pos[0], pos[1], 1.7])
     if (hq) f.circle(hq.s[0], hq.s[1], px(0.14), '#E2B48C', 1, layer)
     if (ball.holder === p.id) {
@@ -334,7 +348,8 @@ function drawFrame(f: Painter, c: FootballContent, sim: FootballSim, cam: Cam, t
       f.text(W / 2, H * 0.16, 'GOL!', 120 * k * (0.85 + 0.15 * a), theme.accent, 95)
     }
   }
-  if (c.title) f.text(60 * k, 56 * k, c.title.toLocaleUpperCase('tr-TR'), 30 * k, '#FFFFFF', 95, 4)
+  const head = c.title ?? [kits.homeName ?? c.home?.name, kits.awayName ?? c.away?.name].filter(Boolean).join('  -  ')
+  if (head) f.text(60 * k, 56 * k, head.toLocaleUpperCase('tr-TR'), 30 * k, '#FFFFFF', 95, 4)
   void GOAL_TARGETS
 }
 

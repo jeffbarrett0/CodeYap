@@ -21,6 +21,7 @@ import { runStory } from '../main/story/pipeline'
 import { renderBackdrop, renderFootballFrame, renderStoryScene } from '../main/story/render'
 import { contentProblem, normalizeScenes } from '../shared/story/plan'
 import { STORY_SCHEMA } from '../shared/story/schema'
+import { TEAMS, findTeam } from '../shared/story/teams'
 import { runTool } from '../main/ffmpeg'
 import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
@@ -75,6 +76,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
   auto-kick <video> [--out klasör] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
                                          yayın kaydı → transkript → sessizleri kırp → tam video (<out>/<ad> - full.mp4 + proje); biten aşamalar yeniden çalıştırmada atlanır
+  story teams [ad]                       takım forma/renk veritabanı (Bayern → kırmızı, Galatasaray → sarı-kırmızı parçalı…); sahnelerde home/away.team ve content.team bunu kullanır
   story schema                           sahne türleri + örnek plan (Claude Code planı yazarken kullanır)
   story preview <plan.json> [--out klasör] [--scene id] [--at 0.7] [--aspect 16:9]   sahneleri PNG kareye çizer (medya/ses gerekmez) — yazdığınız planı gözle doğrulayın
   story plan <ses|video> [--out klasör] [--ai | --blank] [--lang tr]   anlatımı içe aktarır, transkribe eder, hareketli SAHNE PLANI çıkarır (story-plan.json; düzenlenebilir)
@@ -216,6 +218,12 @@ async function main(argv: string[]): Promise<unknown> {
     const sub = projectArg
     const media = rest[0]
     if (sub === 'schema') return out(STORY_SCHEMA)
+    if (sub === 'teams') {
+      const q = media
+      const list = q ? TEAMS.filter((t) => findTeam(q)?.id === t.id || t.aliases.some((x) => x.toLowerCase().includes(q.toLowerCase()))) : TEAMS
+      if (q && list.length === 0) return out({ ok: true, found: 0, hint: `"${q}" veritabanında yok. Formasını web'den doğrulayıp sahnede elle verin: home/away { "name", "color", "color2", "shorts", "socks", "pattern": "solid|halves|stripes" }.`, available: TEAMS.map((t) => t.name) })
+      return out({ ok: true, teams: list.map((t) => ({ name: t.name, aliases: t.aliases.slice(1), home: t.home, alt: t.alt, note: t.note })), hint: 'Formalar SEZONLUKtur; veritabanı genel renkleri verir. Anlatılan sezon/forma farklıysa web\'den doğrulayıp home/away alanlarıyla ez (color, color2, shorts, socks, pattern, alt:true).' })
+    }
     if (sub === 'preview') {
       if (!media) throw new Error('Kullanım: story preview <plan.json> [--out klasör]')
       const plan = JSON.parse(await readFile(resolve(media), 'utf8')) as StoryPlan
@@ -250,7 +258,7 @@ async function main(argv: string[]): Promise<unknown> {
       if (only && frames.length === 0) throw new Error(`Sahne bulunamadı: ${only}`)
       return out({ ok: true, frames, hint: 'PNG kareleri açıp bakın (sahne süresinin %70\'inde); yazı taşıyor, çakışıyor ya da kart geç beliriyorsa planı düzeltip yeniden çizin.' })
     }
-    if ((sub !== 'plan' && sub !== 'build') || !media) throw new Error('Kullanım: story schema | story preview <plan.json> | story plan|build <ses|video> [--out klasör]')
+    if ((sub !== 'plan' && sub !== 'build') || !media) throw new Error('Kullanım: story schema | story teams [ad] | story preview <plan.json> | story plan|build <ses|video> [--out klasör]')
     let plan: StoryPlan | undefined
     if (str(a.opt.plan)) plan = JSON.parse(await readFile(resolve(str(a.opt.plan)!), 'utf8')) as StoryPlan
     const asp = str(a.opt.aspect)

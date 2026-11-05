@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { contentProblem, normalizeScenes, planStory, sanitizeContent } from '@shared/story/plan'
 import { simulateFootball } from '@shared/story/football'
 import { Raster } from '@shared/story/raster'
+import { colorDistance, findTeam, resolveKits, themeForTeam } from '@shared/story/teams'
 import { buildBackdropAss, buildStoryAss, roundedRectPath } from '@shared/story/scenes'
 import { DEFAULT_STORY_THEME, type StoryContent, type StoryScene } from '@shared/story/types'
 import { parseScenes } from '../../src/main/story/ai'
@@ -217,5 +218,58 @@ describe('Yazılım rasterleştirici', () => {
     r.fill([[5, 5], [35, 5], [35, 35], [5, 35], [5, 5], [15, 15], [15, 25], [25, 25], [25, 15], [15, 15]], [255, 255, 255], 1)
     expect(r.data[(20 * 40 + 20) * 3]).toBe(0)
     expect(r.data[(8 * 40 + 8) * 3]).toBe(255)
+  })
+})
+
+describe('Takım formaları ve takıma özgü tema', () => {
+  it('takım adı Türkçe/İngilizce/aksansız yazımlarla bulunur; bilinmeyen null', () => {
+    for (const q of ['Bayern Münih', 'bayern munich', 'FC Bayern', 'Bayern Munih']) expect(findTeam(q)?.id, q).toBe('bayern')
+    expect(findTeam('Fenerbahce')?.id).toBe('fenerbahce')
+    expect(findTeam('Fenerbahçe')?.id).toBe('fenerbahce')
+    expect(findTeam('galatasaray')?.id).toBe('galatasaray')
+    expect(findTeam('Beşiktaş')?.id).toBe('besiktas')
+    expect(findTeam('Borussia Dortmund')?.id).toBe('dortmund')
+    expect(findTeam('Atletico Madrid')?.id).toBe('atletico')
+    expect(findTeam('Real Madrid')?.id).toBe('realmadrid')
+    expect(findTeam('Uzaylı Spor')).toBeNull()
+    expect(findTeam('')).toBeNull()
+  })
+  it('Bayern kırmızı (şort/çorap dahil, doğrulanmış 2025/26), Galatasaray sarı-kırmızı parçalı', () => {
+    const b = findTeam('Bayern')!
+    expect(b.home).toMatchObject({ primary: '#DC052D', shorts: '#DC052D', socks: '#DC052D', pattern: 'solid' })
+    expect(b.note).toMatch(/2025\/26/)
+    const g = findTeam('Galatasaray')!.home
+    expect(g.pattern).toBe('halves')
+    expect([g.primary, g.secondary].sort()).toEqual(['#A90432', '#FDB913'])
+  })
+  it('resolveKits: adla forma gelir, alanlarla ezilir; aynı renkte rakip yedek forma giyer; kaleci renk ayrışır', () => {
+    const r = resolveKits({ team: 'Bayern Münih' }, { team: 'Dortmund' })
+    expect(r.home.primary).toBe('#DC052D')
+    expect(r.away.primary).toBe('#FDE100')
+    expect(r.homeName).toBe('Bayern Münih')
+    expect(colorDistance(r.keeper.primary, r.home.primary)).toBeGreaterThan(150)
+    expect(colorDistance(r.keeper.primary, r.away.primary)).toBeGreaterThan(150)
+    // Galatasaray - Fenerbahçe değil; Bayern - Liverpool: ikisi de kırmızı → Liverpool yedek (beyaz)
+    const c = resolveKits({ team: 'Bayern' }, { team: 'Liverpool' })
+    expect(c.away.primary).toBe('#F4F4F4')
+    expect(c.notes.join(' ')).toMatch(/karıştığı/)
+    expect(resolveKits({ team: 'Bayern', color: '#112233' }).home.primary).toBe('#112233')
+    expect(resolveKits({ team: 'Bayern' }, { team: 'Liverpool', color: '#00AA00' }).away.primary).toBe('#00AA00') // açık renk verilmişse zorlanmaz
+    expect(() => resolveKits({ team: 'Uzaylı Spor' })).toThrow(/takım bulunamadı/)
+    expect(contentProblem({ type: 'football', home: { team: 'Uzaylı Spor' }, players: [{ id: 'a', team: 'home', at: 'orta-nokta' }], actions: [] })).toMatch(/takım bulunamadı/)
+  })
+  it('themeForTeam: vurgu rengi takımın rengi; koyu zeminde okunmayan renk yerine ikincisi; bilinmeyen takım temayı değiştirmez', () => {
+    expect(themeForTeam(DEFAULT_STORY_THEME, 'Bayern').accent).toBe('#DC052D')
+    expect(themeForTeam(DEFAULT_STORY_THEME, 'Galatasaray').accent).toBe('#FDB913') // koyu kırmızı okunmaz → sarı
+    expect(themeForTeam(DEFAULT_STORY_THEME, 'Beşiktaş').accent).toBe(DEFAULT_STORY_THEME.accent === '#FFD21F' ? '#F4F4F4' : '#F4F4F4')
+    expect(themeForTeam(DEFAULT_STORY_THEME, 'Yok Spor')).toBe(DEFAULT_STORY_THEME)
+  })
+  it('sanitize: team/source korunur; çağrı metni içeren kaynak atılır', () => {
+    const c = sanitizeContent({ type: 'stats', team: 'Bayern', source: 'Bundesliga.com', cards: [{ value: '36', unit: 'GOL' }] }) as Extract<StoryContent, { type: 'stats' }>
+    expect(c.team).toBe('Bayern')
+    expect(c.source).toBe('Bundesliga.com')
+    expect((sanitizeContent({ type: 'stats', source: 'Abone ol', cards: [{ value: '1' }] }) as Extract<StoryContent, { type: 'stats' }>).source).toBeUndefined()
+    const ass = buildStoryAss(c, DEFAULT_STORY_THEME, 1920, 1080, 6)
+    expect(ass).toContain('KAYNAK: BUNDESLİGA.COM')
   })
 })
