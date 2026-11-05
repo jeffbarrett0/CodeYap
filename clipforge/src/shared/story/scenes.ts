@@ -91,7 +91,7 @@ export class StoryAss {
     const { W, H, theme } = this
     for (let i = 0; i < 14; i++) {
       const r = (0.62 - i * 0.04) * W
-      this.shape(0, circlePath(r), W * 0.5 - r, H * 0.62 - r, theme.accent, 0.013, { layer: 0, extra: '' })
+      this.shape(0, circlePath(r), W * 0.5 - r, H * 0.62 - r, theme.accent, 0.0055, { layer: 0, extra: '' })
     }
     const step = Math.round(64 * this.k)
     for (let x = step; x < W; x += step) this.rect(0, x, 0, Math.max(1, this.k), H, theme.accent, 0.035, { layer: 0 })
@@ -233,7 +233,7 @@ function personScene(a: StoryAss, c: Extract<StoryContent, { type: 'person' }>):
   if (c.role) {
     const w = (c.role.length * 15 + 40) * k
     a.rect(0.2, x, y, w, 40 * k, theme.accent, 1, { slide: 20 * k })
-    a.text(0.25, 'Kick', x + 18 * k, y + 8 * k, upper(c.role), { color: '#04110A', slide: 20 * k, fs: 22 * k })
+    a.text(0.25, 'Kick', x + 18 * k, y + 8 * k, upper(c.role), { color: '#0A0A0A', slide: 20 * k, fs: 22 * k })
     y += 62 * k
   }
   const w1 = Math.min(W - 160 * k, (first.length * 40 + 60) * k)
@@ -249,7 +249,7 @@ function personScene(a: StoryAss, c: Extract<StoryContent, { type: 'person' }>):
   if (c.sub) {
     const w3 = (c.sub.length * 14 + 40) * k
     a.rect(0.65, x, y, w3, 40 * k, theme.accent, 1, { slide: 20 * k })
-    a.text(0.7, 'Kick', x + 18 * k, y + 8 * k, upper(c.sub), { color: '#04110A', slide: 20 * k, fs: 21 * k })
+    a.text(0.7, 'Kick', x + 18 * k, y + 8 * k, upper(c.sub), { color: '#0A0A0A', slide: 20 * k, fs: 21 * k })
   }
 }
 
@@ -267,6 +267,23 @@ function titleScene(a: StoryAss, c: Extract<StoryContent, { type: 'title'; text:
   a.grow(0.2, (W - bw) / 2, H * 0.5 + 70 * k, bw, 6 * k, theme.accent, 700)
   a.text(0.15, 'Head', W / 2, H * 0.5, lines(upper(c.text), a.portrait ? 14 : 26), { an: 5, fs: 76 * k, slide: 20 * k })
   if (c.sub) a.text(0.5, 'Kick', W / 2, H * 0.5 + 118 * k, upper(c.sub), { an: 5 })
+}
+
+/** Medya sahnesi: görüntünün üstüne alt gölge + sarı çizgi + başlık/yazı (görüntünün kendisi ffmpeg'de hazırlanır) */
+function mediaScene(a: StoryAss, c: Extract<StoryContent, { type: 'media' }>): void {
+  const { W, H, k, theme } = a
+  if (!c.title && !c.caption) return
+  const barH = (c.caption && c.title ? 300 : 230) * k
+  for (let i = 0; i < 14; i++) a.rect(0, 0, H - barH + (i * barH) / 14, W, barH / 14 + 1, '#000000', 0.06 + i * 0.05, { layer: 1 })
+  let y = H - 120 * k
+  if (c.caption) {
+    a.text(0.3, 'Head', 80 * k, y, lines(upper(c.caption), a.portrait ? 24 : 46), { an: 1, fs: 46 * k, slide: 14 * k })
+    y -= (Math.ceil(c.caption.length / (a.portrait ? 24 : 46)) * 56 + 14) * k
+  }
+  if (c.title) {
+    a.rect(0.2, 80 * k, y - 36 * k, 28 * k, 4 * k, theme.accent)
+    a.text(0.2, 'Kick', 124 * k, y - 44 * k, upper(c.title), { an: 1 })
+  }
 }
 
 /** Harita dışındaki sahnelerin tam ASS metni. Harita sahnesi `main/story/render.ts` içinde mevcut harita çiziciyle yapılır. */
@@ -290,6 +307,9 @@ export function buildStoryAss(content: Exclude<StoryContent, { type: 'place' }>,
       break
     case 'title':
       titleScene(a, content)
+      break
+    case 'media':
+      mediaScene(a, content)
       break
   }
   return a.build()

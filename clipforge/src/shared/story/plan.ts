@@ -252,6 +252,14 @@ export function sanitizeContent(raw: unknown): StoryContent | null {
       const to = str(c.to, 40)
       return to ? { type: 'place', to, from: str(c.from, 40), label: str(c.label, 30), sub: str(c.sub, 48) } : null
     }
+    case 'media': {
+      const file = typeof c.file === 'string' ? c.file.trim().slice(0, 500) : ''
+      if (!file) return null
+      const fit = c.fit === 'contain' ? 'contain' : c.fit === 'cover' ? 'cover' : undefined
+      const align = c.align === 'left' || c.align === 'right' || c.align === 'center' ? c.align : undefined
+      const zoom = c.zoom === 'in' || c.zoom === 'out' || c.zoom === 'none' ? c.zoom : undefined
+      return { type: 'media', file, fit, align, zoom, title: str(c.title, 50), caption: str(c.caption, 120) }
+    }
     default:
       return null
   }

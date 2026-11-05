@@ -128,7 +128,7 @@ export async function runStory(req: StoryRequest, env: { userDataDir?: string; r
     stage('plan', { status: 'done', progress: 1, detail: `${plan.scenes.filter((x) => x.enabled).length} sahne` })
   } else {
     stage('plan', { status: 'running', progress: 0 })
-    const base = planStory(words, { theme: req.theme, isPlace: world ? (w) => (findPlace(world, w)?.name ?? undefined) : undefined })
+    const base = req.blank ? { ...planStory(words), scenes: [], warnings: ['Boş plan: sahneleri `story-plan.json` içine yazın (bkz. `story schema`).'] } : planStory(words, { theme: req.theme, isPlace: world ? (w) => (findPlace(world, w)?.name ?? undefined) : undefined })
     plan = base
     if (req.useAi) {
       const problem = llmConfigured(settings)
@@ -162,7 +162,7 @@ export async function runStory(req: StoryRequest, env: { userDataDir?: string; r
     check()
     const file = join(p.scenes, `sahne-${String(i + 1).padStart(2, '0')}-${sc.content.type}.mp4`)
     try {
-      await renderStoryScene(sc.content, plan.theme, size, sc.end - sc.start, service.tools.ffmpeg, file, { world, backdrop: bg, signal: hooks.signal })
+      await renderStoryScene(sc.content, plan.theme, size, sc.end - sc.start, service.tools.ffmpeg, file, { world, backdrop: bg, baseDir: p.dir, signal: hooks.signal })
     } catch (e) {
       check()
       throw new Error(`${i + 1}. sahne (${sc.content.type}, ${sc.start.toFixed(1)} sn) çizilemedi: ${e instanceof Error ? e.message : String(e)}`)

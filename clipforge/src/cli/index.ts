@@ -18,6 +18,10 @@ import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
 import { runStory } from '../main/story/pipeline'
+import { renderBackdrop, renderStoryScene } from '../main/story/render'
+import { normalizeScenes } from '../shared/story/plan'
+import { STORY_SCHEMA } from '../shared/story/schema'
+import { runTool } from '../main/ffmpeg'
 import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
 import { chapterTimestamp } from '../shared/chapters'
@@ -71,7 +75,9 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
   auto-kick <video> [--out klasör] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
                                          yayın kaydı → transkript → sessizleri kırp → tam video (<out>/<ad> - full.mp4 + proje); biten aşamalar yeniden çalıştırmada atlanır
-  story plan <ses|video> [--out klasör] [--ai] [--lang tr]   anlatımı içe aktarır, transkribe eder, hareketli SAHNE PLANI çıkarır (story-plan.json; düzenlenebilir)
+  story schema                           sahne türleri + örnek plan (Claude Code planı yazarken kullanır)
+  story preview <plan.json> [--out klasör] [--scene id] [--at 0.7] [--aspect 16:9]   sahneleri PNG kareye çizer (medya/ses gerekmez) — yazdığınız planı gözle doğrulayın
+  story plan <ses|video> [--out klasör] [--ai | --blank] [--lang tr]   anlatımı içe aktarır, transkribe eder, hareketli SAHNE PLANI çıkarır (story-plan.json; düzenlenebilir)
   story build <ses|video> [--out klasör] [--plan dosya.json] [--aspect 16:9|9:16|1:1]   planı çizer: anlatım sesi + sahneler tek projede
   new <proje> [--name ad]                boş proje oluşturur
   import <proje> <dosya...> [--add] [--layer V3]   medya ekler (--add: ilk videoyu --layer'a (varsayılan V1), 0. sn'den, sesiyle yerleştirir)
@@ -209,12 +215,40 @@ async function main(argv: string[]): Promise<unknown> {
   if (command === 'story') {
     const sub = projectArg
     const media = rest[0]
-    if ((sub !== 'plan' && sub !== 'build') || !media) throw new Error('Kullanım: story plan|build <ses|video> [--out klasör]')
+    if (sub === 'schema') return out(STORY_SCHEMA)
+    if (sub === 'preview') {
+      if (!media) throw new Error('Kullanım: story preview <plan.json> [--out klasör]')
+      const plan = JSON.parse(await readFile(resolve(media), 'utf8')) as StoryPlan
+      const service = await makeService()
+      const world = await loadWorld(service.deps.resourcesDir).catch(() => undefined)
+      const asp = str(a.opt.aspect)
+      const aspect = asp === '9:16' || asp === '1:1' ? asp : '16:9'
+      const size = { ...aspectSize(aspect), fps: 30 }
+      const dir = resolve(str(a.opt.out) ?? join(dirname(resolve(media)), 'onizleme'))
+      await mkdir(dir, { recursive: true })
+      const only = str(a.opt.scene)
+      const frames: { id: string; type: string; file: string; atSec: number }[] = []
+      const bg = join(dir, `zemin-${size.width}x${size.height}.png`)
+      await renderBackdrop(plan.theme, size, service.tools.ffmpeg, bg)
+      for (const sc of normalizeScenes(plan.scenes, plan.totalSec).filter((x) => !only || x.id === only)) {
+        const dur = Math.max(1, sc.end - sc.start)
+        const mp4 = join(dir, `${sc.id}.mp4`)
+        await renderStoryScene(sc.content, plan.theme, size, dur, service.tools.ffmpeg, mp4, { world, backdrop: bg, baseDir: dirname(resolve(media)) })
+        const at = Math.min(dur - 0.05, Math.max(0, dur * (num(a.opt.at, 'at') ?? 0.7)))
+        const png = join(dir, `${sc.id}.png`)
+        await runTool(service.tools.ffmpeg, ['-y', '-v', 'error', '-ss', at.toFixed(2), '-i', mp4, '-frames:v', '1', png])
+        await rm(mp4, { force: true })
+        frames.push({ id: sc.id, type: sc.content.type, file: png, atSec: r1(at) })
+      }
+      if (only && frames.length === 0) throw new Error(`Sahne bulunamadı: ${only}`)
+      return out({ ok: true, frames, hint: 'PNG kareleri açıp bakın (sahne süresinin %70\'inde); yazı taşıyor, çakışıyor ya da kart geç beliriyorsa planı düzeltip yeniden çizin.' })
+    }
+    if ((sub !== 'plan' && sub !== 'build') || !media) throw new Error('Kullanım: story schema | story preview <plan.json> | story plan|build <ses|video> [--out klasör]')
     let plan: StoryPlan | undefined
     if (str(a.opt.plan)) plan = JSON.parse(await readFile(resolve(str(a.opt.plan)!), 'utf8')) as StoryPlan
     const asp = str(a.opt.aspect)
     const r = await runStory(
-      { mediaPath: media, outDir: str(a.opt.out), action: sub, plan, useAi: !!a.opt.ai, language: str(a.opt.lang), aspect: asp === '9:16' || asp === '1:1' ? asp : '16:9' },
+      { mediaPath: media, outDir: str(a.opt.out), action: sub, plan, useAi: !!a.opt.ai, blank: !!a.opt.blank, language: str(a.opt.lang), aspect: asp === '9:16' || asp === '1:1' ? asp : '16:9' },
       {},
       { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }
     )

@@ -15,7 +15,8 @@ const TEMPLATES: Record<StoryType, StoryContent> = {
   person: { type: 'person', role: 'UNVAN', name: 'AD SOYAD' },
   quote: { type: 'quote', text: 'Alıntı metni' },
   title: { type: 'title', text: 'BAŞLIK' },
-  place: { type: 'place', to: 'Türkiye' }
+  place: { type: 'place', to: 'Türkiye' },
+  media: { type: 'media', file: 'C:/klasor/gorsel.png', fit: 'cover', caption: 'Alt yazı' }
 }
 
 export function summarize(c: StoryContent): string {
@@ -34,6 +35,8 @@ export function summarize(c: StoryContent): string {
       return c.text
     case 'place':
       return c.to
+    case 'media':
+      return c.file.split(/[\\/]/).pop() ?? c.file
   }
 }
 

@@ -332,6 +332,38 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(cli('story', 'cizim', wav).ok).toBe(false)
   }, 240_000)
 
+  it('story schema + preview + medya sahnesi (tam kare görsel, şeffaf karakter, video) — Claude Code akışı', () => {
+    const ffmpeg = require('ffmpeg-static') as string
+    const sch = cli('story', 'schema')
+    expect(Object.keys(sch.types)).toEqual(expect.arrayContaining(['stats', 'timeline', 'person', 'media']))
+    expect(sch.plan.theme.accent).toBe('#FFD21F') // sarı-siyah varsayılan
+    const dir = join(tmp, 'medya')
+    mkdirSync(dir, { recursive: true })
+    execFileSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1600x900:rate=1:duration=1', '-frames:v', '1', join(dir, 'sahne.png')])
+    execFileSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=600x900,format=rgba,geq=r=255:g=120:b=20:a=\'if(lt(hypot(X-300,Y-450),260),255,0)\'', '-frames:v', '1', join(dir, 'karakter.png')])
+    execFileSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25:duration=2', '-pix_fmt', 'yuv420p', join(dir, 'klip.mp4')])
+    const plan = {
+      totalSec: 40, planner: 'ai', warnings: [], theme: sch.plan.theme,
+      scenes: [
+        { id: 'm1', start: 0, end: 8, enabled: true, source: 'manual', content: { type: 'media', file: 'sahne.png', fit: 'cover', zoom: 'in', title: 'Stuttgart', caption: 'Hikâyenin başladığı yer' } },
+        { id: 'm2', start: 8, end: 16, enabled: true, source: 'manual', content: { type: 'media', file: 'karakter.png', fit: 'contain', align: 'right', caption: 'Teknik direktör' } },
+        { id: 'm3', start: 16, end: 24, enabled: true, source: 'manual', content: { type: 'media', file: 'klip.mp4', caption: 'Antrenman' } },
+        { id: 'p1', start: 24, end: 32, enabled: true, source: 'manual', content: { type: 'person', role: 'TEKNİK DİREKTÖR', name: 'AD SOYAD' } }
+      ]
+    }
+    const pf = join(dir, 'plan.json')
+    writeFileSync(pf, JSON.stringify(plan))
+    const r = cli('story', 'preview', pf, '--out', join(dir, 'onizleme'))
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.frames.map((f: any) => f.id)).toEqual(['m1', 'm2', 'm3', 'p1'])
+    for (const f of r.frames) expect(statSync(f.file).size, f.id).toBeGreaterThan(5000)
+    // eksik dosya: anlaşılır hata
+    writeFileSync(pf, JSON.stringify({ ...plan, scenes: [{ id: 'x', start: 0, end: 5, enabled: true, source: 'manual', content: { type: 'media', file: 'yok.png' } }] }))
+    const bad = cli('story', 'preview', pf, '--out', join(dir, 'onizleme2'))
+    expect(bad.ok).toBe(false)
+    expect(JSON.stringify(bad)).toContain('Medya dosyası bulunamadı')
+  }, 240_000)
+
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)
     const bad = cli('bogus', proj)

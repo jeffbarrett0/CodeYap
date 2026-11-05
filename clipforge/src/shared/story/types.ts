@@ -20,16 +20,16 @@ export interface StoryTheme {
   brand: string
 }
 
-/** Referans videodaki gibi: koyu yeşil zemin, yeşil vurgu */
+/** Siyah zemin, sarı vurgu (olumlu/olumsuz/uyarı için anlamlı renkler korunur) */
 export const DEFAULT_STORY_THEME: StoryTheme = {
-  bg: '#07100B',
-  accent: '#22D36B',
-  good: '#22D36B',
-  warn: '#F2B705',
-  bad: '#E5484D',
+  bg: '#0A0A0A',
+  accent: '#FFD21F',
+  good: '#6EE7A0',
+  warn: '#FF9F1C',
+  bad: '#FF4D4D',
   text: '#FFFFFF',
-  muted: '#8FA398',
-  card: '#101C15',
+  muted: '#A8A28A',
+  card: '#16140C',
   fontHead: 'Arial Black',
   fontBody: 'Arial',
   brand: ''
@@ -63,6 +63,8 @@ export type StoryContent =
   | { type: 'quote'; text: string; by?: string }
   | { type: 'title'; text: string; sub?: string }
   | { type: 'place'; to: string; from?: string; label?: string; sub?: string }
+  /** Hazır görsel/video (gerçekçi sahne, 2D/3D karakter render'ı…): tam kare ya da şeffaf PNG karakter; altta isteğe bağlı yazı */
+  | { type: 'media'; file: string; fit?: 'cover' | 'contain'; align?: 'left' | 'center' | 'right'; zoom?: 'in' | 'out' | 'none'; title?: string; caption?: string }
 
 export type StoryType = StoryContent['type']
 export const STORY_TYPES: { id: StoryType; label: string; hint: string }[] = [
@@ -72,7 +74,8 @@ export const STORY_TYPES: { id: StoryType; label: string; hint: string }[] = [
   { id: 'person', label: 'İsim bandı', hint: 'Kişi adı + unvanı' },
   { id: 'quote', label: 'Alıntı', hint: 'Büyük alıntı yazısı' },
   { id: 'title', label: 'Başlık', hint: 'Konu başlığı' },
-  { id: 'place', label: 'Harita', hint: 'Anlatılan yeri haritada göster' }
+  { id: 'place', label: 'Harita', hint: 'Anlatılan yeri haritada göster' },
+  { id: 'media', label: 'Görsel / video / karakter', hint: 'Hazır fotoğraf, video ya da şeffaf PNG karakter; altına yazı' }
 ]
 
 export interface StoryScene {
@@ -112,6 +115,8 @@ export interface StoryRequest {
   plan?: StoryPlan
   /** Yapay zekâ ayarlıysa sahneleri o planlasın */
   useAi?: boolean
+  /** plan: otomatik sahne bulma; boş plan yazılır (sahneleri Claude Code/kullanıcı yazar) */
+  blank?: boolean
   aspect?: '16:9' | '9:16' | '1:1'
   language?: string
   theme?: Partial<StoryTheme>
