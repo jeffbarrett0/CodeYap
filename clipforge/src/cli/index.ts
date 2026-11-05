@@ -6,7 +6,7 @@
  *   node out/main/cli.js <komut> <proje.clipforge> [seçenekler]      (kısa: npm run cli -- <komut> ...)
  */
 import { execFile } from 'node:child_process'
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { nearestBoundary, suggestClip } from '../shared/clip/boundaries'
@@ -17,6 +17,8 @@ import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems
 import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
+import { runStory } from '../main/story/pipeline'
+import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
 import { chapterTimestamp } from '../shared/chapters'
 import { makeTopicClip, topicCandidates } from '../main/autokick/clips'
@@ -69,6 +71,8 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
   auto-kick <video> [--out klasör] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
                                          yayın kaydı → transkript → sessizleri kırp → tam video (<out>/<ad> - full.mp4 + proje); biten aşamalar yeniden çalıştırmada atlanır
+  story plan <ses|video> [--out klasör] [--ai] [--lang tr]   anlatımı içe aktarır, transkribe eder, hareketli SAHNE PLANI çıkarır (story-plan.json; düzenlenebilir)
+  story build <ses|video> [--out klasör] [--plan dosya.json] [--aspect 16:9|9:16|1:1]   planı çizer: anlatım sesi + sahneler tek projede
   new <proje> [--name ad]                boş proje oluşturur
   import <proje> <dosya...> [--add] [--layer V3]   medya ekler (--add: ilk videoyu --layer'a (varsayılan V1), 0. sn'den, sesiyle yerleştirir)
   show <proje>                           katmanlar, klipler, altyazılar, süre
@@ -201,6 +205,29 @@ async function main(argv: string[]): Promise<unknown> {
       { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }
     )
     return out({ ok: true, ...r, note: 'Otomatik klip aşaması henüz yok. Proje uygulamada açılabilir.' })
+  }
+  if (command === 'story') {
+    const sub = projectArg
+    const media = rest[0]
+    if ((sub !== 'plan' && sub !== 'build') || !media) throw new Error('Kullanım: story plan|build <ses|video> [--out klasör]')
+    let plan: StoryPlan | undefined
+    if (str(a.opt.plan)) plan = JSON.parse(await readFile(resolve(str(a.opt.plan)!), 'utf8')) as StoryPlan
+    const asp = str(a.opt.aspect)
+    const r = await runStory(
+      { mediaPath: media, outDir: str(a.opt.out), action: sub, plan, useAi: !!a.opt.ai, language: str(a.opt.lang), aspect: asp === '9:16' || asp === '1:1' ? asp : '16:9' },
+      {},
+      { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }
+    )
+    return out({
+      ok: true,
+      project: r.projectPath,
+      plan: r.planPath,
+      planner: r.plan.planner,
+      warnings: r.plan.warnings,
+      scenes: r.plan.scenes.map((x) => ({ id: x.id, start: r1(x.start), end: r1(x.end), enabled: x.enabled, type: x.content.type, reason: x.reason, content: x.content })),
+      rendered: r.rendered,
+      hint: sub === 'plan' ? 'Bu bir ÖNERİ planıdır. story-plan.json içindeki sahneleri düzenleyin (ya da kendiniz yazın: transcript okuyup type/at alanlarıyla), sonra `story build` çalıştırın. Çağrı/yönlendirme metni yazmayın; yalnızca konuşulanlara dayanın.' : 'Proje uygulamada açılıp elle düzenlenebilir.'
+    })
   }
   if (!projectArg) throw new Error('Proje dosyası yolu gerekli. `help` komutuna bakın.')
 

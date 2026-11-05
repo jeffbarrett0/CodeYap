@@ -350,6 +350,14 @@ Aşamalar: içe aktar → transkripsiyon → **sessizleri kes → boşlukları k
 * **CLI:** `captions <proje> --lang en`.
 * **Sınırlar:** yalnızca İngilizce (dil listesi genişletilebilir); çeviri kalitesi modele bağlı; internet ve anahtar gerekir. Whisper'ın kendi çeviri kipi (`--translate`, çevrimdışı) kullanılmadı: kelime zamanlaması kaba ve her dil için ayrı transkripsiyon gerekirdi.
 
+## 44. Anlatım → Görsel (anlatılanı hareketli sahnelerle görselleştirme)
+
+**İstek:** içerik üreticisi bir konuyu (ör. Stuttgart'ın hikâyesi) anlatırken Claude Code'un arkadan anlatılana göre animasyonlu sahneler (rakam kartları, isim bandı, sezon çizelgesi) üretmesi; aynısı ClipForge'da, ayrı bir yerde, "sesi atarım, görselleştirsin".
+* **Girdi:** ses ya da video anlatım. Çıktı: tek proje — anlatım sesi Ses katmanında, sahneler Video 1'de (normal klipler; sonradan elle düzenlenir). Kaynağa dokunulmaz.
+* **Sahne dili (`shared/story`):** saf JSON (`StoryPlan`): `stats`, `timeline`, `list`, `person`, `quote`, `title`, `place`. Her sahnenin anlatım zamanı ve (kart/madde için) sahne içi `at` zamanı var; öğe konuşulduğu an belirir. Çizim: ASS vektör animasyonu + ffmpeg (ek bağımlılık yok, deterministik). Ortak zemin (ızgara/parıltı/marka) bir kez PNG'ye çizilip her sahnede arka plan olur → ~7 kat hızlı. Harita sahnesi mevcut harita çiziciyi kullanır.
+* **Planlama (3 yol):** (1) kurallı taslak (`planStory`): rakam+birim → rakam kartları, `22/23` sezonları → çizelge (yan cümleler madde, ton anahtar sözcüklerden), "teknik direktör Ad Soyad" → isim bandı, bilinen yer → harita, bölüm başlıkları → başlık; (2) yapay zekâ (ayarlıysa; çıktısı `sanitizeContent` ile süzülür, çağrı metni atılır); (3) Claude Code `story-plan.json`'u kendisi yazar. Kullanıcı arayüzde her sahneyi kapatır/siler/ekler/düzenler; kurguyu o belirler.
+* **Sınırlar:** kurallı taslak basit (yan cümle → madde); isim bandı şeffaf değil (koyu zeminde); büyük harf dönüşümü Türkçe (yabancı adlarda `i` → `İ`); gerçek bir anlatımla gözle denenmedi (yapay transkript ve kare kontrolüyle doğrulandı).
+
 ## 43. Premium altın altyazı stili ve altyazı başına satır genişliği
 
 **İstek:** beyaz/siyah yerine altın-sarı, ince siyah konturlu "premium" altyazı; 8 kelimelik altyazı üst üste (çok satıra) yığılıyorsa sağa çekerek düzenleyebilmek.

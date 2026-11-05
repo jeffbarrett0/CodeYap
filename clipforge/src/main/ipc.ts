@@ -1,10 +1,11 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import type { IpcChannel, IpcInvoke, IpcResult } from '../shared/ipc'
 import type { AppService } from './app'
 import { userMessage } from './tasks'
 import { setCpuMode } from './ffmpeg'
 import { AutoKickManager } from './autokick/pipeline'
+import { StoryManager } from './story/pipeline'
 import { transcriptionReadiness } from '../shared/autokick'
 import { makeTopicClip, topicCandidates } from './autokick/clips'
 
@@ -19,8 +20,19 @@ const MEDIA_FILTERS = [
 
 /** Tipli IPC kanallarını bağlar. Her hata anlaşılır bir mesaja çevrilip renderer'a Result olarak döner; main çökmez. */
 export function registerIpc(app: AppService, getWindow: () => BrowserWindow | null): void {
+  const story = new StoryManager({ userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }, (s) => getWindow()?.webContents.send('story:update', s))
   const autoKick = new AutoKickManager({ userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }, (s) => getWindow()?.webContents.send('autokick:update', s))
   const handlers: Handlers = {
+    'story:start': (req) => story.start(req),
+    'story:cancel': (id) => story.cancel(id),
+    'story:list': () => story.list(),
+    'story:plan': async (p) => {
+      try {
+        return JSON.parse(await readFile(p, 'utf8'))
+      } catch {
+        return null
+      }
+    },
     'autokick:start': (req) => autoKick.start(req),
     'autokick:cancel': (id) => autoKick.cancel(id),
     'autokick:list': () => autoKick.list(),

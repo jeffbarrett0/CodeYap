@@ -6,6 +6,7 @@
  *  - `ClipforgeApi`: renderer'ın gördüğü yüzey. Preload bunu IPC üzerinden, tarayıcı modu ise sahte (mock)
  *    bir uygulama ile sağlar; böylece arayüz iki ortamda da aynı kodla çalışır.
  */
+import type { StoryPlan, StoryRequest, StoryStatus } from './story/types'
 import type { AutoKickRequest, AutoKickStatus, TranscriptionReadiness } from './autokick'
 import type { TopicCandidate } from './topic'
 import type { IdeasResult } from './ideas'
@@ -142,11 +143,18 @@ export interface IpcInvoke {
   'templates:save': [[LayoutTemplate], LayoutTemplate[]]
   'templates:delete': [[string], LayoutTemplate[]]
   'dev:openDevTools': [[], void]
+  /** Anlatım → Görsel: ses/video anlatımından hareketli sahneler (iş arka planda sürer) */
+  'story:start': [[StoryRequest], string]
+  'story:cancel': [[string], void]
+  'story:list': [[], StoryStatus[]]
+  /** Kayıtlı sahne planı (düzenlemek için) */
+  'story:plan': [[string], StoryPlan | null]
 }
 
 export interface IpcEvents {
   'task:update': TaskInfo
   'autokick:update': AutoKickStatus
+  'story:update': StoryStatus
   'asset:added': MediaAsset
   'asset:updated': MediaAsset
   'transcript:ready': { assetId: string; transcript: Transcript; reused: boolean }

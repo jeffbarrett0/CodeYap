@@ -1096,6 +1096,56 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('export-timestamps')).toBeChecked()
   })
 
+  test('Anlatım → Görsel: dosya seç → sahne planı → düzenle (kapat/sil/ekle/içerik) → videoyu oluştur', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('story-btn').click()
+    await expect(page.getByTestId('story-dialog')).toBeVisible()
+    await expect(page.getByTestId('story-plan')).toBeDisabled() // dosya seçilmeden planlanamaz
+    await page.getByTestId('story-pick').click()
+    await expect(page.getByTestId('story-media')).toContainText('mock://chat')
+    await page.getByTestId('story-plan').click()
+    const scenes = page.getByTestId('story-scene')
+    await expect(scenes).toHaveCount(3)
+    await expect(scenes.first()).toContainText('Rakam kartları')
+    await expect(scenes.first()).toContainText('7 PUAN')
+    await expect(scenes.nth(1)).toContainText('22/23 → 23/24')
+    await expect(scenes.first()).toContainText('Anlatımda:') // neden önerildi
+    // kapat, sil, ekle
+    await scenes.nth(2).getByTestId('story-scene-on').uncheck()
+    await expect(scenes.nth(2)).toHaveAttribute('data-enabled', 'false')
+    await scenes.nth(2).getByTestId('story-scene-del').click()
+    await expect(scenes).toHaveCount(2)
+    await page.getByTestId('story-add-type').selectOption('quote')
+    await page.getByTestId('story-add').click()
+    await expect(scenes).toHaveCount(3)
+    await expect(scenes.nth(2)).toContainText('Alıntı')
+    // içerik düzenleme: geçerli JSON uygulanır, geçersiz olan uyarı verir
+    const row = scenes.first()
+    await row.locator('summary').click()
+    const json = row.getByTestId('story-scene-json')
+    await json.fill(JSON.stringify({ type: 'stats', cards: [{ value: '9', unit: 'GOL' }] }))
+    await expect(row).toContainText('9 GOL')
+    await json.fill('{bozuk')
+    await expect(row.getByRole('alert')).toContainText('JSON')
+    await json.fill(JSON.stringify({ type: 'title', text: 'Videoyu beğenin ve abone olun' }))
+    await expect(row.getByRole('alert')).toContainText('Geçerli')
+    // oluştur
+    await page.getByTestId('story-build').click()
+    await expect(page.getByTestId('story-result')).toBeVisible()
+    await expect(page.getByTestId('story-result')).toContainText('sahne')
+    await expect(page.getByTestId('story-open')).toBeVisible()
+  })
+
+  test('Anlatım → Görsel: transkript başarısızsa hata anlaşılır ve plan görünmez', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('story-btn').click()
+    await page.evaluate(() => void ((window as any).__mock.openFile = 'mock://bozuk.wav'))
+    await page.getByTestId('story-pick').click()
+    await page.getByTestId('story-plan').click()
+    await expect(page.getByTestId('story-error')).toContainText('konuşma')
+    await expect(page.getByTestId('story-plan-view')).toHaveCount(0)
+  })
+
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {
     await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { chapters: 'Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.' } }))
     await boot(page)

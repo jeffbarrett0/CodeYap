@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { AppInfo } from '@shared/ipc'
 import type { AutoKickStatus } from '@shared/autokick'
+import type { StoryStatus } from '@shared/story/types'
 import type { IdeasResult } from '@shared/ideas'
 import type { ChapterDensity, ChaptersResult } from '@shared/chapters'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -23,7 +24,7 @@ import { requireApi } from './api'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
-export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick'
+export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'story'
 
 export interface Toast {
   id: string
@@ -158,6 +159,7 @@ interface State {
   setChaptersText(t: string): void
   /** Auto Kick işleri (arka planda sürer; pencere kapansa da devam eder) */
   autoKick: Record<string, AutoKickStatus>
+  story: Record<string, StoryStatus>
   toasts: Toast[]
 
   query: string
@@ -327,6 +329,7 @@ export const useStore = create<State>()((set, get) => {
     transcripts: {},
     tasks: {},
     autoKick: {},
+    story: {},
     ideas: {},
     captionsTranslating: false,
     ideasBusy: false,
@@ -354,6 +357,12 @@ export const useStore = create<State>()((set, get) => {
       set({ settings, appInfo, tasks: Object.fromEntries(tasks.map((t) => [t.id, t])), ready: true })
       void get().loadTemplates()
       void a.invoke('autokick:list').then((l) => set({ autoKick: Object.fromEntries(l.map((j) => [j.id, j])) }))
+      void a.invoke('story:list').then((l) => set({ story: Object.fromEntries(l.map((j) => [j.id, j])) }))
+      a.on('story:update', (j) => {
+        const prev = get().story[j.id]
+        set((s) => ({ story: { ...s.story, [j.id]: j } }))
+        if (prev?.status === 'running' && j.status === 'failed') get().toast('error', `Anlatım işi hata verdi: ${j.error ?? ''}`)
+      })
       a.on('autokick:update', (j) => {
         const prev = get().autoKick[j.id]
         set((s) => ({ autoKick: { ...s.autoKick, [j.id]: j } }))

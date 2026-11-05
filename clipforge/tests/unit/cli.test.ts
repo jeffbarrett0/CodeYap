@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -290,6 +290,47 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(md5(proj3)).toBe(before)
     expect(cli('chapters', proj3, '--ai').ai.error).toMatch(/kapalı/) // anahtar yokken nedeni söyler
   }, 120_000)
+
+  it('story: anlatım sesi → plan (düzenlenebilir JSON) → sahneler çizilir; ses Ses katmanında, sahneler Video 1\'de, çizelge süresi anlatımla aynı', () => {
+    const ffmpeg = require('ffmpeg-static') as string
+    const wav = join(tmp, 'anlatim ses.wav')
+    execFileSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=30', wav])
+    const dir = join(tmp, 'anlatim cikti')
+    const p = cli('story', 'plan', wav, '--out', dir)
+    expect(p.ok).toBe(true)
+    expect(p.planner).toBe('auto')
+    const planPath = join(dir, 'story-plan.json')
+    expect(existsSync(planPath)).toBe(true)
+    const plan = JSON.parse(readFileSync(planPath, 'utf8'))
+    expect(plan.totalSec).toBeGreaterThan(10)
+    plan.scenes = [
+      { id: 'a', start: 2, end: 12, enabled: true, source: 'manual', content: { type: 'stats', kicker: 'RAKAMLARLA', cards: [{ label: 'Lig', value: '7', unit: 'PUAN', tone: 'good' }, { value: '15.', unit: 'SIRA', tone: 'bad', at: 3 }] } },
+      { id: 'b', start: 12, end: 20, enabled: true, source: 'manual', content: { type: 'person', role: 'TEKNİK DİREKTÖR', name: 'AD SOYAD' } },
+      { id: 'c', start: 20, end: 26, enabled: false, source: 'manual', content: { type: 'title', text: 'KAPALI' } }
+    ]
+    writeFileSync(planPath, JSON.stringify(plan))
+    const b = cli('story', 'build', wav, '--out', dir, '--plan', planPath, '--aspect', '16:9')
+    expect(b.ok, JSON.stringify(b)).toBe(true)
+    expect(b.rendered.scenes).toBe(2)
+    const show = cli('show', b.project)
+    const v1 = show.tracks.find((t: any) => t.id === 'V1')
+    expect(v1.clips).toHaveLength(2)
+    expect(v1.clips[0].start).toBeCloseTo(2, 1)
+    expect(v1.clips[1].start).toBeCloseTo(12, 1)
+    const audio = show.tracks.filter((t: any) => t.id !== 'V1').flatMap((t: any) => t.clips).filter((c: any) => c.start === 0)
+    expect(audio.length).toBeGreaterThan(0) // anlatım sesi 0. sn'den
+    expect(show.aspect).toBe('16:9')
+    // aynı build tekrar: eski sahneler temizlenir, çoğalmaz
+    const again = cli('story', 'build', wav, '--out', dir, '--plan', planPath)
+    expect(cli('show', again.project).tracks.find((t: any) => t.id === 'V1').clips).toHaveLength(2)
+    // kare: sahne gerçekten çizilmiş (düz zeminden farklı)
+    const fr = join(tmp, 'sahne-kare.jpg')
+    expect(cli('frame', b.project, '--at', '8', '--out', fr).ok).toBe(true)
+    expect(statSync(fr).size).toBeGreaterThan(8000)
+    // bozuk istek: anlaşılır hata
+    expect(cli('story', 'build', join(tmp, 'yok.wav')).ok).toBe(false)
+    expect(cli('story', 'cizim', wav).ok).toBe(false)
+  }, 240_000)
 
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)

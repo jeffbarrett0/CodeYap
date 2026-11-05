@@ -13,6 +13,8 @@ import { applyVocabulary, fixWord, parseVocabulary, withWords } from '@shared/tr
 import { scoreCandidates, snapCandidate } from '@shared/suggest/score'
 import { newId } from '@shared/timeline/model'
 import { initialStages, type AutoKickStatus } from '@shared/autokick'
+import { initialStoryStages, type StoryPlan, type StoryStatus } from '@shared/story/types'
+import { DEFAULT_STORY_THEME } from '@shared/story/types'
 import { buildClipProject, safeFileName } from '@shared/project/clipProject'
 import type { MediaAsset, Project, Settings, Transcript, TranscriptWord } from '@shared/types'
 import { TaskQueue, userMessage } from '../../main/tasks'
@@ -90,12 +92,24 @@ export function createMockApi(): ClipforgeApi {
   const clipProjects = new Map<string, Project>()
   const akJobs = new Map<string, AutoKickStatus>()
   const akCancel = new Set<string>()
+  const storyJobs = new Map<string, StoryStatus>()
+  const MOCK_PLAN: StoryPlan = {
+    totalSec: 120,
+    theme: DEFAULT_STORY_THEME,
+    planner: 'auto',
+    warnings: [],
+    scenes: [
+      { id: 's1', start: 4, end: 20, enabled: true, source: 'auto', reason: 'Puan tablosunda yedi puan var, on beşinci sıradayız.', content: { type: 'stats', kicker: 'RAKAMLARLA', cards: [{ label: 'Şampiyonlar Ligi', value: '7', unit: 'PUAN', tone: 'good' }, { label: 'Bundesliga', value: '15.', unit: 'SIRA', tone: 'bad' }] } },
+      { id: 's2', start: 20, end: 50, enabled: true, source: 'auto', reason: '22/23 sezonunda göreve geldi, 23/24 ikinci oldu.', content: { type: 'timeline', kicker: 'DÖNEMLER', title: 'Son sezonlar', periods: [{ label: '22/23', items: [{ text: 'GÖREVE GELDİ', tone: 'good' }] }, { label: '23/24', items: [{ text: 'BUNDESLIGA 2.', tone: 'good' }] }] } },
+      { id: 's3', start: 50, end: 60, enabled: true, source: 'auto', reason: 'Teknik direktör Sebastian Hoeness', content: { type: 'person', role: 'TEKNİK DİREKTÖR', name: 'SEBASTIAN HOENESS' } }
+    ]
+  }
   const assets = new Map<string, MediaAsset>()
   const search = new SearchService()
   const queue = new TaskQueue()
   queue.onUpdate((t) => emit('task:update', t))
   let userTemplates: import('@shared/types').LayoutTemplate[] = []
-  const w = window as unknown as { __mock?: { nextChat?: string; fail?: Record<string, string> } }
+  const w = window as unknown as { __mock?: { nextChat?: string; openFile?: string; fail?: Record<string, string> } }
   w.__mock = w.__mock ?? {}
 
   const SAMPLE_CSV = ['time,user,message', ...Array.from({ length: 12 }, (_, i) => `00:00:${String(i * 8).padStart(2, '0')},u${i},selam`), ...Array.from({ length: 80 }, (_, i) => `00:00:${String(Math.min(59, 40 + Math.floor(i / 5))).padStart(2, '0')}.${i % 10},v${i},LUL`)].join('\n')
@@ -105,8 +119,47 @@ export function createMockApi(): ClipforgeApi {
     'settings:get': () => settings,
     'settings:set': (p) => (settings = normalizeSettings({ ...settings, ...p })),
     'dialog:openMedia': () => ['/demo/2024-05-12 21-30-45.mkv'],
-    'dialog:openFile': () => 'mock://chat',
+    'dialog:openFile': () => w.__mock?.openFile ?? 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
+    'story:start': (req) => {
+      const id = `story-${storyJobs.size + 1}`
+      const status: StoryStatus = { id, request: req, name: req.mediaPath.split(/[\\/]/).pop() ?? req.mediaPath, status: 'running', stages: initialStoryStages(), startedAt: Date.now() }
+      storyJobs.set(id, status)
+      const push = () => emit('story:update', structuredClone(status))
+      push()
+      void (async () => {
+        const skip = req.action === 'plan' ? ['render', 'project'] : []
+        for (const st of status.stages) {
+          if (skip.includes(st.id)) {
+            st.status = 'skipped'
+            continue
+          }
+          st.status = 'running'
+          for (const f of [0.4, 1]) {
+            await sleep(60)
+            st.progress = f
+            push()
+          }
+          if (/bozuk/i.test(req.mediaPath) && st.id === 'transcribe') {
+            st.status = 'failed'
+            status.status = 'failed'
+            status.error = 'Whisper çalıştı ama konuşma bulunamadı.'
+            return push()
+          }
+          st.status = 'done'
+          push()
+        }
+        status.status = 'done'
+        status.finishedAt = Date.now()
+        const plan = req.plan ?? MOCK_PLAN
+        status.result = { outDir: '/anlatim/Anlatım/ses', projectPath: '/anlatim/Anlatım/ses/ses.clipforge', planPath: '/anlatim/Anlatım/ses/story-plan.json', plan, rendered: req.action === 'build' ? { scenes: plan.scenes.filter((x) => x.enabled).length, totalSec: plan.totalSec } : undefined }
+        push()
+      })()
+      return id
+    },
+    'story:cancel': () => undefined,
+    'story:list': () => [...storyJobs.values()].map((s) => structuredClone(s)),
+    'story:plan': () => structuredClone(MOCK_PLAN),
     'autokick:start': (req) => {
       const id = `autokick-${akJobs.size + 1}`
       const name = req.videoPath.split(/[\\/]/).pop() ?? req.videoPath
