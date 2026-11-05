@@ -953,8 +953,12 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     const job = page.getByTestId('autokick-job').first()
     await expect(job).toBeVisible()
     await expect(page.getByTestId('autokick-overall').first()).toBeVisible()
+    // iş bitince Auto Clips penceresi kendiliğinden açılır (zincir); Auto Kick sonucunu görmek için pencereyi kapatıp yeniden açarız
+    await expect(page.getByTestId('autoclips-dialog')).toBeVisible({ timeout: 20_000 })
+    await page.keyboard.press('Escape')
+    await page.getByTestId('autokick-btn').click()
     await expect(page.getByTestId('autokick-result')).toBeVisible({ timeout: 15_000 })
-    await expect(job).toHaveAttribute('data-status', 'done')
+    await expect(page.getByTestId('autokick-job').first()).toHaveAttribute('data-status', 'done')
     await expect(page.getByTestId('autokick-overall').first()).toContainText('%100')
     for (const id of ['import', 'transcribe', 'silence', 'gaps', 'full']) await expect(page.getByTestId(`ak-stage-${id}`)).toHaveAttribute('data-stage-status', 'done')
     await expect(page.getByTestId('autokick-result')).toContainText('doğrulandı')
@@ -1163,16 +1167,34 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-open')).toHaveCount(2)
   })
 
-  test('Auto Clips: Auto Kick bitince video otomatik devredilir ve Auto Clips açılınca adaylar kendiliğinden gelir; transkript yoksa hata', async ({ page }) => {
+  test('Auto Clips: Auto Kick bitince Auto Clips KENDİLİĞİNDEN açılır ve klipler otomatik üretilir (konular → klip projeleri → MP4); bilgisayar başında olmak gerekmez', async ({ page }) => {
     await boot(page)
     await page.getByTestId('autokick-btn').click()
     await page.getByTestId('autokick-pick').click()
-    await expect(page.getByTestId('autokick-status')).toHaveText('Tamamlandı', { timeout: 15000 })
-    await page.keyboard.press('Escape')
-    await expect(page.getByTestId('autoclips-btn')).toContainText('●')
+    await expect(page.getByTestId('autoclips-dialog')).toBeVisible({ timeout: 20000 }) // pencere kendiliğinden açıldı
+    await expect(page.getByTestId('autoclips-job')).toHaveAttribute('data-status', 'done', { timeout: 20000 })
+    await expect(page.getByTestId('ac-stage-find')).toHaveAttribute('data-stage-status', 'done')
+    await expect(page.getByTestId('ac-stage-make')).toHaveAttribute('data-stage-status', 'done')
+    await expect(page.getByTestId('ac-stage-export')).toHaveAttribute('data-stage-status', 'done')
+    await expect(page.getByTestId('autoclips-result')).toHaveCount(3)
+    await expect(page.getByTestId('autoclips-reveal')).toHaveCount(3) // her klip için MP4
+    await expect(page.getByTestId('autoclips-open-job')).toHaveCount(3)
+    await expect(page.getByTestId('autoclips-results')).toContainText('3 klip hazır')
+    await expect(page.getByTestId('autoclips-cand')).toHaveCount(0) // otomatik çalıştığı için elle öneri listesi ikinci kez üretilmez
+  })
+
+  test('Auto Clips: ayarlardan otomatik üretim kapatılırsa Auto Kick bitince pencere yine açılır ama klipler elle seçilir; MP4 dışa aktarma kapatılabilir', async ({ page }) => {
+    await boot(page)
     await page.getByTestId('autoclips-btn').click()
-    await expect(page.getByTestId('autoclips-path')).toContainText('kayit.clipforge')
-    await expect(page.getByTestId('autoclips-cand')).toHaveCount(3)
+    await expect(page.getByTestId('autoclips-after')).toBeChecked() // varsayılan: açık
+    await expect(page.getByTestId('autoclips-export')).toBeChecked()
+    await page.getByTestId('autoclips-after').uncheck()
+    await page.keyboard.press('Escape')
+    await page.getByTestId('autokick-btn').click()
+    await page.getByTestId('autokick-pick').click()
+    await expect(page.getByTestId('autoclips-dialog')).toBeVisible({ timeout: 20000 })
+    await expect(page.getByTestId('autoclips-cand')).toHaveCount(3) // elle seçim için öneriler
+    await expect(page.getByTestId('autoclips-job')).toHaveCount(0)
   })
 
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {

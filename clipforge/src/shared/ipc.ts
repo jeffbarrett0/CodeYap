@@ -6,7 +6,7 @@
  *  - `ClipforgeApi`: renderer'ın gördüğü yüzey. Preload bunu IPC üzerinden, tarayıcı modu ise sahte (mock)
  *    bir uygulama ile sağlar; böylece arayüz iki ortamda da aynı kodla çalışır.
  */
-import type { AutoClipCandidate } from './autoclips'
+import type { AutoClipCandidate, AutoClipsRequest, AutoClipsStatus } from './autoclips'
 import type { StoryPlan, StoryRequest, StoryStatus } from './story/types'
 import type { AutoKickRequest, AutoKickStatus, TranscriptionReadiness } from './autokick'
 import type { TopicCandidate } from './topic'
@@ -144,6 +144,10 @@ export interface IpcInvoke {
   'templates:list': [[], LayoutTemplate[]]
   'templates:save': [[LayoutTemplate], LayoutTemplate[]]
   'templates:delete': [[string], LayoutTemplate[]]
+  /** Auto Clips otomatik zinciri: adayları bul → klip projelerini üret → (isteğe bağlı) MP4 dışa aktar; arka planda sürer */
+  'autoclips:start': [[AutoClipsRequest], string]
+  'autoclips:cancel': [[string], void]
+  'autoclips:list': [[], AutoClipsStatus[]]
   /** Auto Clips: Auto Kick projesinin transkriptinden klip adayları (projeyi değiştirmez) */
   'autoclips:find': [[{ projectPath: string; minSec?: number; maxSec?: number; max?: number }], { candidates: AutoClipCandidate[]; totalSec: number; projectPath: string; faceRegion?: NormRect }]
   /** Seçilen adaylardan bağımsız klip projeleri (9:16: yüz üstte, konuşulan görüntü altta) */
@@ -161,6 +165,7 @@ export interface IpcEvents {
   'task:update': TaskInfo
   'autokick:update': AutoKickStatus
   'story:update': StoryStatus
+  'autoclips:update': AutoClipsStatus
   'asset:added': MediaAsset
   'asset:updated': MediaAsset
   'transcript:ready': { assetId: string; transcript: Transcript; reused: boolean }

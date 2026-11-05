@@ -4,7 +4,7 @@ import { DEFAULT_AUTOCLIP_LAYOUT } from '@shared/autoclips'
 import type { NormRect } from '@shared/types'
 import { requireApi } from '../api'
 import { useStore } from '../store'
-import { Modal, Num } from './ui'
+import { Modal, Num, Progress } from './ui'
 
 const mm = (s: number) => `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
@@ -14,7 +14,11 @@ const mm = (s: number) => `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600
  */
 export function AutoClipsDialog() {
   const api = requireApi()
-  const { autoClipsProject, setAutoClipsProject, openDialog, openProject } = useStore()
+  const { autoClipsProject, setAutoClipsProject, openDialog, openProject, autoClipsJobs, settings, updateSettings } = useStore()
+  const jobs = Object.values(autoClipsJobs).sort((a, b) => b.startedAt - a.startedAt)
+  const job = jobs[0]
+  // otomatik zincir çalışıyorsa/çalıştıysa elle bulma beklenmez (aynı işi ikinci kez yapmayalım)
+  const autoRan = !!job && (!autoClipsProject || job.request.projectPath === autoClipsProject)
   const [path, setPath] = useState(autoClipsProject)
   const [cands, setCands] = useState<AutoClipCandidate[] | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -45,7 +49,7 @@ export function AutoClipsDialog() {
   }
   // Auto Kick'ten gelen proje varsa adaylar kendiliğinden bulunur
   useEffect(() => {
-    if (autoClipsProject) void find(autoClipsProject)
+    if (autoClipsProject && !autoRan) void find(autoClipsProject)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -75,7 +79,45 @@ export function AutoClipsDialog() {
   return (
     <Modal title="Auto Clips — konuştuğunuz konulardan klipler" onClose={() => openDialog(null)} wide>
       <div className="col" data-testid="autoclips-dialog" style={{ gap: 10 }}>
-        <div className="infobox">Auto Kick bitince tam video <b>buraya otomatik devredilir</b>. Transkripti okur, <b>kimin/neyin hakkında konuştuğunuzu</b> bulur ve “şu aralıkta şunu konuşmuşsun, klip olarak paylaşabilirsin” diye önerir. Seçtiklerinizden <b>9:16 klip projesi</b> yapar: yüzünüz üstte (kaynak karedeki yüz bölgesi), konuşulan görüntü altta.</div>
+        <div className="infobox">Auto Kick bitince tam video <b>buraya otomatik devredilir, bu pencere kendiliğinden açılır ve klipler kendiliğinden üretilir</b> (ayarlardan kapatılabilir). Transkripti okur, <b>kimin/neyin hakkında konuştuğunuzu</b> bulur ve “şu aralıkta şunu konuşmuşsun, klip olarak paylaşabilirsin” diye önerir. Seçtiklerinizden <b>9:16 klip projesi</b> yapar: yüzünüz üstte (kaynak karedeki yüz bölgesi), konuşulan görüntü altta.</div>
+        <div className="col" data-testid="autoclips-auto" style={{ gap: 6, padding: 8, border: '1px solid var(--border, #2a3a30)', borderRadius: 8 }}>
+          <b>Otomatik zincir (bilgisayar başında olmasanız da)</b>
+          <label className="check"><input type="checkbox" checked={settings.autoClipsAfterKick} onChange={(e) => void updateSettings({ autoClipsAfterKick: e.target.checked })} data-testid="autoclips-after" /> Auto Kick bitince klipleri kendiliğinden üret</label>
+          <label className="check"><input type="checkbox" checked={settings.autoClipsExport} onChange={(e) => void updateSettings({ autoClipsExport: e.target.checked })} data-testid="autoclips-export" /> Klipleri MP4 olarak da dışa aktar (9:16)</label>
+          <label className="row" style={{ gap: 6 }}>En çok klip <Num value={settings.autoClipsMax} step={1} min={1} max={30} label="En çok klip" onChange={(v) => void updateSettings({ autoClipsMax: Math.round(v) })} /></label>
+          {job && (
+            <div className="col" data-testid="autoclips-job" data-status={job.status} style={{ gap: 4 }}>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <b title={job.name}>{job.name}</b>
+                <span className={`badge ${job.status === 'done' ? 'blue' : job.status === 'failed' ? 'red' : ''}`} data-testid="autoclips-status">{{ running: 'Çalışıyor', done: 'Tamamlandı', failed: 'Hata', cancelled: 'İptal edildi' }[job.status]}</span>
+              </div>
+              {job.stages.map((s) => (
+                <div key={s.id} className="col" style={{ gap: 2 }} data-testid={`ac-stage-${s.id}`} data-stage-status={s.status}>
+                  <div className="row" style={{ justifyContent: 'space-between' }}>
+                    <span>{s.status === 'done' ? '✓ ' : s.status === 'running' ? '⏳ ' : s.status === 'failed' ? '✕ ' : '○ '}{s.label}</span>
+                    <span className="hint">{s.detail ?? ''}</span>
+                  </div>
+                  {s.status === 'running' && <Progress value={s.progress} />}
+                </div>
+              ))}
+              {job.error && <div className="warnbox" role="alert" data-testid="autoclips-job-error">{job.error}</div>}
+              {job.status === 'running' && <button className="btn sm danger" onClick={() => void api.invoke('autoclips:cancel', job.id)} data-testid="autoclips-cancel">İptal</button>}
+              {job.result && job.result.clips.length === 0 && <div className="hint" data-testid="autoclips-none">Klip olabilecek net bir konu bulunamadı.</div>}
+              {job.result && job.result.clips.length > 0 && (
+                <div className="col" data-testid="autoclips-results" style={{ gap: 4 }}>
+                  <div className="hint"><b>{job.result.clips.filter((c) => c.projectPath).length} klip hazır</b>{job.result.clips.some((c) => c.videoPath) ? ` · ${job.result.clips.filter((c) => c.videoPath).length} MP4` : ''}{job.result.clips.some((c) => c.error) ? ` · ${job.result.clips.filter((c) => c.error).length} hatalı` : ''}</div>
+                  {job.result.clips.map((c) => (
+                    <div key={c.id} className="row wrap" style={{ gap: 8, alignItems: 'center' }} data-testid="autoclips-result">
+                      <span style={{ flex: 1, minWidth: 160 }}><b>{mm(c.start)}–{mm(c.end)}</b> {c.headline}{c.error ? <span className="hint" style={{ color: 'var(--danger, #e5484d)' }}> · {c.error}</span> : ''}</span>
+                      {c.videoPath && <button className="btn sm" onClick={() => void api.invoke('shell:reveal', c.videoPath!)} data-testid="autoclips-reveal">MP4'ü göster</button>}
+                      {c.projectPath && <button className="btn sm" onClick={() => void openProject(c.projectPath!).then((ok) => ok && openDialog(null))} data-testid="autoclips-open-job">Projeyi aç</button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
           <button className="btn" onClick={() => void pick()} data-testid="autoclips-pick">Auto Kick projesini seç…</button>
           <span className="hint" style={{ wordBreak: 'break-all' }} data-testid="autoclips-path">{path || 'Henüz seçilmedi (Auto Kick bitince otomatik gelir)'}</span>

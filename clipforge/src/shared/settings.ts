@@ -31,6 +31,9 @@ export const DEFAULT_SETTINGS: Settings = {
   vocabulary: '',
   transcribeFillers: true,
   cpuMode: 'balanced',
+  autoClipsAfterKick: true,
+  autoClipsExport: true,
+  autoClipsMax: 10,
   llmProvider: 'off',
   llmModel: '',
   anthropicApiKey: ''

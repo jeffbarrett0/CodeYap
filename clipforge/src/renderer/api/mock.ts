@@ -13,6 +13,7 @@ import { applyVocabulary, fixWord, parseVocabulary, withWords } from '@shared/tr
 import { scoreCandidates, snapCandidate } from '@shared/suggest/score'
 import { newId } from '@shared/timeline/model'
 import { initialStages, type AutoKickStatus } from '@shared/autokick'
+import { initialAutoClipsStages, type AutoClipsStatus } from '@shared/autoclips'
 import { initialStoryStages, type StoryPlan, type StoryStatus } from '@shared/story/types'
 import { DEFAULT_STORY_THEME } from '@shared/story/types'
 import { buildClipProject, safeFileName } from '@shared/project/clipProject'
@@ -93,6 +94,7 @@ export function createMockApi(): ClipforgeApi {
   const akJobs = new Map<string, AutoKickStatus>()
   const akCancel = new Set<string>()
   const storyJobs = new Map<string, StoryStatus>()
+  const acJobs = new Map<string, AutoClipsStatus>()
   const MOCK_PLAN: StoryPlan = {
     totalSec: 120,
     theme: DEFAULT_STORY_THEME,
@@ -121,6 +123,37 @@ export function createMockApi(): ClipforgeApi {
     'dialog:openMedia': () => ['/demo/2024-05-12 21-30-45.mkv'],
     'dialog:openFile': () => w.__mock?.openFile ?? 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
+    'autoclips:start': (req) => {
+      const id = `autoclips-${acJobs.size + 1}`
+      const status: AutoClipsStatus = { id, request: req, name: req.projectPath.split(/[\\/]/).pop()?.replace(/\.clipforge$/, '') ?? 'proje', status: 'running', stages: initialAutoClipsStages(), startedAt: Date.now() }
+      acJobs.set(id, status)
+      const push = () => emit('autoclips:update', structuredClone(status))
+      push()
+      void (async () => {
+        for (const st of status.stages) {
+          if (st.id === 'export' && req.exportVideos === false) {
+            st.status = 'skipped'
+            continue
+          }
+          st.status = 'running'
+          for (const f of [0.5, 1]) {
+            await sleep(60)
+            st.progress = f
+            push()
+          }
+          st.status = 'done'
+          push()
+        }
+        status.status = 'done'
+        status.finishedAt = Date.now()
+        const base = '/yayin/AutoKick/kayit/kayit-klipler'
+        status.result = { dir: base, clips: [['Lemina', 120, 168], ['Zaha', 600, 660], ['Osimhen', 1200, 1245]].map(([s, a, b], i) => ({ id: `ac${i + 1}`, subject: String(s), headline: `${s} hakkında konuşmuşsun`, start: Number(a), end: Number(b), durationSec: Number(b) - Number(a), projectPath: `${base}/${s} · ${Number(b) - Number(a)} sn.clipforge`, ...(req.exportVideos === false ? {} : { videoPath: `${base}/${s} · ${Number(b) - Number(a)} sn.mp4` }) })) }
+        push()
+      })()
+      return id
+    },
+    'autoclips:cancel': () => undefined,
+    'autoclips:list': () => [...acJobs.values()].map((s) => structuredClone(s)),
     'autoclips:find': (r) => {
       if (/yok/i.test(r.projectPath)) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
       return {
@@ -206,6 +239,8 @@ export function createMockApi(): ClipforgeApi {
         status.finishedAt = Date.now()
         status.result = { verified: true, outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
         push()
+        // zincir: Auto Kick bitince Auto Clips kendiliğinden başlar (ayar açıksa)
+        if (settings.autoClipsAfterKick) handlers['autoclips:start']({ projectPath: status.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport })
       })()
       return id
     },

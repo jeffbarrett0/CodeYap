@@ -350,6 +350,12 @@ Aşamalar: içe aktar → transkripsiyon → **sessizleri kes → boşlukları k
 * **CLI:** `captions <proje> --lang en`.
 * **Sınırlar:** yalnızca İngilizce (dil listesi genişletilebilir); çeviri kalitesi modele bağlı; internet ve anahtar gerekir. Whisper'ın kendi çeviri kipi (`--translate`, çevrimdışı) kullanılmadı: kelime zamanlaması kaba ve her dil için ayrı transkripsiyon gerekirdi.
 
+## 46. Gözetimsiz zincir: Auto Kick → Auto Clips → MP4
+
+**İstek:** 8 saat bilgisayar başında olunmayacak: video Auto Kick'e atılır, düzenlenir, dışa aktarılır, sonra Auto Clips klipleri üretir; Auto Clips penceresi de kendiliğinden açılmalı.
+* Zincir **ana süreçte** (arayüzden bağımsız): `AutoKickManager` emit kancası → `chainAutoClips` (her Auto Kick işi için bir kez, yalnızca `done` + sonuç varsa, ayar açıksa) → `AutoClipsManager` (aşamalar: konuları bul → klip projelerini üret → MP4 dışa aktar; iptal edilebilir; tek klipte hata o klibe yazılır, diğerleri sürer). Ayarlar: `autoClipsAfterKick` (açık), `autoClipsExport` (açık), `autoClipsMax` (10). Arayüz: Auto Kick bitince Auto Clips penceresi otomatik açılır; ilerleme/sonuç (MP4'ü göster, projeyi aç) orada. CLI: `auto-kick --clips`, `auto-clips --export`.
+* İki ağır iş (sonraki Auto Kick ile Auto Clips dışa aktarması) aynı anda çalışabilir; düşük öncelik politikası (dengeli CPU modu) geçerli.
+
 ## 45. Auto Clips, yüz videosu, uçak rotası, sözlük, zaman damgası/öneri düzeltmeleri
 
 * **Auto Clips:** Auto Kick bitince tam video otomatik devredilir (store `autoClipsProject`, üst çubukta ●). Transkriptten kişi/takım adına göre klip adayları (`shared/autoclips.ts`: adlı bölümler öncelikli; klip konunun anıldığı cümlelerle sınırlanır; uzun konu parçalanır) → "zaman aralığı + ne konuşulmuş" (sayaç yok). Seçilenden bağımsız **9:16 klip projesi**: yüz üstte (aynı kaynağın yüz bölgesi kırpması, varsayılan sağ alt), konuşulan görüntü altta (kaynak karenin kendisi; fotoğraf üretilmez). Yerleşimin kesin ölçüleri kullanıcının örnek ekran görüntüsüyle kesinleşecek; şimdilik mevcut "oyun ortada · kamera üstte" şablonu.

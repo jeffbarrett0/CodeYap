@@ -18,6 +18,7 @@ import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
 import { autoClipCandidates, makeAutoClip } from '../main/autoclips/pipeline'
+import { runAutoClips } from '../main/autoclips/run'
 import { parseRect } from '../shared/autoclips'
 import { cleanBrand, runStory } from '../main/story/pipeline'
 import { renderBackdrop, renderFootballFrame, renderStoryScene } from '../main/story/render'
@@ -76,11 +77,11 @@ const r1 = (n: number) => Math.round(n * 100) / 100
 const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON döndürür)
 
   info                                   ffmpeg/ffprobe/whisper durumu
-  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 90] [--max 12] [--pick 1,3 | --all] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415]
+  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 90] [--max 12] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415]
                                          transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
-  auto-kick <video> [--out klasör] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
+  auto-kick <video> [--out klasör] [--clips [--max 10] [--no-export]] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
                                          yayın kaydı → transkript → sessizleri kırp → tam video (<out>/<ad> - full.mp4 + proje); biten aşamalar yeniden çalıştırmada atlanır
   story data list|show <id>|search <ad>|add <dosya.json>   bilgi paketi: kaynaklı veri (gol krallığı, puan durumu…); sıralama/takım kartı sahneleri bunu kullanır
   story teams [ad]                       takım forma/renk veritabanı (Bayern → kırmızı, Galatasaray → sarı-kırmızı parçalı…); sahnelerde home/away.team ve content.team bunu kullanır
@@ -214,6 +215,13 @@ async function main(argv: string[]): Promise<unknown> {
   }
   if (command === 'auto-clips') {
     if (!projectArg) throw new Error('Auto Kick klasörü ya da projesi verin: auto-clips <klasör|proje> [--pick 1,3 | --all]')
+    // gözetimsiz tam zincir: --export → tüm adaylardan klip projesi + MP4 (Auto Kick sonrası otomatik çalışanla aynı iş)
+    if (a.opt.export) {
+      const rect0 = str(a.opt.face) ? parseRect(str(a.opt.face)!) : null
+      if (str(a.opt.face) && !rect0) throw new Error('--face "x,y,w,h" (0..1) verin.')
+      const res = await runAutoClips({ projectPath: projectArg, minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max'), face: rect0 ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), exportVideos: true }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
+      return out({ ok: true, dir: res.dir, count: res.clips.length, clips: res.clips.map((x) => ({ subject: x.subject, headline: x.headline, start: r1(x.start), end: r1(x.end), project: x.projectPath, video: x.videoPath, error: x.error })) })
+    }
     const r = await autoClipCandidates(projectArg, { minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max') }, {})
     const picksArg = str(a.opt.pick)
     const picks = a.opt.all ? r.candidates : picksArg ? picksArg.split(',').map((x) => r.candidates[Number(x) - 1]).filter(Boolean) : []
@@ -237,7 +245,12 @@ async function main(argv: string[]): Promise<unknown> {
       {},
       { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }
     )
-    return out({ ok: true, ...r, note: 'Otomatik klip aşaması henüz yok. Proje uygulamada açılabilir.' })
+    // gözetimsiz zincir: --clips ile tam video çıktıktan sonra Auto Clips da çalışır (klip projeleri + MP4)
+    if (a.opt.clips) {
+      const clips = await runAutoClips({ projectPath: r.projectPath, max: num(a.opt.max, 'max') ?? 10, exportVideos: !a.opt['no-export'] }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
+      return out({ ok: true, ...r, clips: { dir: clips.dir, count: clips.clips.length, items: clips.clips.map((x) => ({ subject: x.subject, start: r1(x.start), end: r1(x.end), project: x.projectPath, video: x.videoPath, error: x.error })) } })
+    }
+    return out({ ok: true, ...r, note: 'Klipler için: auto-clips <klasör> ya da auto-kick ... --clips (bitince klipleri de üretir).' })
   }
   if (command === 'story') {
     const sub = projectArg

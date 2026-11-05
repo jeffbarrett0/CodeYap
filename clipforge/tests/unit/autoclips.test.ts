@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, findAutoClips, parseRect } from '@shared/autoclips'
 import type { TranscriptWord } from '@shared/types'
+import { chainAutoClips } from '../../src/main/autoclips/run'
 
 /** Her blok: dakika, kelime dağarcığı, isteğe bağlı büyük harfli ad (cümle ortasında) */
 function stream(blocks: { secs: number; vocab: string[]; name?: string }[]): TranscriptWord[] {
@@ -98,5 +99,31 @@ describe('Auto Clips: klip düzeni (kullanıcının örnek ekran görüntüsü)'
     const srcRatio = (f.w * 1920) / (f.h * 1080) // 16:9 kaynakta kırpılan alanın piksel oranı
     const slotRatio = 1080 / (1920 * 0.415)
     expect(Math.abs(srcRatio - slotRatio)).toBeLessThan(0.06)
+  })
+})
+
+describe('Zincir: Auto Kick → Auto Clips (gözetimsiz)', () => {
+  const settings = { autoClipsAfterKick: true, autoClipsMax: 8, autoClipsExport: true }
+  const mk = () => {
+    const started: unknown[] = []
+    return { started, manager: { start: (r: unknown) => (started.push(r), `job${started.length}`) } }
+  }
+  it('Auto Kick bitince Auto Clips başlar: doğru proje, klip sayısı ve MP4 ayarıyla; aynı iş için yalnızca bir kez', () => {
+    const { started, manager } = mk()
+    const handled = new Set<string>()
+    const done = { id: 'autokick-1', status: 'done', result: { projectPath: '/yayin/AutoKick/kayit/kayit.clipforge' } }
+    expect(chainAutoClips(done, handled, settings, manager)).toBe('job1')
+    expect(started[0]).toEqual({ projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', max: 8, exportVideos: true })
+    expect(chainAutoClips(done, handled, settings, manager)).toBeNull() // her güncellemede çağrılır: tekrar başlatılmaz
+    expect(started).toHaveLength(1)
+  })
+  it('çalışırken/başarısızken/iptalde ya da ayar kapalıyken başlamaz; MP4 kapalıysa exportVideos:false', () => {
+    const { started, manager } = mk()
+    for (const status of ['running', 'failed', 'cancelled']) expect(chainAutoClips({ id: `a-${status}`, status, result: { projectPath: '/p' } }, new Set(), settings, manager)).toBeNull()
+    expect(chainAutoClips({ id: 'x', status: 'done' }, new Set(), settings, manager)).toBeNull() // sonuç yok
+    expect(chainAutoClips({ id: 'b', status: 'done', result: { projectPath: '/p' } }, new Set(), { ...settings, autoClipsAfterKick: false }, manager)).toBeNull()
+    expect(started).toHaveLength(0)
+    chainAutoClips({ id: 'c', status: 'done', result: { projectPath: '/p' } }, new Set(), { ...settings, autoClipsExport: false }, manager)
+    expect(started[0]).toMatchObject({ exportVideos: false })
   })
 })

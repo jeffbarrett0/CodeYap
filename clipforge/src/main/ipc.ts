@@ -7,6 +7,7 @@ import { setCpuMode } from './ffmpeg'
 import { AutoKickManager } from './autokick/pipeline'
 import { StoryManager } from './story/pipeline'
 import { autoClipCandidates, makeAutoClip } from './autoclips/pipeline'
+import { AutoClipsManager, chainAutoClips } from './autoclips/run'
 import { transcriptionReadiness } from '../shared/autokick'
 import { makeTopicClip, topicCandidates } from './autokick/clips'
 
@@ -22,8 +23,18 @@ const MEDIA_FILTERS = [
 /** Tipli IPC kanallarını bağlar. Her hata anlaşılır bir mesaja çevrilip renderer'a Result olarak döner; main çökmez. */
 export function registerIpc(app: AppService, getWindow: () => BrowserWindow | null): void {
   const story = new StoryManager({ userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }, (s) => getWindow()?.webContents.send('story:update', s))
-  const autoKick = new AutoKickManager({ userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }, (s) => getWindow()?.webContents.send('autokick:update', s))
+  const envDirs = { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }
+  const autoClips = new AutoClipsManager(envDirs, (s) => getWindow()?.webContents.send('autoclips:update', s))
+  // ZİNCİR: Auto Kick bitince (tam video dışa aktarıldıktan sonra) Auto Clips kendiliğinden başlar — arayüz açık olmasa da
+  const chained = new Set<string>()
+  const autoKick = new AutoKickManager(envDirs, (s) => {
+    getWindow()?.webContents.send('autokick:update', s)
+    chainAutoClips(s, chained, app.settings.value, autoClips)
+  })
   const handlers: Handlers = {
+    'autoclips:start': (r) => autoClips.start(r),
+    'autoclips:cancel': (id) => autoClips.cancel(id),
+    'autoclips:list': () => autoClips.list(),
     'autoclips:find': (r) => autoClipCandidates(r.projectPath, { ...(r.minSec ? { minSec: r.minSec } : {}), ...(r.maxSec ? { maxSec: r.maxSec } : {}), ...(r.max ? { max: r.max } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:make': async (r) => {
       const out = []

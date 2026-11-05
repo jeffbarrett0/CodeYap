@@ -132,3 +132,60 @@ export function parseRect(v: string): NormRect | null {
   if (w <= 0.02 || h <= 0.02 || x < 0 || y < 0 || x + w > 1.001 || y + h > 1.001) return null
   return { x, y, w, h }
 }
+
+// ───────────────────────── Otomatik zincir: Auto Kick → Auto Clips (gözetimsiz) ─────────────────────────
+
+export type AutoClipsStage = 'find' | 'make' | 'export'
+export const AUTOCLIPS_STAGES: { id: AutoClipsStage; label: string }[] = [
+  { id: 'find', label: 'Konuları bul' },
+  { id: 'make', label: 'Klip projelerini üret' },
+  { id: 'export', label: 'Klipleri MP4 olarak dışa aktar' }
+]
+export interface AutoClipsRequest {
+  /** Auto Kick projesi (ya da klasörü) */
+  projectPath: string
+  minSec?: number
+  maxSec?: number
+  /** en çok klip */
+  max?: number
+  face?: NormRect
+  facePos?: 'top' | 'bottom'
+  faceShare?: number
+  /** klipleri MP4 olarak da dışa aktar */
+  exportVideos?: boolean
+}
+export interface AutoClipsStageState {
+  id: AutoClipsStage
+  label: string
+  status: 'pending' | 'running' | 'done' | 'skipped' | 'failed'
+  progress: number
+  detail?: string
+}
+export interface AutoClipResultItem {
+  id: string
+  subject: string
+  headline: string
+  start: number
+  end: number
+  durationSec: number
+  projectPath?: string
+  videoPath?: string
+  /** bu klip için hata (diğerleri etkilenmez) */
+  error?: string
+}
+export interface AutoClipsResult {
+  dir: string
+  clips: AutoClipResultItem[]
+}
+export interface AutoClipsStatus {
+  id: string
+  request: AutoClipsRequest
+  name: string
+  status: 'running' | 'done' | 'failed' | 'cancelled'
+  stages: AutoClipsStageState[]
+  error?: string
+  result?: AutoClipsResult
+  startedAt: number
+  finishedAt?: number
+}
+export const initialAutoClipsStages = (): AutoClipsStageState[] => AUTOCLIPS_STAGES.map((s) => ({ ...s, status: 'pending', progress: 0 }))

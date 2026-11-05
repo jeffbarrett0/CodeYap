@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { AppInfo } from '@shared/ipc'
 import type { AutoKickStatus } from '@shared/autokick'
 import type { StoryStatus } from '@shared/story/types'
+import type { AutoClipsStatus } from '@shared/autoclips'
 import type { IdeasResult } from '@shared/ideas'
 import type { ChapterDensity, ChaptersResult } from '@shared/chapters'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -162,6 +163,8 @@ interface State {
   story: Record<string, StoryStatus>
   /** Auto Kick'ten Auto Clips'e devredilen proje (Auto Kick bitince otomatik) */
   autoClipsProject: string
+  /** Otomatik zincirle (Auto Kick sonrası) çalışan/biten Auto Clips işleri */
+  autoClipsJobs: Record<string, AutoClipsStatus>
   setAutoClipsProject(p: string): void
   toasts: Toast[]
 
@@ -334,6 +337,7 @@ export const useStore = create<State>()((set, get) => {
     autoKick: {},
     story: {},
     autoClipsProject: '',
+    autoClipsJobs: {},
     setAutoClipsProject: (p) => set({ autoClipsProject: p }),
     ideas: {},
     captionsTranslating: false,
@@ -362,6 +366,13 @@ export const useStore = create<State>()((set, get) => {
       set({ settings, appInfo, tasks: Object.fromEntries(tasks.map((t) => [t.id, t])), ready: true })
       void get().loadTemplates()
       void a.invoke('autokick:list').then((l) => set({ autoKick: Object.fromEntries(l.map((j) => [j.id, j])) }))
+      void a.invoke('autoclips:list').then((l) => set({ autoClipsJobs: Object.fromEntries(l.map((j) => [j.id, j])) }))
+      a.on('autoclips:update', (j) => {
+        const prev = get().autoClipsJobs[j.id]
+        set((s) => ({ autoClipsJobs: { ...s.autoClipsJobs, [j.id]: j } }))
+        if (prev?.status === 'running' && j.status === 'done') get().toast('success', `Auto Clips tamamlandı: ${j.result?.clips.filter((c) => c.projectPath).length ?? 0} klip`)
+        if (prev?.status === 'running' && j.status === 'failed') get().toast('error', `Auto Clips hata verdi: ${j.error ?? ''}`)
+      })
       void a.invoke('story:list').then((l) => set({ story: Object.fromEntries(l.map((j) => [j.id, j])) }))
       a.on('story:update', (j) => {
         const prev = get().story[j.id]
@@ -374,6 +385,8 @@ export const useStore = create<State>()((set, get) => {
         if (prev?.status === 'running' && j.status === 'done') {
           get().toast('success', `Auto Kick tamamlandı: ${j.videoName}. Video Auto Clips'e devredildi (üst çubuk → Auto Clips).`)
           if (j.result?.projectPath) set({ autoClipsProject: j.result.projectPath })
+          // Auto Clips penceresi KENDİLİĞİNDEN açılır (zincir: Auto Kick → Auto Clips)
+          set({ dialog: 'autoclips' })
         }
         if (prev?.status === 'running' && j.status === 'failed') get().toast('error', `Auto Kick hata verdi: ${j.error ?? ''}`)
       })

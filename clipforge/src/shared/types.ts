@@ -465,6 +465,12 @@ export interface Settings {
   /** Video önerilerinde başlık yazan yapay zekâ: kapalı | OpenAI uyumlu (openaiApiKey/openaiBaseUrl kullanılır) | Anthropic */
   /** Arka plan işleri: dengeli (düşük öncelik, çekirdeklerin yarısı; bilgisayar kullanılabilir kalır) | tam hız */
   cpuMode: 'balanced' | 'full'
+  /** Auto Kick bitince Auto Clips KENDİLİĞİNDEN çalışsın (adayları bul + klip projelerini üret): bilgisayar başında olmasanız da zincir sürer */
+  autoClipsAfterKick: boolean
+  /** Üretilen klipleri MP4 olarak da dışa aktar (9:16) */
+  autoClipsExport: boolean
+  /** Otomatik üretimde en çok kaç klip */
+  autoClipsMax: number
   llmProvider: 'off' | 'openai' | 'anthropic'
   /** boşsa sağlayıcının varsayılanı (OpenAI: gpt-4o-mini, Anthropic: claude-haiku-5-5) */
   llmModel: string
