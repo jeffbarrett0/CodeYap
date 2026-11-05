@@ -2,6 +2,7 @@ import { access, mkdir, readFile, rename, rm, stat, statfs, writeFile } from 'no
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
 import { llmConfigured } from '../ideas/llm'
+import { detectIntro, introReference } from './intro'
 import { initialStages, transcriptionReadiness, type AutoKickRequest, type AutoKickResult, type AutoKickStage, type AutoKickStageState } from '../../shared/autokick'
 import { cmd } from '../../shared/timeline/commands'
 import { clipsForVideoWithAudio } from '../../shared/timeline/create'
@@ -18,6 +19,8 @@ export interface AutoKickHooks {
 }
 
 interface State {
+  /** yayın başı videosu kesildiyse süresi (tekrar çalıştırmada yeniden kesilmesin) */
+  intro?: { cutSec: number }
   silence?: { cuts: number; removedSec: number; before: number; after: number; fillers: number }
   full?: boolean
 }
@@ -115,8 +118,22 @@ export async function runAutoKick(req: AutoKickRequest, env: { userDataDir?: str
     const r = clipsForVideoWithAudio(asset, track, s.timeline.tracks, { at: 0 })
     if ('error' in r) throw new Error(r.error)
     s.apply(cmd.aspectAuto(true, nearestAspect(asset.width, asset.height)), cmd.addClips(r.items, 'Kayıt ekle'))
+    // yayın başı videosu (telifli şarkı): referans ekranla eşleşirse ilk bölüm kesilir (hata olursa kesilmez, iş sürer)
+    let introNote = ''
+    if (settings.introCutEnabled) {
+      const ref = await introReference(settings.introReferencePath, service.deps.resourcesDir)
+      if (ref) {
+        stage('import', { detail: 'Yayın başı videosu aranıyor…' })
+        const det = await detectIntro(service.tools.ffmpeg, p.video, ref, settings.introDurationSec)
+        if (det.found) {
+          s.apply(cmd.cutRange(0, Math.min(det.endSec, asset.durationSec), true))
+          state.intro = { cutSec: Math.round(det.endSec) }
+          introNote = ` · yayın başı videosu kesildi (${Math.floor(det.endSec / 60)}:${String(Math.round(det.endSec % 60)).padStart(2, '0')})`
+        } else introNote = ` · yayın başı: ${det.reason}`
+      }
+    }
     await save()
-    stage('import', { status: 'done', progress: 1, detail: `${Math.round(asset.durationSec / 60)} dk · ${asset.width}×${asset.height}` })
+    stage('import', { status: 'done', progress: 1, detail: `${Math.round(asset.durationSec / 60)} dk · ${asset.width}×${asset.height}${introNote}` })
   }
   if (asset.audioStreams.length === 0) throw new Error('Bu kayıtta ses yok; konuşma metni çıkarılamaz.')
 

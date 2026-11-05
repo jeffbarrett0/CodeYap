@@ -17,6 +17,7 @@ import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems
 import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
+import { detectIntro, introReference } from '../main/autokick/intro'
 import { autoClipCandidates, makeAutoClip } from '../main/autoclips/pipeline'
 import { runAutoClips } from '../main/autoclips/run'
 import { parseRect } from '../shared/autoclips'
@@ -106,6 +107,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
   ideas <proje> [--asset a] [--max 8] [--ai] [--auto | --write oneriler.json | --clear]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
   chapters <proje> [--ai | --titles basliklar.json] [--density low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
+  cut-intro <proje> [--ref ekran.png] [--duration 164] [--dry]   yayın başı videosunu (referans ekran görüntüsüyle eşleşen ilk bölüm, ör. telifli şarkılı geri sayım) keser
   silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
   captions <proje> [--style classic|boxed-highlight|premium-gold] [--max-chars 22] [--lang en]   transkriptten altyazı üretir (--lang en: İngilizce çeviri, yapay zekâ ayarı gerekir) (boxed-highlight: referans stil)
@@ -642,6 +644,21 @@ async function main(argv: string[]): Promise<unknown> {
       }
       await s.save()
       return out({ ok: true, lane, deleted: n })
+    }
+    case 'cut-intro': {
+      // yayın başı videosunu (referans ekran görüntüsüyle eşleşen ilk bölüm) keser; --dry yalnızca tespit eder
+      const asset = s.asset(str(a.opt.asset))
+      const st = s.service.settings.value
+      const ref = str(a.opt.ref) ? resolve(str(a.opt.ref)!) : await introReference(st.introReferencePath, s.service.deps.resourcesDir)
+      if (!ref) throw new Error('Referans ekran görüntüsü yok: --ref <resim.png> verin ya da Ayarlar → Yayın başı videosu.')
+      const det = await detectIntro(s.service.tools.ffmpeg, asset.path, ref, num(a.opt.duration, 'duration') ?? st.introDurationSec)
+      if (!det.found || a.opt.dry) return out({ ok: true, cut: false, dry: !!a.opt.dry, detection: det })
+      const first = clipsAt(s.timeline, 0).find((x) => s.timeline.tracks.find((t) => t.id === x.trackId)?.kind === 'video')
+      if (!first || timelineToSource(first, 0) > 1) throw new Error('Zaman çizelgesinin başı kaynağın başı değil (daha önce kesilmiş): yayın başı kesimi atlandı.')
+      const end = Math.min(det.endSec, timelineDuration(s.timeline))
+      s.apply(cmd.cutRange(0, end, true))
+      await s.save()
+      return out({ ok: true, cut: true, removedSec: r1(end), newDurationSec: r1(timelineDuration(s.timeline)), detection: det })
     }
     case 'frame': {
       const at = num(a.opt.at, 'at')

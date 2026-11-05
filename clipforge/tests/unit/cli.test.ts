@@ -489,6 +489,44 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(cli('ideas', proj).source).toBe('auto')
   }, 120_000)
 
+  it('cut-intro: videonun başındaki yayın başı videosu referans ekranla eşleşince kesilir (telifli şarkı çıkar); eşleşme yoksa hiçbir şey kesilmez; --dry yalnızca tespit', () => {
+    const ffm = require('ffmpeg-static') as string
+    const dir5 = join(tmp, 'intro')
+    mkdirSync(dir5, { recursive: true })
+    // 20 sn "yayın başlıyor" (smpte çubukları) + 20 sn normal yayın
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'smptebars=size=320x180:rate=5:duration=20', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=5:duration=20', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=40', '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]', '-map', '[v]', '-map', '2:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(dir5, 'yayin.mp4')])
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'smptebars=size=640x360:rate=1:duration=1', '-frames:v', '1', join(dir5, 'ref.png')])
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=1:duration=1', '-frames:v', '1', join(dir5, 'baska.png')])
+    const pr = join(dir5, 'yayin.clipforge')
+    cli('new', pr)
+    cli('import', pr, join(dir5, 'yayin.mp4'), '--add')
+    const dry = cli('cut-intro', pr, '--ref', join(dir5, 'ref.png'), '--duration', '20', '--dry')
+    expect(dry.detection.found, JSON.stringify(dry)).toBe(true)
+    expect(dry.cut).toBe(false)
+    expect(cli('show', pr).durationSec).toBeCloseTo(40, 0) // --dry değiştirmez
+    const no = cli('cut-intro', pr, '--ref', join(dir5, 'baska.png'), '--duration', '10') // eşleşme 20. sn'de başlar: yayın başında değil
+    expect(no.cut).toBe(false)
+    expect(no.detection.reason).toMatch(/yayın başında değil/)
+    expect(cli('show', pr).durationSec).toBeCloseTo(40, 0)
+    const r = cli('cut-intro', pr, '--ref', join(dir5, 'ref.png'), '--duration', '20')
+    expect(r.cut, JSON.stringify(r)).toBe(true)
+    expect(r.removedSec).toBeCloseTo(20, 0)
+    expect(cli('show', pr).durationSec).toBeCloseTo(20, 0)
+    // ikinci kez: çizelgenin başı artık kaynağın başı değil → atlanır (çift kesim olmaz)
+    const again = cli('cut-intro', pr, '--ref', join(dir5, 'ref.png'), '--duration', '20')
+    expect(again.cut === true ? 'kesti' : 'kesmedi').toBe('kesmedi')
+    expect(cli('show', pr).durationSec).toBeCloseTo(20, 0)
+    // uygulamayla gelen varsayılan referans (kullanıcının "Yayın başlıyor" ekranı): --ref verilmeden bulunur
+    const png = join(process.cwd(), 'resources', 'intro', 'yayin-basliyor.png')
+    execFileSync(ffm, ['-y', '-v', 'error', '-loop', '1', '-framerate', '5', '-t', '15', '-i', png, '-f', 'lavfi', '-i', 'testsrc2=size=986x554:rate=5:duration=15', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=30', '-filter_complex', '[0:v]scale=986:554,format=yuv420p[a];[1:v]format=yuv420p[b];[a][b]concat=n=2:v=1:a=0[v]', '-map', '[v]', '-map', '2:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', join(dir5, 'gercek.mp4')])
+    const pg = join(dir5, 'gercek.clipforge')
+    cli('new', pg)
+    cli('import', pg, join(dir5, 'gercek.mp4'), '--add')
+    const real = cli('cut-intro', pg, '--duration', '15')
+    expect(real.cut, JSON.stringify(real)).toBe(true)
+    expect(real.removedSec).toBeCloseTo(15, 0)
+  }, 240_000)
+
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)
     const bad = cli('bogus', proj)

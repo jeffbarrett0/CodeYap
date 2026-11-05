@@ -350,6 +350,13 @@ Aşamalar: içe aktar → transkripsiyon → **sessizleri kes → boşlukları k
 * **CLI:** `captions <proje> --lang en`.
 * **Sınırlar:** yalnızca İngilizce (dil listesi genişletilebilir); çeviri kalitesi modele bağlı; internet ve anahtar gerekir. Whisper'ın kendi çeviri kipi (`--translate`, çevrimdışı) kullanılmadı: kelime zamanlaması kaba ve her dil için ayrı transkripsiyon gerekirdi.
 
+## 47. Yayın başı videosunu (telifli şarkı) otomatik kesme
+
+**İstek:** yayın kayıtlarının başında 2 dk 44 sn'lik "Yayın başlıyor" videosu (telifli şarkılı) var; Auto Kick'te kesilsin.
+* **Yöntem:** referans ekran görüntüsüyle görsel eşleşme (`shared/intro.ts`): ilk (süre+60) sn saniyede bir 64×36 gri kareye indirilir, Pearson korelasyonu ≥0,80 olan kareler sayılır (geri sayım rakamı değişse de yerleşim aynı). ≥8 eşleşme ve ilk eşleşme ≤ süre ise [0, max(süre, son eşleşme+1 sn)] kesilir. Eşleşme yok / az / videonun ortasında / tespit hatası → **hiçbir şey kesilmez** (yanlış kesim, doğru kesimden daha kötü). Auto Kick'te içe aktarma aşamasında, transkripsiyondan önce uygulanır (çizelgeden `cutRange`); yeniden çalıştırmada tekrar kesilmez (içe aktarma atlanır). Süre "kesin 164 sn" varsayımıdır: geri sayım ekranı tam bu süreyi doldurmuyorsa süre ayarı güncellenir.
+* Varsayılan referans kullanıcının verdiği ekran görüntüsü (`resources/intro/yayin-basliyor.png`); Ayarlar'dan başka ekran seçilebilir. CLI: `cut-intro` (`--dry`).
+* Sınır: gerçek bir yayın kaydıyla denenmedi (sentetik video + kullanıcının ekran görüntüsünün sabit hâliyle test edildi); geri sayım rakamlarının değişmesi korelasyon testinde simüle edildi.
+
 ## 46. Gözetimsiz zincir: Auto Kick → Auto Clips → MP4
 
 **İstek:** 8 saat bilgisayar başında olunmayacak: video Auto Kick'e atılır, düzenlenir, dışa aktarılır, sonra Auto Clips klipleri üretir; Auto Clips penceresi de kendiliğinden açılmalı.

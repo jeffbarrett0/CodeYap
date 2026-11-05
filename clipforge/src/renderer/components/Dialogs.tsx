@@ -147,6 +147,17 @@ export function SettingsDialog() {
             </Field>
           </div>
           <Field label="Varsayılan dil"><select value={s.language} onChange={(e) => set({ language: e.target.value })} aria-label="Dil">{LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}</select></Field>
+          <Field label="Yayın başı videosu (telifli şarkı): Auto Kick'te otomatik kes">
+            <div className="col" style={{ gap: 6 }}>
+              <label className="check"><input type="checkbox" checked={s.introCutEnabled} onChange={(e) => set({ introCutEnabled: e.target.checked })} data-testid="intro-enabled" /> Yayın başındaki "Yayın başlıyor" videosunu kes</label>
+              <div className="hint">Videonun başı referans ekran görüntüsüne benziyorsa ilk bölüm kesilir; benzemiyorsa hiçbir şey kesilmez. Boş bırakırsanız uygulamayla gelen varsayılan ekran kullanılır.</div>
+              <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+                <input value={s.introReferencePath} onChange={(e) => set({ introReferencePath: e.target.value })} placeholder="(varsayılan referans ekran)" aria-label="Yayın başı referans ekran görüntüsü" style={{ flex: 1, minWidth: 220 }} data-testid="intro-ref" />
+                <button className="btn sm" onClick={() => void api.invoke('dialog:openFile', { title: 'Yayın başı ekran görüntüsü', extensions: ['png', 'jpg', 'jpeg', 'webp'] }).then((p) => p && set({ introReferencePath: p }))} data-testid="intro-pick">Seç…</button>
+              </div>
+              <label className="row" style={{ gap: 6 }}>Süre (sn; 164 = 2 dk 44 sn) <Num value={s.introDurationSec} step={1} min={10} max={900} label="Yayın başı süresi" onChange={(v) => set({ introDurationSec: Math.round(v) })} /></label>
+            </div>
+          </Field>
           <Field label="Özel sözlük: isimler, yöresel kelimeler, terimler (satır ya da virgülle)">
             <textarea rows={4} value={s.vocabulary} onChange={(e) => set({ vocabulary: e.target.value })} placeholder={'Abdullah Kavukçu\nDursun Özbek'} aria-label="Özel sözlük" data-testid="vocab-input" />
           </Field>

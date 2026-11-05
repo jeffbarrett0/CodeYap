@@ -465,6 +465,12 @@ export interface Settings {
   /** Video önerilerinde başlık yazan yapay zekâ: kapalı | OpenAI uyumlu (openaiApiKey/openaiBaseUrl kullanılır) | Anthropic */
   /** Arka plan işleri: dengeli (düşük öncelik, çekirdeklerin yarısı; bilgisayar kullanılabilir kalır) | tam hız */
   cpuMode: 'balanced' | 'full'
+  /** Yayın başı videosunu (geri sayım ekranı + telifli şarkı) Auto Kick'te otomatik kes */
+  introCutEnabled: boolean
+  /** Referans ekran görüntüsü (png/jpg); boşsa uygulamayla gelen varsayılan */
+  introReferencePath: string
+  /** Yayın başı videosunun süresi (sn); 164 = 2 dk 44 sn */
+  introDurationSec: number
   /** Auto Kick bitince Auto Clips KENDİLİĞİNDEN çalışsın (adayları bul + klip projelerini üret): bilgisayar başında olmasanız da zincir sürer */
   autoClipsAfterKick: boolean
   /** Üretilen klipleri MP4 olarak da dışa aktar (9:16) */
