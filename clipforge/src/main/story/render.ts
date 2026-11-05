@@ -25,7 +25,7 @@ export function storyAss(content: StoryContent, theme: StoryTheme, size: StoryRe
   const to = findPlace(world, content.to)
   if (!to) throw new Error(`Yer bulunamadı: "${content.to}". Ülke/ana şehir adı ya da "boylam,enlem" kullanın.`)
   const from = content.from ? (findPlace(world, content.from) ?? undefined) : undefined
-  return buildMap({ type: 'map', ...size, durationSec: dur, bg: theme.bg, accent: theme.accent, fontFamily: theme.fontHead, to, from, label: content.label ?? content.to, sub: content.sub }, world)
+  return buildMap({ type: 'map', ...size, durationSec: dur, bg: theme.bg, accent: theme.accent, fontFamily: theme.fontHead, to, from, label: content.label ?? content.to, sub: content.sub, vehicle: content.vehicle }, world)
 }
 
 /** Ortak zemin görüntüsü (PNG): bir kez üretilir, sahneler arka plan olarak kullanır */

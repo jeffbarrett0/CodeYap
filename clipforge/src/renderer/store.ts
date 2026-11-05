@@ -24,7 +24,7 @@ import { requireApi } from './api'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
-export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'story'
+export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'story' | 'autoclips'
 
 export interface Toast {
   id: string
@@ -160,6 +160,9 @@ interface State {
   /** Auto Kick işleri (arka planda sürer; pencere kapansa da devam eder) */
   autoKick: Record<string, AutoKickStatus>
   story: Record<string, StoryStatus>
+  /** Auto Kick'ten Auto Clips'e devredilen proje (Auto Kick bitince otomatik) */
+  autoClipsProject: string
+  setAutoClipsProject(p: string): void
   toasts: Toast[]
 
   query: string
@@ -330,6 +333,8 @@ export const useStore = create<State>()((set, get) => {
     tasks: {},
     autoKick: {},
     story: {},
+    autoClipsProject: '',
+    setAutoClipsProject: (p) => set({ autoClipsProject: p }),
     ideas: {},
     captionsTranslating: false,
     ideasBusy: false,
@@ -366,7 +371,10 @@ export const useStore = create<State>()((set, get) => {
       a.on('autokick:update', (j) => {
         const prev = get().autoKick[j.id]
         set((s) => ({ autoKick: { ...s.autoKick, [j.id]: j } }))
-        if (prev?.status === 'running' && j.status === 'done') get().toast('success', `Auto Kick tamamlandı: ${j.videoName}`)
+        if (prev?.status === 'running' && j.status === 'done') {
+          get().toast('success', `Auto Kick tamamlandı: ${j.videoName}. Video Auto Clips'e devredildi (üst çubuk → Auto Clips).`)
+          if (j.result?.projectPath) set({ autoClipsProject: j.result.projectPath })
+        }
         if (prev?.status === 'running' && j.status === 'failed') get().toast('error', `Auto Kick hata verdi: ${j.error ?? ''}`)
       })
       a.on('task:update', (t) => {

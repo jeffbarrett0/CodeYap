@@ -350,6 +350,15 @@ Aşamalar: içe aktar → transkripsiyon → **sessizleri kes → boşlukları k
 * **CLI:** `captions <proje> --lang en`.
 * **Sınırlar:** yalnızca İngilizce (dil listesi genişletilebilir); çeviri kalitesi modele bağlı; internet ve anahtar gerekir. Whisper'ın kendi çeviri kipi (`--translate`, çevrimdışı) kullanılmadı: kelime zamanlaması kaba ve her dil için ayrı transkripsiyon gerekirdi.
 
+## 45. Auto Clips, yüz videosu, uçak rotası, sözlük, zaman damgası/öneri düzeltmeleri
+
+* **Auto Clips:** Auto Kick bitince tam video otomatik devredilir (store `autoClipsProject`, üst çubukta ●). Transkriptten kişi/takım adına göre klip adayları (`shared/autoclips.ts`: adlı bölümler öncelikli; klip konunun anıldığı cümlelerle sınırlanır; uzun konu parçalanır) → "zaman aralığı + ne konuşulmuş" (sayaç yok). Seçilenden bağımsız **9:16 klip projesi**: yüz üstte (aynı kaynağın yüz bölgesi kırpması, varsayılan sağ alt), konuşulan görüntü altta (kaynak karenin kendisi; fotoğraf üretilmez). Yerleşimin kesin ölçüleri kullanıcının örnek ekran görüntüsüyle kesinleşecek; şimdilik mevcut "oyun ortada · kamera üstte" şablonu.
+* **Yüz videosu + Anlatım → Görsel:** video anlatımda sahne varken yüz köşede (V1), sahneler V2 tam kare, yüz V3 tam kare (sahne yokken). `place` sahnesinde from+to → uçak silüeti rota üzerinde ilerler.
+* **Transkript doğruluğu:** yerleşik futbol sözlüğü (temkinli eşik 0,82; yalnızca büyük harfle başlayan/emin olunamayan kelime; ≥6 harfli terim) + bölünmüş terim birleştirme (Galata saray → Galatasaray) + bir harf eksik yazım (Osimen → Osimhen). Kullanıcı sözlüğü öncelikli ve eski davranış aynı.
+* **Whisper "chunk_0.wav bulunamadı" (Windows):** dosya adı yazımları sırayla denenir (göreli → mutlak → 8.3 kısa yol → ASCII geçici klasöre kopya); dosya yoksa/silinmişse anlaşılır mesaj.
+* **Zaman damgası:** ana konu başlıklarda tekrarlanmaz; `chapters --titles` ile Claude Code'un yazdığı başlıklar. **Öneriler paneli:** sayaç yok; zaman aralığı + ne konuşulmuş.
+* **Dosya penceresi:** Ses / Video / Tümü + "Tüm dosyalar".
+
 ## 44. Anlatım → Görsel (anlatılanı hareketli sahnelerle görselleştirme)
 
 **İstek:** içerik üreticisi bir konuyu (ör. Stuttgart'ın hikâyesi) anlatırken Claude Code'un arkadan anlatılana göre animasyonlu sahneler (rakam kartları, isim bandı, sezon çizelgesi) üretmesi; aynısı ClipForge'da, ayrı bir yerde, "sesi atarım, görselleştirsin".

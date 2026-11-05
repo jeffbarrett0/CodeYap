@@ -4,7 +4,7 @@ import { findChapters, DENSITY } from '../chapters'
 import { key } from '../graphics/geo'
 import { simulateFootball } from './football'
 import { resolveKits, findTeam } from './teams'
-import { COMPETITIONS, METRICS, datasetWarnings, detectCompetition, detectMetric, findDataset, findPlayerRows, type Dataset } from './data'
+import { COMPETITIONS, METRICS, datasetWarnings, daysBetween, detectCompetition, detectMetric, findDataset, findPlayerRows, type Dataset } from './data'
 import { CTA_RE, DEFAULT_STORY_THEME, type StatCard, type StoryContent, type StoryItem, type StoryPlan, type StoryScene, type StoryTheme, type StoryTone, type TimelinePeriod } from './types'
 
 const NUM_WORDS: Record<string, number> = { bir: 1, iki: 2, üç: 3, dört: 4, beş: 5, altı: 6, yedi: 7, sekiz: 8, dokuz: 9, on: 10, yirmi: 20, otuz: 30, kırk: 40, elli: 50, altmış: 60, yetmiş: 70, seksen: 80, doksan: 90, yüz: 100 }
@@ -163,18 +163,29 @@ export function planStory(words: TranscriptWord[], opts: PlanOptions = {}): Stor
     cands.push({ start: words[w].start, end: words[w].start + 4.5, prio: 3, content: { type: 'person', role: upperTr(role), name: upperTr(name) }, reason: short(words.slice(Math.max(0, w - 2), a + 4).map((x) => x.text).join(' '), 100) })
   }
 
-  // 4) harita: ilk anılan yer
+  // 4) harita: anılan yerler; "Paris'ten İstanbul'a" gibi çift varsa tek sahne (uçak rotası)
   if (opts.isPlace) {
-    const placed = new Set<string>()
-    let lastAt = -99
+    const hits: { w: number; name: string; from: boolean }[] = []
     for (let w = 0; w < words.length; w++) {
       const raw = words[w].text.replace(/[.,;:!?'’].*$/, '')
-      if (!/^[A-ZÇĞİÖŞÜ]/.test(raw) || (w > 0 && /[.!?]$/.test(words[w - 1].text) && false)) continue
-      const place = opts.isPlace(raw)
-      if (!place || placed.has(key(place)) || words[w].start - lastAt < 25) continue
-      placed.add(key(place))
-      lastAt = words[w].start
-      cands.push({ start: Math.max(0, words[w].start - 0.4), end: words[w].start + 4, prio: 2, content: { type: 'place', to: place, label: upperTr(place) }, reason: short(words.slice(Math.max(0, w - 3), w + 4).map((x) => x.text).join(' '), 100) })
+      if (!/^[A-ZÇĞİÖŞÜ]/.test(raw)) continue
+      const name = opts.isPlace(raw)
+      if (name) hits.push({ w, name, from: /['’](d[ae]n|t[ae]n)\b/i.test(words[w].text) })
+    }
+    const placed = new Set<string>()
+    let lastAt = -99
+    for (let h = 0; h < hits.length; h++) {
+      const cur = hits[h]
+      const next = hits[h + 1]
+      const pair = next && next.w - cur.w <= 8 && key(next.name) !== key(cur.name) && (cur.from || /['’][dt]?[ae]\b/i.test(words[next.w].text)) ? next : null
+      const names = pair ? [cur.name, pair.name] : [cur.name]
+      if (names.every((n) => placed.has(key(n))) || words[cur.w].start - lastAt < (pair ? 6 : 25)) continue
+      for (const n of names) placed.add(key(n))
+      lastAt = words[cur.w].start
+      const start = Math.max(0, words[cur.w].start - 0.4)
+      const content: StoryContent = pair ? { type: 'place', from: cur.name, to: pair.name, label: upperTr(pair.name), sub: `${upperTr(cur.name)} → ${upperTr(pair.name)}`, vehicle: 'plane' } : { type: 'place', to: cur.name, label: upperTr(cur.name) }
+      cands.push({ start, end: start + (pair ? 6 : 4), prio: pair ? 3.5 : 2, content, reason: short(words.slice(Math.max(0, cur.w - 3), (pair?.w ?? cur.w) + 4).map((x) => x.text).join(' '), 100) })
+      if (pair) h++
     }
   }
 
@@ -213,8 +224,15 @@ export function planStory(words: TranscriptWord[], opts: PlanOptions = {}): Stor
         return
       }
       const highlight = names.filter((n) => d.rows.some((r) => key(r.name).split(' ').pop() === key(n))).slice(0, 3)
+      const todayStr = opts.today ?? new Date().toISOString().slice(0, 10)
+      // sezonu süren, güncel olmayan veriyle sahne ÖNERİLMEZ (güncel veri Claude Code'la internetten alınır)
+      if (!d.final && daysBetween(d.asOf, todayStr) > 1) {
+        const msg = 'Güncel veri gerektiren sahneler (gol krallığı, puan durumu) bu taslağa eklenmedi: rakamlar internetten güncel alınmalı. Bu videoyu Claude Code ile zenginleştirin (aşağıdaki düğme).'
+        if (!warnings.includes(msg)) warnings.push(msg)
+        return
+      }
       lastLb = s.start
-      for (const m of datasetWarnings(d, opts.today ?? new Date().toISOString().slice(0, 10))) if (!warnings.includes(m)) warnings.push(m)
+      for (const m of datasetWarnings(d, todayStr)) if (!warnings.includes(m) && !/doğrulanmadı|ara değer|bilinmiyor/.test(m)) warnings.push(m)
       cands.push({ start: Math.max(0, s.start - 0.3), end: s.start + 8, prio: 4.6, content: { type: 'leaderboard', rows: [], kicker: COMPETITIONS[d.competition]?.name?.toLocaleUpperCase('tr-TR'), dataset: d.id, top: 5, highlight: highlight.length ? highlight : undefined }, reason: short(s.text, 120) })
     })
   }
@@ -298,7 +316,7 @@ export function sanitizeContent(raw: unknown): StoryContent | null {
     }
     case 'place': {
       const to = str(c.to, 40)
-      return to ? { type: 'place', to, from: str(c.from, 40), label: str(c.label, 30), sub: str(c.sub, 48) } : null
+      return to ? { type: 'place', to, from: str(c.from, 40), label: str(c.label, 30), sub: str(c.sub, 48), vehicle: c.vehicle === 'none' ? 'none' : c.vehicle === 'plane' ? 'plane' : undefined } : null
     }
     case 'leaderboard': {
       const rows = (Array.isArray(c.rows) ? c.rows : []).slice(0, 10).flatMap((x) => {

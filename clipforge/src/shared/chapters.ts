@@ -252,12 +252,20 @@ export function findChapters(words: TranscriptWord[], options: Partial<ChapterOp
   }
 
   // 5) başlıklar: aralıkta anılan adlar ("Chevalier, Salah, Guirassy"); ad yoksa anahtar kelimeler
+  // ANA KONU: bölümlerin çoğunda öne çıkan ad (ör. videonun tamamı Galatasaray hakkındaysa "Galatasaray") her başlığa yazılmaz;
+  // başlık yalnızca o bölüme özgü adları (oyuncu, rakip…) taşır
+  const perRun = runs.map((r) => {
+    const l = namesIn(words, toks, segs[units[r.ua].a].firstWord, segs[units[r.ub].b].lastWord)
+    const t = l[0]?.n ?? 0
+    return l.filter((x) => x.n >= Math.max(2, 0.4 * t)).slice(0, 4).map((x) => x.name)
+  })
+  const share = new Map<string, number>()
+  for (const ns of perRun) for (const n of new Set(ns)) share.set(n, (share.get(n) ?? 0) + 1)
+  const dominant = new Set(runs.length >= 4 ? [...share].filter(([, c]) => c / runs.length >= 0.6).map(([n]) => n) : [])
   const out: Chapter[] = runs.map((r, k) => {
     const sa = units[r.ua].a
     const sb = units[r.ub].b
-    const list = namesIn(words, toks, segs[sa].firstWord, segs[sb].lastWord)
-    const topN = list[0]?.n ?? 0
-    const names = list.filter((x) => x.n >= Math.max(2, 0.4 * topN)).slice(0, 4).map((x) => x.name)
+    const names = perRun[k].filter((n) => !dominant.has(n))
     let title = names.join(', ')
     let keywords = names
     if (!title) {
@@ -272,7 +280,7 @@ export function findChapters(words: TranscriptWord[], options: Partial<ChapterOp
         }
       }
       const kws = [...tf].filter(([, c]) => c >= 2).map(([kk, c]) => [kk, c * idf(kk)] as const).sort((x, y) => y[1] - x[1]).slice(0, 2).map(([kk]) => [...(surf.get(kk) ?? [])].sort((x, y) => y[1] - x[1])[0]?.[0] ?? kk)
-      keywords = kws
+      keywords = []
       title = kws.length ? kws.map(cap).join(', ') : 'Sohbet'
     }
     return { start: k === 0 ? 0 : segs[sa].start, end: segs[sb].end, title, keywords, titleSource: 'draft' as const }

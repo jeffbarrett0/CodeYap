@@ -58,7 +58,7 @@ describe('komut satırı: sessizleri kes + altyazı + dışa aktar; arama + bağ
     expect(show.tracks.find((t: any) => t.id === 'A1').clips).toHaveLength(1)
     expect(cli('transcribe', proj).sentences).toBe(3)
     const r = cli('search', proj, 'Victor Nelson')
-    expect(r.results[0].sentence).toContain('Viktor Nelsen')
+    expect(r.results[0].sentence).toMatch(/Nelse/) // yerleşik sözlük adı "Victor Nelsson"a yaklaştırsa da arama bulur
   }, 180_000)
 
   it('ana proje değişmeden bağımsız klip projesi (süre hedefi, ayrı dosya)', () => {
@@ -412,6 +412,58 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(miss.ok).toBe(false)
     expect(JSON.stringify(miss)).toMatch(/Veri kümesi bulunamadı/)
   }, 240_000)
+
+  it('auto-clips: transkriptte konuşulan kişiye göre aday (zaman + ne konuşulmuş); --pick ile 9:16 klip projesi: yüz üstte (kırpma), görüntü altta; ana proje değişmez', () => {
+    const proj4 = join(tmp, 'autoclips.clipforge')
+    const ffm = require('ffmpeg-static') as string
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=5:duration=330', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=330', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(tmp, 'uzun.mp4')])
+    cli('new', proj4)
+    const id = cli('import', proj4, join(tmp, 'uzun.mp4'), '--add').added[0].id as string
+    const FOOT = ['transfer', 'forvet', 'taraftar', 'penaltı', 'kadro', 'sezon', 'lig', 'teknik']
+    const FOOD = ['yemek', 'tarif', 'lezzet', 'restoran', 'mutfak', 'tavuk', 'pilav', 'çorba']
+    const common = ['gerçekten', 'şimdi', 'arkadaşlar', 'konuşuyoruz', 'oldukça', 'durum', 'mesele', 'taraf']
+    let seed = 7
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296)
+    const words: unknown[] = []
+    let t = 0
+    for (const b of [{ secs: 60, v: FOOD }, { secs: 70, v: FOOT, name: 'Lemina' }, { secs: 60, v: FOOD }, { secs: 60, v: FOOT, name: 'Zaha' }, { secs: 60, v: FOOD }] as { secs: number; v: string[]; name?: string }[]) {
+      const end = t + b.secs
+      while (t < end) {
+        for (let i = 0; i < 9; i++) {
+          let w = rnd() < 0.45 ? b.v[Math.floor(rnd() * b.v.length)] : common[Math.floor(rnd() * common.length)]
+          if (b.name && i === 4 && rnd() < 0.6) w = b.name
+          words.push({ text: i === 8 ? `${w}.` : i === 0 ? w.charAt(0).toLocaleUpperCase('tr-TR') + w.slice(1) : w, start: t, end: t + 0.4, confidence: 1 })
+          t += 0.45
+        }
+        t += 0.5
+      }
+    }
+    const dir4 = join(`${proj4}-data`, 'transcripts')
+    mkdirSync(dir4, { recursive: true })
+    writeFileSync(join(dir4, `${id}.json`), JSON.stringify({ id: 'tr', assetId: id, language: 'tr', model: 'small', provider: 'whisper-cpp', audioTrack: 0, createdAt: '', durationSec: t, words, segments: [] }))
+    const before = md5(proj4)
+    const r = cli('auto-clips', proj4)
+    expect(r.ok === false ? JSON.stringify(r) : 'ok').toBe('ok')
+    expect(r.candidates.every((c: any) => c.headline.includes('konuşmuşsun') && c.summary.length > 5)).toBe(true)
+    const lem = r.candidates.find((c: any) => c.subject.includes('Lemina'))
+    expect(lem, JSON.stringify(r.candidates)).toBeTruthy()
+    expect(lem.start, JSON.stringify(r.candidates)).toBeGreaterThan(40)
+    expect(md5(proj4)).toBe(before)
+    // klip projesi: 9:16, yüz (kırpma) üstte, konuşulan görüntü altta
+    const mk = cli('auto-clips', proj4, '--pick', String(lem.pick), '--face', '0.7,0.64,0.29,0.34')
+    expect(mk.created, JSON.stringify(mk)).toHaveLength(1)
+    const cp = cli('show', mk.created[0].projectPath)
+    expect(cp.aspect).toBe('9:16')
+    const v1c = cp.tracks.find((x: any) => x.id === 'V1').clips
+    const v2c = cp.tracks.find((x: any) => x.id === 'V2').clips
+    expect(v1c.length).toBeGreaterThan(0)
+    expect(v2c.length).toBe(v1c.length)
+    expect(cp.durationSec).toBeCloseTo(lem.durationSec, 0)
+    expect(md5(proj4)).toBe(before)
+    const bad = cli('auto-clips', join(tmp, 'yok.clipforge'))
+    expect(bad.ok).toBe(false)
+    expect(cli('auto-clips', proj4, '--face', '0.9,0.9,0.5,0.5').ok).toBe(false)
+  }, 180_000)
 
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)

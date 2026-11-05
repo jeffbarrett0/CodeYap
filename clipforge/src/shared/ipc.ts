@@ -6,6 +6,7 @@
  *  - `ClipforgeApi`: renderer'ın gördüğü yüzey. Preload bunu IPC üzerinden, tarayıcı modu ise sahte (mock)
  *    bir uygulama ile sağlar; böylece arayüz iki ortamda da aynı kodla çalışır.
  */
+import type { AutoClipCandidate } from './autoclips'
 import type { StoryPlan, StoryRequest, StoryStatus } from './story/types'
 import type { AutoKickRequest, AutoKickStatus, TranscriptionReadiness } from './autokick'
 import type { TopicCandidate } from './topic'
@@ -20,6 +21,7 @@ import type {
   MediaAsset,
   Marker,
   Project,
+  NormRect,
   SearchOptions,
   SearchResult,
   Settings,
@@ -98,7 +100,7 @@ export interface IpcInvoke {
   'settings:get': [[], Settings]
   'settings:set': [[Partial<Settings>], Settings]
   'dialog:openMedia': [[], string[]]
-  'dialog:openFile': [[{ title: string; extensions: string[] }], string | null]
+  'dialog:openFile': [[{ title: string; extensions: string[]; groups?: { name: string; extensions: string[] }[] }], string | null]
   'dialog:saveFile': [[{ defaultName: string; extensions: string[] }], string | null]
   'project:save': [[Project, string | null], { path: string } | null]
   'project:open': [[string | null], OpenedProject | null]
@@ -142,6 +144,10 @@ export interface IpcInvoke {
   'templates:list': [[], LayoutTemplate[]]
   'templates:save': [[LayoutTemplate], LayoutTemplate[]]
   'templates:delete': [[string], LayoutTemplate[]]
+  /** Auto Clips: Auto Kick projesinin transkriptinden klip adayları (projeyi değiştirmez) */
+  'autoclips:find': [[{ projectPath: string; minSec?: number; maxSec?: number; max?: number }], { candidates: AutoClipCandidate[]; totalSec: number; projectPath: string; faceRegion?: NormRect }]
+  /** Seçilen adaylardan bağımsız klip projeleri (9:16: yüz üstte, konuşulan görüntü altta) */
+  'autoclips:make': [[{ projectPath: string; picks: { start: number; end: number; subject: string }[]; face?: NormRect; facePos?: 'top' | 'bottom'; faceShare?: number }], { projectPath: string; durationSec: number; name: string }[]]
   'dev:openDevTools': [[], void]
   /** Anlatım → Görsel: ses/video anlatımından hareketli sahneler (iş arka planda sürer) */
   'story:start': [[StoryRequest], string]

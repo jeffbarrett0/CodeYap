@@ -21,6 +21,8 @@ export interface GlobeSpec extends SceneBase {
   from?: Place
   label?: string
   sub?: string
+  /** rota üzerinde giden araç (varsayılan: from varsa uçak) */
+  vehicle?: 'plane' | 'none'
 }
 export interface MapSpec extends SceneBase {
   type: 'map'
@@ -28,6 +30,7 @@ export interface MapSpec extends SceneBase {
   from?: Place
   label?: string
   sub?: string
+  vehicle?: 'plane' | 'none'
 }
 export interface TitleSpec extends SceneBase {
   type: 'title'
@@ -86,6 +89,14 @@ export function strokePolygon(pts: Pt[], w: number): Pt[] {
     right.push([pts[i][0] - nx, pts[i][1] - ny])
   }
   return [...left, ...right.reverse()]
+}
+
+/** Uçak silüeti (burun +x yönünde); merkez (cx,cy), boyut s px, açı rad */
+export function planePoly(cx: number, cy: number, s: number, ang: number): Pt[] {
+  const P: Pt[] = [[1, 0], [0.35, 0.12], [0.2, 0.12], [-0.15, 0.78], [-0.35, 0.78], [-0.2, 0.12], [-0.7, 0.1], [-0.9, 0.38], [-1, 0.38], [-0.92, 0], [-1, -0.38], [-0.9, -0.38], [-0.7, -0.1], [-0.2, -0.12], [-0.35, -0.78], [-0.15, -0.78], [0.2, -0.12], [0.35, -0.12]]
+  const c = Math.cos(ang)
+  const si = Math.sin(ang)
+  return P.map(([x, y]) => [cx + (x * c - y * si) * s, cy + (x * si + y * c) * s] as Pt)
 }
 
 class Ass {
@@ -226,6 +237,7 @@ export function buildGlobe(spec: GlobeSpec, world: World): string {
       const prog = ease.inOut(clamp01((u - 0.32) / 0.42))
       const N = 72
       let run: Pt[] = []
+      let tail: Pt[] = []
       const flush = () => {
         if (run.length >= 2) a.draw(t0, t1, strokePolygon(run, Math.max(3, R * 0.012)), accent, 1, '', 4)
         run = []
@@ -242,8 +254,14 @@ export function buildGlobe(spec: GlobeSpec, world: World): string {
         }
         const p = orthographic(ll.lon, ll.lat, lon0, lat0, lift)
         run.push([cx + R * p.x, cy - R * p.y])
+        tail = run.slice(-2)
       }
       flush()
+      if (spec.vehicle !== 'none' && tail.length === 2 && prog > 0.02) {
+        const ang = Math.atan2(tail[1][1] - tail[0][1], tail[1][0] - tail[0][0])
+        a.draw(t0, t1, planePoly(tail[1][0], tail[1][1], R * 0.075, ang), '#000000', 0.55, '', 6)
+        a.draw(t0, t1, planePoly(tail[1][0], tail[1][1], R * 0.062, ang), '#FFFFFF', 1, '', 7)
+      }
       const pf = proj(spec.from!.lon, spec.from!.lat)
       if (pf.cosc > 0.05) a.draw(t0, t1, circle(pf.x, pf.y, R * 0.022), '#FFFFFF', 1, '', 4)
     }
@@ -328,7 +346,13 @@ export function buildMap(spec: MapSpec, world: World): string {
       a.draw(t0, t1, circle(pf[0], pf[1], W * 0.011), '#FFFFFF', 1, '', 4)
       if (prog > 0.01 && prog < 0.995) {
         const head = line[line.length - 1]
-        a.draw(t0, t1, circle(head[0], head[1], W * 0.012), '#FFFFFF', 1, '', 5)
+        const prev = line[Math.max(0, line.length - 3)]
+        if (spec.vehicle === 'none') a.draw(t0, t1, circle(head[0], head[1], W * 0.012), '#FFFFFF', 1, '', 5)
+        else {
+          const ang = Math.atan2(head[1] - prev[1], head[0] - prev[0])
+          a.draw(t0, t1, planePoly(head[0], head[1], W * 0.034, ang), '#000000', 0.55, '', 5)
+          a.draw(t0, t1, planePoly(head[0], head[1], W * 0.028, ang), '#FFFFFF', 1, '', 6)
+        }
       }
     }
     const pt = proj(spec.to.lon, spec.to.lat)

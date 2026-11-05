@@ -1,5 +1,7 @@
-import { readFile, rm } from 'node:fs/promises'
-import { isAbsolute, join, relative } from 'node:path'
+import { copyFile, mkdir, readFile, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { execFile } from 'node:child_process'
+import { basename, isAbsolute, join, relative } from 'node:path'
 import type { Settings, TranscriptWord, WhisperModelSize } from '../../shared/types'
 import { cpuThreads, runTool, ToolError } from '../ffmpeg'
 import { CancelledError } from '../tasks'
@@ -57,6 +59,13 @@ export function parseWhisperCppJson(json: WhisperCppJson, offsetSec: number): Tr
   return words
 }
 
+/** Windows kısa (8.3) yol: Türkçe/özel karakterli yolları ASCII'ye çevirir; olmazsa özgün yol */
+function shortPath(p: string): Promise<string> {
+  return new Promise((resolve) => {
+    execFile('cmd.exe', ['/c', 'for', '%I', 'in', `("${p}")`, 'do', '@echo', '%~sI'], { windowsHide: true }, (err, out) => resolve(!err && out.trim() ? out.trim() : p))
+  })
+}
+
 export function whisperModelFile(dir: string, size: WhisperModelSize): string {
   return join(dir, `ggml-${size}.bin`)
 }
@@ -100,14 +109,28 @@ export class WhisperCppProvider implements TranscriptionProvider {
     // ("HER GENCİN … [abc].clipforge-data") yolu bozup kullanım metnini basıyordu. Bu yüzden çalışma klasöründe (cwd) ve
     // yalnızca ASCII, göreli dosya adlarıyla çalıştırılır; klasör yolu hiçbir bağımsız değişkende geçmez.
     const rel = relative(req.workDir, req.wavPath)
-    const wavArg = rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : req.wavPath
     const prefixName = `wcpp_${Math.round(req.offsetSec)}`
     const prefix = join(req.workDir, prefixName)
+    // ses dosyasının whisper'a verilecek yazımları: önce göreli ad (cwd), olmazsa mutlak yol, Windows'ta kısa (8.3) yol, son çare ASCII geçici klasöre kopya
+    const wavVariants: (() => Promise<string>)[] = [
+      async () => (rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : req.wavPath),
+      async () => req.wavPath,
+      async () => (process.platform === 'win32' ? await shortPath(req.wavPath) : req.wavPath),
+      async () => {
+        const dir = join(process.platform === 'win32' ? `${process.env.SystemDrive ?? 'C:'}\\` : tmpdir(), 'cf-whisper')
+        await mkdir(dir, { recursive: true })
+        const dst = join(dir, `w_${Date.now().toString(36)}_${basename(req.wavPath).replace(/[^A-Za-z0-9._-]/g, '_')}`)
+        await copyFile(req.wavPath, dst)
+        return dst
+      }
+    ]
+    let variant = 0
+    let wavArg = await wavVariants[0]()
     // vazgeçilebilir bayraklar: sürüm bir bayrağı tanımazsa ("unknown argument") o bayrak çıkarılıp bir kez daha denenir
     let optional: [string, string?][] = [['-sow'], ['-np'], ['-t', String(this.threads)]]
     if (req.prompt) optional.push(['--prompt', req.prompt])
     let lastErr: unknown
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < 8; attempt++) {
       const args = ['-m', model, '-f', wavArg, '-l', req.language, '-ojf', '-of', prefixName, '-ml', '1', ...optional.flatMap((o) => (o[1] === undefined ? [o[0]] : [o[0], o[1]]))]
       try {
         await runTool(this.binary, args, { signal: req.signal, cwd: req.workDir }, (stderr) => describeWhisperError(stderr, model))
@@ -117,6 +140,16 @@ export class WhisperCppProvider implements TranscriptionProvider {
         lastErr = e
         if (e instanceof ToolError && /bulunamadı/.test(e.userMessage)) {
           throw new ToolError('whisper.cpp bulunamadı. Ayarlar → Transkripsiyon bölümünden "whisper-cli" yolunu belirtin (README: Kurulum).', e.detail)
+        }
+        // girdi dosyası bu yazımla bulunamadı: bir sonraki yazımla yeniden dene
+        if (e instanceof ToolError && /input file not found|no input files|failed to read|failed to open.*\.wav/i.test(e.detail ?? '') && variant < wavVariants.length - 1) {
+          variant++
+          wavArg = await wavVariants[variant]()
+          continue
+        }
+        // tüm yazımlar denendi ve ses parçası diskte yok: asıl neden (silinmiş/oluşmamış dosya) açıkça söylenir
+        if (e instanceof ToolError && /input file not found|no input files/i.test(e.detail ?? '') && !(await stat(req.wavPath).then(() => true, () => false))) {
+          throw new ToolError(`Ses parçası bulunamadı (oluşturulamadı ya da silindi): ${req.wavPath}. Antivirüs geçici dosyaları siliyor olabilir; klasörü korumadan çıkarın ya da Ayarlar'dan farklı bir veri klasörü deneyin.`, e.detail)
         }
         const bad = e instanceof ToolError ? unknownArgument(e.detail ?? '') : null
         const idx = bad ? optional.findIndex((o) => o[0] === bad) : -1

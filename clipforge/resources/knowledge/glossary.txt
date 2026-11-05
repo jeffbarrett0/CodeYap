@@ -1,0 +1,212 @@
+# Futbol sözlüğü: özel adlar (konuşma tanıma düzeltmesi için). Her satır bir terim; # ile başlayanlar yorum.
+# Yalnızca YAZIM düzeltir, bilgi içermez. Kendi terimlerinizi Ayarlar → Özel sözlük'e ekleyin.
+Galatasaray
+Fenerbahçe
+Beşiktaş
+Trabzonspor
+Başakşehir
+Samsunspor
+Göztepe
+Kasımpaşa
+Konyaspor
+Alanyaspor
+Gaziantep
+Eyüpspor
+Kayserispor
+Antalyaspor
+Karagümrük
+Çaykur Rizespor
+Kocaelispor
+Amedspor
+Osimhen
+Mauro Icardi
+Icardi
+Barış Alper Yılmaz
+Lucas Torreira
+Torreira
+Mario Lemina
+Lemina
+Leroy Sané
+Sané
+Dries Mertens
+Mertens
+Kerem Aktürkoğlu
+Aktürkoğlu
+Yunus Akgün
+Muslera
+Fernando Muslera
+Uğurcan Çakır
+Abdülkerim Bardakcı
+Bardakcı
+Davinson Sánchez
+Victor Nelsson
+Nelsson
+Wilfried Singo
+Singo
+Roland Sallai
+Sallai
+Gabriel Sara
+Ismail Jakobs
+Jakobs
+İlkay Gündoğan
+Gündoğan
+Noa Lang
+Frankowski
+Elias Jelert
+Jelert
+Eren Elmalı
+Metehan Baltacı
+Okan Buruk
+Wilfried Zaha
+Zaha
+Hakim Ziyech
+Ziyech
+Tetê
+Kaan Ayhan
+Talisca
+Anderson Talisca
+Edin Dzeko
+Dzeko
+Dušan Tadić
+Tadić
+Szymański
+Sebastian Szymański
+İsmail Yüksek
+Fred
+En-Nesyri
+Youssef En-Nesyri
+Livaković
+Dominik Livaković
+Çağlar Söyüncü
+Söyüncü
+Milan Škriniar
+Škriniar
+Mert Müldür
+Müldür
+Rodrigo Becão
+Becão
+Sofyan Amrabat
+Amrabat
+Jhon Durán
+Archie Brown
+Oğuz Aydın
+Kerem Demirbay
+Domenico Tedesco
+Tedesco
+Mourinho
+José Mourinho
+Rafa Silva
+Gedson Fernandes
+Gedson
+Ernest Muçi
+Muçi
+Cenk Tosun
+Mert Günok
+Orkun Kökçü
+Kökçü
+Semih Kılıçsoy
+Kılıçsoy
+Tammy Abraham
+Abraham
+Václav Černý
+Hyeon-gyu Oh
+Gabriel Paulista
+Emirhan Topçu
+Onuachu
+Paul Onuachu
+Trezeguet
+Shomurodov
+Eldor Shomurodov
+Mohamed Bayo
+Bayo
+Hakan Çalhanoğlu
+Çalhanoğlu
+Arda Güler
+Kenan Yıldız
+Merih Demiral
+Demiral
+Zeki Çelik
+Ferdi Kadıoğlu
+Kadıoğlu
+Vincenzo Montella
+Montella
+Haaland
+Erling Haaland
+Mbappé
+Kylian Mbappé
+Harry Kane
+Mohamed Salah
+Lewandowski
+Vinícius
+Bellingham
+Jude Bellingham
+Lamine Yamal
+Yamal
+Musiala
+Jamal Musiala
+Florian Wirtz
+Wirtz
+Michael Olise
+Olise
+Luis Díaz
+Neuer
+Manuel Neuer
+Kimmich
+Joshua Kimmich
+Guirassy
+Serhou Guirassy
+Deniz Undav
+Undav
+Patrik Schick
+Schick
+De Bruyne
+Kevin De Bruyne
+Rodri
+Bukayo Saka
+Ødegaard
+Martin Ødegaard
+Cole Palmer
+Bruno Fernandes
+Rashford
+Marcus Rashford
+Cristiano Ronaldo
+Messi
+Lionel Messi
+Neymar
+Modrić
+Luka Modrić
+Lautaro Martínez
+Kvaratskhelia
+Khvicha Kvaratskhelia
+Julián Álvarez
+Anthony Gordon
+Igor Thiago
+Guardiola
+Pep Guardiola
+Ancelotti
+Carlo Ancelotti
+Xabi Alonso
+Kompany
+Vincent Kompany
+Hansi Flick
+Arteta
+Mikel Arteta
+Arne Slot
+Bayern Münih
+Borussia Dortmund
+Bayer Leverkusen
+Real Madrid
+Barcelona
+Atlético Madrid
+Manchester City
+Manchester United
+Liverpool
+Arsenal
+Chelsea
+Tottenham
+Juventus
+Napoli
+Şampiyonlar Ligi
+Süper Lig
+Bundesliga
+Premier Lig

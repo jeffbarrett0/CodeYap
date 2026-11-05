@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { contentProblem, normalizeScenes, planStory, sanitizeContent } from '@shared/story/plan'
 import { simulateFootball } from '@shared/story/football'
 import { Raster } from '@shared/story/raster'
+import { planePoly } from '@shared/graphics/scenes'
 import { colorDistance, findTeam, resolveKits, themeForTeam } from '@shared/story/teams'
 import { datasetWarnings, findPlayerRows, resolveSceneData, staleDatasets, teamFacts, trDate, usedDatasets, validateDataset, type Dataset } from '@shared/story/data'
 import { readFileSync } from 'node:fs'
@@ -336,12 +337,17 @@ describe('Bilgi paketi (veri) ve veriye dayalı sahneler', () => {
     ])
     const p = planStory(w, { datasets: seed, today: '2026-11-05' })
     const lb = p.scenes.filter((s) => s.content.type === 'leaderboard')
-    expect(lb.length).toBeGreaterThanOrEqual(2)
-    const sl = lb.find((s) => (s.content as { dataset?: string }).dataset?.startsWith('superlig'))!
-    expect((sl.content as { highlight?: string[] }).highlight).toContain('Osimhen')
+    // Süper Lig'in güncel sezon verisi (2026/27) bayat → sahne ÖNERİLMEZ, "güncel veri" uyarısı verilir
+    expect(lb.some((s) => (s.content as { dataset?: string }).dataset?.startsWith('superlig'))).toBe(false)
+    expect(p.warnings.join(' ')).toMatch(/Güncel veri gerektiren sahneler/)
     expect(lb.some((s) => (s.content as { dataset?: string }).dataset === 'bundesliga-2025-26-gol')).toBe(true)
+    // veri güncelse (bugünün tarihli) Süper Lig sıralaması da önerilir ve Osimhen vurgulanır
+    const fresh = seed.map((d) => (d.id === 'superlig-2026-27-gol-hafta6' ? { ...d, asOf: '2026-11-05' } : d))
+    const p2 = planStory(w, { datasets: fresh, today: '2026-11-05' })
+    const sl = p2.scenes.find((s) => (s.content as { dataset?: string }).dataset === 'superlig-2026-27-gol-hafta6')!
+    expect(sl).toBeTruthy()
+    expect((sl.content as { highlight?: string[] }).highlight).toContain('Osimhen')
     expect(p.scenes.some((s) => s.content.type === 'teamcard' && (s.content as { team: string }).team === 'Galatasaray')).toBe(true)
-    expect(p.warnings.join(' ')).toMatch(/doğrulanmadı|bayat/)
     const none = planStory(narration([[2, 'Ligue 1 gol krallığını kim aldı sence bakalım şimdi söyleyelim arkadaşlar.'], [9, 'Konuşmaya devam ediyoruz ve başka şeyler de var burada.']]), { datasets: seed })
     expect(none.warnings.join(' ')).toMatch(/Ligue 1 GOL.*veri yok/)
   })
@@ -396,5 +402,19 @@ describe('Sıralama / karşılaştırma / takım kartı çizimi', () => {
     expect((ass.match(/\\fscx1\\t/g) ?? []).length).toBe(2) // yalnızca iki değerli satırda çubuk
     expect(ass).toContain('22 GOL')
     expect(ass).not.toContain('null')
+  })
+})
+
+describe('Yüz videosu + uçak rotası', () => {
+  it('"Paris\'ten İstanbul\'a gittik" → tek harita sahnesi: from Paris, to İstanbul, uçakla', () => {
+    const w = narration([[2, "Geçen hafta Paris'ten İstanbul'a gittik ve çok eğlendik."], [10, 'Sonra başka konulara geçtik ve devam ettik burada bakalım.']])
+    const p = planStory(w, { isPlace: (x) => ({ Paris: 'Paris', 'İstanbul': 'İstanbul' } as Record<string, string>)[x] })
+    const place = p.scenes.filter((s) => s.content.type === 'place')
+    expect(place).toHaveLength(1)
+    expect(place[0].content).toMatchObject({ type: 'place', from: 'Paris', to: 'İstanbul', vehicle: 'plane' })
+  })
+  it('uçak silüeti çizilir; vehicle:none ile çizilmez', () => {
+    expect(planePoly(100, 100, 20, 0)[0]).toEqual([120, 100]) // burun +x
+    expect(planePoly(100, 100, 20, Math.PI / 2)[0][1]).toBeCloseTo(120, 5)
   })
 })

@@ -20,7 +20,7 @@ export const STORY_SCHEMA = {
     person: '{ "type":"person", "role"?:"TEKNİK DİREKTÖR", "name":"AD SOYAD", "sub"? }  // isim bandı',
     quote: '{ "type":"quote", "text", "by"? }',
     title: '{ "type":"title", "text", "sub"? }',
-    place: '{ "type":"place", "to":"Almanya", "from"?:"Türkiye", "label"?, "sub"? }  // harita; ülke/ana şehir ya da "boylam,enlem"',
+    place: '{ "type":"place", "to":"İstanbul", "from"?:"Paris", "label"?, "sub"?, "vehicle"?:"plane|none" }  // harita; ülke/ana şehir ya da "boylam,enlem"',
     leaderboard: '{ "type":"leaderboard", "kicker"?, "title"?, "dataset":"superlig-2025-26-gol", "top"?:5, "highlight"?:["Osimhen"], "metric"?:"GOL", "reveal"?:"countdown|down", "team"?, "source"?, "note"? }  // sıralama: satırlar bilgi paketinden (dataset) ya da elle "rows":[{ "name","team"?,"value"?:number|null,"rank"?,"highlight"?,"at"?,"note"? }]. Değeri bilinmeyen satır value:null (çubuksuz). Eksik sıra UYDURMA.',
     compare: '{ "type":"compare", "kicker"?, "title"?, "left":{ "name","team"? }, "right":{ "name","team"? }, "metrics":[{ "label":"Gol","left":36,"right":27,"lowerBetter"?,"at"? }], "source"? }  // iki oyuncu/takım karşılaştırması (en çok 6 metrik); takım renkleri otomatik',
     teamcard: '{ "type":"teamcard", "team":"Galatasaray", "kicker"?, "facts"?:[{ "label","value" }], "source"? }  // takım adı + forma deseni + künyeler; facts boşsa bilgi paketinden (lig sırası/puanı/gol kralı) otomatik dolar',

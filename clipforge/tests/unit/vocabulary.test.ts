@@ -73,3 +73,24 @@ describe('güvensiz kelimeler ve elle düzeltme', () => {
     expect(r.transcript.words.map((w) => w.text)).toEqual(["Kavukçu'nun", 'Kavukçunun'])
   })
 })
+
+describe('yerleşik (futbol) sözlüğü ve bölünmüş terimler', () => {
+  const W2 = (text: string, i: number, conf = 0.4) => ({ text, start: i * 0.5, end: i * 0.5 + 0.4, confidence: conf })
+  const soft = ['Osimhen', 'Galatasaray', 'Lemina', 'Barış Alper Yılmaz', 'Icardi']
+  it('yanlış yazılmış özel ad düzeltilir, ek korunur; küçük harfli ve emin olunan sıradan sözcüğe dokunulmaz', () => {
+    const r = applyVocabulary([W2("Osimen'in", 0), W2('golü', 1, 0.9), W2('Lemine', 2), W2('limon', 3, 0.9), W2('icardi', 4, 0.9)], [], soft)
+    expect(r.words.map((w) => w.text)).toEqual(["Osimhen'in", 'golü', 'Lemina', 'limon', 'icardi'])
+    expect(r.words[0].corrected).toBe("Osimen'in")
+  })
+  it('bölünmüş terim birleşir: "Galata saray" → "Galatasaray"; zamanlar korunur; farklı kelimeler birleşmez', () => {
+    const r = applyVocabulary([W2('Galata', 0), W2("saray'da", 1), W2('maç', 2, 0.9), W2('var', 3, 0.9)], [], soft)
+    expect(r.words.map((w) => w.text)).toEqual(["Galatasaray'da", 'maç', 'var'])
+    expect(r.words[0].start).toBe(0)
+    expect(r.words[0].end).toBeCloseTo(0.9, 5)
+    const same = applyVocabulary([W2('bu', 0, 0.9), W2('akşam', 1, 0.9)], [], soft)
+    expect(same.words).toHaveLength(2)
+  })
+  it('kullanıcı sözlüğü yine önceliklidir (eski davranış bozulmaz)', () => {
+    expect(applyVocabulary([W2('kabukçu', 0)], ['Kavukçu']).words[0].text).toBe('Kavukçu')
+  })
+})

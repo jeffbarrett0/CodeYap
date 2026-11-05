@@ -121,6 +121,19 @@ export function createMockApi(): ClipforgeApi {
     'dialog:openMedia': () => ['/demo/2024-05-12 21-30-45.mkv'],
     'dialog:openFile': () => w.__mock?.openFile ?? 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
+    'autoclips:find': (r) => {
+      if (/yok/i.test(r.projectPath)) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
+      return {
+        projectPath: r.projectPath,
+        totalSec: 1800,
+        candidates: [
+          { id: 'ac1', start: 120, end: 168, durationSec: 48, subject: 'Lemina', headline: 'Lemina hakkında konuşmuşsun', summary: 'Lemina orta sahada çok iyi oynuyor ve takımın dengesi onunla değişiyor.', score: 14.2 },
+          { id: 'ac2', start: 600, end: 660, durationSec: 60, subject: 'Zaha', headline: 'Zaha hakkında konuşmuşsun', summary: 'Zaha kanatta fark yaratıyor ama bitiriciliği eksik.', score: 12.1 },
+          { id: 'ac3', start: 1200, end: 1245, durationSec: 45, subject: 'Osimhen', headline: 'Osimhen hakkında konuşmuşsun', summary: 'Osimhen gol krallığında hâlâ en önde.', score: 11.4 }
+        ]
+      }
+    },
+    'autoclips:make': (r) => r.picks.map((p) => ({ projectPath: `/yayin/AutoKick/kayit/kayit-klipler/${p.subject} · ${Math.round(p.end - p.start)} sn.clipforge`, durationSec: p.end - p.start, name: `${p.subject} · ${Math.round(p.end - p.start)} sn` })),
     'story:start': (req) => {
       const id = `story-${storyJobs.size + 1}`
       const status: StoryStatus = { id, request: req, name: req.mediaPath.split(/[\\/]/).pop() ?? req.mediaPath, status: 'running', stages: initialStoryStages(), startedAt: Date.now() }

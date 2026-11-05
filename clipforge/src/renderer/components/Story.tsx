@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { STORY_TYPES, type StoryContent, type StoryPlan, type StoryScene, type StoryStatus, type StoryType } from '@shared/story/types'
 import { contentProblem, sanitizeContent } from '@shared/story/plan'
 import { requireApi } from '../api'
+import { claudeEditPrompt } from '../claudePrompt'
 import { useStore } from '../store'
 import { Modal, Num, Progress } from './ui'
 
@@ -121,7 +122,7 @@ function JobView({ job }: { job: StoryStatus }) {
 /** Anlatım → Görsel: sesi (ya da videoyu) seç → sahne planı → düzenle → hareketli sahnelerle video projesi */
 export function StoryDialog() {
   const api = requireApi()
-  const { story, settings, openDialog, openProject } = useStore()
+  const { story, settings, openDialog, openProject, toast } = useStore()
   const [media, setMedia] = useState('')
   const [useAi, setUseAi] = useState(false)
   const [aspect, setAspect] = useState<'16:9' | '9:16' | '1:1'>('16:9')
@@ -130,6 +131,8 @@ export function StoryDialog() {
   const [buildJob, setBuildJob] = useState<string>()
   const [addType, setAddType] = useState<StoryType>('stats')
   const [allowStale, setAllowStale] = useState(false)
+  const [face, setFace] = useState<'pip' | 'none'>('pip')
+  const isVideo = /\.(mp4|mov|mkv|webm|m4v)$/i.test(media)
   const aiReady = settings.llmProvider !== 'off'
   const pj = planJob ? story[planJob] : undefined
   const bj = buildJob ? story[buildJob] : undefined
@@ -139,7 +142,7 @@ export function StoryDialog() {
   }, [pj?.status, pj?.result, plan])
 
   const pick = async () => {
-    const p = await api.invoke('dialog:openFile', { title: 'Anlatım sesi ya da videosu', extensions: MEDIA_EXT })
+    const p = await api.invoke('dialog:openFile', { title: 'Anlatım sesi ya da videosu', extensions: MEDIA_EXT, groups: [{ name: 'Ses (MP3, WAV, M4A, AAC, OGG, FLAC…)', extensions: ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'opus', 'flac'] }, { name: 'Video (MP4, MOV, MKV, WEBM, M4V)', extensions: ['mp4', 'mov', 'mkv', 'webm', 'm4v'] }] })
     if (p) {
       setMedia(p)
       setPlan(null)
@@ -154,7 +157,7 @@ export function StoryDialog() {
   }
   const build = async () => {
     if (!plan) return
-    setBuildJob(await api.invoke('story:start', { mediaPath: media, action: 'build', plan, aspect, allowStale }))
+    setBuildJob(await api.invoke('story:start', { mediaPath: media, action: 'build', plan, aspect, allowStale, face }))
   }
   const setScene = (i: number, s: StoryScene) => plan && setPlan({ ...plan, scenes: plan.scenes.map((x, j) => (j === i ? s : x)) })
   const addScene = () => {
@@ -171,6 +174,12 @@ export function StoryDialog() {
     <Modal title="Anlatım → Görsel — anlattığınızı hareketli sahnelerle görselleştirin" onClose={() => openDialog(null)} wide>
       <div className="col" data-testid="story-dialog" style={{ gap: 10 }}>
         <div className="infobox">Anlatımınızı (ses ya da video) seçin. ClipForge konuşmayı yazıya çevirir, <b>rakam kartları, sezon/yıl çizelgesi, isim bandı, liste, alıntı, başlık ve harita</b> sahnelerini önerir; siz düzenlersiniz, sonra sesiniz + sahnelerle bir video projesi kurulur. Sahneler konuşulan an belirir.</div>
+        <div className="infobox" data-testid="story-claude-box">
+          <b>İnternetten güncel veri ya da daha zengin sahneler isterseniz</b> (harita/uçak rotası, gol krallığı, takım kartı…) bu videoyu <b>Claude Code</b> ile zenginleştirin: komutu kopyalayıp Claude Code'a yapıştırın; sahneleri o planlar ve bu uygulamanın aracıyla çizer.
+          <div className="row wrap" style={{ marginTop: 6 }}>
+            <button className="btn sm" disabled={!media} onClick={() => { void navigator.clipboard?.writeText(claudeEditPrompt(media)).catch(() => undefined); toast('success', 'Claude Code komutu kopyalandı: Claude Code içine yapıştırın.') }} data-testid="story-copy-claude" title={media ? '' : 'Önce bir anlatım dosyası seçin'}>Claude Code komutunu kopyala</button>
+          </div>
+        </div>
         <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
           <button className="btn" onClick={() => void pick()} data-testid="story-pick">Anlatım dosyasını seç…</button>
           <span className="hint" style={{ wordBreak: 'break-all' }} data-testid="story-media">{media || 'Henüz seçilmedi'}</span>
@@ -186,6 +195,14 @@ export function StoryDialog() {
               <option value="1:1">1:1</option>
             </select>
           </label>
+          {isVideo && (
+            <label className="row" style={{ gap: 6 }} title="Videoda yüzünüz görünüyorsa: sahne varken köşede küçük, sahne yokken tam kare">Yüzüm
+              <select value={face} onChange={(e) => setFace(e.target.value as 'pip' | 'none')} aria-label="Yüz" data-testid="story-face">
+                <option value="pip">Köşede küçük (sahne varken)</option>
+                <option value="none">Hiç gösterme (yalnızca ses)</option>
+              </select>
+            </label>
+          )}
           <button className="btn primary" disabled={!media || planning || building} onClick={() => void analyze()} data-testid="story-plan">{planning ? 'Planlanıyor…' : plan ? 'Yeniden planla' : 'Sahneleri planla'}</button>
         </div>
         {!aiReady && <div className="hint">Yapay zekâ kapalıyken sahneler kurallarla bulunur (rakam+birim, sezon/yıl, “teknik direktör Ad Soyad”, yer adları, konu başlıkları). Daha zengin planlar için Ayarlar → Yapay zekâ.</div>}

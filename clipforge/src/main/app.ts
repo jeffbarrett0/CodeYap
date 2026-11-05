@@ -21,6 +21,7 @@ import { TaskQueue, userMessage } from './tasks'
 import { createEmbeddingProvider } from './embeddings'
 import { downloadModel, modelInstalled } from './transcribe/models'
 import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pipeline'
+import { builtinGlossary } from './transcribe/glossary'
 import { applyVocabulary, buildPrompt, fixWord, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
 import { findVideoIdeas, type IdeasResult } from '../shared/ideas'
@@ -255,11 +256,12 @@ export class AppService {
       throw new ToolError(`Whisper "${model}" modeli kurulu değil. Ayarlar → Transkripsiyon bölümünden indirin (${whisperModelFile(this.modelDir, model)}).`)
     }
     const provider = createProvider(s, this.modelDir, join(this.deps.resourcesDir, 'faster_whisper_cli.py'), this.whisperBin)
+    const soft = await builtinGlossary(this.deps)
     const task = this.queue.add({
       kind: 'transcribe',
       title: `Transkripsiyon: ${asset.name} (Track ${req.track + 1}, ${req.language})`,
       run: async (ctx) => {
-        const { transcript, reused } = await transcribeAsset(asset, { track: req.track, language: req.language, model, force: req.force, prompt: buildPrompt(s.vocabulary, s.transcribeFillers), vocabulary: parseVocabulary(s.vocabulary) }, { tools: this.tools, provider, dataDir: this.dataDir, signal: ctx.signal, progress: ctx.progress })
+        const { transcript, reused } = await transcribeAsset(asset, { track: req.track, language: req.language, model, force: req.force, prompt: buildPrompt(s.vocabulary, s.transcribeFillers), vocabulary: parseVocabulary(s.vocabulary), softVocabulary: soft }, { tools: this.tools, provider, dataDir: this.dataDir, signal: ctx.signal, progress: ctx.progress })
         this.search.load(asset.id, transcript)
         this.deps.emit('transcript:ready', { assetId: asset.id, transcript, reused })
       }
@@ -296,7 +298,7 @@ export class AppService {
   async transcriptApplyVocabulary(assetId: string): Promise<{ transcript: Transcript; corrections: number }> {
     const t = await this.transcriptGet(assetId)
     if (!t) throw new ToolError('Transkript bulunamadı.')
-    const r = applyVocabulary(t.words, parseVocabulary(this.settings.value.vocabulary))
+    const r = applyVocabulary(t.words, parseVocabulary(this.settings.value.vocabulary), await builtinGlossary(this.deps))
     const next = r.corrections.length ? withWords(t, r.words) : t
     if (r.corrections.length) {
       await saveTranscript(this.dataDir, next)

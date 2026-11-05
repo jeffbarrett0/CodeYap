@@ -141,7 +141,7 @@ export type StoryContent =
   | { type: 'person'; role?: string; name: string; sub?: string; team?: string }
   | { type: 'quote'; text: string; by?: string; team?: string; source?: string }
   | { type: 'title'; text: string; sub?: string; team?: string }
-  | { type: 'place'; to: string; from?: string; label?: string; sub?: string }
+  | { type: 'place'; to: string; from?: string; label?: string; sub?: string; vehicle?: 'plane' | 'none' }
   /** Hazır görsel/video (gerçekçi sahne, 2D/3D karakter render'ı…): tam kare ya da şeffaf PNG karakter; altta isteğe bağlı yazı */
   | { type: 'media'; file: string; fit?: 'cover' | 'contain'; align?: 'left' | 'center' | 'right'; zoom?: 'in' | 'out' | 'none'; title?: string; caption?: string }
 
@@ -205,6 +205,8 @@ export interface StoryRequest {
   /** plan: otomatik sahne bulma; boş plan yazılır (sahneleri Claude Code/kullanıcı yazar) */
   blank?: boolean
   aspect?: '16:9' | '9:16' | '1:1'
+  /** Anlatım VİDEO ise (yüzünüz görünüyor): pip (varsayılan) = sahne varken yüzünüz köşede küçük, sahne yokken tam kare; none = yüz hiç gösterilmez (yalnızca ses) */
+  face?: 'pip' | 'none'
   language?: string
   theme?: Partial<StoryTheme>
 }

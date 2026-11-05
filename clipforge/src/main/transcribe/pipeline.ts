@@ -22,6 +22,8 @@ export interface TranscribeParams {
   prompt?: string
   /** Üretim sonrası bulanık düzeltme için özel sözlük terimleri */
   vocabulary?: string[]
+  /** Yerleşik (futbol) sözlüğü: temkinli düzeltme */
+  softVocabulary?: string[]
 }
 
 export interface PipelineDeps {
@@ -117,7 +119,7 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
   }
 
   // Özel sözlükle bulanık düzeltme (ör. kabukçu → Kavukçu); düzeltilen kelimelerde özgün yazım saklanır
-  const words = applyVocabulary(mergeChunkResults(results), p.vocabulary ?? []).words
+  const words = applyVocabulary(mergeChunkResults(results), p.vocabulary ?? [], p.softVocabulary ?? []).words
   const transcript: Transcript = {
     id: `tr_${asset.id}_${Date.now().toString(36)}`,
     assetId: asset.id,

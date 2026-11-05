@@ -17,6 +17,8 @@ import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems
 import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
+import { autoClipCandidates, makeAutoClip } from '../main/autoclips/pipeline'
+import { parseRect } from '../shared/autoclips'
 import { cleanBrand, runStory } from '../main/story/pipeline'
 import { renderBackdrop, renderFootballFrame, renderStoryScene } from '../main/story/render'
 import { contentProblem, normalizeScenes } from '../shared/story/plan'
@@ -27,7 +29,7 @@ import { TEAMS, findTeam } from '../shared/story/teams'
 import { runTool } from '../main/ffmpeg'
 import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
-import { chapterTimestamp } from '../shared/chapters'
+import { chapterTimestamp, chapterWarnings, formatChapters } from '../shared/chapters'
 import { makeTopicClip, topicCandidates } from '../main/autokick/clips'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { clipsAt, timelineToSource } from '../shared/timeline/ops'
@@ -74,6 +76,8 @@ const r1 = (n: number) => Math.round(n * 100) / 100
 const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON döndürür)
 
   info                                   ffmpeg/ffprobe/whisper durumu
+  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 90] [--max 12] [--pick 1,3 | --all] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415]
+                                         transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
   auto-kick <video> [--out klasör] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
@@ -83,7 +87,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   story schema                           sahne türleri + örnek plan (Claude Code planı yazarken kullanır)
   story preview <plan.json> [--out klasör] [--scene id] [--at 0.7] [--aspect 16:9]   sahneleri PNG kareye çizer (medya/ses gerekmez) — yazdığınız planı gözle doğrulayın
   story plan <ses|video> [--out klasör] [--ai | --blank] [--lang tr]   anlatımı içe aktarır, transkribe eder, hareketli SAHNE PLANI çıkarır (story-plan.json; düzenlenebilir)
-  story build <ses|video> [--out klasör] [--plan dosya.json] [--allow-stale] [--aspect 16:9|9:16|1:1]   planı çizer: anlatım sesi + sahneler tek projede
+  story build <ses|video> [--out klasör] [--plan dosya.json] [--allow-stale] [--face pip|none] [--aspect 16:9|9:16|1:1]   planı çizer: anlatım sesi + sahneler tek projede
   new <proje> [--name ad]                boş proje oluşturur
   import <proje> <dosya...> [--add] [--layer V3]   medya ekler (--add: ilk videoyu --layer'a (varsayılan V1), 0. sn'den, sesiyle yerleştirir)
   show <proje>                           katmanlar, klipler, altyazılar, süre
@@ -100,7 +104,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
   ideas <proje> [--asset a] [--max 8] [--ai]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
-  chapters <proje> [--ai] [--density low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
+  chapters <proje> [--ai | --titles basliklar.json] [--density low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
   silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
   captions <proje> [--style classic|boxed-highlight|premium-gold] [--max-chars 22] [--lang en]   transkriptten altyazı üretir (--lang en: İngilizce çeviri, yapay zekâ ayarı gerekir) (boxed-highlight: referans stil)
@@ -208,6 +212,24 @@ async function main(argv: string[]): Promise<unknown> {
       hint: made.length ? 'Klip projeleri Auto Kick projesine dokunmadan oluşturuldu.' : cands.length ? 'Bunlar ÖNERİDİR. Seçmek için --pick N (virgülle birden çok) ya da --all ekleyin.' : 'Bu konuda transkriptte geçiş bulunamadı (yazılışı değiştirip deneyin).'
     })
   }
+  if (command === 'auto-clips') {
+    if (!projectArg) throw new Error('Auto Kick klasörü ya da projesi verin: auto-clips <klasör|proje> [--pick 1,3 | --all]')
+    const r = await autoClipCandidates(projectArg, { minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max') }, {})
+    const picksArg = str(a.opt.pick)
+    const picks = a.opt.all ? r.candidates : picksArg ? picksArg.split(',').map((x) => r.candidates[Number(x) - 1]).filter(Boolean) : []
+    if (a.opt.pick && picks.length === 0) throw new Error(`Seçilen aday yok (1–${r.candidates.length}).`)
+    const rect = str(a.opt.face) ? parseRect(str(a.opt.face)!) : null
+    if (str(a.opt.face) && !rect) throw new Error('--face "x,y,w,h" (0..1, ör. 0.7,0.64,0.29,0.34) verin.')
+    const made = []
+    for (const p of picks) made.push({ id: p.id, ...(await makeAutoClip(projectArg, p, { face: rect ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share') }, {})) })
+    return out({
+      project: r.projectPath,
+      totalSec: r1(r.totalSec),
+      candidates: r.candidates.map((c, i) => ({ pick: i + 1, id: c.id, start: r1(c.start), end: r1(c.end), durationSec: r1(c.durationSec), subject: c.subject, headline: c.headline, summary: c.summary, score: c.score })),
+      created: made,
+      hint: made.length ? 'Klip projeleri (9:16: yüz üstte, konuşulan görüntü altta) Auto Kick projesine dokunmadan oluşturuldu.' : 'Bunlar ÖNERİDİR (zaman aralığı + ne konuşulduğu). Üretmek için --pick N (virgülle) ya da --all; yüz bölgesi için --face x,y,w,h (kaynak karede, 0..1).'
+    })
+  }
   if (command === 'auto-kick') {
     if (!projectArg) throw new Error('Yayın kaydı yolunu verin: auto-kick <video> [--out klasör]')
     const r = await runAutoKick(
@@ -302,7 +324,7 @@ async function main(argv: string[]): Promise<unknown> {
     if (str(a.opt.plan)) plan = JSON.parse(await readFile(resolve(str(a.opt.plan)!), 'utf8')) as StoryPlan
     const asp = str(a.opt.aspect)
     const r = await runStory(
-      { mediaPath: media, outDir: str(a.opt.out), action: sub, plan, useAi: !!a.opt.ai, blank: !!a.opt.blank, allowStale: !!a.opt['allow-stale'], language: str(a.opt.lang), aspect: asp === '9:16' || asp === '1:1' ? asp : '16:9' },
+      { mediaPath: media, outDir: str(a.opt.out), action: sub, plan, useAi: !!a.opt.ai, blank: !!a.opt.blank, allowStale: !!a.opt['allow-stale'], face: a.opt.face === 'none' ? 'none' : 'pip', language: str(a.opt.lang), aspect: asp === '9:16' || asp === '1:1' ? asp : '16:9' },
       {},
       { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }
     )
@@ -516,6 +538,21 @@ async function main(argv: string[]): Promise<unknown> {
       })
     }
     case 'chapters': {
+      // Claude Code transkripti okuyup kendi başlıklarını yazdıysa: --titles dosya.json = [{ "start": sn ya da "00:12:42", "title": "…" }]
+      if (str(a.opt.titles)) {
+        const raw = JSON.parse(await readFile(resolve(str(a.opt.titles)!), 'utf8')) as { start: number | string; title: string }[]
+        const toSec = (v: number | string) => (typeof v === 'number' ? v : v.split(':').reduce((n, x) => n * 60 + Number(x), 0))
+        const total = timelineDuration(s.timeline)
+        const list = raw.map((x) => ({ start: toSec(x.start), title: String(x.title ?? '').trim() })).filter((x) => Number.isFinite(x.start) && x.title).sort((p, q) => p.start - q.start)
+        const chs = list.map((x, i) => ({ start: x.start, end: list[i + 1]?.start ?? total, title: x.title, keywords: [] as string[], titleSource: 'ai' as const }))
+        const text = formatChapters(chs)
+        const outFile2 = str(a.opt.out)
+        if (outFile2) {
+          await mkdir(dirname(resolve(outFile2)), { recursive: true })
+          await writeFile(resolve(outFile2), text + '\n', 'utf8')
+        }
+        return out({ ok: true, text, warnings: chapterWarnings(chs), written: outFile2 ? resolve(outFile2) : undefined, hint: 'Başlıklar sizin yazdığınız gibi biçimlendi; zamanlar çizelge zamanıdır.' })
+      }
       const r = await s.service.chaptersGenerate({ timeline: s.timeline, useAi: !!a.opt.ai, density: (['low', 'medium', 'high'] as const).find((d) => d === str(a.opt.density)) })
       const outFile = str(a.opt.out)
       if (outFile) {

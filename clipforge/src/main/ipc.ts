@@ -6,6 +6,7 @@ import { userMessage } from './tasks'
 import { setCpuMode } from './ffmpeg'
 import { AutoKickManager } from './autokick/pipeline'
 import { StoryManager } from './story/pipeline'
+import { autoClipCandidates, makeAutoClip } from './autoclips/pipeline'
 import { transcriptionReadiness } from '../shared/autokick'
 import { makeTopicClip, topicCandidates } from './autokick/clips'
 
@@ -23,6 +24,12 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
   const story = new StoryManager({ userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }, (s) => getWindow()?.webContents.send('story:update', s))
   const autoKick = new AutoKickManager({ userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }, (s) => getWindow()?.webContents.send('autokick:update', s))
   const handlers: Handlers = {
+    'autoclips:find': (r) => autoClipCandidates(r.projectPath, { ...(r.minSec ? { minSec: r.minSec } : {}), ...(r.maxSec ? { maxSec: r.maxSec } : {}), ...(r.max ? { max: r.max } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
+    'autoclips:make': async (r) => {
+      const out = []
+      for (const p of r.picks) out.push(await makeAutoClip(r.projectPath, p, { face: r.face, facePos: r.facePos, faceShare: r.faceShare }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }))
+      return out
+    },
     'story:start': (req) => story.start(req),
     'story:cancel': (id) => story.cancel(id),
     'story:list': () => story.list(),
@@ -50,8 +57,9 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       const r = await dialog.showOpenDialog(getWindow() ?? (undefined as never), { title: 'Medya seç (video, ses, görsel)', properties: ['openFile', 'multiSelections'], filters: MEDIA_FILTERS })
       return r.canceled ? [] : r.filePaths
     },
-    'dialog:openFile': async ({ title, extensions }) => {
-      const r = await dialog.showOpenDialog(getWindow() ?? (undefined as never), { title, properties: ['openFile'], filters: [{ name: title, extensions }] })
+    'dialog:openFile': async ({ title, extensions, groups }) => {
+      const filters = [{ name: groups?.length ? 'Tüm desteklenen dosyalar' : title, extensions }, ...(groups ?? []), { name: 'Tüm dosyalar', extensions: ['*'] }]
+      const r = await dialog.showOpenDialog(getWindow() ?? (undefined as never), { title, properties: ['openFile'], filters })
       return r.canceled ? null : (r.filePaths[0] ?? null)
     },
     'dialog:saveFile': async ({ defaultName, extensions }) => {

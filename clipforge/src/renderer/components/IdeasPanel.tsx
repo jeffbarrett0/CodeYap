@@ -12,18 +12,15 @@ function IdeaCard({ idea, i, assetId }: { idea: VideoIdea; i: number; assetId: s
   return (
     <div className="col idea-card" data-testid="idea" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, gap: 4 }}>
       <div style={{ fontWeight: 700, fontSize: 14 }} data-testid="idea-headline">{i + 1}. {idea.headline}</div>
-      <div className="hint" data-testid="idea-meta">{mm(idea.start)} – {mm(idea.end)} · <b>{mins} dk</b>{idea.mentions ? ` · ${idea.mentions} kez anıldı` : ''}</div>
+      <div data-testid="idea-meta"><b>{mm(idea.start)} – {mm(idea.end)}</b> <span className="hint">· {mins} dk · klip olarak paylaşabilirsin</span></div>
+      <div className="hint" data-testid="idea-summary">{idea.description ?? idea.summary}</div>
       {title && (
         <div className="row" style={{ justifyContent: 'space-between', gap: 6 }}>
           <span data-testid="idea-title">YouTube başlığı: <b>{title}</b></span>
           <button className="btn ghost sm" onClick={() => { void navigator.clipboard?.writeText(title).catch(() => undefined); toast('info', 'Başlık kopyalandı.') }}>Kopyala</button>
         </div>
       )}
-      <details>
-        <summary className="hint" style={{ cursor: 'pointer' }}>Ne konuşulmuş?</summary>
-        <div className="hint" style={{ marginTop: 4 }}>{idea.description ?? idea.summary}</div>
-        {idea.hook && <div className="hint">Açılış fikri: “{idea.hook}”</div>}
-      </details>
+      {idea.hook && <div className="hint">Açılış cümlesi: “{idea.hook}”</div>}
       <div className="row wrap">
         <button className="btn sm" onClick={() => { setViewMode('source'); setSourceTime(idea.start) }}>Kaynakta git</button>
         <button className="btn sm primary" onClick={() => openDraftFromRange(assetId, idea.start, idea.end, idea.firstWord, idea.lastWord)} data-testid="idea-draft" title="Bu bölümü klip taslağı olarak açar; oradan 'Yeni projede aç' ile ayrı bir proje yapabilirsiniz">Klip yap</button>

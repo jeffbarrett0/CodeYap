@@ -6,8 +6,8 @@ import { findPlace, key, type World } from '../../shared/graphics/geo'
 import { contentProblem, normalizeScenes, planStory } from '../../shared/story/plan'
 import { initialStoryStages, type StoryPlan, type StoryRequest, type StoryResult, type StoryStage, type StoryStageState, type StoryStatus } from '../../shared/story/types'
 import { cmd } from '../../shared/timeline/commands'
-import { clipForTrack } from '../../shared/timeline/create'
-import { aspectSize, clipEnd } from '../../shared/timeline/model'
+import { clipForTrack, clipsForVideoWithAudio } from '../../shared/timeline/create'
+import { aspectSize, clipEnd, nearestAspect } from '../../shared/timeline/model'
 import { loadWorld } from '../graphics/render'
 import { llmConfigured } from '../ideas/llm'
 import { aiStoryScenes } from './ai'
@@ -40,6 +40,13 @@ export function storyPaths(mediaPath: string, outDir?: string) {
   const name = basename(media, extname(media))
   const dir = resolve(outDir ?? join(dirname(media), 'Anlatım', name))
   return { media, name, dir, project: join(dir, `${name}.clipforge`), plan: join(dir, 'story-plan.json'), scenes: join(dir, 'sahneler') }
+}
+
+/** Köşedeki yüz penceresi (16:9 yüz görüntüsü, kareye göre orantılı) */
+export function pipRect(aspect: '16:9' | '9:16' | '1:1'): { x: number; y: number; w: number; h: number } {
+  if (aspect === '9:16') return { x: 0.05, y: 0.7, w: 0.9, h: 0.9 * 0.316 }
+  if (aspect === '1:1') return { x: 0.56, y: 0.72, w: 0.4, h: 0.225 }
+  return { x: 0.7, y: 0.68, w: 0.28, h: 0.28 }
 }
 
 const FPS = 30
@@ -181,7 +188,8 @@ export async function runStory(req: StoryRequest, env: { userDataDir?: string; r
     const problem = contentProblem(sc.content)
     if (problem) throw new Error(`Sahne ${sc.id} (${sc.content.type}, ${sc.start.toFixed(1)} sn): ${problem}`)
   }
-  const aspect = req.aspect ?? '16:9'
+  const faceOn = (req.face ?? 'pip') === 'pip' && asset.kind === 'video'
+  const aspect = req.aspect ?? (faceOn ? nearestAspect(asset.width, asset.height) : '16:9')
   const size = { ...aspectSize(aspect), fps: FPS }
   stage('render', { status: 'running', progress: 0 })
   const bg = join(p.scenes, `zemin-${size.width}x${size.height}.png`)
@@ -212,15 +220,32 @@ export async function runStory(req: StoryRequest, env: { userDataDir?: string; r
   if (sceneAssets.some((a) => !a)) throw new Error('Sahne dosyaları projeye eklenemedi.')
   s.project = { ...s.project, assets: [...s.project.assets, ...sceneAssets.filter((a) => a && !known.has(a.id)).map((a) => a!)] }
   // önceki yapıyı temizle: bu hattın V1 sahneleri ve anlatım sesi yeniden kurulur
-  const old = s.timeline.tracks.flatMap((t) => t.clips.filter((c) => (t.id === 'V1' && c.label?.startsWith('Sahne ')) || c.assetId === asset!.id).map((c) => c.id))
+  const old = s.timeline.tracks.flatMap((t) => t.clips.filter((c) => c.label?.startsWith('Sahne ') || c.assetId === asset!.id).map((c) => c.id))
   if (old.length) s.apply(cmd.removeMany(old, true, 'Önceki sahneleri temizle'))
-  const v1 = s.timeline.tracks.find((t) => t.id === 'V1')!
+  // yüz videosu varsa: V3 = yüz (tam kare, sahne yokken görünür), V2 = sahneler (tam kare), V1 = sahne süresince köşede küçük yüz
+  const sceneTrack = s.timeline.tracks.find((t) => t.id === (faceOn ? 'V2' : 'V1'))!
+  const v1 = sceneTrack
   const voice = s.timeline.tracks.find((t) => t.kind === 'audio' && t.role === 'voice') ?? s.timeline.tracks.find((t) => t.kind === 'audio')
   if (!voice) throw new Error('Projede ses katmanı yok.')
   const items: { trackId: string; clip: ReturnType<typeof clipForTrack> extends infer R ? (R extends { clip: infer C } ? C : never) : never }[] = []
-  const narr = clipForTrack(asset, voice, { at: 0 })
-  if ('error' in narr) throw new Error(narr.error)
-  items.push({ trackId: voice.id, clip: narr.clip })
+  if (faceOn) {
+    const v3 = s.timeline.tracks.find((t) => t.id === 'V3')
+    const face1 = s.timeline.tracks.find((t) => t.id === 'V1')
+    if (!v3 || !face1) throw new Error('Projede Video 1 ve Video 3 katmanları yok.')
+    const whole = clipsForVideoWithAudio(asset, v3, s.timeline.tracks, { at: 0 })
+    if ('error' in whole) throw new Error(whole.error)
+    for (const it of whole.items) items.push(it)
+    for (const [i, sc] of scenes.entries()) {
+      const f = clipForTrack(asset, face1, { at: sc.start, srcIn: sc.start, duration: sc.end - sc.start })
+      if (!('error' in f)) items.push({ trackId: face1.id, clip: { ...f.clip, label: `Yüz (köşe) ${i + 1}` } })
+    }
+    const full = { rect: { x: 0, y: 0, w: 1, h: 1 }, fit: 'cover' as const, visible: true, opacity: 1 }
+    s.apply(cmd.placement('V3', full, false), cmd.placement('V2', full, false), cmd.placement('V1', { rect: pipRect(aspect), fit: 'cover', visible: true, opacity: 1 }, false))
+  } else {
+    const narr = clipForTrack(asset, voice, { at: 0 })
+    if ('error' in narr) throw new Error(narr.error)
+    items.push({ trackId: voice.id, clip: narr.clip })
+  }
   for (const [i, sc] of scenes.entries()) {
     const a = sceneAssets[i]!
     const c = clipForTrack(a, v1, { at: sc.start })

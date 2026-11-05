@@ -990,10 +990,10 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     const first = page.getByTestId('idea').first()
     await expect(first.getByTestId('idea-headline')).toContainText('Batrakov hakkında konuşmuşsun')
     await expect(first.getByTestId('idea-meta')).toContainText('6 dk')
-    await expect(first.getByTestId('idea-meta')).toContainText('11 kez anıldı')
+    await expect(first.getByTestId('idea-meta')).not.toContainText('kez anıldı') // sayaç yok: zaman aralığı + ne konuşulmuş
+    await expect(first.getByTestId('idea-meta')).toContainText('klip olarak paylaşabilirsin')
+    await expect(first.getByTestId('idea-summary')).toContainText('performansını')
     await expect(first.getByTestId('idea-title')).toHaveCount(0) // yapay zekâ kapalı: yalnızca "ne konuşulmuş" cümlesi, başlık listesi yok
-    await first.getByText('Ne konuşulmuş?').click()
-    await expect(first).toContainText('performansını')
     // klip taslağına çevir
     await first.getByTestId('idea-draft').click()
     await expect(page.getByTestId('draft-panel')).toBeVisible()
@@ -1144,6 +1144,35 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('story-plan').click()
     await expect(page.getByTestId('story-error')).toContainText('konuşma')
     await expect(page.getByTestId('story-plan-view')).toHaveCount(0)
+  })
+
+  test('Auto Clips: proje seç → konu önerileri (aralık + ne konuşulmuş) → seçilenlerden klip projesi; Auto Kick bitince otomatik devir; hata anlaşılır', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('autoclips-btn').click()
+    await expect(page.getByTestId('autoclips-find')).toBeDisabled() // proje seçilmeden bulunamaz
+    await page.getByTestId('autoclips-pick').click()
+    await expect(page.getByTestId('autoclips-path')).toContainText('mock://chat')
+    await expect(page.getByTestId('autoclips-cand')).toHaveCount(3)
+    await expect(page.getByTestId('autoclips-headline').first()).toHaveText('Lemina hakkında konuşmuşsun')
+    await expect(page.getByTestId('autoclips-cand').first()).toContainText('0:02:00 – 0:02:48')
+    await expect(page.getByTestId('autoclips-cand').first()).not.toContainText('kez anıldı')
+    await page.getByTestId('autoclips-check').nth(1).uncheck()
+    await expect(page.getByTestId('autoclips-make')).toContainText('(2)')
+    await page.getByTestId('autoclips-make').click()
+    await expect(page.getByTestId('autoclips-made')).toContainText('2 klip projesi hazır')
+    await expect(page.getByTestId('autoclips-open')).toHaveCount(2)
+  })
+
+  test('Auto Clips: Auto Kick bitince video otomatik devredilir ve Auto Clips açılınca adaylar kendiliğinden gelir; transkript yoksa hata', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('autokick-btn').click()
+    await page.getByTestId('autokick-pick').click()
+    await expect(page.getByTestId('autokick-status')).toHaveText('Tamamlandı', { timeout: 15000 })
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('autoclips-btn')).toContainText('●')
+    await page.getByTestId('autoclips-btn').click()
+    await expect(page.getByTestId('autoclips-path')).toContainText('kayit.clipforge')
+    await expect(page.getByTestId('autoclips-cand')).toHaveCount(3)
   })
 
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {

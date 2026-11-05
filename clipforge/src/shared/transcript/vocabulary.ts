@@ -42,7 +42,7 @@ const MIN_LEN = 5
 const THRESHOLD = 0.84
 
 /** Sözlükteki tek bir kelime ile bir transkript kelimesinin (ekli olabilir) eşleşip eşleşmediğini döner: yeni yazım ya da null. */
-function correctWord(text: string, vocabWords: string[]): string | null {
+function correctWord(text: string, vocabWords: string[], threshold = THRESHOLD): string | null {
   const { pre, core, post } = split(text)
   const apos = /^(.*?)(['’])(.*)$/.exec(core)
   const stemRaw = apos ? apos[1] : core
@@ -58,6 +58,12 @@ function correctWord(text: string, vocabWords: string[]): string | null {
       if (stemRaw.toLocaleLowerCase('tr-TR') === term.toLocaleLowerCase('tr-TR')) return null
       return pre + term + suffixRaw + post
     }
+    // kesme işaretli kelime ya da bir harf eksik yazılmış kök (Osimen → Osimhen): kök doğrudan karşılaştırılır
+    if (apos || folded.length === tf.length - 1) {
+      const sim0 = similarity(folded, tf)
+      if (sim0 >= threshold && sim0 < 1 && (!best || sim0 > best.sim)) best = { term, sim: sim0, cut: stemRaw.length }
+      if (apos) continue
+    }
     // ek almış biçim: kök, sözlük kelimesinden en fazla MAX_SUFFIX harf uzun olabilir
     for (let extra = 0; extra <= MAX_SUFFIX; extra++) {
       const len = tf.length + extra
@@ -70,7 +76,7 @@ function correctWord(text: string, vocabWords: string[]): string | null {
       if (rest > MAX_SUFFIX) break
       if (apos && rest !== 0) break // kesme işaretli kelimede kök zaten ayrıdır
       const sim = similarity(stem, tf)
-      if (sim >= THRESHOLD && sim < 1 && (!best || sim > best.sim)) best = { term, sim, cut: tf.length }
+      if (sim >= threshold && sim < 1 && (!best || sim > best.sim)) best = { term, sim, cut: tf.length }
       break
     }
   }
@@ -92,16 +98,47 @@ export interface VocabResult {
  * kısa/yaygın sözcükler (ör. "kabuk") değiştirilmez. Düzeltilen kelimede özgün yazım `corrected` alanında saklanır.
  * Çok sözcüklü terimler ("Abdullah Kavukçu") sözcük sözcük eşlenir.
  */
-export function applyVocabulary(words: TranscriptWord[], vocabulary: string[]): VocabResult {
-  const vocabWords = [...new Set(vocabulary.flatMap((t) => t.split(/\s+/)).filter((w) => (foldTr(w).match(LETTERS) ?? []).join('').length >= MIN_LEN))]
+export function applyVocabulary(words: TranscriptWord[], vocabulary: string[], soft: string[] = []): VocabResult {
+  const toWords = (list: string[]) => [...new Set(list.flatMap((t) => t.split(/\s+/)).filter((w) => (foldTr(w).match(LETTERS) ?? []).join('').length >= MIN_LEN))]
+  const vocabWords = toWords(vocabulary)
+  // yerleşik (futbol) sözlüğü: kullanıcı sözlüğünden daha temkinli — daha yüksek benzerlik; yalnızca büyük harfle başlayan ya da emin olunamayan kelimeler
+  const softWords = toWords(soft).filter((w) => !vocabWords.includes(w) && (foldTr(w).match(LETTERS) ?? []).join('').length >= 6)
   const corrections: VocabResult['corrections'] = []
-  const out = words.map((w, index) => {
+  let out = words.map((w, index) => {
     if (w.corrected !== undefined) return w // elle düzeltilmiş kelimeye dokunma
-    const fixed = vocabWords.length ? correctWord(w.text, vocabWords) : null
+    let fixed = vocabWords.length ? correctWord(w.text, vocabWords) : null
+    if (!fixed && softWords.length && (/^[A-ZÇĞİÖŞÜ]/.test(w.text) || (w.confidence !== undefined && w.confidence < 0.6))) fixed = correctWord(w.text, softWords, 0.82)
     if (!fixed || fixed === w.text) return w
     corrections.push({ index, from: w.text, to: fixed })
     return { ...w, text: fixed, corrected: w.text }
   })
+  // bölünmüş terimler: "Galata saray" → "Galatasaray", "Osim hen" → "Osimhen" (iki kelimenin birleşimi tek terime çok benziyorsa)
+  const terms = [...new Set([...vocabWords, ...softWords])].filter((t) => (foldTr(t).match(LETTERS) ?? []).join('').length >= 7)
+  if (terms.length) {
+    const merged: TranscriptWord[] = []
+    for (let i = 0; i < out.length; i++) {
+      const a2 = out[i]
+      const b2 = out[i + 1]
+      if (b2 && a2.corrected === undefined && b2.corrected === undefined && b2.start - a2.end < 0.45 && /^[\p{L}]+$/u.test(a2.text.replace(/[.,;:!?]$/, '')) && !/[.!?]$/.test(a2.text)) {
+        const sa = split(a2.text)
+        const sb2 = split(b2.text)
+        const joined = (foldTr(sa.core).match(LETTERS) ?? []).join('') + (foldTr(sb2.core.split(/['’]/)[0]).match(LETTERS) ?? []).join('')
+        const hit = terms.find((t) => {
+          const tf = (foldTr(t).match(LETTERS) ?? []).join('')
+          return joined.length >= tf.length && joined.length <= tf.length + MAX_SUFFIX && similarity(joined.slice(0, tf.length), tf) >= 0.9 && sa.core.length >= 3 && sb2.core.length >= 2
+        })
+        if (hit) {
+          const aps = /(['’].*)$/.exec(sb2.core)
+          corrections.push({ index: i, from: `${a2.text} ${b2.text}`, to: hit + (aps ? aps[1] : '') + sb2.post })
+          merged.push({ ...a2, text: hit + (aps ? aps[1] : '') + sb2.post, end: b2.end, corrected: `${a2.text} ${b2.text}`, confidence: Math.max(a2.confidence ?? 0, b2.confidence ?? 0) || undefined })
+          i++
+          continue
+        }
+      }
+      merged.push(a2)
+    }
+    out = merged
+  }
   return { words: out, corrections }
 }
 
