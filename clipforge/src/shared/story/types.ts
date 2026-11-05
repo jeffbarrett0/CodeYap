@@ -103,7 +103,37 @@ export interface FootballContent {
   title?: string
 }
 
+/** Sıralama satırı (gol krallığı, puan durumu…): değer yoksa yalnızca sıra/isim gösterilir (uydurulmaz) */
+export interface LbRow {
+  name: string
+  team?: string
+  value?: number | null
+  rank?: number
+  highlight?: boolean
+  /** Sahne başından saniye: satır ne zaman belirsin (yoksa sırayla) */
+  at?: number
+  note?: string
+}
+export interface CompareMetric {
+  label: string
+  left: number
+  right: number
+  /** true: küçük değer daha iyi (ör. yenilen gol) */
+  lowerBetter?: boolean
+  at?: number
+}
+export interface CompareSide {
+  name: string
+  team?: string
+}
+
 export type StoryContent =
+  /** Sıralama grafiği: çubuklu liste. `dataset` verilirse satırlar bilgi paketinden gelir (story data). */
+  | { type: 'leaderboard'; kicker?: string; title?: string; metric?: string; rows: LbRow[]; dataset?: string; top?: number; highlight?: string[]; reveal?: 'countdown' | 'down'; team?: string; source?: string; note?: string }
+  /** İki oyuncu/takım karşılaştırması: ortadan dışa büyüyen çubuklar */
+  | { type: 'compare'; kicker?: string; title?: string; left: CompareSide; right: CompareSide; metrics: CompareMetric[]; source?: string }
+  /** Takım kartı: forma (desen), ad ve künyeler (sıra, puan, gol kralı…). `facts` boşsa bilgi paketinden doldurulur. */
+  | { type: 'teamcard'; team: string; kicker?: string; facts?: { label: string; value: string }[]; source?: string }
   | FootballContent
   | { type: 'stats'; kicker?: string; title?: string; cards: StatCard[]; team?: string; source?: string }
   | { type: 'timeline'; kicker?: string; title?: string; periods: TimelinePeriod[]; team?: string; source?: string }
@@ -124,6 +154,9 @@ export const STORY_TYPES: { id: StoryType; label: string; hint: string }[] = [
   { id: 'quote', label: 'Alıntı', hint: 'Büyük alıntı yazısı' },
   { id: 'title', label: 'Başlık', hint: 'Konu başlığı' },
   { id: 'place', label: 'Harita', hint: 'Anlatılan yeri haritada göster' },
+  { id: 'leaderboard', label: 'Sıralama (gol krallığı, puan durumu)', hint: 'Çubuklu sıralama; adı geçen satır vurgulanır' },
+  { id: 'compare', label: 'Karşılaştırma', hint: 'İki oyuncu/takım, ortadan dışa çubuklar' },
+  { id: 'teamcard', label: 'Takım kartı', hint: 'Forma, ad, sıra/puan/gol kralı künyeleri' },
   { id: 'football', label: 'Futbol sahası canlandırması', hint: '3B saha: oyuncular, top, pas/şut, bölgeler, kamera' },
   { id: 'media', label: 'Görsel / video / karakter', hint: 'Hazır fotoğraf, video ya da şeffaf PNG karakter; altına yazı' }
 ]

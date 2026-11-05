@@ -83,7 +83,7 @@ export const TEAMS: TeamInfo[] = [
   T('celtic', 'Celtic', ['celtic'], k('#16A34A', W, W, '#16A34A', 'stripes'), k('#1B1B1B', '#16A34A', '#1B1B1B', '#1B1B1B')),
   T('rangers', 'Rangers', ['rangers', 'glasgow rangers'], k('#1B458F', W, W, BLK), k(W, '#1B458F', W, W)),
   // ── Türkiye
-  T('galatasaray', 'Galatasaray', ['galatasaray', 'gs', 'cim bom', 'cimbom', 'aslan'], k('#A90432', '#FDB913', '#A90432', '#A90432', 'halves'), k(W, '#A90432', W, W), '"Parçalı" sarı-kırmızı iç saha forması (2025/26 Puma). Sezona göre ton/şort değişebilir.'),
+  T('galatasaray', 'Galatasaray', ['galatasaray', 'gs', 'cim bom', 'cimbom', 'aslan'], k('#A90432', '#FDB913', '#A90432', '#A90432', 'halves'), k('#3A3A3D', '#FDB913', '#3A3A3D', '#3A3A3D'), '"Parçalı" sarı-kırmızı iç saha forması (Puma). 2026/27: koyu gri deplasman, beyaz alternatif (GZT/Habertürk). Sezona göre ton/şort değişebilir.'),
   T('fenerbahce', 'Fenerbahçe', ['fenerbahce', 'fenerbahçe', 'fb', 'fener', 'kanarya'], k('#FFED00', '#00205B', '#00205B', '#00205B', 'stripes'), k(W, '#00205B', W, W), 'Sarı-lacivert çubuklu; sezona göre şort/çorap değişebilir.'),
   T('besiktas', 'Beşiktaş', ['besiktas', 'beşiktaş', 'bjk', 'kartal', 'kartallar'], k(BLK, W, BLK, BLK, 'stripes'), k(W, BLK, W, W), 'Siyah-beyaz; sezona göre çubuklu/düz değişebilir.'),
   T('trabzonspor', 'Trabzonspor', ['trabzonspor', 'trabzon', 'ts'], k('#7B1530', '#3FA9F5', '#7B1530', '#3FA9F5', 'halves'), k(W, '#7B1530', W, W)),
@@ -207,4 +207,11 @@ export function themeForTeam(theme: StoryTheme, team?: string): StoryTheme {
   if (!t) return theme
   const cand = [t.home.primary, t.home.secondary, t.alt.primary].find((c) => luma(c) > 48 && colorDistance(c, theme.bg) > 120) ?? theme.accent
   return { ...theme, accent: cand, good: cand === theme.accent ? theme.good : theme.good }
+}
+
+/** Takımın koyu zeminde okunan rengi (çubuk/etiket için); takım bilinmiyorsa `fallback` */
+export function readableTeamColor(team: string | undefined, theme: StoryTheme, fallback: string): string {
+  const t = findTeam(team)
+  if (!t) return fallback
+  return [t.home.primary, t.home.secondary, t.alt.primary].find((c) => luma(c) > 48 && colorDistance(c, theme.bg) > 120) ?? fallback
 }

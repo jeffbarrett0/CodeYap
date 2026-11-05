@@ -21,6 +21,8 @@ import { runStory } from '../main/story/pipeline'
 import { renderBackdrop, renderFootballFrame, renderStoryScene } from '../main/story/render'
 import { contentProblem, normalizeScenes } from '../shared/story/plan'
 import { STORY_SCHEMA } from '../shared/story/schema'
+import { loadKnowledge, saveDataset } from '../main/story/knowledge'
+import { datasetWarnings, findPlayerRows, resolveSceneData, teamFacts } from '../shared/story/data'
 import { TEAMS, findTeam } from '../shared/story/teams'
 import { runTool } from '../main/ffmpeg'
 import type { StoryPlan } from '../shared/story/types'
@@ -76,6 +78,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
   auto-kick <video> [--out klasör] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
                                          yayın kaydı → transkript → sessizleri kırp → tam video (<out>/<ad> - full.mp4 + proje); biten aşamalar yeniden çalıştırmada atlanır
+  story data list|show <id>|search <ad>|add <dosya.json>   bilgi paketi: kaynaklı veri (gol krallığı, puan durumu…); sıralama/takım kartı sahneleri bunu kullanır
   story teams [ad]                       takım forma/renk veritabanı (Bayern → kırmızı, Galatasaray → sarı-kırmızı parçalı…); sahnelerde home/away.team ve content.team bunu kullanır
   story schema                           sahne türleri + örnek plan (Claude Code planı yazarken kullanır)
   story preview <plan.json> [--out klasör] [--scene id] [--at 0.7] [--aspect 16:9]   sahneleri PNG kareye çizer (medya/ses gerekmez) — yazdığınız planı gözle doğrulayın
@@ -218,6 +221,32 @@ async function main(argv: string[]): Promise<unknown> {
     const sub = projectArg
     const media = rest[0]
     if (sub === 'schema') return out(STORY_SCHEMA)
+    if (sub === 'data') {
+      const service = await makeService()
+      const kn = await loadKnowledge(service.deps)
+      const op = media
+      const arg = rest[1]
+      const today = new Date().toISOString().slice(0, 10)
+      if (!op || op === 'list') return out({ ok: true, userDir: kn.userDir, today, datasets: kn.datasets.map((d) => ({ id: d.id, title: d.title, season: d.season, metric: d.metric, asOf: d.asOf, final: d.final, complete: d.complete, rows: d.rows.length, verified: d.verified, warnings: datasetWarnings(d, today) })), loadWarnings: kn.warnings, hint: 'Veri kümesi ekle/güncelle: `story data add dosya.json` (kaynak zorunlu). Eksik/bayat veriyi web\'den araştırıp ekleyin; doğrulanmayanı uydurmayın.' })
+      if (op === 'show') {
+        const d = kn.datasets.find((x) => x.id === arg)
+        if (!d) throw new Error(`Veri kümesi yok: ${arg ?? '(id verin)'}. \`story data list\` ile bakın.`)
+        return out({ ok: true, ...d, warnings: datasetWarnings(d, today) })
+      }
+      if (op === 'search') {
+        if (!arg) throw new Error('Kullanım: story data search "Osimhen" (oyuncu/takım adı)')
+        const rows = findPlayerRows(kn.datasets, arg).map(({ dataset, row }) => ({ dataset: dataset.id, season: dataset.season, metric: dataset.metric, asOf: dataset.asOf, rank: row.rank, name: row.name, team: row.team, value: row.value, status: row.status }))
+        return out({ ok: true, query: arg, matches: rows, teamFacts: teamFacts(kn.datasets, arg), found: rows.length > 0, hint: rows.length ? undefined : 'Bilgi paketinde yok: web\'den araştırıp `story data add` ile ekleyin.' })
+      }
+      if (op === 'add') {
+        if (!arg) throw new Error('Kullanım: story data add dosya.json (tek veri kümesi ya da dizi)')
+        const raw = JSON.parse(await readFile(resolve(arg), 'utf8')) as unknown
+        const saved = []
+        for (const d of Array.isArray(raw) ? raw : [raw]) saved.push(await saveDataset(service.deps, d))
+        return out({ ok: true, saved: saved.map((d) => d.id), userDir: kn.userDir })
+      }
+      throw new Error('Kullanım: story data list | show <id> | search <ad> | add <dosya.json>')
+    }
     if (sub === 'teams') {
       const q = media
       const list = q ? TEAMS.filter((t) => findTeam(q)?.id === t.id || t.aliases.some((x) => x.toLowerCase().includes(q.toLowerCase()))) : TEAMS
@@ -238,7 +267,13 @@ async function main(argv: string[]): Promise<unknown> {
       const frames: { id: string; type: string; file: string; atSec: number }[] = []
       const bg = join(dir, `zemin-${size.width}x${size.height}.png`)
       await renderBackdrop(plan.theme, size, service.tools.ffmpeg, bg)
+      const kn = await loadKnowledge(service.deps)
       for (const sc of normalizeScenes(plan.scenes, plan.totalSec).filter((x) => !only || x.id === only)) {
+        try {
+          sc.content = resolveSceneData(sc.content, kn.datasets)
+        } catch (e) {
+          throw new Error(`Sahne ${sc.id} (${sc.content.type}): ${e instanceof Error ? e.message : String(e)}`)
+        }
         const dur = Math.max(1, sc.end - sc.start)
         const problem = contentProblem(sc.content)
         if (problem) throw new Error(`Sahne ${sc.id} (${sc.content.type}): ${problem}`)
@@ -258,7 +293,7 @@ async function main(argv: string[]): Promise<unknown> {
       if (only && frames.length === 0) throw new Error(`Sahne bulunamadı: ${only}`)
       return out({ ok: true, frames, hint: 'PNG kareleri açıp bakın (sahne süresinin %70\'inde); yazı taşıyor, çakışıyor ya da kart geç beliriyorsa planı düzeltip yeniden çizin.' })
     }
-    if ((sub !== 'plan' && sub !== 'build') || !media) throw new Error('Kullanım: story schema | story teams [ad] | story preview <plan.json> | story plan|build <ses|video> [--out klasör]')
+    if ((sub !== 'plan' && sub !== 'build') || !media) throw new Error('Kullanım: story schema | story teams [ad] | story data list|show|search|add | story preview <plan.json> | story plan|build <ses|video> [--out klasör]')
     let plan: StoryPlan | undefined
     if (str(a.opt.plan)) plan = JSON.parse(await readFile(resolve(str(a.opt.plan)!), 'utf8')) as StoryPlan
     const asp = str(a.opt.aspect)

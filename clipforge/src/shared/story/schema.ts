@@ -21,6 +21,9 @@ export const STORY_SCHEMA = {
     quote: '{ "type":"quote", "text", "by"? }',
     title: '{ "type":"title", "text", "sub"? }',
     place: '{ "type":"place", "to":"Almanya", "from"?:"Türkiye", "label"?, "sub"? }  // harita; ülke/ana şehir ya da "boylam,enlem"',
+    leaderboard: '{ "type":"leaderboard", "kicker"?, "title"?, "dataset":"superlig-2025-26-gol", "top"?:5, "highlight"?:["Osimhen"], "metric"?:"GOL", "reveal"?:"countdown|down", "team"?, "source"?, "note"? }  // sıralama: satırlar bilgi paketinden (dataset) ya da elle "rows":[{ "name","team"?,"value"?:number|null,"rank"?,"highlight"?,"at"?,"note"? }]. Değeri bilinmeyen satır value:null (çubuksuz). Eksik sıra UYDURMA.',
+    compare: '{ "type":"compare", "kicker"?, "title"?, "left":{ "name","team"? }, "right":{ "name","team"? }, "metrics":[{ "label":"Gol","left":36,"right":27,"lowerBetter"?,"at"? }], "source"? }  // iki oyuncu/takım karşılaştırması (en çok 6 metrik); takım renkleri otomatik',
+    teamcard: '{ "type":"teamcard", "team":"Galatasaray", "kicker"?, "facts"?:[{ "label","value" }], "source"? }  // takım adı + forma deseni + künyeler; facts boşsa bilgi paketinden (lig sırası/puanı/gol kralı) otomatik dolar',
     football: '{ "type":"football", "home"?:{ "name", "color"?, "formation"?:"4-3-3" }, "away"?:{…}, "players":[{ "id":"osimhen", "name"?:"Osimhen", "num"?, "team":"home|away", "at":"ceza-yayi"|[x,y], "keeper"? }], "ball"?:{ "holder":"osimhen" }, "actions":[…], "attack"?:"right|left", "camera"?:"broadcast|follow|top|behind|goal", "title"? }  // anlatılan pozisyonu 3B sahada oynatır (aşağıdaki "football" bölümüne bak)',
     media: '{ "type":"media", "file":"gorsel.png|klip.mp4", "fit"?:"cover|contain", "align"?:"left|center|right", "zoom"?:"in|out|none", "title"?, "caption"?  }  // gerçekçi sahne, 2D/3D karakter render\'ı, fotoğraf, video. cover: tam kare (resim yavaşça yakınlaşır); contain: şeffaf PNG karakteri siyah zeminde yana yerleştirir'
   },
@@ -44,6 +47,10 @@ export const STORY_SCHEMA = {
       'Adı verilmeyen diğer oyuncular için home/away.formation ver ("4-3-3"): arka plan oyuncuları otomatik dizilir (id: h1..h11, a1..a11; h1/a1 kaleci).',
       'İsim etiketi yalnızca name verilen oyunculara çıkar. Anlatılan ana göre kamera: genel=broadcast, hareketi izle=follow, taktik görünüm=top, şut anı=behind/goal.'
     ]
+  },
+  data: {
+    about: 'Bilgi paketi: `story data list|show|search|add`. Veri kümesi: { "id","title","competition":"superlig|bundesliga|premierlig|laliga|seriea|ligue1|ucl","season":"2025/26","metric":"gol|asist|puan","asOf":"YYYY-MM-DD","final":bool,"complete":bool,"rows":[{ "rank","name","team","value"|null,"status":"final|snapshot","note" }],"sources":["…"] (ZORUNLU),"verified":"official|press|snapshot|unverified" }',
+    rules: ['Kaynaksız veri eklenmez.', 'Ara tabloyu sezon sonu diye yazma (status:"snapshot").', 'Bilmediğin sıra/değeri ekleme: complete:false, value:null.', 'Güncel sezonda asOf bugüne yakın olsun; 14 gün+ eski veri bayat uyarısı verir.']
   },
   teams: {
     about: 'Takım adı verilirse formalar/renkler OTOMATİK gelir: football için home/away { "team":"Bayern Münih" } (oyuncular o takımın formasını giyer, tribün ev sahibinin renginde olur; renkler karışırsa deplasman takımı yedek forma giyer). Diğer sahnelerde content.team: "Galatasaray" → vurgu rengi takımın rengi olur. `story teams [ad]` ile listele/ara.',

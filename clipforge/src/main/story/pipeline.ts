@@ -11,6 +11,8 @@ import { aspectSize, clipEnd } from '../../shared/timeline/model'
 import { loadWorld } from '../graphics/render'
 import { llmConfigured } from '../ideas/llm'
 import { aiStoryScenes } from './ai'
+import { loadKnowledge } from './knowledge'
+import { datasetWarnings, resolveSceneData } from '../../shared/story/data'
 import { renderBackdrop, renderStoryScene } from './render'
 
 export class StoryCancelled extends Error {
@@ -128,7 +130,8 @@ export async function runStory(req: StoryRequest, env: { userDataDir?: string; r
     stage('plan', { status: 'done', progress: 1, detail: `${plan.scenes.filter((x) => x.enabled).length} sahne` })
   } else {
     stage('plan', { status: 'running', progress: 0 })
-    const base = req.blank ? { ...planStory(words), scenes: [], warnings: ['Boş plan: sahneleri `story-plan.json` içine yazın (bkz. `story schema`).'] } : planStory(words, { theme: req.theme, isPlace: world ? (w) => (findPlace(world, w)?.name ?? undefined) : undefined })
+    const kn = await loadKnowledge(service.deps)
+    const base = req.blank ? { ...planStory(words), scenes: [], warnings: ['Boş plan: sahneleri `story-plan.json` içine yazın (bkz. `story schema`).'] } : planStory(words, { theme: req.theme, datasets: kn.datasets, today: new Date().toISOString().slice(0, 10), isPlace: world ? (w) => (findPlace(world, w)?.name ?? undefined) : undefined })
     plan = base
     if (req.useAi) {
       const problem = llmConfigured(settings)
@@ -152,6 +155,15 @@ export async function runStory(req: StoryRequest, env: { userDataDir?: string; r
   const total = plan.totalSec > 0 ? plan.totalSec : asset.durationSec
   const scenes = normalizeScenes(plan.scenes, total).map((x) => ({ ...x, start: frameSnap(x.start), end: frameSnap(x.end) })).filter((x) => x.end - x.start >= 1 / FPS)
   if (scenes.length === 0) throw new Error('Çizilecek sahne yok: planda açık (işaretli) sahne bulunmuyor.')
+  // veri başvurularını bilgi paketinden çöz (gol krallığı satırları, takım künyeleri)
+  const kn = await loadKnowledge(service.deps)
+  for (const sc of scenes) {
+    try {
+      sc.content = resolveSceneData(sc.content, kn.datasets)
+    } catch (e) {
+      throw new Error(`Sahne ${sc.id} (${sc.content.type}, ${sc.start.toFixed(1)} sn): ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
   for (const sc of scenes) {
     const problem = contentProblem(sc.content)
     if (problem) throw new Error(`Sahne ${sc.id} (${sc.content.type}, ${sc.start.toFixed(1)} sn): ${problem}`)

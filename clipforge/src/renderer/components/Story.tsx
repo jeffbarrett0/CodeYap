@@ -16,6 +16,9 @@ const TEMPLATES: Record<StoryType, StoryContent> = {
   quote: { type: 'quote', text: 'Alıntı metni' },
   title: { type: 'title', text: 'BAŞLIK' },
   place: { type: 'place', to: 'Türkiye' },
+  leaderboard: { type: 'leaderboard', title: 'Gol krallığı', metric: 'GOL', rows: [{ name: 'Birinci', value: 20 }, { name: 'İkinci', value: 15 }] },
+  compare: { type: 'compare', left: { name: 'A' }, right: { name: 'B' }, metrics: [{ label: 'Gol', left: 10, right: 7 }] },
+  teamcard: { type: 'teamcard', team: 'Galatasaray' },
   football: { type: 'football', home: { formation: '4-3-3' }, away: { formation: '4-4-2' }, players: [{ id: 'a', name: 'ATAKÇI', team: 'home', at: 'ceza-yayi' }], ball: { holder: 'a' }, actions: [{ do: 'shoot', at: 1, from: 'a', to: 'kale-sag' }] },
   media: { type: 'media', file: 'C:/klasor/gorsel.png', fit: 'cover', caption: 'Alt yazı' }
 }
@@ -36,6 +39,12 @@ export function summarize(c: StoryContent): string {
       return c.text
     case 'place':
       return c.to
+    case 'leaderboard':
+      return `${c.dataset ?? c.rows.slice(0, 3).map((r) => r.name).join(', ')}`
+    case 'compare':
+      return `${c.left.name} ↔ ${c.right.name}`
+    case 'teamcard':
+      return c.team
     case 'football':
       return `${c.players.filter((p) => p.name).map((p) => p.name).join(', ') || 'Saha'} · ${c.actions.length} eylem`
     case 'media':

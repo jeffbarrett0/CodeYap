@@ -3,6 +3,9 @@ import { contentProblem, normalizeScenes, planStory, sanitizeContent } from '@sh
 import { simulateFootball } from '@shared/story/football'
 import { Raster } from '@shared/story/raster'
 import { colorDistance, findTeam, resolveKits, themeForTeam } from '@shared/story/teams'
+import { datasetWarnings, findPlayerRows, resolveSceneData, teamFacts, validateDataset, type Dataset } from '@shared/story/data'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { buildBackdropAss, buildStoryAss, roundedRectPath } from '@shared/story/scenes'
 import { DEFAULT_STORY_THEME, type StoryContent, type StoryScene } from '@shared/story/types'
 import { parseScenes } from '../../src/main/story/ai'
@@ -271,5 +274,98 @@ describe('Takım formaları ve takıma özgü tema', () => {
     expect((sanitizeContent({ type: 'stats', source: 'Abone ol', cards: [{ value: '1' }] }) as Extract<StoryContent, { type: 'stats' }>).source).toBeUndefined()
     const ass = buildStoryAss(c, DEFAULT_STORY_THEME, 1920, 1080, 6)
     expect(ass).toContain('KAYNAK: BUNDESLİGA.COM')
+  })
+})
+
+describe('Bilgi paketi (veri) ve veriye dayalı sahneler', () => {
+  const seed: Dataset[] = JSON.parse(readFileSync(join(process.cwd(), 'resources/knowledge/datasets.json'), 'utf8')).map((d: unknown) => validateDataset(d))
+  it('tohum veri geçerli, kaynaklı ve dürüst: tam olmayan listeler complete:false, bilinmeyen değer null', () => {
+    expect(seed.length).toBeGreaterThanOrEqual(8)
+    for (const d of seed) {
+      expect(d.sources.length, d.id).toBeGreaterThan(0)
+      expect(d.rows.length, d.id).toBeGreaterThan(0)
+    }
+    const sl = seed.find((d) => d.id === 'superlig-2025-26-gol')!
+    expect(sl.rows.map((r) => `${r.name}:${r.value}`)).toEqual(['Paul Onuachu:22', 'Eldor Shomurodov:22', 'Anderson Talisca:19', 'Victor Osimhen:15', 'Mohamed Bayo:15'])
+    expect(sl.rows.map((r) => r.rank)).toEqual([1, 1, 3, 4, 4])
+    expect(sl.complete).toBe(false)
+    expect(seed.find((d) => d.id === 'bundesliga-2025-26-gol')!.rows[0]).toMatchObject({ name: 'Harry Kane', value: 36 })
+    expect(seed.find((d) => d.id === 'ucl-2025-26-gol')!.rows.filter((r) => r.value === null)).toHaveLength(3)
+  })
+  it('validateDataset: kaynaksız/bozuk veri reddedilir', () => {
+    const ok = { id: 'deneme-1', title: 'T', competition: 'superlig', season: '2025/26', metric: 'gol', asOf: '2026-01-01', rows: [{ name: 'A', value: 1 }], sources: ['x'] }
+    expect(validateDataset(ok).id).toBe('deneme-1')
+    expect(() => validateDataset({ ...ok, sources: [] })).toThrow(/kaynaksız|sources/)
+    expect(() => validateDataset({ ...ok, competition: 'yok' })).toThrow(/competition/)
+    expect(() => validateDataset({ ...ok, season: '2025' })).toThrow(/season/)
+    expect(() => validateDataset({ ...ok, rows: [{ name: 'A', value: 'x' }] })).toThrow(/value/)
+  })
+  it('resolveLeaderboard: veri kümesinden ilk N, vurgu soyadıyla; ilk N dışındaki vurgulanan sona eklenir; eksiklik notu', () => {
+    const c = resolveSceneData({ type: 'leaderboard', rows: [], dataset: 'superlig-2025-26-gol', top: 3, highlight: ['Osimhen'] }, seed) as Extract<StoryContent, { type: 'leaderboard' }>
+    expect(c.rows.map((r) => r.name)).toEqual(['Paul Onuachu', 'Eldor Shomurodov', 'Anderson Talisca', 'Victor Osimhen'])
+    expect(c.rows[3].highlight).toBe(true)
+    expect(c.metric).toBe('GOL')
+    expect(c.source).toMatch(/beIN/)
+    const all5 = resolveSceneData({ type: 'leaderboard', rows: [], dataset: 'superlig-2025-26-gol', top: 10 }, seed) as Extract<StoryContent, { type: 'leaderboard' }>
+    expect(all5.rows).toHaveLength(5) // uydurulmaz
+    expect(all5.note).toMatch(/ilk 5 sıra doğrulandı/)
+    expect(() => resolveSceneData({ type: 'leaderboard', rows: [], dataset: 'yok-yok' }, seed)).toThrow(/Veri kümesi bulunamadı/)
+  })
+  it('takım künyeleri ve oyuncu arama', () => {
+    const f = teamFacts(seed, 'Galatasaray')
+    expect(f.some((x) => /1\. sıra · 77 puan/.test(x.value))).toBe(true)
+    expect(f.some((x) => /Victor Osimhen · 15 gol/.test(x.value))).toBe(true)
+    expect(findPlayerRows(seed, 'Osimhen').length).toBeGreaterThanOrEqual(2)
+    expect(findPlayerRows(seed, 'Kane').some((m) => m.dataset.id === 'bundesliga-2025-26-gol')).toBe(true)
+    expect((resolveSceneData({ type: 'teamcard', team: 'Galatasaray' }, seed) as Extract<StoryContent, { type: 'teamcard' }>).facts!.length).toBeGreaterThan(0)
+  })
+  it('bayatlık ve eksiklik uyarıları: sürüyor + eski tarih → bayat; kesinleşmiş sezon bayatlamaz', () => {
+    const live = seed.find((d) => d.id === 'superlig-2026-27-puan-hafta7')!
+    expect(datasetWarnings(live, '2026-11-05').join(' ')).toMatch(/bayat/)
+    expect(datasetWarnings(live, '2026-10-10').join(' ')).not.toMatch(/bayat/)
+    expect(datasetWarnings(seed.find((d) => d.id === 'superlig-2025-26-gol')!, '2030-01-01').join(' ')).not.toMatch(/bayat/)
+    expect(datasetWarnings(seed.find((d) => d.id === 'ucl-2025-26-gol')!, '2026-06-01').join(' ')).toMatch(/değeri bilinmiyor/)
+  })
+  it('planlayıcı: "Süper Lig gol krallığında Osimhen" → sıralama sahnesi (veri kümesi + vurgu); "Galatasaray" → takım kartı; veri yoksa uyarı', () => {
+    const w = narration([
+      [2, 'Bugün Galatasaray için konuşacağız ve çok şey var.'],
+      [10, 'Süper Lig gol krallığı yarışında Osimhen dördüncü sırada bitirdi.'],
+      [20, 'Bundesliga gol krallığını ise Kane kazandı.'],
+      [30, 'Sonra başka konulara geçelim ve devam edelim bakalım.']
+    ])
+    const p = planStory(w, { datasets: seed, today: '2026-11-05' })
+    const lb = p.scenes.filter((s) => s.content.type === 'leaderboard')
+    expect(lb.length).toBeGreaterThanOrEqual(2)
+    const sl = lb.find((s) => (s.content as { dataset?: string }).dataset?.startsWith('superlig'))!
+    expect((sl.content as { highlight?: string[] }).highlight).toContain('Osimhen')
+    expect(lb.some((s) => (s.content as { dataset?: string }).dataset === 'bundesliga-2025-26-gol')).toBe(true)
+    expect(p.scenes.some((s) => s.content.type === 'teamcard' && (s.content as { team: string }).team === 'Galatasaray')).toBe(true)
+    expect(p.warnings.join(' ')).toMatch(/doğrulanmadı|bayat/)
+    const none = planStory(narration([[2, 'Ligue 1 gol krallığını kim aldı sence bakalım şimdi söyleyelim arkadaşlar.'], [9, 'Konuşmaya devam ediyoruz ve başka şeyler de var burada.']]), { datasets: seed })
+    expect(none.warnings.join(' ')).toMatch(/Ligue 1 GOL.*veri yok/)
+  })
+})
+
+describe('Sıralama / karşılaştırma / takım kartı çizimi', () => {
+  const T2 = { ...DEFAULT_STORY_THEME }
+  const lb: Extract<StoryContent, { type: 'leaderboard' }> = { type: 'leaderboard', kicker: 'SÜPER LİG', title: 'Gol krallığı', metric: 'GOL', rows: [{ name: 'Paul Onuachu', team: 'Trabzonspor', value: 22, rank: 1 }, { name: 'Victor Osimhen', team: 'Galatasaray', value: 15, rank: 4, highlight: true }, { name: 'Bilinmeyen', value: null, rank: 5 }], source: 'beIN SPORTS' }
+  for (const size of [[1920, 1080], [1080, 1920]]) {
+    it(`${size[0]}×${size[1]}: sıralama/karşılaştırma/takım kartı geçerli ASS`, () => {
+      const cmp: StoryContent = { type: 'compare', title: 'Kane ↔ Haaland', left: { name: 'Kane', team: 'Bayern' }, right: { name: 'Haaland', team: 'Manchester City' }, metrics: [{ label: 'Gol', left: 36, right: 27 }, { label: 'Asist', left: 8, right: 5 }, { label: 'Yenilen gol', left: 30, right: 40, lowerBetter: true }] }
+      const tc: StoryContent = { type: 'teamcard', team: 'Galatasaray', facts: [{ label: 'Süper Lig 2025/26', value: '1. sıra · 77 puan' }], source: 'GZT' }
+      for (const c of [lb, cmp, tc]) {
+        const ass = buildStoryAss(c as Exclude<StoryContent, { type: 'place' }>, T2, size[0], size[1], 10)
+        expect(ass.split('\n').filter((l) => l.startsWith('Dialogue:')).length, c.type).toBeGreaterThan(4)
+        expect(ass).not.toMatch(/NaN|undefined|Infinity/)
+      }
+    })
+  }
+  it('sıralamada değeri olmayan satır çubuksuz, değerli satır çubuklu; vurgulu satır vurgu renginde', () => {
+    const ass = buildStoryAss(lb, T2, 1920, 1080, 10)
+    expect(ass).toContain('PAUL ONUACHU')
+    expect(ass).toContain('BİLİNMEYEN')
+    expect((ass.match(/\\fscx1\\t/g) ?? []).length).toBe(2) // yalnızca iki değerli satırda çubuk
+    expect(ass).toContain('22 GOL')
+    expect(ass).not.toContain('null')
   })
 })

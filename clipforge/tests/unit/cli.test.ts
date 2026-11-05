@@ -371,6 +371,38 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(JSON.stringify(bad)).toContain('Medya dosyası bulunamadı')
   }, 240_000)
 
+  it('story data: bilgi paketi listele/ara/ekle; kaynaksız veri reddedilir; sıralama sahnesi veriden çizilir; yok olan veri anlaşılır hata', () => {
+    const list = cli('story', 'data', 'list')
+    expect(list.datasets.map((d: any) => d.id)).toEqual(expect.arrayContaining(['superlig-2025-26-gol', 'bundesliga-2025-26-gol']))
+    const sd = list.datasets.find((d: any) => d.id === 'superlig-2026-27-puan-hafta7')
+    expect(sd.warnings.join(' ')).toMatch(/bayat|doğrulanmadı/)
+    const found = cli('story', 'data', 'search', 'Osimhen')
+    expect(found.found).toBe(true)
+    expect(found.matches.some((m: any) => m.dataset === 'superlig-2025-26-gol' && m.value === 15)).toBe(true)
+    expect(cli('story', 'data', 'search', 'Hiçkimse Yok').found).toBe(false)
+    const dir = join(tmp, 'veri')
+    mkdirSync(dir, { recursive: true })
+    const ds = { id: 'seriea-2025-26-gol', title: 'Serie A 2025/26 gol krallığı', competition: 'seriea', season: '2025/26', metric: 'gol', asOf: '2026-05-25', final: true, complete: false, rows: [{ rank: 1, name: 'Deneme Oyuncu', team: 'Napoli', value: 20, status: 'final' }, { rank: 2, name: 'Başka Oyuncu', team: 'Inter', value: 18, status: 'final' }], sources: ['test kaynağı'], verified: 'press' }
+    writeFileSync(join(dir, 'ds.json'), JSON.stringify(ds))
+    expect(cli('story', 'data', 'add', join(dir, 'ds.json')).saved).toEqual(['seriea-2025-26-gol'])
+    expect(cli('story', 'data', 'show', 'seriea-2025-26-gol').rows).toHaveLength(2)
+    writeFileSync(join(dir, 'kotu.json'), JSON.stringify({ ...ds, id: 'kotu-veri', sources: [] }))
+    const bad = cli('story', 'data', 'add', join(dir, 'kotu.json'))
+    expect(bad.ok).toBe(false)
+    expect(JSON.stringify(bad)).toMatch(/sources|kaynak/)
+    const theme = cli('story', 'schema').plan.theme
+    const plan = { totalSec: 20, planner: 'ai', warnings: [], theme, scenes: [{ id: 'l', start: 0, end: 8, enabled: true, source: 'manual', content: { type: 'leaderboard', dataset: 'seriea-2025-26-gol', top: 5, highlight: ['Başka'] } }, { id: 't', start: 8, end: 14, enabled: true, source: 'manual', content: { type: 'teamcard', team: 'Galatasaray' } }, { id: 'c', start: 14, end: 20, enabled: true, source: 'manual', content: { type: 'compare', left: { name: 'A', team: 'Bayern' }, right: { name: 'B', team: 'Liverpool' }, metrics: [{ label: 'Gol', left: 3, right: 2 }] } }] }
+    const pf = join(dir, 'plan2.json')
+    writeFileSync(pf, JSON.stringify(plan))
+    const r = cli('story', 'preview', pf, '--out', join(dir, 'o2'))
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    for (const f of r.frames) expect(statSync(f.file).size, f.id).toBeGreaterThan(5000)
+    writeFileSync(pf, JSON.stringify({ ...plan, scenes: [{ ...plan.scenes[0], content: { type: 'leaderboard', dataset: 'yok-yok-yok' } }] }))
+    const miss = cli('story', 'preview', pf, '--out', join(dir, 'o3'))
+    expect(miss.ok).toBe(false)
+    expect(JSON.stringify(miss)).toMatch(/Veri kümesi bulunamadı/)
+  }, 240_000)
+
   it('katman silme ve anlaşılır hata', () => {
     expect(cli('delete-lane', proj, 'CC').deleted).toBeGreaterThan(0)
     const bad = cli('bogus', proj)

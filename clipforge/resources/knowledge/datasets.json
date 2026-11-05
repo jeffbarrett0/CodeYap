@@ -1,0 +1,162 @@
+[
+  {
+    "id": "superlig-2025-26-gol",
+    "title": "Süper Lig 2025/26 gol krallığı",
+    "kind": "leaderboard",
+    "competition": "superlig",
+    "season": "2025/26",
+    "metric": "gol",
+    "asOf": "2026-05-17",
+    "final": true,
+    "complete": false,
+    "rows": [
+      { "rank": 1, "name": "Paul Onuachu", "team": "Trabzonspor", "value": 22, "status": "final", "note": "ortak gol kralı" },
+      { "rank": 1, "name": "Eldor Shomurodov", "team": "Başakşehir", "value": 22, "status": "final", "note": "ortak gol kralı" },
+      { "rank": 3, "name": "Anderson Talisca", "team": "Fenerbahçe", "value": 19, "status": "final" },
+      { "rank": 4, "name": "Victor Osimhen", "team": "Galatasaray", "value": 15, "status": "final" },
+      { "rank": 4, "name": "Mohamed Bayo", "team": "Gaziantep FK", "value": 15, "status": "final" }
+    ],
+    "sources": ["beIN SPORTS: Trendyol Süper Lig 2025-2026 sezonu gol krallığı sıralaması", "bursahakimiyet.com.tr: Süper Lig'in gol kralı belli oldu"],
+    "verified": "press",
+    "note": "Gol krallığı tarihte ilk kez ortak (22'şer gol). 6. ve sonrası sıralar doğrulanamadı; tam liste için TFF/beIN/Mackolik sayfalarına bakın."
+  },
+  {
+    "id": "superlig-2025-26-puan",
+    "title": "Süper Lig 2025/26 puan durumu",
+    "kind": "standings",
+    "competition": "superlig",
+    "season": "2025/26",
+    "metric": "puan",
+    "asOf": "2026-05-17",
+    "final": true,
+    "complete": false,
+    "rows": [
+      { "rank": 1, "name": "Galatasaray", "team": "Galatasaray", "value": 77, "status": "final", "note": "şampiyon" },
+      { "rank": 2, "name": "Fenerbahçe", "team": "Fenerbahçe", "value": 74, "status": "final" },
+      { "rank": 3, "name": "Trabzonspor", "team": "Trabzonspor", "value": 69, "status": "final" },
+      { "rank": 4, "name": "Beşiktaş", "team": "Beşiktaş", "value": 60, "status": "final" },
+      { "rank": 5, "name": "Başakşehir", "team": "Başakşehir", "value": 57, "status": "final" },
+      { "rank": 6, "name": "Göztepe", "team": "Göztepe", "value": 55, "status": "final" },
+      { "rank": 7, "name": "Samsunspor", "team": "Samsunspor", "value": 51, "status": "final" },
+      { "rank": 8, "name": "Çaykur Rizespor", "team": "Rizespor", "value": 41, "status": "final" }
+    ],
+    "sources": ["GZT: Süper Lig 25-26 sezonu puan durumu tablosu netleşti (17 Mayıs 2026)"],
+    "verified": "press",
+    "note": "İlk 8 sıra. Küme düşenler: Fatih Karagümrük, Kayserispor, Antalyaspor (Antalyaspor 32 puan). Kalan sıralar doğrulanmadı."
+  },
+  {
+    "id": "superlig-2026-27-puan-hafta7",
+    "title": "Süper Lig 2026/27 puan durumu (7. hafta başı)",
+    "kind": "standings",
+    "competition": "superlig",
+    "season": "2026/27",
+    "metric": "puan",
+    "asOf": "2026-10-09",
+    "final": false,
+    "complete": false,
+    "rows": [
+      { "rank": 1, "name": "Galatasaray", "team": "Galatasaray", "value": 13, "status": "snapshot" },
+      { "rank": 1, "name": "Amedspor", "team": "Amedspor", "value": 13, "status": "snapshot" },
+      { "rank": 3, "name": "Beşiktaş", "team": "Beşiktaş", "value": 12, "status": "snapshot" },
+      { "rank": 3, "name": "Kocaelispor", "team": "Kocaelispor", "value": 12, "status": "snapshot" },
+      { "rank": 5, "name": "Fenerbahçe", "team": "Fenerbahçe", "value": 10, "status": "snapshot" },
+      { "rank": 5, "name": "Trabzonspor", "team": "Trabzonspor", "value": 10, "status": "snapshot" }
+    ],
+    "sources": ["24saatgazetesi.com: Süper Lig puan durumu 9 Ekim 2026"],
+    "verified": "snapshot",
+    "note": "7. hafta öncesi tablo. Sezon sürüyor: güncel tabloyu Mackolik/TFF'den doğrulayın."
+  },
+  {
+    "id": "superlig-2026-27-gol-hafta6",
+    "title": "Süper Lig 2026/27 gol krallığı (6. hafta)",
+    "kind": "leaderboard",
+    "competition": "superlig",
+    "season": "2026/27",
+    "metric": "gol",
+    "asOf": "2026-09-19",
+    "final": false,
+    "complete": false,
+    "rows": [
+      { "rank": 1, "name": "Mohamed Salah", "value": 7, "status": "snapshot" },
+      { "rank": 2, "name": "Victor Osimhen", "team": "Galatasaray", "value": 6, "status": "snapshot" },
+      { "rank": 2, "name": "Gift Orban", "value": 6, "status": "snapshot" }
+    ],
+    "sources": ["habergazetesi.com.tr: Süper Lig gol krallığında kim önde (6. hafta)", "beIN SPORTS: Galatasaray istatistikleri"],
+    "verified": "snapshot",
+    "note": "Kaynaklar birbiriyle tutarsız (bir sayfa Osimhen 4, bir sayfa Salah 8 diyor). Kesin güncel tablo için resmi kaynağa bakın; takımlar doğrulanmadığı için yazılmadı."
+  },
+  {
+    "id": "bundesliga-2025-26-gol",
+    "title": "Bundesliga 2025/26 gol krallığı",
+    "kind": "leaderboard",
+    "competition": "bundesliga",
+    "season": "2025/26",
+    "metric": "gol",
+    "asOf": "2026-05-16",
+    "final": true,
+    "complete": false,
+    "rows": [
+      { "rank": 1, "name": "Harry Kane", "team": "Bayern Münih", "value": 36, "status": "final", "note": "üst üste 3. gol krallığı" },
+      { "rank": 2, "name": "Deniz Undav", "team": "VfB Stuttgart", "value": 19, "status": "final" }
+    ],
+    "sources": ["fcbayern.com: Harry Kane crowned Bundesliga top scorer for third year running", "bundesliga.com: Harry Kane top scorer 2025/26"],
+    "verified": "official",
+    "note": "Yalnızca ilk iki sıra doğrulandı (3-5. sıralar ara tablolarda Guirassy/Schick/Díaz görünüyor ama sezon sonu değerleri doğrulanamadı)."
+  },
+  {
+    "id": "premierlig-2025-26-gol",
+    "title": "Premier Lig 2025/26 gol krallığı",
+    "kind": "leaderboard",
+    "competition": "premierlig",
+    "season": "2025/26",
+    "metric": "gol",
+    "asOf": "2026-05-24",
+    "final": true,
+    "complete": false,
+    "rows": [
+      { "rank": 1, "name": "Erling Haaland", "team": "Manchester City", "value": 27, "status": "final", "note": "5 gol farkla" },
+      { "rank": 2, "name": "Igor Thiago", "team": "Brentford", "value": 22, "status": "final" }
+    ],
+    "sources": ["Squawka / Sports Illustrated: 2025-26 Premier League top scorers"],
+    "verified": "press",
+    "note": "3-5. sıralar kaynaklarda çelişkili (Watkins/Semenyo ~16-17; Joao Pedro ve Gibbs-White 15): doğrulanmadan kullanılmaz."
+  },
+  {
+    "id": "laliga-2025-26-gol",
+    "title": "La Liga 2025/26 gol krallığı (Pichichi)",
+    "kind": "leaderboard",
+    "competition": "laliga",
+    "season": "2025/26",
+    "metric": "gol",
+    "asOf": "2026-05-23",
+    "final": true,
+    "complete": false,
+    "rows": [
+      { "rank": 1, "name": "Kylian Mbappé", "team": "Real Madrid", "value": 25, "status": "final", "note": "üst üste 2. Pichichi" }
+    ],
+    "sources": ["realmadrid.com: Mbappé gana el trofeo Pichichi 2025-26 (23 Mayıs 2026)", "Sofascore: Mbappé's 2025-26 season"],
+    "verified": "official",
+    "note": "Yalnızca birinci doğrulandı. Ara tablolarda Muriqi (Mallorca) ~22, Budimir ~17, Ferran Torres/Yamal ~16 görünüyordu ama sezon sonu kesin değil."
+  },
+  {
+    "id": "ucl-2025-26-gol",
+    "title": "Şampiyonlar Ligi 2025/26 gol krallığı",
+    "kind": "leaderboard",
+    "competition": "ucl",
+    "season": "2025/26",
+    "metric": "gol",
+    "asOf": "2026-05-31",
+    "final": true,
+    "complete": false,
+    "rows": [
+      { "rank": 1, "name": "Kylian Mbappé", "team": "Real Madrid", "value": 15, "status": "final", "note": "11 maçta" },
+      { "rank": 2, "name": "Harry Kane", "team": "Bayern Münih", "value": 14, "status": "final" },
+      { "rank": 3, "name": "Julián Álvarez", "value": null, "status": "final" },
+      { "rank": 4, "name": "Anthony Gordon", "value": null, "status": "final" },
+      { "rank": 5, "name": "Khvicha Kvaratskhelia", "value": null, "status": "final" }
+    ],
+    "sources": ["UEFA.com: Champions League top scorers 2025/26"],
+    "verified": "official",
+    "note": "UEFA ilk beşi sırayla veriyor; 3-5. sıraların gol sayıları doğrulanamadı (değer gösterilmez)."
+  }
+]

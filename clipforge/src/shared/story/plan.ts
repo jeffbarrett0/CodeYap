@@ -3,7 +3,8 @@ import type { Segment, TranscriptWord } from '../types'
 import { findChapters, DENSITY } from '../chapters'
 import { key } from '../graphics/geo'
 import { simulateFootball } from './football'
-import { resolveKits } from './teams'
+import { resolveKits, findTeam } from './teams'
+import { COMPETITIONS, METRICS, datasetWarnings, detectCompetition, detectMetric, findDataset, findPlayerRows, type Dataset } from './data'
 import { CTA_RE, DEFAULT_STORY_THEME, type StatCard, type StoryContent, type StoryItem, type StoryPlan, type StoryScene, type StoryTheme, type StoryTone, type TimelinePeriod } from './types'
 
 const NUM_WORDS: Record<string, number> = { bir: 1, iki: 2, üç: 3, dört: 4, beş: 5, altı: 6, yedi: 7, sekiz: 8, dokuz: 9, on: 10, yirmi: 20, otuz: 30, kırk: 40, elli: 50, altmış: 60, yetmiş: 70, seksen: 80, doksan: 90, yüz: 100 }
@@ -31,6 +32,10 @@ const short = (s: string, n: number) => {
 export interface PlanOptions {
   /** Kelimeden yer bulucu (harita sahnesi için): büyük harfli kelime bilinen bir yerse adını döndürür */
   isPlace?: (word: string) => string | undefined
+  /** Bilgi paketi: sıralama/takım kartı önerileri buradan yapılır */
+  datasets?: Dataset[]
+  /** Bugün (YYYY-MM-DD): veri bayatlığı uyarısı için */
+  today?: string
   theme?: Partial<StoryTheme>
   maxSceneSec?: number
 }
@@ -173,6 +178,47 @@ export function planStory(words: TranscriptWord[], opts: PlanOptions = {}): Stor
     }
   }
 
+  // 4b) takım kartı: anlatıda adı geçen takım (ilk geçiş; en az 25 sn arayla)
+  const AMBIG = new Set(['real', 'city', 'united', 'paris', 'inter', 'spurs', 'villa', 'milan', 'ts', 'gs', 'fb', 'om'])
+  const seenTeam = new Set<string>()
+  let lastTeamAt = -99
+  for (let w = 0; w < words.length; w++) {
+    const raw1 = words[w].text.replace(/[.,;:!?'’].*$/, '')
+    if (!/^[A-ZÇĞİÖŞÜ]/.test(raw1) || (/^[A-ZÇĞİÖŞÜ]{2,3}$/.test(raw1) && raw1.length < 4)) continue
+    const raw2 = words[w + 1]?.text.replace(/[.,;:!?'’].*$/, '') ?? ''
+    const two = /^[A-ZÇĞİÖŞÜ]/.test(raw2) ? findTeam(`${raw1} ${raw2}`) : null
+    const one = AMBIG.has(key(raw1)) ? null : findTeam(raw1)
+    const team = two ?? one
+    if (!team || seenTeam.has(team.id) || words[w].start - lastTeamAt < 25) continue
+    seenTeam.add(team.id)
+    lastTeamAt = words[w].start
+    cands.push({ start: Math.max(0, words[w].start - 0.4), end: words[w].start + 5, prio: 2.2, content: { type: 'teamcard', team: team.name }, reason: short(words.slice(Math.max(0, w - 3), w + 5).map((x) => x.text).join(' '), 100) })
+  }
+
+  // 4c) sıralama: "gol krallığı / puan durumu / asist" + lig ya da bilgi paketindeki oyuncu adı
+  const ds = opts.datasets ?? []
+  if (ds.length) {
+    let lastLb = -99
+    sentences.forEach((s, si) => {
+      const win = `${sentences[si - 1]?.text ?? ''} ${s.text}`
+      const metric = detectMetric(s.text)
+      if (!metric || s.start - lastLb < 8) return
+      const names = (win.match(/[A-ZÇĞİÖŞÜ][\p{L}'’-]{2,}/gu) ?? []).map((x) => x.replace(/['’].*$/, ''))
+      const hit = names.flatMap((n) => findPlayerRows(ds, n)).find((m) => m.dataset.metric === metric)
+      const comp = detectCompetition(win) ?? hit?.dataset.competition ?? null
+      if (!comp && !hit) return
+      const d = findDataset(ds, { competition: comp, metric })
+      if (!d) {
+        warnings.push(`"${COMPETITIONS[comp ?? '']?.name ?? 'lig'} ${METRICS[metric].label}" için bilgi paketinde veri yok (${s.start.toFixed(0)}. sn: "${short(s.text, 60)}"): web'den araştırıp \`story data add\` ile ekleyin.`)
+        return
+      }
+      const highlight = names.filter((n) => d.rows.some((r) => key(r.name).split(' ').pop() === key(n))).slice(0, 3)
+      lastLb = s.start
+      for (const m of datasetWarnings(d, opts.today ?? new Date().toISOString().slice(0, 10))) if (!warnings.includes(m)) warnings.push(m)
+      cands.push({ start: Math.max(0, s.start - 0.3), end: s.start + 8, prio: 4.6, content: { type: 'leaderboard', rows: [], kicker: COMPETITIONS[d.competition]?.name?.toLocaleUpperCase('tr-TR'), dataset: d.id, top: 5, highlight: highlight.length ? highlight : undefined }, reason: short(s.text, 120) })
+    })
+  }
+
   // 5) konu başlıkları: bölüm geçişlerinde (sahne olmayan uzun aralıkları doldurur)
   for (const c of findChapters(words, DENSITY.low)) {
     if (c.title === 'Giriş' || c.title === 'Sohbet') continue
@@ -253,6 +299,44 @@ export function sanitizeContent(raw: unknown): StoryContent | null {
     case 'place': {
       const to = str(c.to, 40)
       return to ? { type: 'place', to, from: str(c.from, 40), label: str(c.label, 30), sub: str(c.sub, 48) } : null
+    }
+    case 'leaderboard': {
+      const rows = (Array.isArray(c.rows) ? c.rows : []).slice(0, 10).flatMap((x) => {
+        const o = (x ?? {}) as Record<string, unknown>
+        const name = str(o.name, 40)
+        const v = typeof o.value === 'number' && Number.isFinite(o.value) ? o.value : null
+        return name ? [{ name, team: str(o.team, 40), value: v, rank: typeof o.rank === 'number' && o.rank >= 1 ? Math.round(o.rank) : undefined, highlight: o.highlight === true ? true : undefined, at: at(o.at), note: str(o.note, 40) }] : []
+      })
+      const dataset = typeof c.dataset === 'string' && /^[a-z0-9-]{3,60}$/.test(c.dataset) ? c.dataset : undefined
+      if (rows.length === 0 && !dataset) return null
+      const hi = (Array.isArray(c.highlight) ? c.highlight : []).filter((h): h is string => typeof h === 'string').slice(0, 5).map((h) => h.slice(0, 40))
+      return { type: 'leaderboard', kicker: str(c.kicker, 30), title: str(c.title, 50), metric: str(c.metric, 12), rows, dataset, top: typeof c.top === 'number' ? Math.min(10, Math.max(1, Math.round(c.top))) : undefined, highlight: hi.length ? hi : undefined, reveal: c.reveal === 'down' ? 'down' : undefined, team: str(c.team, 40), source: str(c.source, 80), note: str(c.note, 70) }
+    }
+    case 'compare': {
+      const side = (s: unknown) => {
+        const o = (s ?? {}) as Record<string, unknown>
+        const name = str(o.name, 30)
+        return name ? { name, team: str(o.team, 40) } : null
+      }
+      const l = side(c.left)
+      const r = side(c.right)
+      const metrics = (Array.isArray(c.metrics) ? c.metrics : []).slice(0, 6).flatMap((m) => {
+        const o = (m ?? {}) as Record<string, unknown>
+        const label = str(o.label, 28)
+        return label && typeof o.left === 'number' && typeof o.right === 'number' && Number.isFinite(o.left) && Number.isFinite(o.right) ? [{ label, left: o.left, right: o.right, lowerBetter: o.lowerBetter === true ? true : undefined, at: at(o.at) }] : []
+      })
+      return l && r && metrics.length ? { type: 'compare', kicker: str(c.kicker, 30), title: str(c.title, 50), left: l, right: r, metrics, source: str(c.source, 80) } : null
+    }
+    case 'teamcard': {
+      const team = str(c.team, 40)
+      if (!team) return null
+      const facts = (Array.isArray(c.facts) ? c.facts : []).slice(0, 4).flatMap((f) => {
+        const o = (f ?? {}) as Record<string, unknown>
+        const label = str(o.label, 40)
+        const value = str(o.value, 40)
+        return label && value ? [{ label, value }] : []
+      })
+      return { type: 'teamcard', team, kicker: str(c.kicker, 30), facts: facts.length ? facts : undefined, source: str(c.source, 80) }
     }
     case 'football': {
       const ACTS = ['pass', 'shoot', 'run', 'dribble', 'label', 'zone', 'line', 'camera']

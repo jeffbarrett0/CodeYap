@@ -1,5 +1,6 @@
 import { assColor } from '../export/ass'
 import { wrapCaption } from '../timeline/captions'
+import { findTeam, readableTeamColor } from './teams'
 import type { StatCard, StoryContent, StoryItem, StoryTheme, StoryTone, TimelinePeriod } from './types'
 
 /**
@@ -269,6 +270,115 @@ function titleScene(a: StoryAss, c: Extract<StoryContent, { type: 'title'; text:
   if (c.sub) a.text(0.5, 'Kick', W / 2, H * 0.5 + 118 * k, upper(c.sub), { an: 5 })
 }
 
+
+const fmtVal = (v: number | null | undefined): string => (v === null || v === undefined ? '' : Number.isInteger(v) ? String(v) : String(v).replace('.', ','))
+
+function leaderboardScene(a: StoryAss, c: Extract<StoryContent, { type: 'leaderboard' }>): void {
+  const { W, H, k, theme } = a
+  const top = a.header(c.kicker, c.title)
+  const rows = c.rows.slice(0, 10)
+  const n = rows.length
+  if (n === 0) return
+  const x0 = 80 * k
+  const rowH = Math.min(92 * k, (H - top - 150 * k) / n)
+  const gap = Math.min(14 * k, rowH * 0.16)
+  const barX = x0 + (a.portrait ? 360 : 520) * k
+  const barMax = W - 80 * k - barX - 150 * k
+  const vals = rows.map((r) => (typeof r.value === 'number' ? r.value : 0))
+  const max = Math.max(...vals, 1)
+  const order = c.reveal === 'down' ? rows.map((_, i) => i) : rows.map((_, i) => n - 1 - i) // varsayılan: sondan başa (birinci en son belirir)
+  const auto = spread(n, a.dur, 0.5)
+  const top0 = Math.max(top, H * 0.24)
+  rows.forEach((r, i) => {
+    const t = r.at !== undefined ? 0.2 + r.at : auto[order.indexOf(i)]
+    const y = top0 + i * (rowH + gap)
+    const hl = !!r.highlight
+    const color = readableTeamColor(r.team, theme, hl ? theme.accent : theme.muted)
+    a.rrect(t, x0, y, W - 160 * k, rowH, 14 * k, hl ? '#2A2410' : theme.card, 0.95, { slide: 18 * k, border: { color: hl ? theme.accent : '#2B2B2B', w: Math.max(1, (hl ? 2.5 : 1) * k) }, layer: 2 })
+    const rank = r.rank ?? i + 1
+    a.text(t + 0.05, 'Head', x0 + 26 * k, y + rowH / 2, String(rank), { an: 4, fs: rowH * 0.5, color: hl ? theme.accent : theme.muted, slide: 18 * k, layer: 5 })
+    const nameFs = Math.min(rowH * 0.36, 30 * k)
+    a.text(t + 0.1, 'Item', x0 + 96 * k, y + rowH / 2 - (r.team || r.note ? nameFs * 0.35 : 0), upper(r.name), { an: 4, fs: nameFs, slide: 18 * k, layer: 5, color: hl ? theme.text : theme.text })
+    const sub = [r.team, r.note].filter(Boolean).join(' · ')
+    if (sub) a.text(t + 0.1, 'Small', x0 + 96 * k, y + rowH / 2 + nameFs * 0.62, upper(sub), { an: 4, fs: Math.min(rowH * 0.24, 19 * k), slide: 18 * k, layer: 5 })
+    if (typeof r.value === 'number') {
+      const w = Math.max(6 * k, (r.value / max) * barMax)
+      a.grow(t + 0.15, barX, y + rowH * 0.3, w, rowH * 0.4, color, 700, 1, 4)
+      a.text(t + 0.7, 'Head', barX + w + 16 * k, y + rowH / 2, `${fmtVal(r.value)}${c.metric ? ' ' + c.metric : ''}`, { an: 4, fs: Math.min(rowH * 0.4, 32 * k), color: hl ? theme.accent : theme.text, layer: 5 })
+    }
+  })
+  if (c.note) a.text(1.0, 'Small', 80 * k, H - 92 * k, upper(c.note), { an: 1 })
+}
+
+function compareScene(a: StoryAss, c: Extract<StoryContent, { type: 'compare' }>): void {
+  const { W, H, k, theme } = a
+  const top = a.header(c.kicker, c.title)
+  const lc = readableTeamColor(c.left.team, theme, theme.accent)
+  let rc = readableTeamColor(c.right.team, theme, '#E8E8E8')
+  if (rc === lc) rc = '#E8E8E8'
+  const cx = W / 2
+  const side = (s: typeof c.left, x: number, an: number, col: string) => {
+    a.text(0.3, 'Head', x, Math.max(top, H * 0.24), upper(s.name), { an, fs: 54 * k, color: col, slide: 14 * k })
+    if (s.team) a.text(0.4, 'Small', x, Math.max(top, H * 0.24) + 70 * k, upper(s.team), { an })
+  }
+  side(c.left, cx - 70 * k, 9, lc)
+  side(c.right, cx + 70 * k, 7, rc)
+  const ms = c.metrics.slice(0, 6)
+  const auto = spread(ms.length, a.dur, 0.8)
+  const rowH = Math.min(100 * k, (H - top - 330 * k) / Math.max(1, ms.length))
+  const maxW = W / 2 - 330 * k
+  ms.forEach((m, i) => {
+    const t = m.at !== undefined ? 0.2 + m.at : auto[i]
+    const y = Math.max(top, H * 0.24) + 130 * k + i * rowH
+    const mx = Math.max(m.left, m.right, 1e-9)
+    const lw = Math.max(6 * k, (m.left / mx) * maxW)
+    const rw = Math.max(6 * k, (m.right / mx) * maxW)
+    a.text(t, 'Small', cx, y - 6 * k, upper(m.label), { an: 8, fs: 22 * k, color: theme.muted })
+    // sol çubuk sola doğru büyür: sağ kenar merkeze yaslı; ASS'te soldan büyüme olduğundan sabit dikdörtgen + belirme kullanılır
+    a.rect(t + 0.1, cx - 40 * k - lw, y + 22 * k, lw, rowH * 0.34, lc, 1, { slide: 14 * k, layer: 3 })
+    a.rect(t + 0.1, cx + 40 * k, y + 22 * k, rw, rowH * 0.34, rc, 1, { slide: 14 * k, layer: 3 })
+    const better = (side2: number, other: number) => (m.lowerBetter ? side2 < other : side2 > other)
+    a.text(t + 0.3, 'Head', cx - 52 * k - lw, y + 22 * k + rowH * 0.17, fmtVal(m.left), { an: 6, fs: 36 * k, color: better(m.left, m.right) ? theme.accent : theme.text, layer: 5 })
+    a.text(t + 0.3, 'Head', cx + 52 * k + rw, y + 22 * k + rowH * 0.17, fmtVal(m.right), { an: 4, fs: 36 * k, color: better(m.right, m.left) ? theme.accent : theme.text, layer: 5 })
+  })
+}
+
+function teamcardScene(a: StoryAss, c: Extract<StoryContent, { type: 'teamcard' }>): void {
+  const { W, H, k, theme } = a
+  const team = findTeam(c.team)
+  const top = a.header(c.kicker ?? 'TAKIM', undefined)
+  const name = team?.name ?? c.team
+  const x0 = 80 * k
+  const y0 = Math.max(top, H * 0.26)
+  a.text(0.2, 'Head', x0, y0, lines(upper(name), a.portrait ? 14 : 22), { fs: 96 * k, slide: 16 * k })
+  // forma şeridi: desen (düz / yarım / çubuklu)
+  const kit = team?.home
+  const bw = Math.min(W - 160 * k, 760 * k)
+  const by = y0 + 150 * k
+  const bh = 44 * k
+  if (kit) {
+    if (kit.pattern === 'halves') {
+      a.rect(0.4, x0, by, bw / 2, bh, kit.primary, 1, { slide: 12 * k })
+      a.rect(0.4, x0 + bw / 2, by, bw / 2, bh, kit.secondary, 1, { slide: 12 * k })
+    } else if (kit.pattern === 'stripes') {
+      const n = 10
+      for (let i = 0; i < n; i++) a.rect(0.4, x0 + (bw / n) * i, by, bw / n + 1, bh, i % 2 ? kit.secondary : kit.primary, 1, { slide: 12 * k })
+    } else a.rect(0.4, x0, by, bw, bh, kit.primary, 1, { slide: 12 * k })
+  }
+  const facts = (c.facts ?? []).slice(0, 4)
+  const fy = by + 90 * k
+  const cw = Math.min(520 * k, (W - 160 * k - 24 * k * (Math.min(facts.length, 2) - 1)) / Math.max(1, Math.min(facts.length, 2)))
+  const accent = readableTeamColor(c.team, theme, theme.accent)
+  facts.forEach((f, i) => {
+    const t = 0.9 + i * 0.45
+    const x = x0 + (i % 2) * (cw + 24 * k)
+    const y = fy + Math.floor(i / 2) * 150 * k
+    a.rrect(t, x, y, cw, 128 * k, 16 * k, theme.card, 0.95, { slide: 20 * k, border: { color: accent, w: Math.max(1, 1.5 * k) } })
+    a.text(t + 0.05, 'Kick', x + 26 * k, y + 20 * k, upper(f.label), { color: accent, slide: 20 * k, fs: 19 * k })
+    a.text(t + 0.15, 'Head', x + 26 * k, y + 56 * k, f.value, { fs: 38 * k, slide: 20 * k })
+  })
+}
+
 /** Medya sahnesi: görüntünün üstüne alt gölge + sarı çizgi + başlık/yazı (görüntünün kendisi ffmpeg'de hazırlanır) */
 function mediaScene(a: StoryAss, c: Extract<StoryContent, { type: 'media' }>): void {
   const { W, H, k, theme } = a
@@ -289,7 +399,7 @@ function mediaScene(a: StoryAss, c: Extract<StoryContent, { type: 'media' }>): v
 /** Harita dışındaki sahnelerin tam ASS metni. Harita sahnesi `main/story/render.ts` içinde mevcut harita çiziciyle yapılır. */
 export function buildStoryAss(content: Exclude<StoryContent, { type: 'place' }>, theme: StoryTheme, W: number, H: number, dur: number): string {
   const a = new StoryAss(W, H, theme, dur)
-  if ('source' in content && content.source) a.text(0.8, 'Small', 80 * a.k, H - 50 * a.k, `KAYNAK: ${upper(content.source)}`, { an: 1, slide: 0 })
+  if ('source' in content && typeof content.source === 'string' && content.source) a.text(0.8, 'Small', 80 * a.k, H - 50 * a.k, `KAYNAK: ${upper(content.source)}`, { an: 1, slide: 0 })
   switch (content.type) {
     case 'stats':
       statsScene(a, content)
@@ -311,6 +421,15 @@ export function buildStoryAss(content: Exclude<StoryContent, { type: 'place' }>,
       break
     case 'media':
       mediaScene(a, content)
+      break
+    case 'leaderboard':
+      leaderboardScene(a, content)
+      break
+    case 'compare':
+      compareScene(a, content)
+      break
+    case 'teamcard':
+      teamcardScene(a, content)
       break
   }
   return a.build()
