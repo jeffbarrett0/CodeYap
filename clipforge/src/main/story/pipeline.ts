@@ -3,7 +3,7 @@ import { basename, dirname, extname, join, resolve } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
 import { transcriptionReadiness } from '../../shared/autokick'
 import { findPlace, type World } from '../../shared/graphics/geo'
-import { normalizeScenes, planStory } from '../../shared/story/plan'
+import { contentProblem, normalizeScenes, planStory } from '../../shared/story/plan'
 import { initialStoryStages, type StoryPlan, type StoryRequest, type StoryResult, type StoryStage, type StoryStageState, type StoryStatus } from '../../shared/story/types'
 import { cmd } from '../../shared/timeline/commands'
 import { clipForTrack } from '../../shared/timeline/create'
@@ -152,6 +152,10 @@ export async function runStory(req: StoryRequest, env: { userDataDir?: string; r
   const total = plan.totalSec > 0 ? plan.totalSec : asset.durationSec
   const scenes = normalizeScenes(plan.scenes, total).map((x) => ({ ...x, start: frameSnap(x.start), end: frameSnap(x.end) })).filter((x) => x.end - x.start >= 1 / FPS)
   if (scenes.length === 0) throw new Error('Çizilecek sahne yok: planda açık (işaretli) sahne bulunmuyor.')
+  for (const sc of scenes) {
+    const problem = contentProblem(sc.content)
+    if (problem) throw new Error(`Sahne ${sc.id} (${sc.content.type}, ${sc.start.toFixed(1)} sn): ${problem}`)
+  }
   const aspect = req.aspect ?? '16:9'
   const size = { ...aspectSize(aspect), fps: FPS }
   stage('render', { status: 'running', progress: 0 })

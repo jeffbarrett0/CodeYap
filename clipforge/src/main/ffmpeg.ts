@@ -81,6 +81,8 @@ export interface RunOptions {
   collectStdout?: boolean
   onStdout?: (chunk: Buffer) => void
   onStderrLine?: (line: string) => void
+  /** Verilirse alt sürecin stdin'i açılır ve bu işlev veriyi yazıp `end()` çağırır (ham kare akışı için) */
+  feed?: (stdin: import('node:stream').Writable) => Promise<void>
 }
 
 export interface RunResult {
@@ -92,7 +94,14 @@ export interface RunResult {
 export function runTool(bin: string, args: string[], opts: RunOptions = {}, friendly = friendlyFfmpegMessage): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     if (opts.signal?.aborted) return reject(new CancelledError())
-    const child = spawn(bin, args, { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+    const child = spawn(bin, args, { cwd: opts.cwd, stdio: [opts.feed ? 'pipe' : 'ignore', 'pipe', 'pipe'] as ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    if (opts.feed && child.stdin) {
+      child.stdin.on('error', () => undefined) // ffmpeg erken kapanırsa EPIPE: asıl hata 'close' olayında raporlanır
+      opts.feed(child.stdin).catch((e) => {
+        child.kill('SIGKILL')
+        if (!settled) (settled = true, reject(e instanceof Error ? e : new Error(String(e))))
+      })
+    }
     if (cpuPolicy.mode === 'balanced' && child.pid) {
       try {
         setPriority(child.pid, osConstants.priority.PRIORITY_BELOW_NORMAL)

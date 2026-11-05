@@ -306,15 +306,16 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     plan.scenes = [
       { id: 'a', start: 2, end: 12, enabled: true, source: 'manual', content: { type: 'stats', kicker: 'RAKAMLARLA', cards: [{ label: 'Lig', value: '7', unit: 'PUAN', tone: 'good' }, { value: '15.', unit: 'SIRA', tone: 'bad', at: 3 }] } },
       { id: 'b', start: 12, end: 20, enabled: true, source: 'manual', content: { type: 'person', role: 'TEKNİK DİREKTÖR', name: 'AD SOYAD' } },
-      { id: 'c', start: 20, end: 26, enabled: false, source: 'manual', content: { type: 'title', text: 'KAPALI' } }
+      { id: 'c', start: 20, end: 24, enabled: true, source: 'manual', content: { type: 'football', home: { formation: '4-3-3' }, away: { formation: '4-4-2' }, players: [{ id: 'a', name: 'Osimhen', team: 'home', at: 'orta-saha-sag' }, { id: 'b', name: 'Barış', team: 'home', at: 'ceza-yayi' }], ball: { holder: 'a' }, actions: [{ do: 'pass', at: 0.5, from: 'a', to: 'b' }, { do: 'shoot', at: 2.8, from: 'b', to: 'kale-sol' }] } },
+      { id: 'd', start: 24, end: 28, enabled: false, source: 'manual', content: { type: 'title', text: 'KAPALI' } }
     ]
     writeFileSync(planPath, JSON.stringify(plan))
     const b = cli('story', 'build', wav, '--out', dir, '--plan', planPath, '--aspect', '16:9')
     expect(b.ok, JSON.stringify(b)).toBe(true)
-    expect(b.rendered.scenes).toBe(2)
+    expect(b.rendered.scenes).toBe(3)
     const show = cli('show', b.project)
     const v1 = show.tracks.find((t: any) => t.id === 'V1')
-    expect(v1.clips).toHaveLength(2)
+    expect(v1.clips).toHaveLength(3)
     expect(v1.clips[0].start).toBeCloseTo(2, 1)
     expect(v1.clips[1].start).toBeCloseTo(12, 1)
     const audio = show.tracks.filter((t: any) => t.id !== 'V1').flatMap((t: any) => t.clips).filter((c: any) => c.start === 0)
@@ -322,7 +323,7 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(show.aspect).toBe('16:9')
     // aynı build tekrar: eski sahneler temizlenir, çoğalmaz
     const again = cli('story', 'build', wav, '--out', dir, '--plan', planPath)
-    expect(cli('show', again.project).tracks.find((t: any) => t.id === 'V1').clips).toHaveLength(2)
+    expect(cli('show', again.project).tracks.find((t: any) => t.id === 'V1').clips).toHaveLength(3)
     // kare: sahne gerçekten çizilmiş (düz zeminden farklı)
     const fr = join(tmp, 'sahne-kare.jpg')
     expect(cli('frame', b.project, '--at', '8', '--out', fr).ok).toBe(true)
@@ -348,15 +349,21 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
         { id: 'm1', start: 0, end: 8, enabled: true, source: 'manual', content: { type: 'media', file: 'sahne.png', fit: 'cover', zoom: 'in', title: 'Stuttgart', caption: 'Hikâyenin başladığı yer' } },
         { id: 'm2', start: 8, end: 16, enabled: true, source: 'manual', content: { type: 'media', file: 'karakter.png', fit: 'contain', align: 'right', caption: 'Teknik direktör' } },
         { id: 'm3', start: 16, end: 24, enabled: true, source: 'manual', content: { type: 'media', file: 'klip.mp4', caption: 'Antrenman' } },
-        { id: 'p1', start: 24, end: 32, enabled: true, source: 'manual', content: { type: 'person', role: 'TEKNİK DİREKTÖR', name: 'AD SOYAD' } }
+        { id: 'p1', start: 24, end: 32, enabled: true, source: 'manual', content: { type: 'person', role: 'TEKNİK DİREKTÖR', name: 'AD SOYAD' } },
+        { id: 'f1', start: 32, end: 40, enabled: true, source: 'manual', content: { type: 'football', home: { formation: '4-3-3' }, away: { formation: '4-4-2' }, players: [{ id: 'a', name: 'Osimhen', team: 'home', at: 'orta-saha-sag' }, { id: 'b', name: 'Barış', team: 'home', at: 'ceza-yayi' }], ball: { holder: 'a' }, actions: [{ do: 'pass', at: 1, from: 'a', to: 'b' }, { do: 'shoot', at: 3, from: 'b', to: 'kale-sag' }] } }
       ]
     }
     const pf = join(dir, 'plan.json')
     writeFileSync(pf, JSON.stringify(plan))
     const r = cli('story', 'preview', pf, '--out', join(dir, 'onizleme'))
     expect(r.ok, JSON.stringify(r)).toBe(true)
-    expect(r.frames.map((f: any) => f.id)).toEqual(['m1', 'm2', 'm3', 'p1'])
+    expect(r.frames.map((f: any) => f.id)).toEqual(['m1', 'm2', 'm3', 'p1', 'f1'])
     for (const f of r.frames) expect(statSync(f.file).size, f.id).toBeGreaterThan(5000)
+    // futbol sahnesinde hatalı eylem: sahne kimliğiyle anlaşılır hata
+    writeFileSync(pf, JSON.stringify({ ...plan, scenes: [{ id: 'fx', start: 0, end: 6, enabled: true, source: 'manual', content: { type: 'football', players: [{ id: 'a', team: 'home', at: 'orta-nokta' }], actions: [{ do: 'pass', at: 1, from: 'a', to: 'yok' }] } }] }))
+    const fbad = cli('story', 'preview', pf, '--out', join(dir, 'onizleme3'))
+    expect(fbad.ok).toBe(false)
+    expect(JSON.stringify(fbad)).toMatch(/Sahne fx.*oyuncu bulunamadı/)
     // eksik dosya: anlaşılır hata
     writeFileSync(pf, JSON.stringify({ ...plan, scenes: [{ id: 'x', start: 0, end: 5, enabled: true, source: 'manual', content: { type: 'media', file: 'yok.png' } }] }))
     const bad = cli('story', 'preview', pf, '--out', join(dir, 'onizleme2'))

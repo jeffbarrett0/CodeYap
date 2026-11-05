@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { STORY_TYPES, type StoryContent, type StoryPlan, type StoryScene, type StoryStatus, type StoryType } from '@shared/story/types'
-import { sanitizeContent } from '@shared/story/plan'
+import { contentProblem, sanitizeContent } from '@shared/story/plan'
 import { requireApi } from '../api'
 import { useStore } from '../store'
 import { Modal, Num, Progress } from './ui'
@@ -16,6 +16,7 @@ const TEMPLATES: Record<StoryType, StoryContent> = {
   quote: { type: 'quote', text: 'Alıntı metni' },
   title: { type: 'title', text: 'BAŞLIK' },
   place: { type: 'place', to: 'Türkiye' },
+  football: { type: 'football', home: { formation: '4-3-3' }, away: { formation: '4-4-2' }, players: [{ id: 'a', name: 'ATAKÇI', team: 'home', at: 'ceza-yayi' }], ball: { holder: 'a' }, actions: [{ do: 'shoot', at: 1, from: 'a', to: 'kale-sag' }] },
   media: { type: 'media', file: 'C:/klasor/gorsel.png', fit: 'cover', caption: 'Alt yazı' }
 }
 
@@ -35,6 +36,8 @@ export function summarize(c: StoryContent): string {
       return c.text
     case 'place':
       return c.to
+    case 'football':
+      return `${c.players.filter((p) => p.name).map((p) => p.name).join(', ') || 'Saha'} · ${c.actions.length} eylem`
     case 'media':
       return c.file.split(/[\\/]/).pop() ?? c.file
   }
@@ -72,7 +75,7 @@ function SceneRow({ sc, onChange, onDelete }: { sc: StoryScene; onChange: (s: St
             try {
               const c = sanitizeContent(JSON.parse(e.target.value))
               if (!c) return setErr('Geçerli bir sahne içeriği değil (type ve alanları kontrol edin).')
-              setErr('')
+              setErr(contentProblem(c) ?? '')
               onChange({ ...sc, content: c, source: 'manual' })
             } catch {
               setErr('JSON okunamadı.')

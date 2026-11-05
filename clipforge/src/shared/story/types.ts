@@ -55,7 +55,47 @@ export interface TimelinePeriod {
   at?: number
 }
 
+/** Saha noktası: [x, y] metre (x: 0..105 uzunluk, hücum yönü +x; y: 0..68, 0 = yakın taç çizgisi) ya da adlı nokta ('ceza-yayi', 'sag-kanat'…) */
+export type FbSpot = string | [number, number]
+export interface FbPlayer {
+  id: string
+  name?: string
+  num?: number
+  team: 'home' | 'away'
+  at: FbSpot
+  keeper?: boolean
+}
+export type FbCameraMode = 'broadcast' | 'follow' | 'top' | 'behind' | 'goal'
+export type FbAction =
+  | { do: 'pass'; at: number; from: string; to: string; dur?: number; lob?: boolean }
+  | { do: 'shoot'; at: number; from: string; to: string | [number, number] | [number, number, number]; dur?: number; result?: 'goal' | 'save' | 'miss' }
+  | { do: 'run'; at: number; player: string; to: FbSpot; dur?: number }
+  | { do: 'dribble'; at: number; player: string; to: FbSpot; dur?: number }
+  | { do: 'label'; at: number; player: string; text: string; dur?: number }
+  | { do: 'zone'; at: number; center: FbSpot; rx?: number; ry?: number; dur?: number; text?: string }
+  | { do: 'line'; at: number; from: FbSpot | string; to: FbSpot | string; dur?: number }
+  | { do: 'camera'; at: number; mode: FbCameraMode }
+export interface FbTeam {
+  name?: string
+  color?: string
+  /** '4-3-3' gibi: adı verilmeyen diğer oyuncular otomatik dizilir (arka plan oyuncuları) */
+  formation?: string
+}
+export interface FootballContent {
+  type: 'football'
+  home?: FbTeam
+  away?: FbTeam
+  players: FbPlayer[]
+  ball?: { holder?: string; at?: FbSpot }
+  actions: FbAction[]
+  /** right (varsayılan): ev sahibi sağdaki kaleye saldırır; left: sahne 180° döner */
+  attack?: 'right' | 'left'
+  camera?: FbCameraMode
+  title?: string
+}
+
 export type StoryContent =
+  | FootballContent
   | { type: 'stats'; kicker?: string; title?: string; cards: StatCard[] }
   | { type: 'timeline'; kicker?: string; title?: string; periods: TimelinePeriod[] }
   | { type: 'list'; kicker?: string; title?: string; items: StoryItem[] }
@@ -75,6 +115,7 @@ export const STORY_TYPES: { id: StoryType; label: string; hint: string }[] = [
   { id: 'quote', label: 'Alıntı', hint: 'Büyük alıntı yazısı' },
   { id: 'title', label: 'Başlık', hint: 'Konu başlığı' },
   { id: 'place', label: 'Harita', hint: 'Anlatılan yeri haritada göster' },
+  { id: 'football', label: 'Futbol sahası canlandırması', hint: '3B saha: oyuncular, top, pas/şut, bölgeler, kamera' },
   { id: 'media', label: 'Görsel / video / karakter', hint: 'Hazır fotoğraf, video ya da şeffaf PNG karakter; altına yazı' }
 ]
 

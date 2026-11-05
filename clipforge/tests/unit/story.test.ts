@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeScenes, planStory, sanitizeContent } from '@shared/story/plan'
+import { contentProblem, normalizeScenes, planStory, sanitizeContent } from '@shared/story/plan'
+import { simulateFootball } from '@shared/story/football'
+import { Raster } from '@shared/story/raster'
 import { buildBackdropAss, buildStoryAss, roundedRectPath } from '@shared/story/scenes'
 import { DEFAULT_STORY_THEME, type StoryContent, type StoryScene } from '@shared/story/types'
 import { parseScenes } from '../../src/main/story/ai'
@@ -127,5 +129,93 @@ describe('Anlatım → Görsel: sahne çizimi (ASS)', () => {
   })
   it('yuvarlatılmış dikdörtgen yolu kapalı ve sayısal', () => {
     expect(roundedRectPath(100, 50, 12)).toMatch(/^m -?\d+ -?\d+ l (-?\d+ -?\d+ ?)+$/)
+  })
+})
+
+describe('Futbol sahnesi: simülasyon', () => {
+  const base = (actions: any[], extra: Record<string, unknown> = {}): Extract<StoryContent, { type: 'football' }> => ({
+    type: 'football',
+    home: { formation: '4-3-3' },
+    away: { formation: '4-4-2' },
+    players: [{ id: 'a', name: 'Osimhen', team: 'home', at: [60, 30] }, { id: 'b', name: 'Barış', team: 'home', at: [88, 38] }],
+    ball: { holder: 'a' },
+    actions,
+    ...extra
+  })
+  it('top pas boyunca gider, alıcıda kalır; sonra şutla kaleye gider ve gol sayılır', () => {
+    const s = simulateFootball(base([{ do: 'pass', at: 1, from: 'a', to: 'b', dur: 1 }, { do: 'shoot', at: 3, from: 'b', to: 'kale-sag', dur: 0.8 }]), 8)
+    expect(s.ball(0).holder).toBe('a')
+    const mid = s.ball(1.5)
+    expect(mid.holder).toBeUndefined()
+    expect(mid.x).toBeGreaterThan(65)
+    expect(mid.x).toBeLessThan(88)
+    expect(s.ball(2.5).holder).toBe('b')
+    const end = s.ball(4)
+    expect(end.x).toBeCloseTo(105, 0)
+    expect(end.holder).toBeUndefined()
+    expect(s.goals).toHaveLength(1)
+    expect(s.goals[0].t).toBeCloseTo(3.8, 1)
+    expect(s.trails.filter((t) => t.kind === 'pass')).toHaveLength(1)
+  })
+  it('formasyondan arka plan oyuncuları: 22 kişi, açık oyuncular çakışan yedeği çıkarır', () => {
+    const s = simulateFootball(base([]), 5)
+    const home = s.players.filter((p) => p.team === 'home')
+    const away = s.players.filter((p) => p.team === 'away')
+    expect(away).toHaveLength(11)
+    expect(home).toHaveLength(11)
+    expect(s.players.some((p) => p.id === 'h1' && p.keeper)).toBe(true)
+  })
+  it('koşu ve sürme: oyuncu hedefe varır; attack:left sahneyi 180° döndürür', () => {
+    const run = [{ do: 'run', at: 0, player: 'b', to: [95, 20], dur: 2 }]
+    const s = simulateFootball(base(run), 5)
+    expect(s.pos('b', 3)[0]).toBeCloseTo(95, 0)
+    expect(s.pos('b', 1)[0]).toBeGreaterThan(88)
+    const l = simulateFootball(base(run, { attack: 'left' }), 5)
+    expect(l.pos('b', 3)[0]).toBeCloseTo(105 - 95, 0)
+    expect(l.pos('b', 3)[1]).toBeCloseTo(68 - 20, 0)
+  })
+  it('anlaşılır hatalar: bilinmeyen oyuncu/nokta/hedef, topu tutmayan oyuncunun pası, üst üste binen top hareketi', () => {
+    expect(() => simulateFootball(base([{ do: 'pass', at: 1, from: 'a', to: 'yok' }]), 5)).toThrow(/oyuncu bulunamadı "yok"/)
+    expect(() => simulateFootball(base([{ do: 'run', at: 1, player: 'a', to: 'mars' }]), 5)).toThrow(/bilinmeyen nokta "mars"/)
+    expect(() => simulateFootball(base([{ do: 'shoot', at: 1, from: 'a', to: 'kale-yok' }]), 5)).toThrow(/bilinmeyen hedef/)
+    expect(() => simulateFootball(base([{ do: 'pass', at: 1, from: 'b', to: 'a' }]), 5)).toThrow(/top şu an "a"/)
+    expect(() => simulateFootball(base([{ do: 'pass', at: 1, from: 'a', to: 'b', dur: 2 }, { do: 'shoot', at: 2, from: 'b', to: 'kale-sag' }]), 8)).toThrow(/önceki top hareketi/)
+    expect(contentProblem(base([{ do: 'pass', at: 1, from: 'a', to: 'yok' }]))).toMatch(/yok/)
+    expect(contentProblem(base([]))).toBeNull()
+  })
+  it('etiket, bölge, çizgi ve kamera eylemleri kaydedilir; sanitize geçerli sahneyi korur, bozuk/CTA olanı atar', () => {
+    const s = simulateFootball(base([{ do: 'label', at: 0.5, player: 'a', text: 'PRES' }, { do: 'zone', at: 1, center: 'ceza-yayi', text: 'BOŞ ALAN' }, { do: 'line', at: 1, from: 'a', to: 'b' }, { do: 'camera', at: 2, mode: 'top' }]), 6)
+    expect(s.labels).toHaveLength(1)
+    expect(s.zones[0].center).toEqual([86, 34])
+    expect(s.trails.some((t) => t.kind === 'line')).toBe(true)
+    expect(s.camera.map((c) => c.mode)).toEqual(['broadcast', 'top'])
+    const c = base([{ do: 'pass', at: 1, from: 'a', to: 'b' }])
+    expect(sanitizeContent(JSON.parse(JSON.stringify(c)))).toMatchObject({ type: 'football' })
+    expect(sanitizeContent({ type: 'football', players: [] })).toBeNull()
+    expect(sanitizeContent({ ...c, actions: [{ do: 'label', at: 1, player: 'a', text: 'Abone olun' }] })).toBeNull()
+  })
+})
+
+describe('Yazılım rasterleştirici', () => {
+  it('dolu dikdörtgen alanı doğru boyar; alfa karışır; kapsam dışı ve bozuk girdi güvenli', () => {
+    const r = new Raster(20, 10)
+    r.clear([0, 0, 0])
+    r.fill([[2, 2], [12, 2], [12, 8], [2, 8]], [200, 100, 50], 1)
+    const px = (x: number, y: number) => [...r.data.slice((y * 20 + x) * 3, (y * 20 + x) * 3 + 3)]
+    expect(px(5, 5)).toEqual([200, 100, 50])
+    expect(px(15, 5)).toEqual([0, 0, 0])
+    r.fill([[0, 0], [20, 0], [20, 10], [0, 10]], [255, 255, 255], 0.5)
+    expect(px(15, 5)[0]).toBeGreaterThan(120)
+    expect(px(15, 5)[0]).toBeLessThan(135)
+    r.fill([[NaN, 0], [5, 5], [0, 5]], [1, 2, 3], 1) // bozuk: hata vermez
+    r.fill([[-50, -50], [-10, -50], [-10, -10]], [1, 2, 3], 1) // tamamen dışarıda
+    expect(px(15, 5)[0]).toBeLessThan(135)
+  })
+  it('halka (zıt sarımlı iç çokgen) ortası boş kalır', () => {
+    const r = new Raster(40, 40)
+    r.clear([0, 0, 0])
+    r.fill([[5, 5], [35, 5], [35, 35], [5, 35], [5, 5], [15, 15], [15, 25], [25, 25], [25, 15], [15, 15]], [255, 255, 255], 1)
+    expect(r.data[(20 * 40 + 20) * 3]).toBe(0)
+    expect(r.data[(8 * 40 + 8) * 3]).toBe(255)
   })
 })

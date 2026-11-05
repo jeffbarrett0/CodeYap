@@ -18,8 +18,8 @@ import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
 import { runStory } from '../main/story/pipeline'
-import { renderBackdrop, renderStoryScene } from '../main/story/render'
-import { normalizeScenes } from '../shared/story/plan'
+import { renderBackdrop, renderFootballFrame, renderStoryScene } from '../main/story/render'
+import { contentProblem, normalizeScenes } from '../shared/story/plan'
 import { STORY_SCHEMA } from '../shared/story/schema'
 import { runTool } from '../main/ffmpeg'
 import type { StoryPlan } from '../shared/story/types'
@@ -232,10 +232,17 @@ async function main(argv: string[]): Promise<unknown> {
       await renderBackdrop(plan.theme, size, service.tools.ffmpeg, bg)
       for (const sc of normalizeScenes(plan.scenes, plan.totalSec).filter((x) => !only || x.id === only)) {
         const dur = Math.max(1, sc.end - sc.start)
-        const mp4 = join(dir, `${sc.id}.mp4`)
-        await renderStoryScene(sc.content, plan.theme, size, dur, service.tools.ffmpeg, mp4, { world, backdrop: bg, baseDir: dirname(resolve(media)) })
+        const problem = contentProblem(sc.content)
+        if (problem) throw new Error(`Sahne ${sc.id} (${sc.content.type}): ${problem}`)
         const at = Math.min(dur - 0.05, Math.max(0, dur * (num(a.opt.at, 'at') ?? 0.7)))
         const png = join(dir, `${sc.id}.png`)
+        if (sc.content.type === 'football') {
+          await renderFootballFrame(sc.content, plan.theme, size, dur, at, service.tools.ffmpeg, png)
+          frames.push({ id: sc.id, type: 'football', file: png, atSec: r1(at) })
+          continue
+        }
+        const mp4 = join(dir, `${sc.id}.mp4`)
+        await renderStoryScene(sc.content, plan.theme, size, dur, service.tools.ffmpeg, mp4, { world, backdrop: bg, baseDir: dirname(resolve(media)) })
         await runTool(service.tools.ffmpeg, ['-y', '-v', 'error', '-ss', at.toFixed(2), '-i', mp4, '-frames:v', '1', png])
         await rm(mp4, { force: true })
         frames.push({ id: sc.id, type: sc.content.type, file: png, atSec: r1(at) })

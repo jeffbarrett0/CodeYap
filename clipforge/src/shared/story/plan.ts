@@ -2,6 +2,7 @@ import { buildSegments } from '../transcript/sentences'
 import type { Segment, TranscriptWord } from '../types'
 import { findChapters, DENSITY } from '../chapters'
 import { key } from '../graphics/geo'
+import { simulateFootball } from './football'
 import { CTA_RE, DEFAULT_STORY_THEME, type StatCard, type StoryContent, type StoryItem, type StoryPlan, type StoryScene, type StoryTheme, type StoryTone, type TimelinePeriod } from './types'
 
 const NUM_WORDS: Record<string, number> = { bir: 1, iki: 2, üç: 3, dört: 4, beş: 5, altı: 6, yedi: 7, sekiz: 8, dokuz: 9, on: 10, yirmi: 20, otuz: 30, kırk: 40, elli: 50, altmış: 60, yetmiş: 70, seksen: 80, doksan: 90, yüz: 100 }
@@ -252,6 +253,16 @@ export function sanitizeContent(raw: unknown): StoryContent | null {
       const to = str(c.to, 40)
       return to ? { type: 'place', to, from: str(c.from, 40), label: str(c.label, 30), sub: str(c.sub, 48) } : null
     }
+    case 'football': {
+      const ACTS = ['pass', 'shoot', 'run', 'dribble', 'label', 'zone', 'line', 'camera']
+      const players = (Array.isArray(c.players) ? c.players : []).slice(0, 30).filter((x) => x && typeof (x as { id?: unknown }).id === 'string')
+      const actions = (Array.isArray(c.actions) ? c.actions : []).slice(0, 80).filter((x) => x && ACTS.includes(String((x as { do?: unknown }).do)) && Number.isFinite((x as { at?: unknown }).at))
+      if (players.length === 0) return null
+      const cleanTeam = (t: unknown) => (t && typeof t === 'object' ? { name: str((t as { name?: unknown }).name, 30), color: typeof (t as { color?: unknown }).color === 'string' && /^#[0-9a-f]{6}$/i.test((t as { color: string }).color) ? (t as { color: string }).color : undefined, formation: typeof (t as { formation?: unknown }).formation === 'string' ? (t as { formation: string }).formation.slice(0, 12) : undefined } : undefined)
+      const fb = { type: 'football', home: cleanTeam(c.home), away: cleanTeam(c.away), players, actions, ball: c.ball && typeof c.ball === 'object' ? c.ball : undefined, attack: c.attack === 'left' ? 'left' : undefined, camera: ['broadcast', 'follow', 'top', 'behind', 'goal'].includes(String(c.camera)) ? c.camera : undefined, title: str(c.title, 50) } as unknown as StoryContent
+      for (const a of actions as { text?: unknown }[]) if (typeof a.text === 'string' && CTA_RE.test(a.text)) return null
+      return fb
+    }
     case 'media': {
       const file = typeof c.file === 'string' ? c.file.trim().slice(0, 500) : ''
       if (!file) return null
@@ -262,5 +273,16 @@ export function sanitizeContent(raw: unknown): StoryContent | null {
     }
     default:
       return null
+  }
+}
+
+/** Sahne içeriğinin (yazarken yakalanabilen) mantık hatası: futbol sahnesinde bilinmeyen oyuncu/nokta, üst üste binen top hareketi… */
+export function contentProblem(c: StoryContent): string | null {
+  if (c.type !== 'football') return null
+  try {
+    simulateFootball(c, 10)
+    return null
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e)
   }
 }
