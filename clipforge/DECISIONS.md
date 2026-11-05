@@ -350,6 +350,10 @@ Aşamalar: içe aktar → transkripsiyon → **sessizleri kes → boşlukları k
 * **CLI:** `captions <proje> --lang en`.
 * **Sınırlar:** yalnızca İngilizce (dil listesi genişletilebilir); çeviri kalitesi modele bağlı; internet ve anahtar gerekir. Whisper'ın kendi çeviri kipi (`--translate`, çevrimdışı) kullanılmadı: kelime zamanlaması kaba ve her dil için ayrı transkripsiyon gerekirdi.
 
+## 48. Whisper "failed to open wcpp_0.json for writing" (Windows)
+
+Kullanıcı ortamında whisper-cli çalışma klasörünü (cwd) uygulamıyor ya da klasöre yazamıyordu: önce "input file not found chunk_0.wav", sonra çıktı için "failed to open … for writing". Çözüm: girdi (`-f`) ve çıktı (`-of`) yolları BİRLİKTE, sırayla denenir — göreli (cwd) → mutlak → Windows 8.3 kısa yol → ASCII geçici klasöre kopya (önce kullanıcının geçici klasörü, sonra sürücü kökü). Hata türüne göre ("input file not found / input file(s) failed / for writing") bir sonrakine geçilir; hepsi başarısızsa asıl whisper hatası gösterilir. Hâlâ yazılamıyorsa neden büyük olasılıkla antivirüs/Denetimli Klasör Erişimi: klasör istisnaya eklenmeli.
+
 ## 47. Yayın başı videosunu (telifli şarkı) otomatik kesme
 
 **İstek:** yayın kayıtlarının başında 2 dk 44 sn'lik "Yayın başlıyor" videosu (telifli şarkılı) var; Auto Kick'te kesilsin.

@@ -110,28 +110,37 @@ export class WhisperCppProvider implements TranscriptionProvider {
     // yalnızca ASCII, göreli dosya adlarıyla çalıştırılır; klasör yolu hiçbir bağımsız değişkende geçmez.
     const rel = relative(req.workDir, req.wavPath)
     const prefixName = `wcpp_${Math.round(req.offsetSec)}`
-    const prefix = join(req.workDir, prefixName)
-    // ses dosyasının whisper'a verilecek yazımları: önce göreli ad (cwd), olmazsa mutlak yol, Windows'ta kısa (8.3) yol, son çare ASCII geçici klasöre kopya
-    const wavVariants: (() => Promise<string>)[] = [
-      async () => (rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : req.wavPath),
-      async () => req.wavPath,
-      async () => (process.platform === 'win32' ? await shortPath(req.wavPath) : req.wavPath),
+    const absPrefix = join(req.workDir, prefixName)
+    // Girdi (-f) ve çıktı (-of) yazımları BİRLİKTE denenir: önce göreli ad (cwd), olmazsa mutlak yol, Windows'ta kısa (8.3) yol,
+    // son çare ASCII geçici klasör. (Bazı kurulumlarda cwd uygulanmıyor ya da yol bozuluyor: hem okuma hem yazma hatası verir.)
+    interface Variant { wav: string; of: string; out: string }
+    const variants: (() => Promise<Variant>)[] = [
+      async () => ({ wav: rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel : req.wavPath, of: prefixName, out: absPrefix }),
+      async () => ({ wav: req.wavPath, of: absPrefix, out: absPrefix }),
       async () => {
-        const dir = join(process.platform === 'win32' ? `${process.env.SystemDrive ?? 'C:'}\\` : tmpdir(), 'cf-whisper')
+        if (process.platform !== 'win32') return { wav: req.wavPath, of: absPrefix, out: absPrefix }
+        const dir = await shortPath(req.workDir)
+        return { wav: await shortPath(req.wavPath), of: `${dir}\\${prefixName}`, out: absPrefix }
+      },
+      // ASCII geçici klasöre kopya: önce kullanıcının geçici klasörü, sonra (Windows) sürücü kökü — yazma izni olan ilki kullanılır
+      ...[() => join(tmpdir(), 'cf-whisper'), () => (process.platform === 'win32' ? join(`${process.env.SystemDrive ?? 'C:'}\\`, 'cf-whisper') : join(tmpdir(), 'cf-whisper2'))].map((dirOf) => async (): Promise<Variant> => {
+        const dir = dirOf()
         await mkdir(dir, { recursive: true })
-        const dst = join(dir, `w_${Date.now().toString(36)}_${basename(req.wavPath).replace(/[^A-Za-z0-9._-]/g, '_')}`)
+        const tag = `${Date.now().toString(36)}_${Math.round(req.offsetSec)}`
+        const dst = join(dir, `w_${tag}.wav`)
         await copyFile(req.wavPath, dst)
-        return dst
-      }
+        const of = join(dir, `o_${tag}`)
+        return { wav: dst, of, out: of }
+      })
     ]
     let variant = 0
-    let wavArg = await wavVariants[0]()
+    let cur = await variants[0]()
     // vazgeçilebilir bayraklar: sürüm bir bayrağı tanımazsa ("unknown argument") o bayrak çıkarılıp bir kez daha denenir
     let optional: [string, string?][] = [['-sow'], ['-np'], ['-t', String(this.threads)]]
     if (req.prompt) optional.push(['--prompt', req.prompt])
     let lastErr: unknown
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const args = ['-m', model, '-f', wavArg, '-l', req.language, '-ojf', '-of', prefixName, '-ml', '1', ...optional.flatMap((o) => (o[1] === undefined ? [o[0]] : [o[0], o[1]]))]
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const args = ['-m', model, '-f', cur.wav, '-l', req.language, '-ojf', '-of', cur.of, '-ml', '1', ...optional.flatMap((o) => (o[1] === undefined ? [o[0]] : [o[0], o[1]]))]
       try {
         await runTool(this.binary, args, { signal: req.signal, cwd: req.workDir }, (stderr) => describeWhisperError(stderr, model))
         lastErr = undefined
@@ -141,10 +150,10 @@ export class WhisperCppProvider implements TranscriptionProvider {
         if (e instanceof ToolError && /bulunamadı/.test(e.userMessage)) {
           throw new ToolError('whisper.cpp bulunamadı. Ayarlar → Transkripsiyon bölümünden "whisper-cli" yolunu belirtin (README: Kurulum).', e.detail)
         }
-        // girdi dosyası bu yazımla bulunamadı: bir sonraki yazımla yeniden dene
-        if (e instanceof ToolError && /input file not found|no input files|failed to read|failed to open.*\.wav/i.test(e.detail ?? '') && variant < wavVariants.length - 1) {
+        // girdi okunamadı / çıktı yazılamadı: bir sonraki yol yazımıyla yeniden dene
+        if (e instanceof ToolError && /input file not found|no input files|input file\(s\) failed|for writing|failed to read/i.test(e.detail ?? '') && variant < variants.length - 1) {
           variant++
-          wavArg = await wavVariants[variant]()
+          cur = await variants[variant]()
           continue
         }
         // tüm yazımlar denendi ve ses parçası diskte yok: asıl neden (silinmiş/oluşmamış dosya) açıkça söylenir
@@ -158,9 +167,10 @@ export class WhisperCppProvider implements TranscriptionProvider {
       }
     }
     if (lastErr) throw lastErr
-    const out = `${prefix}.json`
+    const out = `${cur.out}.json`
     const json = JSON.parse(await readFile(out, 'utf8')) as WhisperCppJson
     await rm(out, { force: true })
+    if (variant >= 3) await rm(cur.wav, { force: true }) // geçici kopya kalmasın
     return parseWhisperCppJson(json, req.offsetSec)
   }
 }

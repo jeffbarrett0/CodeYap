@@ -77,3 +77,46 @@ describe('whisper.cpp sağlayıcısı: Windows yol sorunu ve sürüm farkları',
     expect(describeWhisperError('whisper_init: boom\nerror: something broke', 'm')).toMatch(/something broke/)
   })
 })
+
+describe('whisper.cpp: cwd uygulanmayan / çıktı yazılamayan kurulumlar (gerçek hata: "failed to open wcpp_0.json for writing")', () => {
+  /** Sahte whisper: göreli -of (cwd'ye bağlı) ve ASCII olmayan yollarda gerçek hatayı verir; yalnızca ASCII mutlak yolda çalışır */
+  function picky(): string {
+    const bin = join(root, 'whisper-picky')
+    writeFileSync(
+      bin,
+      `#!/usr/bin/env node
+const fs = require('fs'); const a = process.argv.slice(2)
+const val = (f) => a[a.indexOf(f) + 1]
+const of = val('-of'); const wav = val('-f')
+fs.appendFileSync(process.env.WLOG || '/dev/null', JSON.stringify({ of, wav }) + '\\n')
+const abs = (p) => p.startsWith('/') || /^[A-Za-z]:[\\\\/]/.test(p)
+const ascii = (p) => /^[\\x20-\\x7e]*$/.test(p)
+if (!abs(of) || !ascii(of) || !ascii(wav) || !fs.existsSync(wav)) {
+  console.error('error: input file not found ' + JSON.stringify(wav)); console.error('whisper_print_usage: usage:'); console.error("open: failed to open '" + of + ".json' for writing"); console.error('error: 1 input file(s) failed'); process.exit(1)
+}
+fs.writeFileSync(of + '.json', JSON.stringify({ transcription: [{ offsets: { from: 0, to: 100 }, text: '[_BEG_]' }, { offsets: { from: 1000, to: 1300 }, text: ' Merhaba' }] }))
+`
+    )
+    chmodSync(bin, 0o755)
+    return bin
+  }
+  it('çıktı yazılamazsa/girdi bulunamazsa yol yazımları sırayla denenir ve ASCII geçici klasöre kopyayla başarır', async () => {
+    process.env.WLOG = join(root, 'log-picky.jsonl')
+    const d = workDir()
+    const p = new WhisperCppProvider(picky(), root, 2)
+    const words = await p.transcribeChunk({ wavPath: join(d, 'chunk_0.wav'), offsetSec: 0, language: 'tr', model: 'tiny', workDir: d })
+    expect(words.map((w) => w.text)).toEqual(['Merhaba'])
+    const calls = readFileSync(process.env.WLOG, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { of: string; wav: string })
+    expect(calls.length).toBeGreaterThanOrEqual(3) // göreli → mutlak → ... → ASCII kopya
+    expect(calls[0].of).toBe('wcpp_0') // ilk deneme: göreli çıktı adı
+    expect(calls[calls.length - 1].of).toMatch(/cf-whisper/)
+  })
+  it('tüm yazımlar başarısızsa asıl hata (whisper çıktısı) gösterilir, sonsuz döngü olmaz', async () => {
+    const bin = join(root, 'whisper-always-fail')
+    writeFileSync(bin, `#!/usr/bin/env node\nconsole.error("open: failed to open 'x.json' for writing"); console.error('error: 1 input file(s) failed'); process.exit(1)\n`)
+    chmodSync(bin, 0o755)
+    const d = workDir()
+    const p = new WhisperCppProvider(bin, root, 2)
+    await expect(p.transcribeChunk({ wavPath: join(d, 'chunk_0.wav'), offsetSec: 0, language: 'tr', model: 'tiny', workDir: d })).rejects.toThrow(/whisper\.cpp/)
+  })
+})
