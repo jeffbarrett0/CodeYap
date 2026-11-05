@@ -129,6 +129,7 @@ export function StoryDialog() {
   const [planJob, setPlanJob] = useState<string>()
   const [buildJob, setBuildJob] = useState<string>()
   const [addType, setAddType] = useState<StoryType>('stats')
+  const [allowStale, setAllowStale] = useState(false)
   const aiReady = settings.llmProvider !== 'off'
   const pj = planJob ? story[planJob] : undefined
   const bj = buildJob ? story[buildJob] : undefined
@@ -153,7 +154,7 @@ export function StoryDialog() {
   }
   const build = async () => {
     if (!plan) return
-    setBuildJob(await api.invoke('story:start', { mediaPath: media, action: 'build', plan, aspect }))
+    setBuildJob(await api.invoke('story:start', { mediaPath: media, action: 'build', plan, aspect, allowStale }))
   }
   const setScene = (i: number, s: StoryScene) => plan && setPlan({ ...plan, scenes: plan.scenes.map((x, j) => (j === i ? s : x)) })
   const addScene = () => {
@@ -202,6 +203,7 @@ export function StoryDialog() {
               </select>
               <button className="btn sm" onClick={addScene} data-testid="story-add">Sahne ekle</button>
               <span style={{ flex: 1 }} />
+              <label className="check" title="Sezonu süren verinin (gol krallığı, puan durumu) güncel olması gerekir; bayatsa çizim reddedilir. Bilerek eski veriyle çizmek için işaretleyin."><input type="checkbox" checked={allowStale} onChange={(e) => setAllowStale(e.target.checked)} data-testid="story-allow-stale" /> Eski veriyle de çiz</label>
               <button className="btn primary" disabled={enabledCount === 0 || building} onClick={() => void build()} data-testid="story-build">{building ? 'Çiziliyor…' : 'Videoyu oluştur'}</button>
             </div>
           </div>

@@ -4,7 +4,7 @@ import type { LbRow, StoryContent } from './types'
 /**
  * Bilgi paketi: sahnelerde kullanılacak doğrulanmış veri (gol krallığı, puan durumu…). Her veri kümesi KAYNAK, tarih (asOf) ve
  * doğruluk durumuyla gelir; eksik sıralar UYDURULMAZ (`complete:false`, değeri bilinmeyen satır `value:null`).
- * Veri bayatlar: güncel sezonda `asOf` eskiyse `datasetWarnings` yeniden araştırma ister.
+ * Veri bayatlar: sezonu süren veride `asOf` 1 günden eskiyse `datasetWarnings` uyarır ve `staleDatasets` kapısı videoyu çizdirmez (rakamlar her zaman güncel olmalı).
  */
 export type DataStatus = 'official' | 'press' | 'snapshot' | 'unverified'
 export interface DataRow {
@@ -90,6 +90,13 @@ export function findPlayerRows(all: Dataset[], name: string): { dataset: Dataset
   return all.flatMap((dataset) => dataset.rows.filter((row) => lastName(row.name) === ln).map((row) => ({ dataset, row })))
 }
 
+const MONTHS_TR = ['OCAK', 'ŞUBAT', 'MART', 'NİSAN', 'MAYIS', 'HAZİRAN', 'TEMMUZ', 'AĞUSTOS', 'EYLÜL', 'EKİM', 'KASIM', 'ARALIK']
+/** 2026-11-05 → "5 KASIM 2026" (ekrandaki kaynak satırında verinin tarihi görünsün) */
+export function trDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  return `${d} ${MONTHS_TR[(m ?? 1) - 1] ?? ''} ${y}`
+}
+
 export function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
 }
@@ -99,7 +106,7 @@ export function datasetWarnings(d: Dataset, today: string): string[] {
   const w: string[] = []
   if (!d.final) {
     const age = daysBetween(d.asOf, today)
-    if (age > 14) w.push(`"${d.title}" ${d.asOf} tarihli (${age} gün önce): sezon sürüyor, veri bayat olabilir — web'den güncelleyin.`)
+    if (age > 1) w.push(`"${d.title}" ${d.asOf} tarihli (${age} gün önce): sezon sürüyor, veri GÜNCEL DEĞİL (bayat) — web'den güncel değeri alıp yenileyin; bayat veriyle video çizilmez.`)
   }
   if (!d.complete) w.push(`"${d.title}": yalnızca bilinen üst ${d.rows.length} sıra var; diğer sıralar doğrulanmadı (uydurulmaz).`)
   if (d.rows.some((r) => r.status === 'snapshot')) w.push(`"${d.title}": bazı satırlar ara değer (snapshot), sezon sonu kesin değil.`)
@@ -159,13 +166,13 @@ export function resolveLeaderboard(c: Extract<StoryContent, { type: 'leaderboard
     if (i >= 0) rows = [...rows, { name: d.rows[i].name, team: d.rows[i].team, value: d.rows[i].value ?? null, rank: d.rows[i].rank ?? i + 1, highlight: true }]
   }
   const incomplete = !d.complete && rows.length >= d.rows.length ? `ilk ${d.rows.length} sıra doğrulandı` : undefined
-  return { ...c, rows, metric: c.metric ?? METRICS[d.metric]?.label, title: c.title ?? d.title, source: c.source ?? d.sources[0], note: c.note ?? incomplete }
+  return { ...c, rows, metric: c.metric ?? METRICS[d.metric]?.label, title: c.title ?? d.title, source: c.source ?? `${d.sources[0]} · ${trDate(d.asOf)}`, note: c.note ?? incomplete }
 }
 
 /** Takım için bilgi paketinden künyeler: lig sırası/puanı, gol kralı mı… (yalnızca kesin bilinenler) */
-export function teamFacts(all: Dataset[], teamName: string): { label: string; value: string; source: string }[] {
+export function teamFacts(all: Dataset[], teamName: string): { label: string; value: string; source: string; dataset: string; asOf: string }[] {
   const t = norm(teamName)
-  const out: { label: string; value: string; source: string }[] = []
+  const out: { label: string; value: string; source: string; dataset: string; asOf: string }[] = []
   const sorted = [...all].sort((a, b) => seasonStart(b.season) - seasonStart(a.season) || (a.metric === 'puan' ? -1 : 1) - (b.metric === 'puan' ? -1 : 1))
   for (const d of sorted) {
     const idx = d.rows.findIndex((r) => r.team && (norm(r.team) === t || norm(r.team).includes(t) || t.includes(norm(r.team))))
@@ -173,8 +180,8 @@ export function teamFacts(all: Dataset[], teamName: string): { label: string; va
     const r = d.rows[idx]
     const rank = r.rank ?? idx + 1
     const comp = COMPETITIONS[d.competition]?.name ?? d.competition
-    if (d.metric === 'puan' && r.value != null) out.push({ label: `${comp} ${d.season}`, value: `${rank}. sıra · ${r.value} puan`, source: d.sources[0] })
-    else if (d.metric === 'gol' && r.value != null) out.push({ label: `${comp} gol krallığı ${d.season}`, value: `${r.name} · ${r.value} gol (${rank}.)`, source: d.sources[0] })
+    if (d.metric === 'puan' && r.value != null) out.push({ label: `${comp} ${d.season}`, value: `${rank}. sıra · ${r.value} puan`, source: d.sources[0], dataset: d.id, asOf: d.asOf })
+    else if (d.metric === 'gol' && r.value != null) out.push({ label: `${comp} gol krallığı ${d.season}`, value: `${r.name} · ${r.value} gol (${rank}.)`, source: d.sources[0], dataset: d.id, asOf: d.asOf })
   }
   return out
 }
@@ -184,7 +191,32 @@ export function resolveSceneData(c: StoryContent, all: Dataset[]): StoryContent 
   if (c.type === 'leaderboard') return resolveLeaderboard(c, all)
   if (c.type === 'teamcard' && (!c.facts || c.facts.length === 0)) {
     const f = teamFacts(all, c.team).slice(0, 4)
-    return { ...c, facts: f.map(({ label, value }) => ({ label, value })), source: c.source ?? f[0]?.source }
+    return { ...c, facts: f.map(({ label, value }) => ({ label, value })), source: c.source ?? (f[0] ? `${f[0].source} · ${trDate(f[0].asOf)}` : undefined) }
   }
   return c
+}
+
+export interface StaleInfo {
+  id: string
+  title: string
+  asOf: string
+  ageDays: number
+}
+
+/** Sahnelerin kullandığı veri kümeleri (id) — `dataset` başvurusu ve takım kartı künyeleri dahil */
+export function usedDatasets(contents: StoryContent[], all: Dataset[]): Dataset[] {
+  const ids = new Set<string>()
+  for (const c of contents) {
+    if (c.type === 'leaderboard' && c.dataset) ids.add(c.dataset)
+    if (c.type === 'teamcard' && (!c.facts || c.facts.length === 0)) for (const f of teamFacts(all, c.team)) ids.add(f.dataset)
+  }
+  return all.filter((d) => ids.has(d.id))
+}
+
+/**
+ * GÜNCELLİK KAPISI: sezonu süren (final:false) bir veri kümesi `maxAgeDays` günden eskiyse video çizilmez — rakamlar her zaman
+ * güncel olmalı (örn. gol kralı sayısı o gün değişmiş olabilir). Sezonu bitmiş (final) veri kapıya takılmaz.
+ */
+export function staleDatasets(used: Dataset[], today: string, maxAgeDays = 1): StaleInfo[] {
+  return used.filter((d) => !d.final && daysBetween(d.asOf, today) > maxAgeDays).map((d) => ({ id: d.id, title: d.title, asOf: d.asOf, ageDays: daysBetween(d.asOf, today) }))
 }

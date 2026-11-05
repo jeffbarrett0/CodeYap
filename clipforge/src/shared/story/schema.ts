@@ -9,7 +9,7 @@ export const STORY_SCHEMA = {
     totalSec: 'anlatımın süresi (plan çıktısında hazır gelir)',
     planner: '"auto" | "ai" (bilgi amaçlı)',
     warnings: '[]',
-    theme: { bg: '#0A0A0A', accent: '#FFD21F', good: '#6EE7A0', warn: '#FF9F1C', bad: '#FF4D4D', text: '#FFFFFF', muted: '#A8A28A', card: '#16140C', fontHead: 'Arial Black', fontBody: 'Arial', brand: 'kanal adı (sağ üstte; boş = yok)' },
+    theme: { bg: '#0A0A0A', accent: '#FFD21F', good: '#6EE7A0', warn: '#FF9F1C', bad: '#FF4D4D', text: '#FFFFFF', muted: '#A8A28A', card: '#16140C', fontHead: 'Arial Black', fontBody: 'Arial', brand: 'YALNIZCA kullanıcı kendi kanal adını verirse; varsayılan boş. Başka kanalın adı kullanılmaz.' },
     scenes: 'aşağıdaki sahnelerin dizisi'
   },
   scene: { id: '"s1"', start: 'sn (anlatımda ne zaman başlar)', end: 'sn (sonraki sahneye kadar uzar)', enabled: true, source: '"manual"', reason: 'isteğe bağlı: anlatımdan alıntı', content: '{ "type": ... } aşağıdaki türlerden biri' },
@@ -65,6 +65,7 @@ export const STORY_SCHEMA = {
     'Yalnızca anlatımda GERÇEKTEN geçenleri yaz; rakam, ad, sezon uydurma.',
     'Çağrı/yönlendirme metni yok (beğen, abone ol, kanala gel…).',
     'Her sahne ortalama 5-30 sn; çakışma yok; start artan.',
+    'GÜNCEL VERİ: ekrana gelen her istatistik/sıralama o gün web\'den alınır (hafızandan değil); sezonu süren veri 1 günden eskiyse build reddedilir.',
     'Anlatıda geçen takım/oyuncu/sezon/rakam için ÖNCE web\'den doğrula (forma rengi, gol sayısı, tarih…); anlatım ile web çelişirse kullanıcıya sor, kendi kafana göre düzeltme.',
     'Çizmeden önce `story preview plan.json` ile kareleri kontrol et.'
   ],

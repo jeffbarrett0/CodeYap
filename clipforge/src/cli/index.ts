@@ -17,12 +17,12 @@ import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems
 import { findPlace, key as geoKey, placesInText } from '../shared/graphics/geo'
 import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
-import { runStory } from '../main/story/pipeline'
+import { cleanBrand, runStory } from '../main/story/pipeline'
 import { renderBackdrop, renderFootballFrame, renderStoryScene } from '../main/story/render'
 import { contentProblem, normalizeScenes } from '../shared/story/plan'
 import { STORY_SCHEMA } from '../shared/story/schema'
 import { loadKnowledge, saveDataset } from '../main/story/knowledge'
-import { datasetWarnings, findPlayerRows, resolveSceneData, teamFacts } from '../shared/story/data'
+import { datasetWarnings, daysBetween, findPlayerRows, resolveSceneData, teamFacts, usedDatasets } from '../shared/story/data'
 import { TEAMS, findTeam } from '../shared/story/teams'
 import { runTool } from '../main/ffmpeg'
 import type { StoryPlan } from '../shared/story/types'
@@ -83,7 +83,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   story schema                           sahne türleri + örnek plan (Claude Code planı yazarken kullanır)
   story preview <plan.json> [--out klasör] [--scene id] [--at 0.7] [--aspect 16:9]   sahneleri PNG kareye çizer (medya/ses gerekmez) — yazdığınız planı gözle doğrulayın
   story plan <ses|video> [--out klasör] [--ai | --blank] [--lang tr]   anlatımı içe aktarır, transkribe eder, hareketli SAHNE PLANI çıkarır (story-plan.json; düzenlenebilir)
-  story build <ses|video> [--out klasör] [--plan dosya.json] [--aspect 16:9|9:16|1:1]   planı çizer: anlatım sesi + sahneler tek projede
+  story build <ses|video> [--out klasör] [--plan dosya.json] [--allow-stale] [--aspect 16:9|9:16|1:1]   planı çizer: anlatım sesi + sahneler tek projede
   new <proje> [--name ad]                boş proje oluşturur
   import <proje> <dosya...> [--add] [--layer V3]   medya ekler (--add: ilk videoyu --layer'a (varsayılan V1), 0. sn'den, sesiyle yerleştirir)
   show <proje>                           katmanlar, klipler, altyazılar, süre
@@ -256,6 +256,7 @@ async function main(argv: string[]): Promise<unknown> {
     if (sub === 'preview') {
       if (!media) throw new Error('Kullanım: story preview <plan.json> [--out klasör]')
       const plan = JSON.parse(await readFile(resolve(media), 'utf8')) as StoryPlan
+      plan.theme = { ...plan.theme, brand: cleanBrand(plan.theme.brand) }
       const service = await makeService()
       const world = await loadWorld(service.deps.resourcesDir).catch(() => undefined)
       const asp = str(a.opt.aspect)
@@ -268,7 +269,10 @@ async function main(argv: string[]): Promise<unknown> {
       const bg = join(dir, `zemin-${size.width}x${size.height}.png`)
       await renderBackdrop(plan.theme, size, service.tools.ffmpeg, bg)
       const kn = await loadKnowledge(service.deps)
-      for (const sc of normalizeScenes(plan.scenes, plan.totalSec).filter((x) => !only || x.id === only)) {
+      const todayStr = new Date().toISOString().slice(0, 10)
+      const scenesN = normalizeScenes(plan.scenes, plan.totalSec).filter((x) => !only || x.id === only)
+      const freshness = usedDatasets(scenesN.map((x) => x.content), kn.datasets).map((d) => ({ dataset: d.id, asOf: d.asOf, final: d.final, ageDays: daysBetween(d.asOf, todayStr), ok: d.final || daysBetween(d.asOf, todayStr) <= 1 }))
+      for (const sc of scenesN) {
         try {
           sc.content = resolveSceneData(sc.content, kn.datasets)
         } catch (e) {
@@ -291,14 +295,14 @@ async function main(argv: string[]): Promise<unknown> {
         frames.push({ id: sc.id, type: sc.content.type, file: png, atSec: r1(at) })
       }
       if (only && frames.length === 0) throw new Error(`Sahne bulunamadı: ${only}`)
-      return out({ ok: true, frames, hint: 'PNG kareleri açıp bakın (sahne süresinin %70\'inde); yazı taşıyor, çakışıyor ya da kart geç beliriyorsa planı düzeltip yeniden çizin.' })
+      return out({ ok: true, frames, freshness, freshnessHint: freshness.some((f) => !f.ok) ? 'Bazı veriler GÜNCEL DEĞİL: `story build` bunlarla çizmez. Web\'den güncel değeri alıp `story data add` ile yenileyin.' : undefined, hint: 'PNG kareleri açıp bakın (sahne süresinin %70\'inde); yazı taşıyor, çakışıyor ya da kart geç beliriyorsa planı düzeltip yeniden çizin.' })
     }
     if ((sub !== 'plan' && sub !== 'build') || !media) throw new Error('Kullanım: story schema | story teams [ad] | story data list|show|search|add | story preview <plan.json> | story plan|build <ses|video> [--out klasör]')
     let plan: StoryPlan | undefined
     if (str(a.opt.plan)) plan = JSON.parse(await readFile(resolve(str(a.opt.plan)!), 'utf8')) as StoryPlan
     const asp = str(a.opt.aspect)
     const r = await runStory(
-      { mediaPath: media, outDir: str(a.opt.out), action: sub, plan, useAi: !!a.opt.ai, blank: !!a.opt.blank, language: str(a.opt.lang), aspect: asp === '9:16' || asp === '1:1' ? asp : '16:9' },
+      { mediaPath: media, outDir: str(a.opt.out), action: sub, plan, useAi: !!a.opt.ai, blank: !!a.opt.blank, allowStale: !!a.opt['allow-stale'], language: str(a.opt.lang), aspect: asp === '9:16' || asp === '1:1' ? asp : '16:9' },
       {},
       { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }
     )

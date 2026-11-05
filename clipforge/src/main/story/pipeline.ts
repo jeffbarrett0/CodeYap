@@ -2,7 +2,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
 import { transcriptionReadiness } from '../../shared/autokick'
-import { findPlace, type World } from '../../shared/graphics/geo'
+import { findPlace, key, type World } from '../../shared/graphics/geo'
 import { contentProblem, normalizeScenes, planStory } from '../../shared/story/plan'
 import { initialStoryStages, type StoryPlan, type StoryRequest, type StoryResult, type StoryStage, type StoryStageState, type StoryStatus } from '../../shared/story/types'
 import { cmd } from '../../shared/timeline/commands'
@@ -12,7 +12,7 @@ import { loadWorld } from '../graphics/render'
 import { llmConfigured } from '../ideas/llm'
 import { aiStoryScenes } from './ai'
 import { loadKnowledge } from './knowledge'
-import { datasetWarnings, resolveSceneData } from '../../shared/story/data'
+import { datasetWarnings, resolveSceneData, staleDatasets, usedDatasets } from '../../shared/story/data'
 import { renderBackdrop, renderStoryScene } from './render'
 
 export class StoryCancelled extends Error {
@@ -24,6 +24,13 @@ export class StoryCancelled extends Error {
 export interface StoryHooks {
   onStage(id: StoryStage, patch: Partial<StoryStageState>): void
   signal: AbortSignal
+}
+
+/** Başka kanalların/markaların adı ekrana yazılmaz (kullanıcı kuralı): yasaklı ad görülürse marka boş bırakılır */
+const BLOCKED_BRANDS = ['akil oyunu', 'football mind']
+export function cleanBrand(brand?: string): string {
+  const b = (brand ?? '').trim()
+  return BLOCKED_BRANDS.some((x) => key(b).includes(x)) ? '' : b
 }
 
 export const STORY_MEDIA_RE = /\.(mp3|wav|m4a|aac|ogg|opus|flac|mp4|mov|mkv|webm|m4v)$/i
@@ -152,11 +159,17 @@ export async function runStory(req: StoryRequest, env: { userDataDir?: string; r
 
   // 4) sahneleri çiz ─────────────────────────────────────
   check()
+  plan = { ...plan, theme: { ...plan.theme, brand: cleanBrand(plan.theme.brand) } }
   const total = plan.totalSec > 0 ? plan.totalSec : asset.durationSec
   const scenes = normalizeScenes(plan.scenes, total).map((x) => ({ ...x, start: frameSnap(x.start), end: frameSnap(x.end) })).filter((x) => x.end - x.start >= 1 / FPS)
   if (scenes.length === 0) throw new Error('Çizilecek sahne yok: planda açık (işaretli) sahne bulunmuyor.')
   // veri başvurularını bilgi paketinden çöz (gol krallığı satırları, takım künyeleri)
   const kn = await loadKnowledge(service.deps)
+  const today = new Date().toISOString().slice(0, 10)
+  const stale = staleDatasets(usedDatasets(scenes.map((x) => x.content), kn.datasets), today)
+  if (stale.length && !req.allowStale) {
+    throw new Error(`Veri güncel değil (bugün ${today}): ${stale.map((x) => `"${x.title}" (${x.asOf}, ${x.ageDays} gün önce)`).join('; ')}. Rakamlar her zaman güncel olmalı: web'den güncel değerleri alıp \`story data add\` ile yenileyin ve yeniden çizin. (Bilerek eski veriyle çizmek için --allow-stale.)`)
+  }
   for (const sc of scenes) {
     try {
       sc.content = resolveSceneData(sc.content, kn.datasets)

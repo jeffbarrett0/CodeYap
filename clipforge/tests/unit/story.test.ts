@@ -3,12 +3,13 @@ import { contentProblem, normalizeScenes, planStory, sanitizeContent } from '@sh
 import { simulateFootball } from '@shared/story/football'
 import { Raster } from '@shared/story/raster'
 import { colorDistance, findTeam, resolveKits, themeForTeam } from '@shared/story/teams'
-import { datasetWarnings, findPlayerRows, resolveSceneData, teamFacts, validateDataset, type Dataset } from '@shared/story/data'
+import { datasetWarnings, findPlayerRows, resolveSceneData, staleDatasets, teamFacts, trDate, usedDatasets, validateDataset, type Dataset } from '@shared/story/data'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildBackdropAss, buildStoryAss, roundedRectPath } from '@shared/story/scenes'
 import { DEFAULT_STORY_THEME, type StoryContent, type StoryScene } from '@shared/story/types'
 import { parseScenes } from '../../src/main/story/ai'
+import { cleanBrand } from '../../src/main/story/pipeline'
 import type { TranscriptWord } from '@shared/types'
 
 /** Cümle listesinden kelime zamanlı transkript üretir (her cümle verilen saniyede başlar) */
@@ -321,7 +322,7 @@ describe('Bilgi paketi (veri) ve veriye dayalı sahneler', () => {
   })
   it('bayatlık ve eksiklik uyarıları: sürüyor + eski tarih → bayat; kesinleşmiş sezon bayatlamaz', () => {
     const live = seed.find((d) => d.id === 'superlig-2026-27-puan-hafta7')!
-    expect(datasetWarnings(live, '2026-11-05').join(' ')).toMatch(/bayat/)
+    expect(datasetWarnings(live, '2026-11-05').join(' ')).toMatch(/GÜNCEL DEĞİL/)
     expect(datasetWarnings(live, '2026-10-10').join(' ')).not.toMatch(/bayat/)
     expect(datasetWarnings(seed.find((d) => d.id === 'superlig-2025-26-gol')!, '2030-01-01').join(' ')).not.toMatch(/bayat/)
     expect(datasetWarnings(seed.find((d) => d.id === 'ucl-2025-26-gol')!, '2026-06-01').join(' ')).toMatch(/değeri bilinmiyor/)
@@ -343,6 +344,34 @@ describe('Bilgi paketi (veri) ve veriye dayalı sahneler', () => {
     expect(p.warnings.join(' ')).toMatch(/doğrulanmadı|bayat/)
     const none = planStory(narration([[2, 'Ligue 1 gol krallığını kim aldı sence bakalım şimdi söyleyelim arkadaşlar.'], [9, 'Konuşmaya devam ediyoruz ve başka şeyler de var burada.']]), { datasets: seed })
     expect(none.warnings.join(' ')).toMatch(/Ligue 1 GOL.*veri yok/)
+  })
+})
+
+describe('Güncellik kapısı ve marka koruması', () => {
+  const seed2: Dataset[] = JSON.parse(readFileSync(join(process.cwd(), 'resources/knowledge/datasets.json'), 'utf8')).map((d: unknown) => validateDataset(d))
+  it('sezonu süren eski veri kapıya takılır; sezonu biten ve bugünkü veri takılmaz; takım kartı künye veri kümelerini de sayar', () => {
+    const lb: StoryContent = { type: 'leaderboard', rows: [], dataset: 'superlig-2026-27-puan-hafta7' }
+    const used = usedDatasets([lb], seed2)
+    expect(staleDatasets(used, '2026-11-05').map((x) => x.id)).toEqual(['superlig-2026-27-puan-hafta7'])
+    expect(staleDatasets(used, '2026-11-05')[0].ageDays).toBe(27)
+    expect(staleDatasets(used, '2026-10-10')).toEqual([]) // 1 gün: kabul
+    expect(staleDatasets(usedDatasets([{ type: 'leaderboard', rows: [], dataset: 'superlig-2025-26-gol' }], seed2), '2030-01-01')).toEqual([]) // final
+    const tc = usedDatasets([{ type: 'teamcard', team: 'Galatasaray' }], seed2).map((d) => d.id)
+    expect(tc).toEqual(expect.arrayContaining(['superlig-2025-26-puan', 'superlig-2026-27-puan-hafta7']))
+    expect(staleDatasets(usedDatasets([{ type: 'teamcard', team: 'Galatasaray' }], seed2), '2026-11-05').length).toBeGreaterThan(0)
+    expect(usedDatasets([{ type: 'teamcard', team: 'Galatasaray', facts: [{ label: 'a', value: 'b' }] }], seed2)).toEqual([]) // elle verilen künye veri sayılmaz
+  })
+  it('ekrandaki kaynak satırında verinin tarihi görünür', () => {
+    expect(trDate('2026-11-05')).toBe('5 KASIM 2026')
+    const r = resolveSceneData({ type: 'leaderboard', rows: [], dataset: 'bundesliga-2025-26-gol' }, seed2) as Extract<StoryContent, { type: 'leaderboard' }>
+    expect(r.source).toMatch(/16 MAYIS 2026$/)
+  })
+  it('başka kanalın adı marka olarak yazılamaz', () => {
+    expect(cleanBrand('AKIL OYUNU')).toBe('')
+    expect(cleanBrand('Akıl Oyunu - Football Mind')).toBe('')
+    expect(cleanBrand('Benim Kanalım')).toBe('Benim Kanalım')
+    expect(cleanBrand(undefined)).toBe('')
+    expect(DEFAULT_STORY_THEME.brand).toBe('')
   })
 })
 

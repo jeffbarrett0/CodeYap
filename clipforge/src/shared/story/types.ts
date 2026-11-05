@@ -200,6 +200,8 @@ export interface StoryRequest {
   plan?: StoryPlan
   /** Yapay zekâ ayarlıysa sahneleri o planlasın */
   useAi?: boolean
+  /** true: sezonu süren verinin eski olmasına izin ver (kullanıcı kararı); varsayılan: bayat veriyle çizim reddedilir */
+  allowStale?: boolean
   /** plan: otomatik sahne bulma; boş plan yazılır (sahneleri Claude Code/kullanıcı yazar) */
   blank?: boolean
   aspect?: '16:9' | '9:16' | '1:1'

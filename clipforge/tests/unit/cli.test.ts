@@ -324,6 +324,16 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     // aynı build tekrar: eski sahneler temizlenir, çoğalmaz
     const again = cli('story', 'build', wav, '--out', dir, '--plan', planPath)
     expect(cli('show', again.project).tracks.find((t: any) => t.id === 'V1').clips).toHaveLength(3)
+    // güncellik kapısı: sezonu süren eski veriyle çizim reddedilir; --allow-stale ile (bilinçli) çizilir
+    const stalePlan = { ...plan, scenes: [{ id: 'z', start: 2, end: 10, enabled: true, source: 'manual', content: { type: 'leaderboard', dataset: 'superlig-2026-27-puan-hafta7', top: 5 } }] }
+    writeFileSync(planPath, JSON.stringify(stalePlan))
+    const refused = cli('story', 'build', wav, '--out', dir, '--plan', planPath)
+    expect(refused.ok).toBe(false)
+    expect(JSON.stringify(refused)).toMatch(/Veri güncel değil/)
+    const forced = cli('story', 'build', wav, '--out', dir, '--plan', planPath, '--allow-stale')
+    expect(forced.ok, JSON.stringify(forced)).toBe(true)
+    writeFileSync(planPath, JSON.stringify(plan)) // sonraki adımlar için eski plan
+    cli('story', 'build', wav, '--out', dir, '--plan', planPath)
     // kare: sahne gerçekten çizilmiş (düz zeminden farklı)
     const fr = join(tmp, 'sahne-kare.jpg')
     expect(cli('frame', b.project, '--at', '8', '--out', fr).ok).toBe(true)
