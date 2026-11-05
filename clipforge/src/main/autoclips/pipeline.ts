@@ -1,5 +1,9 @@
-import { Session, makeService } from '../../cli/session'
-import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, faceCrop, findAutoClips, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
+import { access } from 'node:fs/promises'
+import { join } from 'node:path'
+import { Session, makeService, waitTask } from '../../cli/session'
+import { cmd } from '../../shared/timeline/commands'
+import { clipForTrack } from '../../shared/timeline/create'
+import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, faceCrop, findAutoClips, overlayRect, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
 import { newId, timelineDuration } from '../../shared/timeline/model'
 import { cutRange } from '../../shared/timeline/ops'
 import { applyTemplate } from '../../shared/timeline/templates'
@@ -25,7 +29,7 @@ export async function autoClipCandidates(projectPath: string, opts: Partial<Auto
  * Seçilen aralıktan BAĞIMSIZ klip projesi (9:16): kaynaktaki yüz bölgesi ÜSTTE (kırpılıp büyütülür), konuşulan görüntü ALTTA. Ortaya yazı konmaz.
  * Auto Kick projesi değişmez. Düzen yerleşimi sonradan arayüzde elle de ayarlanabilir.
  */
-export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
+export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
   const s = await Session.open(await resolveProjectPath(projectPath), await makeService(env))
   const total = timelineDuration(s.timeline)
   if (!(cand.end > cand.start) || cand.start < 0 || cand.end > total + 0.5) throw new Error(`Geçersiz aralık: ${cand.start.toFixed(1)}–${cand.end.toFixed(1)} (çizelge ${total.toFixed(1)} sn).`)
@@ -57,6 +61,35 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
   const created = await s.service.createClipProject(s.project, asset.id, name)
   const c = await Session.open(created.path, await makeService(env))
   c.project = { ...c.project, timeline: tl }
+  await addOverlay(c, layout, dur)
   await c.save()
   return { projectPath: created.path, durationSec: dur, name }
+}
+
+/** Sosyal medya şeridi: yüz ile görüntünün kesiştiği çizgiye, klip boyunca; en üst katmanda (Fotoğraf 1) */
+async function addOverlay(c: Session, layout: { faceShare?: number; facePos?: 'top' | 'bottom'; overlay?: false | string }, dur: number): Promise<void> {
+  if (layout.overlay === false) return
+  const st = c.service.settings.value
+  if (layout.overlay === undefined && !st.autoClipsOverlay) return
+  const path = typeof layout.overlay === 'string' ? layout.overlay : st.autoClipsOverlayPath.trim() || join(c.service.deps.resourcesDir, 'overlays', 'sosyal-medya.png')
+  try {
+    await access(path)
+  } catch {
+    return // şerit dosyası yoksa klip şeritsiz üretilir
+  }
+  const known = new Set(c.project.assets.map((a) => a.id))
+  for (const id of c.service.importMedia([path])) await waitTask(c.service, id, 'Şerit içe aktarma')
+  const asset = [...c.service.assets.values()].find((a) => !known.has(a.id) && a.path === path)
+  if (!asset || asset.kind !== 'image') return
+  c.project = { ...c.project, assets: [...c.project.assets, asset] }
+  const track = c.timeline.tracks.find((t) => t.id === 'I1')
+  if (!track) return
+  const clip = clipForTrack(asset, track, { at: 0, duration: dur })
+  if ('error' in clip) return
+  c.apply(cmd.addClip('I1', { ...clip.clip, label: 'Sosyal medya şeridi' }))
+  const rect = overlayRect(layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare, asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 11, 0.86, layout.facePos ?? 'top')
+  c.apply(cmd.placement('I1', { rect, fit: 'contain', visible: true, opacity: 1 }, false))
+  // şerit en önde çizilsin (listede ilk)
+  const tl = c.timeline
+  c.project = { ...c.project, timeline: { ...tl, tracks: [...tl.tracks.filter((t) => t.id === 'I1'), ...tl.tracks.filter((t) => t.id !== 'I1')] } }
 }

@@ -84,7 +84,7 @@ const r1 = (n: number) => Math.round(n * 100) / 100
 const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON döndürür)
 
   info                                   ffmpeg/ffprobe/whisper durumu
-  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 90] [--max 12] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.12] [--face-focus 0.495,0.58] [--screen-zoom 1.15]
+  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 178] [--max 12] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.12] [--face-focus 0.495,0.58] [--screen-zoom 1.15] [--overlay serit.png | --no-overlay]
                                          transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
@@ -237,7 +237,7 @@ async function main(argv: string[]): Promise<unknown> {
     const rect = str(a.opt.face) ? parseRect(str(a.opt.face)!) : null
     if (str(a.opt.face) && !rect) throw new Error('--face "x,y,w,h" (0..1, ör. 0.7,0.64,0.29,0.34) verin.')
     const made = []
-    for (const p of picks) made.push({ id: p.id, ...(await makeAutoClip(projectArg, p, { face: rect ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), faceZoom: num(a.opt['face-zoom'], 'face-zoom'), faceFocus: parseFocus(str(a.opt['face-focus'])), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom') }, {})) })
+    for (const p of picks) made.push({ id: p.id, ...(await makeAutoClip(projectArg, p, { face: rect ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), faceZoom: num(a.opt['face-zoom'], 'face-zoom'), faceFocus: parseFocus(str(a.opt['face-focus'])), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom'), overlay: a.opt['no-overlay'] ? false : str(a.opt.overlay) ? resolve(str(a.opt.overlay)!) : undefined }, {})) })
     return out({
       project: r.projectPath,
       totalSec: r1(r.totalSec),

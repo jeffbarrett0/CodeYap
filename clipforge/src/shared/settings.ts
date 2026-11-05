@@ -37,6 +37,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoClipsAfterKick: true,
   autoClipsExport: true,
   autoClipsMax: 10,
+  autoClipsOverlay: true,
+  autoClipsOverlayPath: '',
   llmProvider: 'off',
   llmModel: '',
   anthropicApiKey: ''

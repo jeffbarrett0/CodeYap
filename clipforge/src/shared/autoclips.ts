@@ -29,16 +29,21 @@ export interface AutoClipOptions {
   /** tercih edilen klip uzunluğu */
   targetSec: number
 }
-export const DEFAULT_AUTOCLIP_OPTIONS: AutoClipOptions = { minSec: 20, maxSec: 90, max: 12, targetSec: 45 }
+/** Klip süresi sınırları (kullanıcı kuralı): en az 20 sn, en çok 2 dk 58 sn (178 sn). Bir konu bu aralığa sığıyorsa BÖLÜNMEZ (70 sn'de kesilmez). */
+export const MIN_CLIP_SEC = 20
+export const MAX_CLIP_SEC = 178
+export const DEFAULT_AUTOCLIP_OPTIONS: AutoClipOptions = { minSec: MIN_CLIP_SEC, maxSec: MAX_CLIP_SEC, max: 12, targetSec: 90 }
 
 const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n).replace(/\s+\S*$/, '')}…`)
 
 export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClipOptions> = {}): AutoClipCandidate[] {
   // tanımsız (undefined) alanlar varsayılanı ezmesin
   const o = { ...DEFAULT_AUTOCLIP_OPTIONS, ...Object.fromEntries(Object.entries(options).filter(([, v]) => typeof v === 'number' && Number.isFinite(v))) } as AutoClipOptions
+  o.minSec = Math.min(MAX_CLIP_SEC - 10, Math.max(MIN_CLIP_SEC, o.minSec))
+  o.maxSec = Math.min(MAX_CLIP_SEC, Math.max(o.minSec + 10, o.maxSec))
   if (words.length < 20) return []
   const segs = buildSegments(words)
-  const chapters = findChapters(words, { ...DENSITY.high, minSec: Math.max(15, o.minSec * 0.8), targetSec: o.targetSec, maxChapters: 400 })
+  const chapters = findChapters(words, { ...DENSITY.high, minSec: Math.max(15, o.minSec * 0.8), targetSec: 70, maxChapters: 400 })
   const cands: AutoClipCandidate[] = []
   chapters.forEach((ch) => {
     if (ch.title === 'Giriş' || ch.title === 'Sohbet') return
@@ -57,21 +62,24 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
     }
     // çok uzunsa cümle sınırlarından eşit parçalara böl
     const total = inside[inside.length - 1].end - inside[0].start
-    const parts = total > o.maxSec ? Math.ceil(total / o.targetSec) : 1
+    // yalnızca en uzun süreyi aşan konu bölünür (eşit parçalara); sığan konu tek klip kalır
+    const parts = total > o.maxSec ? Math.ceil(total / o.maxSec) : 1
     const per = Math.ceil(inside.length / parts)
     for (let p = 0; p < parts; p++) {
-      const piece = inside.slice(p * per, (p + 1) * per)
+      let piece = inside.slice(p * per, (p + 1) * per)
+      // en uzun süreyi aşıyorsa sondaki cümleler atılır (cümle sınırında kalır)
+      while (piece.length > 1 && piece[piece.length - 1].end - piece[0].start > o.maxSec) piece = piece.slice(0, -1)
       if (piece.length === 0) continue
       const start = piece[0].start
       const end = piece[piece.length - 1].end
       const dur = end - start
-      if (dur < o.minSec || dur > o.maxSec + 15) continue
+      if (dur < o.minSec || dur > o.maxSec) continue
       const subjectWords = ch.title.split(',').map((x) => x.trim()).filter(Boolean)
       const key = subjectWords.map((x) => foldTr(x.split(' ').pop() ?? x))
       const hits = piece.filter((g) => key.some((k) => k.length >= 3 && foldTr(g.text).includes(k)))
       const pick = (hits.length >= 2 ? hits : piece).slice(0, 2)
       const mentions = hits.length
-      const score = (named ? 10 : 2) + Math.min(mentions, 6) * 1.5 - Math.abs(dur - o.targetSec) / 15
+      const score = (named ? 10 : 2) + Math.min(mentions, 6) * 1.5 - Math.abs(dur - o.targetSec) / 90
       cands.push({
         id: '',
         start,
@@ -249,3 +257,16 @@ export interface AutoClipsStatus {
   finishedAt?: number
 }
 export const initialAutoClipsStages = (): AutoClipsStageState[] => AUTOCLIPS_STAGES.map((s) => ({ ...s, status: 'pending', progress: 0 }))
+
+/**
+ * Sosyal medya şeridi (alan adları): yüz alanı ile alttaki görüntünün KESİŞTİĞİ çizgiye ortalı yerleşir.
+ * `imageRatio` = şerit görüntüsünün genişlik/yükseklik oranı; kare 9:16 (1080×1920) varsayılır. Dönen: kareye göre normalleştirilmiş dikdörtgen.
+ */
+export function overlayRect(faceShare: number, imageRatio: number, widthFrac = 0.86, facePos: 'top' | 'bottom' = 'top'): NormRect {
+  const share = Math.min(0.7, Math.max(0.2, faceShare))
+  const w = Math.min(1, Math.max(0.3, widthFrac))
+  const hPx = (w * 1080) / Math.max(1, imageRatio)
+  const h = hPx / 1920
+  const seam = facePos === 'top' ? share : 1 - share
+  return { x: (1 - w) / 2, y: Math.min(1 - h, Math.max(0, seam - h / 2)), w, h }
+}

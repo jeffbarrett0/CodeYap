@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, faceCrop, findAutoClips, parseRect, screenCrop } from '@shared/autoclips'
+import { DEFAULT_AUTOCLIP_LAYOUT, MAX_CLIP_SEC, MIN_CLIP_SEC, autoClipTemplate, faceCrop, findAutoClips, overlayRect, parseRect, screenCrop } from '@shared/autoclips'
 import type { TranscriptWord } from '@shared/types'
 import { chainAutoClips } from '../../src/main/autoclips/run'
 
@@ -40,7 +40,7 @@ describe('Auto Clips: konu bölümleri', () => {
     expect(clips.length).toBeGreaterThanOrEqual(2)
     for (const c of clips) {
       expect(c.durationSec).toBeGreaterThanOrEqual(20)
-      expect(c.durationSec).toBeLessThanOrEqual(105)
+      expect(c.durationSec).toBeLessThanOrEqual(MAX_CLIP_SEC)
       expect(c.headline).toMatch(/konuşmuşsun/)
       expect(c.summary.length).toBeGreaterThan(10)
     }
@@ -73,7 +73,7 @@ describe('Auto Clips: seçenekler', () => {
     const a = findAutoClips(w, { minSec: undefined, maxSec: undefined, max: undefined })
     const b = findAutoClips(w)
     expect(a).toEqual(b)
-    expect(a.every((c) => c.durationSec <= 105)).toBe(true) // uzun konu parçalanır
+    expect(a.every((c) => c.durationSec <= MAX_CLIP_SEC)).toBe(true) // klipler 2:58'i aşmaz
   })
 })
 
@@ -178,5 +178,51 @@ describe('Auto Clips: yüze odaklı üst kırpma', () => {
     expect(left.x).toBeLessThan(right.x)
     expect(left.x).toBeGreaterThanOrEqual(L.face.x - 1e-9)
     expect(faceCrop({ ...L, faceZoom: 0.1, faceFocus: { x: -3, y: 9 } }, 16 / 9).h).toBeLessThanOrEqual(L.face.h + 1e-9) // saçma değerler sınırlanır
+  })
+})
+
+describe('Auto Clips: klip süresi 20 sn – 2:58 (178 sn)', () => {
+  it('178 sn\'ye sığan konu BÖLÜNMEZ (70 sn\'de kesilmez): ~150 sn\'lik konu tek klip', () => {
+    const w = stream([{ secs: 60, vocab: FOOD }, { secs: 150, vocab: FOOT, name: 'Lemina' }, { secs: 60, vocab: FOOD }])
+    const clips = findAutoClips(w)
+    const lem = clips.filter((c) => c.subject.includes('Lemina'))
+    expect(lem).toHaveLength(1)
+    expect(lem[0].durationSec).toBeGreaterThan(100)
+    expect(lem[0].durationSec).toBeLessThanOrEqual(MAX_CLIP_SEC)
+  })
+  it('178 sn\'yi aşan konu eşit parçalara bölünür; hiçbir klip 178 sn\'yi aşmaz, 20 sn\'nin altına düşmez', () => {
+    const w = stream([{ secs: 40, vocab: FOOD }, { secs: 400, vocab: FOOT, name: 'Zaha' }, { secs: 40, vocab: FOOD }])
+    const clips = findAutoClips(w, { max: 30 })
+    expect(clips.length).toBeGreaterThanOrEqual(2)
+    for (const c of clips) {
+      expect(c.durationSec).toBeLessThanOrEqual(MAX_CLIP_SEC)
+      expect(c.durationSec).toBeGreaterThanOrEqual(MIN_CLIP_SEC)
+    }
+  })
+  it('kullanıcı seçenekleri sınırlanır: 300 sn istense de 178, 5 sn istense de 20', () => {
+    const w = stream([{ secs: 40, vocab: FOOD }, { secs: 400, vocab: FOOT, name: 'Zaha' }, { secs: 40, vocab: FOOD }])
+    for (const c of findAutoClips(w, { maxSec: 300, minSec: 5, max: 30 })) {
+      expect(c.durationSec).toBeLessThanOrEqual(MAX_CLIP_SEC)
+      expect(c.durationSec).toBeGreaterThanOrEqual(MIN_CLIP_SEC)
+    }
+  })
+})
+
+describe('Auto Clips: sosyal medya şeridi yerleşimi', () => {
+  it('yüz ile görüntünün kesiştiği çizgiye ortalı, yatayda ortalı, kare içinde; oran bozulmaz', () => {
+    const r = overlayRect(0.415, 11.26)
+    expect(r.x + r.w / 2).toBeCloseTo(0.5, 5)
+    expect(r.y + r.h / 2).toBeCloseTo(0.415, 3) // kesişim çizgisi
+    expect(r.x).toBeGreaterThanOrEqual(0)
+    expect(r.y + r.h).toBeLessThanOrEqual(1)
+    expect((r.w * 1080) / (r.h * 1920)).toBeCloseTo(11.26, 1) // piksel oranı korunur
+    expect(r.h).toBeLessThan(0.08) // ince şerit
+  })
+  it('yüz altta ise çizgi aşağı iner; sınırlar korunur', () => {
+    const r = overlayRect(0.3, 11, 0.94, 'bottom')
+    expect(r.y + r.h / 2).toBeCloseTo(0.7, 2)
+    const e = overlayRect(0.7, 1, 1, 'top') // kare şerit: sınırdan taşmaz
+    expect(e.y).toBeGreaterThanOrEqual(0)
+    expect(e.y + e.h).toBeLessThanOrEqual(1 + 1e-9)
   })
 })

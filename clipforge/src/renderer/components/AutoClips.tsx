@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AutoClipCandidate } from '@shared/autoclips'
-import { DEFAULT_AUTOCLIP_LAYOUT } from '@shared/autoclips'
+import { DEFAULT_AUTOCLIP_LAYOUT, MAX_CLIP_SEC } from '@shared/autoclips'
 import type { NormRect } from '@shared/types'
 import { requireApi } from '../api'
 import { useStore } from '../store'
@@ -27,7 +27,7 @@ export function AutoClipsDialog() {
   const [made, setMade] = useState<{ projectPath: string; durationSec: number; name: string }[]>([])
   const [face, setFace] = useState<NormRect>(DEFAULT_AUTOCLIP_LAYOUT.face)
   const [facePos, setFacePos] = useState<'top' | 'bottom'>('top')
-  const [maxSec, setMaxSec] = useState(90)
+  const [maxSec, setMaxSec] = useState(MAX_CLIP_SEC)
   const [faceZoom, setFaceZoom] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceZoom * 100))
   const [focus, setFocus] = useState({ x: Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceFocus.x * 100), y: Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceFocus.y * 100) })
   const [zoom, setZoom] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.screenZoom * 100))
@@ -126,7 +126,7 @@ export function AutoClipsDialog() {
           <span className="hint" style={{ wordBreak: 'break-all' }} data-testid="autoclips-path">{path || 'Henüz seçilmedi (Auto Kick bitince otomatik gelir)'}</span>
         </div>
         <div className="row wrap" style={{ gap: 10, alignItems: 'center' }}>
-          <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={10} min={20} max={180} label="En uzun klip" onChange={setMaxSec} /></label>
+          <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={10} min={30} max={MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
           <button className="btn primary" disabled={!path || busy} onClick={() => void find()} data-testid="autoclips-find">{busy && !cands ? 'Konular bulunuyor…' : cands ? 'Yeniden bul' : 'Klip önerilerini bul'}</button>
         </div>
         {error && <div className="warnbox" role="alert" data-testid="autoclips-error">{error}</div>}
@@ -161,6 +161,11 @@ export function AutoClipsDialog() {
                   <label className="row" style={{ gap: 4 }}>Kafa konumu: yatay (%) <Num value={focus.x} step={1} min={0} max={100} label="Kafa yatay konumu" onChange={(v) => setFocus((f) => ({ ...f, x: Math.round(v) }))} /></label>
                   <label className="row" style={{ gap: 4 }}>dikey (%) <Num value={focus.y} step={1} min={0} max={100} label="Kafa dikey konumu" onChange={(v) => setFocus((f) => ({ ...f, y: Math.round(v) }))} /></label>
                   <label className="row" style={{ gap: 4 }}>Alt görüntü yakınlığı (%) <Num value={zoom} step={5} min={100} max={200} label="Alt görüntü yakınlığı" onChange={(v) => setZoom(Math.round(v))} /></label>
+                  <label className="check"><input type="checkbox" checked={settings.autoClipsOverlay} onChange={(e) => void updateSettings({ autoClipsOverlay: e.target.checked })} data-testid="autoclips-overlay" /> Klibe sosyal medya şeridini ekle (yüz ile görüntünün birleştiği çizgiye)</label>
+                  <span className="row" style={{ gap: 6, alignItems: 'center' }}>
+                    <input value={settings.autoClipsOverlayPath} onChange={(e) => void updateSettings({ autoClipsOverlayPath: e.target.value })} placeholder="(varsayılan şerit)" aria-label="Şerit görüntüsü" style={{ minWidth: 220 }} data-testid="autoclips-overlay-path" />
+                    <button className="btn sm" onClick={() => void api.invoke('dialog:openFile', { title: 'Şerit görüntüsü (şeffaf PNG)', extensions: ['png', 'webp'] }).then((p) => p && void updateSettings({ autoClipsOverlayPath: p }))} data-testid="autoclips-overlay-pick">Seç…</button>
+                  </span>
                   <label className="row" style={{ gap: 4 }}>Yüz
                     <select value={facePos} onChange={(e) => setFacePos(e.target.value as 'top' | 'bottom')} aria-label="Yüz konumu" data-testid="autoclips-facepos">
                       <option value="top">Üstte</option>

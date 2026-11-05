@@ -475,6 +475,10 @@ export interface Settings {
   autoClipsAfterKick: boolean
   /** Üretilen klipleri MP4 olarak da dışa aktar (9:16) */
   autoClipsExport: boolean
+  /** Auto Clips klibine sosyal medya şeridini (yüz ile görüntünün kesiştiği çizgiye) ekle */
+  autoClipsOverlay: boolean
+  /** Şerit görüntüsü (şeffaf PNG); boşsa uygulamayla gelen varsayılan */
+  autoClipsOverlayPath: string
   /** Otomatik üretimde en çok kaç klip */
   autoClipsMax: number
   llmProvider: 'off' | 'openai' | 'anthropic'
