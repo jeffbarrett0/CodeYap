@@ -28,6 +28,7 @@ export function AutoClipsDialog() {
   const [face, setFace] = useState<NormRect>(DEFAULT_AUTOCLIP_LAYOUT.face)
   const [facePos, setFacePos] = useState<'top' | 'bottom'>('top')
   const [maxSec, setMaxSec] = useState(90)
+  const [zoom, setZoom] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.screenZoom * 100))
   const [share, setShare] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceShare * 1000) / 10)
 
   const find = async (p = path) => {
@@ -67,7 +68,7 @@ export function AutoClipsDialog() {
     setError('')
     try {
       const picks = cands.filter((c) => picked.has(c.id)).map((c) => ({ start: c.start, end: c.end, subject: c.subject }))
-      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100 }))
+      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100, screenZoom: zoom / 100 }))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -154,6 +155,7 @@ export function AutoClipsDialog() {
                   <label className="row" style={{ gap: 4 }}>Genişlik (%) <Num value={Math.round(face.w * 100)} step={1} min={5} max={100} label="Yüz bölgesi genişlik" onChange={(v) => setF('w', v)} /></label>
                   <label className="row" style={{ gap: 4 }}>Yükseklik (%) <Num value={Math.round(face.h * 100)} step={1} min={5} max={100} label="Yüz bölgesi yükseklik" onChange={(v) => setF('h', v)} /></label>
                   <label className="row" style={{ gap: 4 }}>Yüz alanı (% kare yüksekliği) <Num value={share} step={1} min={20} max={70} label="Yüz alanı yüksekliği" onChange={setShare} /></label>
+                  <label className="row" style={{ gap: 4 }}>Alt görüntü yakınlığı (%) <Num value={zoom} step={5} min={100} max={200} label="Alt görüntü yakınlığı" onChange={(v) => setZoom(Math.round(v))} /></label>
                   <label className="row" style={{ gap: 4 }}>Yüz
                     <select value={facePos} onChange={(e) => setFacePos(e.target.value as 'top' | 'bottom')} aria-label="Yüz konumu" data-testid="autoclips-facepos">
                       <option value="top">Üstte</option>

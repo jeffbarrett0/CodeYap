@@ -151,7 +151,7 @@ export interface IpcInvoke {
   /** Auto Clips: Auto Kick projesinin transkriptinden klip adayları (projeyi değiştirmez) */
   'autoclips:find': [[{ projectPath: string; minSec?: number; maxSec?: number; max?: number }], { candidates: AutoClipCandidate[]; totalSec: number; projectPath: string; faceRegion?: NormRect }]
   /** Seçilen adaylardan bağımsız klip projeleri (9:16: yüz üstte, konuşulan görüntü altta) */
-  'autoclips:make': [[{ projectPath: string; picks: { start: number; end: number; subject: string }[]; face?: NormRect; facePos?: 'top' | 'bottom'; faceShare?: number }], { projectPath: string; durationSec: number; name: string }[]]
+  'autoclips:make': [[{ projectPath: string; picks: { start: number; end: number; subject: string }[]; face?: NormRect; facePos?: 'top' | 'bottom'; faceShare?: number; screenZoom?: number }], { projectPath: string; durationSec: number; name: string }[]]
   'dev:openDevTools': [[], void]
   /** Anlatım → Görsel: ses/video anlatımından hareketli sahneler (iş arka planda sürer) */
   'story:start': [[StoryRequest], string]

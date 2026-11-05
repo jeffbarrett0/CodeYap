@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, findAutoClips, parseRect } from '@shared/autoclips'
+import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, findAutoClips, parseRect, screenCrop } from '@shared/autoclips'
 import type { TranscriptWord } from '@shared/types'
 import { chainAutoClips } from '../../src/main/autoclips/run'
 
@@ -95,10 +95,36 @@ describe('Auto Clips: klip düzeni (kullanıcının örnek ekran görüntüsü)'
   it('varsayılan yüz bölgesi sağ alt köşe ve üst alanın en-boy oranıyla uyumlu (bozulmadan)', () => {
     const f = DEFAULT_AUTOCLIP_LAYOUT.face
     expect(f.x + f.w).toBeCloseTo(1, 5)
-    expect(f.y + f.h).toBeCloseTo(1, 5)
+    expect(f.y + f.h).toBeGreaterThan(0.97) // kaynak karenin sağ altındaki kamera kutusu (örnek ekran görüntüsünden ölçüldü)
+    expect(f.y + f.h).toBeLessThanOrEqual(1)
     const srcRatio = (f.w * 1920) / (f.h * 1080) // 16:9 kaynakta kırpılan alanın piksel oranı
     const slotRatio = 1080 / (1920 * 0.415)
     expect(Math.abs(srcRatio - slotRatio)).toBeLessThan(0.06)
+  })
+})
+
+describe('Auto Clips: alt görüntü kırpması (biraz büyük, ortalı)', () => {
+  const L = DEFAULT_AUTOCLIP_LAYOUT
+  const slot = 1080 / (1920 * (1 - L.faceShare))
+  it('alt alanın en-boy oranına uyar (bozulma yok), ortalıdır ve yüz kutusuna taşmaz', () => {
+    const c = screenCrop(L, 16 / 9)
+    expect((c.w * 16) / (c.h * 9)).toBeCloseTo(slot, 3)
+    expect(c.h).toBeCloseTo(1 / 1.15, 3)
+    expect(Math.abs(c.x + c.w / 2 - 0.5)).toBeLessThan(0.06) // neredeyse tam ortada
+    expect(Math.abs(c.y + c.h / 2 - 0.5)).toBeLessThan(1e-9)
+    // kamera kutusunun içine girmez (yüz altta tekrar görünmesin)
+    expect(c.x + c.w).toBeLessThanOrEqual(L.face.x)
+    expect(c.x).toBeGreaterThanOrEqual(0)
+  })
+  it('yakınlık: 1 = tam yükseklik, daha büyük sayı daha dar kırpma; sınırlar korunur; yüz kutusu yoksa tam ortalı', () => {
+    expect(screenCrop({ ...L, screenZoom: 1 }, 16 / 9).h).toBeCloseTo(1, 5)
+    expect(screenCrop({ ...L, screenZoom: 2 }, 16 / 9).w).toBeLessThan(screenCrop({ ...L, screenZoom: 1.2 }, 16 / 9).w)
+    expect(screenCrop({ ...L, screenZoom: 0.2 }, 16 / 9).h).toBeCloseTo(1, 5) // 1'in altına inmez
+    const far = screenCrop({ ...L, face: { x: 0.95, y: 0.95, w: 0.05, h: 0.05 }, screenZoom: 2 }, 16 / 9)
+    expect(far.x + far.w / 2).toBeCloseTo(0.5, 5)
+    const sq = screenCrop({ ...L, screenZoom: 1 }, 1) // kare kaynak: genişlik 1'e sığar
+    expect(sq.w).toBeLessThanOrEqual(1)
+    expect(sq.h).toBeLessThanOrEqual(1)
   })
 })
 

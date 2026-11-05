@@ -101,8 +101,32 @@ export interface AutoClipLayout {
   facePos: 'top' | 'bottom'
   /** yüz alanının kare yüksekliğine oranı */
   faceShare: number
+  /** alttaki konuşulan görüntünün yakınlığı (1 = kareyi alanı dolduracak kadar; 1,15 = biraz daha büyük, ortalı) */
+  screenZoom: number
 }
-export const DEFAULT_AUTOCLIP_LAYOUT: AutoClipLayout = { face: { x: 0.73, y: 0.645, w: 0.27, h: 0.355 }, facePos: 'top', faceShare: 0.415 }
+/** Varsayılan yüz bölgesi kullanıcının örnek ekran görüntüsünden ölçüldü: kaynak karenin sağ altındaki kamera kutusu (x %70,3–100, y %60,6–98,1) */
+export const DEFAULT_AUTOCLIP_LAYOUT: AutoClipLayout = { face: { x: 0.703, y: 0.606, w: 0.297, h: 0.375 }, facePos: 'top', faceShare: 0.415, screenZoom: 1.15 }
+
+/**
+ * Alttaki konuşulan görüntü için kaynak kırpması (kare ortalı, `zoom` kadar yakın), alt alanın en-boy oranına uyar (bozulma yok).
+ * Kırpma yüz kutusuna taşıyorsa (kameranın bir kısmı altta da görünmesin) sola kaydırılır; böylece yüz yalnızca üstte görünür.
+ */
+export function screenCrop(layout: Pick<AutoClipLayout, 'face' | 'faceShare' | 'screenZoom'>, srcAspect: number): NormRect {
+  const share = Math.min(0.7, Math.max(0.2, layout.faceShare))
+  const slotRatio = 1080 / (1920 * (1 - share)) // alt alanın piksel oranı (9:16 kare)
+  const z = Math.min(3, Math.max(1, layout.screenZoom))
+  let h = 1 / z
+  let w = (h * slotRatio) / srcAspect
+  if (w > 1) {
+    w = 1
+    h = srcAspect / slotRatio
+  }
+  let x = 0.5 - w / 2
+  const y = 0.5 - h / 2
+  const f = layout.face
+  if (x + w > f.x - 0.004 && y + h > f.y && x < f.x + f.w) x = Math.max(0, f.x - 0.004 - w)
+  return { x, y, w, h }
+}
 
 /** Klip projesi şablonu: V2 = yüz (webcam), V1 = konuşulan görüntü; ikisi de "cover" (alanı doldurur) */
 export function autoClipTemplate(layout: Partial<AutoClipLayout> = {}): LayoutTemplate {
@@ -151,6 +175,7 @@ export interface AutoClipsRequest {
   face?: NormRect
   facePos?: 'top' | 'bottom'
   faceShare?: number
+  screenZoom?: number
   /** klipleri MP4 olarak da dışa aktar */
   exportVideos?: boolean
 }
