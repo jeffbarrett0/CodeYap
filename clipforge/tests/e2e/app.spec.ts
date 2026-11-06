@@ -1217,6 +1217,23 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('toast').filter({ hasText: 'Arka plan sesi geri getirildi' }).first()).toBeVisible()
   })
 
+  test('Klibin sesini kapat: video klibi seçilince bağlı ses kapanır, klipte 🔇 görünür; M ile geri açılır', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('import-btn').click()
+    await expect(page.getByTestId('asset')).toHaveCount(1)
+    await dropAsset(page, 0, 'V1')
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1)
+    await page.getByTestId('lane-V1').getByTestId('clip').click()
+    await page.getByTestId('rtab-inspector').click()
+    await expect(page.getByTestId('inspector-mute')).toBeVisible()
+    await page.getByTestId('mute-clip').click()
+    await expect(page.getByTestId('toast').filter({ hasText: 'Klibin sesi kapatıldı' }).first()).toBeVisible()
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveClass(/muted/)
+    await expect(page.getByTestId('lane-V1').getByTestId('clip')).toHaveClass(/muted/) // video klibinde de simge
+    await page.keyboard.press('m')
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).not.toHaveClass(/muted/)
+  })
+
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {
     await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { chapters: 'Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.' } }))
     await boot(page)

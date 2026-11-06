@@ -35,7 +35,7 @@ import { runAutoKick } from '../main/autokick/pipeline'
 import { chapterTimestamp, chapterWarnings, formatChapters } from '../shared/chapters'
 import { makeTopicClip, makeTopicCompilation, topicCandidates } from '../main/autokick/clips'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
-import { clipsAt, makeTextClip, timelineToSource } from '../shared/timeline/ops'
+import { audioCarriersOf, clipsAt, makeTextClip, timelineToSource } from '../shared/timeline/ops'
 import { buildSegments } from '../shared/transcript/sentences'
 import { planSilenceCuts } from '../shared/timeline/silence'
 import { timelineWords } from '../shared/timeline/transcript'
@@ -122,6 +122,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   zoom <proje> --at sn --dur sn [--from 1] [--to 1.15] [--focus 0.5,0.5] [--layer V3]   o aralıkta ana görüntüyü yavaşça yakınlaştırır/uzaklaştırır (vurgu için; dışa aktarmada uygulanır)
   fade <proje> [--in 0.6] [--out 1.2]    videonun başına ses+görüntü GİRİŞİ, sonuna ÇIKIŞI ekler (karardan açılır, sonda kararır, ses yumuşakça girer/çıkar)
   sfx <proje> --type whoosh|swish|pop|ding|riser|boom|shutter|click|notify --at sn [--vol 0.6]   kısa ses efekti (kendi üretimimiz, telifsiz) ses katmanına koyar (grafik girişinde whoosh, vurguda pop gibi)
+  mute <proje> (--clip id | --layer V2 | --at sn [--layer V2]) [--off]   o klibin/katmanın SESİNİ kapatır (görüntü kalır; --off: yeniden açar). Video klibi verilirse bağlı ses klibi kapanır
   denoise <proje> [--level light|medium|strong|off]   arka plan seslerini (araba, rüzgâr, uğultu) azaltıp konuşmaya odaklar (RNNoise + gürültü azaltma; dışa aktarmada uygulanır)
   grade <proje> --look warm|cool|vivid|cinematic|bw|vintage|bright [--at sn --dur sn] [--layer V3]   renk havası (tümüne ya da bir aralığa; dışa aktarmada uygulanır)
   text <proje> --text "metin" --at sn [--dur 3] [--pos top|center|bottom] [--size 84] [--color #FFE600] [--animation slide-up|pulse|fade|none]   ekranda animasyonlu büyük yazı (vurgu cümlesi, başlık, espri)
@@ -463,7 +464,7 @@ async function main(argv: string[]): Promise<unknown> {
         aspect: tl.aspect,
         durationSec: r1(timelineDuration(tl)),
         assets: s.project.assets.map((x) => ({ id: x.id, name: x.name, kind: x.kind, durationSec: r1(x.durationSec), transcript: !!s.transcripts[x.id] })),
-        tracks: tl.tracks.map((t) => ({ id: t.id, name: t.name, kind: t.kind, locked: t.locked, clips: t.clips.map((c) => ({ id: c.id, start: r1(c.start), end: r1(clipEnd(c)), srcIn: r1(c.srcIn), srcOut: r1(c.srcOut), label: c.label })) })),
+        tracks: tl.tracks.map((t) => ({ id: t.id, name: t.name, kind: t.kind, locked: t.locked, clips: t.clips.map((c) => ({ id: c.id, start: r1(c.start), end: r1(clipEnd(c)), srcIn: r1(c.srcIn), srcOut: r1(c.srcOut), label: c.label, ...(c.muted ? { muted: true } : {}) })) })),
         captions: tl.captions.length,
         captionSample: tl.captions.slice(0, 5).map((c) => ({ start: r1(c.start), end: r1(c.end), text: c.text }))
       })
@@ -784,6 +785,23 @@ async function main(argv: string[]): Promise<unknown> {
       s.apply(cmd.addClip(id, { ...r.clip, label: `Efekt: ${type}`, volume: vol }))
       await s.save()
       return out({ ok: true, type, at: r1(at), durationSec: r1(asset.durationSec), track: id, volume: vol })
+    }
+    case 'mute': {
+      const off = !!a.opt.off
+      const clipId = str(a.opt.clip)
+      const layer = str(a.opt.layer)
+      const at = num(a.opt.at, 'at')
+      let ids: string[] = []
+      if (clipId) ids = [clipId]
+      else if (at !== undefined) ids = s.timeline.tracks.filter((t) => (layer ? t.id === layer : t.kind === 'video')).flatMap((t) => t.clips).filter((c) => c.start <= at + 1e-6 && clipEnd(c) > at + 1e-6).map((c) => c.id)
+      else if (layer) ids = (s.timeline.tracks.find((t) => t.id === layer)?.clips ?? []).map((c) => c.id)
+      else throw new Error('Kullanım: mute <proje> (--clip id | --layer V2 | --at sn) [--off]  (klip kimlikleri: show)')
+      if (ids.length === 0) throw new Error('Bu seçimde klip bulunamadı.')
+      const carriers = audioCarriersOf(s.timeline, ids)
+      if (carriers.length === 0) throw new Error('Seçilen kliplerin sesi yok (ses klibi bağlı değil).')
+      s.apply(cmd.mute(ids, !off))
+      await s.save()
+      return out({ ok: true, muted: !off, clips: carriers.map((c) => ({ id: c.id, track: c.trackId, label: c.label })) })
     }
     case 'denoise': {
       const level = str(a.opt.level) ?? 'medium'

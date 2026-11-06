@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CAPTION_PRESETS } from '@shared/timeline/captionStyles'
 import { CAPTION_LANGS, localizeCaption } from '@shared/timeline/captions'
 import { cmd } from '@shared/timeline/commands'
+import { mutedState } from '@shared/timeline/ops'
 import { clipDuration, findClip, groupMembers, TRACK_IDS } from '@shared/timeline/model'
 import type { AspectRatio, LayoutPreset } from '@shared/types'
 import { aspectSize } from '@shared/timeline/model'
@@ -104,6 +105,12 @@ function Inspector() {
         {clip.origin?.candidateId && (<><dt>Kaynak</dt><dd>Otomatik öneri</dd></>)}
         {members.length > 1 && (<><dt>Bağlı klipler</dt><dd>{members.length} (görüntü/ses birlikte taşınır)</dd></>)}
       </dl>
+      {(() => {
+        const ms = mutedState(tl, [clip.id])
+        return ms === 'none' ? (track.kind === 'video' ? <div className="hint" data-testid="no-audio">Bu klibin sesi yok (görüntü klibine bağlı ses klibi eklenmemiş).</div> : null) : (
+          <label className="check" data-testid="inspector-mute"><input type="checkbox" checked={ms} onChange={() => exec(cmd.mute([clip.id]))} /> 🔇 Bu klibin sesini kapat{track.kind === 'video' ? ' (bağlı ses)' : ''} <kbd>M</kbd></label>
+        )
+      })()}
       {track.kind !== 'video' && <Slider label="Klip ses seviyesi" value={clip.volume} min={0} max={1} onChange={(v) => exec(cmd.updateClip(clip.id, { volume: v }, true))} format={(v) => `${Math.round(v * 100)}%`} />}
       {(track.kind === 'video' || track.kind === 'image') && (
         <>

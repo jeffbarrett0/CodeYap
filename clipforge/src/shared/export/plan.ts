@@ -240,6 +240,7 @@ export function buildExportPlan(
     for (const c of t.clips) {
       // Video kliplerinden yalnızca açıkça bir ses akışı seçilmişse ses alınır
       if (t.kind === 'video' && c.audioStream === undefined) continue
+      if (c.muted) continue // klibin sesi kapalı
       const p = slice(c, t, rs, re)
       if (!p) continue
       const a = assetOf(c.assetId)

@@ -189,3 +189,25 @@ describe('arka plan sesi azaltma', () => {
     expect(ops.denoiseLevel(ops.setDenoise(mkTl('medium'), null))).toBeNull()
   })
 })
+
+describe('klibin sesini kapatma', () => {
+  it('video klibi seçilince bağlı ses klibi kapanır/açılır; sesi olmayan klipte değişmez; dışa aktarma kapalı sesi içermez', () => {
+    const o = optionsFromPreset('youtube')
+    const a = { ...asset, width: 1280, height: 720 }
+    let tl = createDefaultTimeline()
+    tl = ops.addClip(tl, 'V3', mk('v', 'V3', 0, 0, 10, { groupId: 'g1' }))
+    tl = ops.addClip(tl, 'A1', mk('ga', 'A1', 0, 0, 10, { audioStream: 0, groupId: 'g1' }))
+    tl = ops.addClip(tl, 'V1', mk('solo', 'V1', 0, 0, 10)) // sesi olmayan video klibi
+    expect(ops.mutedState(tl, ['v'])).toBe(false)
+    expect(ops.mutedState(tl, ['solo'])).toBe('none')
+    const m = ops.setClipsMuted(tl, ['v'])
+    expect(m.tracks.find((t) => t.id === 'A1')!.clips[0].muted).toBe(true)
+    expect(ops.mutedState(m, ['v'])).toBe(true)
+    expect(ops.clipIsMuted(m, m.tracks.find((t) => t.id === 'V3')!.clips[0])).toBe(true)
+    expect(ops.setClipsMuted(tl, ['solo'])).toBe(tl) // değişmez
+    const f = (t: typeof tl) => buildExportPlan(t, () => a, o, 'x.mp4').files.find((x) => x.name === 'filters.txt')!.content
+    expect(f(tl)).toMatch(/\[\d+:a:0\]/)
+    expect(f(m)).not.toMatch(/\[\d+:a:0\]/) // kapalı klibin sesi filtre grafiğinde yok
+    expect(ops.mutedState(ops.setClipsMuted(m, ['v']), ['v'])).toBe(false) // toggle: tekrar açar
+  })
+})

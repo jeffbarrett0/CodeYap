@@ -241,6 +241,8 @@ export interface Clip {
   overlay?: NormRect
   /** Kamera klibinin kaynak karesinden kırpılacak bölge (tek dosyalık kayıtlar) */
   crop?: NormRect
+  /** Bu klibin sesi kapalı (önizleme ve dışa aktarmada duyulmaz; klip ve görüntüsü kalır) */
+  muted?: boolean
   /** Efektler: yavaş yakınlaşma/uzaklaşma (zoom) ve görüntü/ses giriş-çıkış geçişleri (dışa aktarmada uygulanır) */
   fx?: ClipFx
 }

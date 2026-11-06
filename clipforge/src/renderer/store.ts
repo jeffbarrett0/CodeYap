@@ -13,7 +13,7 @@ import { captionsForTimeline, untranslated } from '@shared/timeline/captions'
 import { planSilenceCuts } from '@shared/timeline/silence'
 import { timelineWords } from '@shared/timeline/transcript'
 import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems } from '@shared/timeline/create'
-import { removeClipsOfAsset } from '@shared/timeline/ops'
+import { mutedState, removeClipsOfAsset } from '@shared/timeline/ops'
 import { clipEnd, createDefaultTimeline, findClip, groupMembers, nearestAspect, newId, timelineDuration } from '@shared/timeline/model'
 import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
 import { EXPORT_PRESETS } from '@shared/export/presets'
@@ -259,6 +259,8 @@ interface State {
   /** Arka plan sesi azaltması açık ses kliplerinin önizleme kopyalarını hazırlar (arka planda); hazır olunca önizlemede duyulur */
   prepareDenoise(): Promise<void>
   denoiseTick: number
+  /** Seçili kliplerin sesini kapatır/açar (M tuşu); video klibi seçiliyse bağlı sesi */
+  toggleMuteSelection(): void
   setZoom(z: number): void
 
   newProject(): Promise<void>
@@ -947,6 +949,14 @@ export const useStore = create<State>()((set, get) => {
     setSourceTime: (t) => set({ sourceTime: Math.max(0, t) }),
     setPlaying: (playing) => set({ playing }),
     denoiseTick: 0,
+    toggleMuteSelection() {
+      const s = get()
+      if (s.selection.length === 0) return s.toast('info', 'Önce sesini kapatmak istediğiniz klibi seçin.')
+      const st = mutedState(s.project.timeline, s.selection)
+      if (st === 'none') return s.toast('info', 'Seçili klibin sesi yok (ya da ses akışı ayrı bir klip olarak eklenmemiş).')
+      s.exec(cmd.mute(s.selection))
+      s.toast('success', st ? 'Klibin sesi açıldı.' : 'Klibin sesi kapatıldı (görüntü kalır). Geri almak için M ya da Ctrl+Z.')
+    },
     async prepareDenoise() {
       const tl = get().project.timeline
       const need = new Map<string, { assetId: string; audioStream: number; level: 'light' | 'medium' | 'strong' }>()

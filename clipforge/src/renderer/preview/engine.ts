@@ -104,7 +104,7 @@ export class PreviewEngine {
           a.setAttribute('data-src', src)
           a.src = src
         }
-        a.volume = Math.min(1, Math.max(0, track.volume * c.volume))
+        a.volume = c.muted ? 0 : Math.min(1, Math.max(0, track.volume * c.volume))
         this.align(a, target, playing, rate, c.id)
       }
     }

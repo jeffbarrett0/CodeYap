@@ -479,3 +479,43 @@ export function denoiseLevel(tl: Timeline): DenoiseLevel | null {
   for (const t of tl.tracks) for (const c of t.clips) if (c.fx?.denoise) return c.fx.denoise
   return null
 }
+
+/** Ses taşıyan klip mi: ses izindeki klip ya da ses akışı seçilmiş video klibi */
+function carriesAudio(tl: Timeline, c: Clip): boolean {
+  const t = tl.tracks.find((x) => x.id === c.trackId)
+  return !!t && (t.kind === 'audio' || (t.kind === 'video' && c.audioStream !== undefined))
+}
+
+/** Seçili kliplerin sesini taşıyan klipler: seçilen ses klibinin kendisi; video klibi seçiliyse bağlı (aynı gruptaki) ses klipleri */
+export function audioCarriersOf(tl: Timeline, ids: ID[]): Clip[] {
+  const out = new Map<ID, Clip>()
+  for (const id of ids) {
+    const f = findClip(tl, id)
+    if (!f) continue
+    if (f.track.kind === 'audio') out.set(f.clip.id, f.clip)
+    else for (const m of groupMembers(tl, id)) if (carriesAudio(tl, m)) out.set(m.id, m)
+  }
+  return [...out.values()]
+}
+
+/** Seçili kliplerin sesini kapatır/açar. `muted` verilmezse (toggle): hepsi kapalıysa açar, değilse kapatır. Ses taşıyan klip yoksa değişmez. */
+export function setClipsMuted(tl: Timeline, ids: ID[], muted?: boolean): Timeline {
+  const carriers = audioCarriersOf(tl, ids)
+  if (carriers.length === 0) return tl
+  const target = muted ?? !carriers.every((c) => c.muted)
+  const set = new Set(carriers.map((c) => c.id))
+  return mapTracks(tl, (t) => ({ ...t, clips: t.clips.map((c) => (set.has(c.id) ? { ...c, muted: target || undefined } : c)) }))
+}
+
+/** Seçimin ses durumu: 'none' = sesi yok; true = hepsi kapalı; false = en az biri açık */
+export function mutedState(tl: Timeline, ids: ID[]): 'none' | boolean {
+  const carriers = audioCarriersOf(tl, ids)
+  if (carriers.length === 0) return 'none'
+  return carriers.every((c) => c.muted)
+}
+
+/** Zaman çizelgesinde gösterim için: klibin sesi kapalı mı (video klibinde bağlı sesinin hepsi kapalıysa da) */
+export function clipIsMuted(tl: Timeline, c: Clip): boolean {
+  const s = mutedState(tl, [c.id])
+  return s === true
+}

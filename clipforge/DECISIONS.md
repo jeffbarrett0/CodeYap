@@ -445,3 +445,6 @@ Kullanıcı: yola yakın çekimde araba sesleri gelirse tek düğmeyle azaltıls
 
 ## 61. Arka sesi kes: önizlemede de duyulsun; Auto Kick'e uygulanmasın
 Kullanıcı: önizlemede de duyulsun, Auto Kick'e uygulama. Çözüm: `AppService.denoisePreview` dışa aktarmadakiyle AYNI filtre zincirini (`denoiseChain`) ses akışına uygulayıp `<veri>/denoised/<varlık>_a<i>_<seviye>.m4a` olarak önbelleğe yazar; `cf-media://…/audio/<i>/<seviye>` ile servis edilir; önizleme motoru (denoiseReady) hazır olunca o kopyayı çalar. Hazırlık arka planda (uzun kayıtta dakikalar sürebilir), bildirimle haber verilir. Auto Kick full.mp4'e bağlanmadı.
+
+## 62. Klip bazında sesi kapatma
+Kullanıcı: ikinci video eklenince birinin (ya da diğerinin) sesini kesebilmek (ev edit sırasında can sıkıyordu). Video + bağlı ses klibi grup olduğundan, video klibi seçilince grubun ses klibi `muted` olur (`ops.setClipsMuted`); sesi olmayan klipte değişmez ve bilgi verilir. Arayüz: araç çubuğu düğmesi, M tuşu, denetçi kutusu, klipte 🔇. Önizleme ses seviyesini 0'lar, dışa aktarma kapalı klibin sesini filtre grafiğine koymaz. CLI `mute`.

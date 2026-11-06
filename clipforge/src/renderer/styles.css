@@ -136,6 +136,7 @@ mark { background: #53fc1830; color: #c5ffa9; border-radius: 3px; padding: 0 2px
 .tl-lane.drop { background-color: #53fc180f; }
 .tl-clip { position: absolute; top: 4px; bottom: 4px; border-radius: 6px; padding: 3px 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: #fff; border: 1px solid #ffffff30; cursor: grab; user-select: none; touch-action: none; display: flex; align-items: center; }
 .tl-clip.sel { outline: 2px solid #fff; z-index: 2; }
+.tl-clip.muted { opacity: .6; background-image: repeating-linear-gradient(135deg, transparent 0 6px, #00000040 6px 9px); }
 .tl-clip.grp { box-shadow: 0 0 0 2px #ffffff55 inset; }
 .tl-clip .h { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
 .tl-clip .h.l { left: 0; background: linear-gradient(90deg, #ffffff55, transparent); }
