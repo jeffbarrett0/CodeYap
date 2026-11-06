@@ -62,7 +62,7 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   for (const [i, c] of found.candidates.entries()) {
     check()
     try {
-      const m = await makeAutoClip(req.projectPath, c, { face: req.face, facePos: req.facePos, faceShare: req.faceShare, faceZoom: req.faceZoom, faceFocus: req.faceFocus, screenZoom: req.screenZoom, horizontal: req.horizontal }, env)
+      const m = await makeAutoClip(req.projectPath, c, { face: req.face, facePos: req.facePos, faceShare: req.faceShare, faceZoom: req.faceZoom, faceFocus: req.faceFocus, screenZoom: req.screenZoom, horizontal: req.horizontal, captions: req.horizontal ? false : req.captions }, env)
       clips[i].projectPath = m.projectPath
     } catch (e) {
       check()
@@ -154,13 +154,13 @@ export class AutoClipsManager {
 export function chainAutoClips(
   s: { id: string; status: string; result?: { projectPath: string } },
   handled: Set<string>,
-  settings: { autoClipsAfterKick: boolean; autoClipsMax: number; autoClipsMaxHorizontal?: number; autoClipsExport: boolean; autoClipsHorizontal?: boolean },
+  settings: { autoClipsAfterKick: boolean; autoClipsMax: number; autoClipsMaxHorizontal?: number; autoClipsCaptions?: boolean; autoClipsExport: boolean; autoClipsHorizontal?: boolean },
   manager: { start(req: AutoClipsRequest): string }
 ): string | null {
   if (s.status !== 'done' || !s.result || handled.has(s.id)) return null
   handled.add(s.id)
   if (!settings.autoClipsAfterKick) return null
-  const id = manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport })
+  const id = manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport, captions: settings.autoClipsCaptions })
   // yatay (YouTube) klipler de: dikey işten sonra sırayla çalışır (iş kuyruğu tek tek)
   if (settings.autoClipsHorizontal) manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMaxHorizontal ?? 15, exportVideos: settings.autoClipsExport, horizontal: true })
   return id

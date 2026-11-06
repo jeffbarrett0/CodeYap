@@ -424,3 +424,6 @@ Yatay klipler en az 1 dk, en çok 20 dk (kullanıcı: "kısa tutmaya çalışma"
 ## 54. Konu yarıda kesilmesin; yatay klipler 3–25 dk
 - Dikey/yatay: aynı konunun ardışık bölümleri (ortak ad/anahtar kelime, aralık ≤60 sn dikey / ≤120 sn yatay) tek klipte birleşir; son anılıştan sonra +3 cümle. Kullanıcı: "Orkun 50 sn konuşuldu, klip 30 sn'de yarım kaldı".
 - Yatay: en az 3, en çok 25 dk, tercih ~6,5 dk, en çok 15 klip (kullanıcı: "çok fazla küçük klip istemiyorum").
+
+## 55. Kısa video altyazısı (`shorts`)
+Referans kısa videodaki gibi: iri beyaz kalın yazı + siyah kontur, kutusuz/vurgusuz, satırda 2–4 kelime (`minWords:2` ile tek kelime komşuya katılır), yüz alanının altında, şeridin hemen üstünde. `autoClipsCaptions` ayarı (varsayılan kapalı; önceki "altyazı istenmedikçe ekleme" kuralı) ve `--captions` ile dikey Auto Clips kliplerine otomatik eklenir. Yatay kliplerde yok.

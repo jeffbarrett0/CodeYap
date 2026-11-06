@@ -312,3 +312,25 @@ describe('zincir: yatay klipler', () => {
     expect(started.map((r) => !!r.horizontal)).toEqual([false])
   })
 })
+
+describe('kısa video altyazısı (2–4 kelime)', () => {
+  it('"shorts" stili: iri beyaz, kutusuz; satırlarda 2–4 kelime, tek kelimelik satır kalmaz', async () => {
+    const { presetById } = await import('@shared/timeline/captionStyles')
+    const { captionsFromWords } = await import('@shared/timeline/captions')
+    const st = presetById('shorts')
+    expect(st.id).toBe('shorts')
+    expect(st.style.color).toBe('#FFFFFF')
+    expect(st.style.box).toBeUndefined()
+    expect(st.style.maxWords).toBe(4)
+    expect(st.style.minWords).toBe(2)
+    const txt = 'Beşiktaş kazanırsa ilk sekize girer mi bence kesinlikle konuşabiliriz çünkü puan durumu güzel'.split(' ')
+    const words = txt.map((t, i) => ({ text: t, start: i * 0.4, end: i * 0.4 + 0.35, confidence: 1 }))
+    const caps = captionsFromWords(words, 0, Infinity, { maxWords: 4, minWords: 2, maxLines: 1, maxDurationSec: 2.4 })
+    for (const c of caps) {
+      const n = c.text.split(' ').length
+      expect(n).toBeGreaterThanOrEqual(2)
+      expect(n).toBeLessThanOrEqual(5) // tek kelime komşuya katılınca en fazla 5
+    }
+    expect(caps.map((c) => c.text).join(' ')).toBe(txt.join(' '))
+  })
+})

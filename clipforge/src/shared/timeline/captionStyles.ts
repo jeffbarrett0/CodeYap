@@ -35,6 +35,28 @@ export const CAPTION_PRESETS: CaptionPreset[] = [
     }
   },
   {
+    id: 'shorts',
+    name: 'Kısa video (2–4 kelime, büyük beyaz)',
+    description: 'Dikey kliplerde yüzün hemen altında: iri beyaz kalın yazı + siyah kontur, kutusuz, satırda 2–4 kelime (tek kelime kalmaz)',
+    style: {
+      fontFamily: 'Arial Black',
+      fontSize: 80,
+      color: '#FFFFFF',
+      outlineColor: '#000000',
+      outlineWidth: 7,
+      bold: true,
+      italic: false,
+      uppercase: false,
+      maxCharsPerLine: 24,
+      maxWords: 4,
+      minWords: 2,
+      shadow: 3,
+      box: undefined,
+      highlight: undefined,
+      positionY: 0.68
+    }
+  },
+  {
     id: 'premium-gold',
     name: 'Premium altın',
     description: 'Altın sarısı kalın yazı, ince siyah kontur, hafif gölge; kutusuz. Son kelimeler açık sarıyla öne çıkar',

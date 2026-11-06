@@ -293,6 +293,8 @@ export interface AutoClipsRequest {
   screenZoom?: number
   /** klipleri MP4 olarak da dışa aktar */
   exportVideos?: boolean
+  /** dikey klipler otomatik altyazılı gelsin (2–4 kelime, iri beyaz) */
+  captions?: boolean
   /** YATAY (16:9, YouTube) klipler: 2 dk 58 sn sınırı yok, yüz/şerit eklenmez, "youtube" ön ayarıyla dışa aktarılır */
   horizontal?: boolean
 }

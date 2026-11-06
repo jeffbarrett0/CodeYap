@@ -10,9 +10,11 @@ export interface CaptionOptions {
   gapSec: number
   /** Satır başına en fazla kelime (0: sınırsız) */
   maxWords: number
+  /** Satır başına en az kelime (0: yok): tek kelimelik satır komşusuyla birleşir (en fazla maxWords+1) */
+  minWords: number
 }
 
-export const DEFAULT_CAPTION_OPTIONS: CaptionOptions = { maxCharsPerLine: 22, maxLines: 2, maxDurationSec: 3.2, gapSec: 0.6, maxWords: 0 }
+export const DEFAULT_CAPTION_OPTIONS: CaptionOptions = { maxCharsPerLine: 22, maxLines: 2, maxDurationSec: 3.2, gapSec: 0.6, maxWords: 0, minWords: 0 }
 
 const END_PUNCT = /[.!?…]$/u
 
@@ -44,7 +46,32 @@ export function captionsFromWords(words: TranscriptWord[], from: number, to: num
     if (END_PUNCT.test(w.text.trim())) flush()
   }
   flush()
-  return out
+  return o.minWords > 1 ? mergeShortCaptions(out, o) : out
+}
+
+const wordCount = (c: Caption) => c.text.split(/\s+/).filter(Boolean).length
+
+/** Tek kelimelik satırları komşuya katar (önce sonrakine, sonra öncekine); sessizlikle ayrılmış satırlar birleşmez */
+function mergeShortCaptions(caps: Caption[], o: CaptionOptions): Caption[] {
+  const res = caps.map((c) => ({ ...c }))
+  const limit = o.maxWords > 0 ? o.maxWords + 1 : 99
+  for (let i = 0; i < res.length; i++) {
+    if (wordCount(res[i]) >= o.minWords) continue
+    const next = res[i + 1]
+    const prev = res[i - 1]
+    if (next && next.start - res[i].end <= 0.5 && wordCount(next) + wordCount(res[i]) <= limit) {
+      next.text = `${res[i].text} ${next.text}`
+      next.start = res[i].start
+      res.splice(i, 1)
+      i--
+    } else if (prev && res[i].start - prev.end <= 0.5 && wordCount(prev) + wordCount(res[i]) <= limit) {
+      prev.text = `${prev.text} ${res[i].text}`
+      prev.end = res[i].end
+      res.splice(i, 1)
+      i--
+    }
+  }
+  return res.map((c, i) => ({ ...c, id: `cap_${i}` }))
 }
 
 /**
@@ -60,7 +87,7 @@ export function captionsForTimeline(
   const fake = Object.fromEntries(Object.entries(wordsByAsset).map(([id, words]) => [id, { words } as unknown as Transcript]))
   const words = timelineWords(tl, fake)
   const st = tl.captionStyle
-  const caps = captionsFromWords(words, 0, Infinity, { maxCharsPerLine: st.maxCharsPerLine, maxWords: st.maxWords ?? 0, ...(st.maxWords ? { maxLines: 1, maxDurationSec: 2.4 } : {}), ...opts })
+  const caps = captionsFromWords(words, 0, Infinity, { maxCharsPerLine: st.maxCharsPerLine, maxWords: st.maxWords ?? 0, minWords: st.minWords ?? 0, ...(st.maxWords ? { maxLines: 1, maxDurationSec: 2.4 } : {}), ...opts })
   return assignHighlights(caps, st)
 }
 

@@ -845,7 +845,7 @@ export const useStore = create<State>()((set, get) => {
       const s = get()
       const tl = s.project.timeline
       const preset = presetById(id)
-      const style: CaptionStyle = { ...tl.captionStyle, ...preset.style, enabled: true, positionY: tl.captionStyle.positionY }
+      const style: CaptionStyle = { ...tl.captionStyle, ...preset.style, enabled: true, positionY: preset.style.positionY ?? tl.captionStyle.positionY }
       if (id === 'classic') {
         delete style.box
         delete style.highlight

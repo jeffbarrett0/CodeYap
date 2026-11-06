@@ -5,7 +5,9 @@ import { cmd } from '../../shared/timeline/commands'
 import { clipForTrack } from '../../shared/timeline/create'
 import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, faceCrop, findAutoClips, overlayRect, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
 import { newId, timelineDuration } from '../../shared/timeline/model'
-import { cutRange } from '../../shared/timeline/ops'
+import { cutRange, setCaptions } from '../../shared/timeline/ops'
+import { captionsForTimeline } from '../../shared/timeline/captions'
+import { presetById } from '../../shared/timeline/captionStyles'
 import { applyTemplate } from '../../shared/timeline/templates'
 import { timelineWords } from '../../shared/timeline/transcript'
 import type { Clip } from '../../shared/types'
@@ -29,7 +31,7 @@ export async function autoClipCandidates(projectPath: string, opts: Partial<Auto
  * Seçilen aralıktan BAĞIMSIZ klip projesi (9:16): kaynaktaki yüz bölgesi ÜSTTE (kırpılıp büyütülür), konuşulan görüntü ALTTA. Ortaya yazı konmaz.
  * Auto Kick projesi değişmez. Düzen yerleşimi sonradan arayüzde elle de ayarlanabilir.
  */
-export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string; /** yatay (16:9) klip: yüz/şerit yok, kare olduğu gibi */ horizontal?: boolean } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
+export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string; /** yatay (16:9) klip: yüz/şerit yok, kare olduğu gibi */ horizontal?: boolean; /** otomatik altyazı: 2–4 kelime, iri beyaz, yüzün hemen altında (dikey) */ captions?: boolean } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
   const s = await Session.open(await resolveProjectPath(projectPath), await makeService(env))
   const total = timelineDuration(s.timeline)
   if (!(cand.end > cand.start) || cand.start < 0 || cand.end > total + 0.5) throw new Error(`Geçersiz aralık: ${cand.start.toFixed(1)}–${cand.end.toFixed(1)} (çizelge ${total.toFixed(1)} sn).`)
@@ -67,6 +69,15 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
     tracks: tl.tracks.some((t) => t.id === 'V2') ? tl.tracks.map((t) => (t.id === 'V2' ? { ...t, clips: faceClips } : t)) : [...tl.tracks, { id: 'V2', name: 'Video 2', kind: 'video' as const, role: 'webcam' as const, clips: faceClips, muted: false, locked: false, volume: 1 }]
   }
   tl = { ...applyTemplate(tl, tpl), aspect: '9:16', aspectAuto: false }
+  if (layout.captions) {
+    // otomatik altyazı: iri beyaz, satırda 2–4 kelime; yüz ile görüntünün birleştiği çizginin (şerit) hemen ÜSTÜNDE
+    const share = layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare
+    const seam = facePos === 'top' ? share : 1 - share
+    const cy = Math.max(0.08, seam - 0.06)
+    const style = { ...tl.captionStyle, ...presetById('shorts').style, enabled: true, positionY: Math.min(1, Math.max(0, (0.88 - cy) / 0.76)) }
+    const words = Object.fromEntries(Object.entries(s.transcripts).map(([k, t]) => [k, t.words]))
+    tl = setCaptions({ ...tl, captionStyle: style }, captionsForTimeline({ ...tl, captionStyle: style }, words))
+  }
   const dur = timelineDuration(tl)
   const name = `${cand.subject.trim() || 'Klip'} · ${Math.round(dur)} sn`
   const created = await s.service.createClipProject(s.project, asset.id, name)

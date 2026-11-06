@@ -72,7 +72,7 @@ export function AutoClipsDialog() {
     setError('')
     try {
       const picks = cands.filter((c) => picked.has(c.id)).map((c) => ({ start: c.start, end: c.end, subject: c.subject }))
-      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100, faceZoom: faceZoom / 100, faceFocus: { x: focus.x / 100, y: focus.y / 100 }, screenZoom: zoom / 100, ...(horizontal ? { horizontal: true } : {}) }))
+      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100, faceZoom: faceZoom / 100, faceFocus: { x: focus.x / 100, y: focus.y / 100 }, screenZoom: zoom / 100, ...(horizontal ? { horizontal: true } : {}), ...(settings.autoClipsCaptions && !horizontal ? { captions: true } : {}) }))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -89,6 +89,7 @@ export function AutoClipsDialog() {
           <b>Otomatik zincir (bilgisayar başında olmasanız da)</b>
           <label className="check"><input type="checkbox" checked={settings.autoClipsAfterKick} onChange={(e) => void updateSettings({ autoClipsAfterKick: e.target.checked })} data-testid="autoclips-after" /> Auto Kick bitince klipleri kendiliğinden üret</label>
           <label className="check"><input type="checkbox" checked={settings.autoClipsExport} onChange={(e) => void updateSettings({ autoClipsExport: e.target.checked })} data-testid="autoclips-export" /> Klipleri MP4 olarak da dışa aktar (9:16)</label>
+          <label className="check"><input type="checkbox" checked={settings.autoClipsCaptions} onChange={(e) => void updateSettings({ autoClipsCaptions: e.target.checked })} data-testid="autoclips-captions" /> Dikey kliplere otomatik altyazı ekle (iri beyaz, 2–4 kelime, yüzün hemen altında)</label>
           <label className="check"><input type="checkbox" checked={settings.autoClipsHorizontal} onChange={(e) => void updateSettings({ autoClipsHorizontal: e.target.checked })} data-testid="autoclips-horizontal" /> YATAY (16:9, YouTube) klipleri de üret: süre sınırı yok, konunun doğal uzunluğu</label>
           <label className="row" style={{ gap: 6 }}>En çok yatay klip <Num value={settings.autoClipsMaxHorizontal} step={1} min={1} max={60} label="En çok yatay klip" onChange={(v) => void updateSettings({ autoClipsMaxHorizontal: Math.round(v) })} /></label>
           <label className="row" style={{ gap: 6 }}>En çok klip (dikey) <Num value={settings.autoClipsMax} step={1} min={1} max={30} label="En çok klip" onChange={(v) => void updateSettings({ autoClipsMax: Math.round(v) })} /></label>

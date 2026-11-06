@@ -296,6 +296,8 @@ export interface CaptionStyle {
   highlight?: { enabled: boolean; colors: string[] }
   /** Bir altyazı satırındaki en fazla kelime (0/yok: yalnızca karakter sınırı) */
   maxWords?: number
+  /** Bir altyazı satırındaki en az kelime: tek kelimelik satırlar komşusuyla birleştirilir (ör. 2) */
+  minWords?: number
   /** Yazı gölgesi (px, 1080 tabanlı) */
   shadow?: number
 }
@@ -483,6 +485,8 @@ export interface Settings {
   autoClipsOverlayPath: string
   /** Otomatik üretimde en çok kaç klip */
   autoClipsMax: number
+  /** Dikey Auto Clips klipleri otomatik altyazıyla gelsin (2–4 kelimelik büyük satırlar, yüzün hemen altında) */
+  autoClipsCaptions: boolean
   /** yatay klipler için en çok klip (süre sınırı geniş, çıkarabildiği kadar) */
   autoClipsMaxHorizontal: number
   llmProvider: 'off' | 'openai' | 'anthropic'

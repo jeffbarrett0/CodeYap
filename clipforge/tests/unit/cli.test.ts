@@ -469,6 +469,11 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(statSync(chain.clips[0].video).size).toBeGreaterThan(20_000)
     expect(chain.clips[0].project).toMatch(/\.clipforge$/)
     expect(md5(proj4)).toBe(before)
+    // otomatik altyazı (2–4 kelime, iri beyaz): --captions ile; varsayılanda altyazı yok
+    expect(cp.captions).toBe(0)
+    const mkc = cli('auto-clips', proj4, '--pick', String(lem.pick), '--face', '0.7,0.64,0.29,0.34', '--captions')
+    const cpc = cli('show', mkc.created[0].projectPath)
+    expect(cpc.captions).toBeGreaterThan(5)
     // YATAY (16:9): süre sınırı yok, yüz/şerit yok, kare olduğu gibi
     const hr = cli('auto-clips', proj4, '--horizontal')
     expect(hr.ok === false ? JSON.stringify(hr) : 'ok').toBe('ok')

@@ -38,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoClipsExport: true,
   autoClipsHorizontal: true,
   autoClipsMax: 10,
+  autoClipsCaptions: false,
   autoClipsMaxHorizontal: 15,
   autoClipsOverlay: true,
   autoClipsOverlayPath: '',

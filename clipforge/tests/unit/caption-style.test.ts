@@ -11,7 +11,7 @@ const words = (t: string): TranscriptWord[] => t.split(' ').map((w, i) => ({ tex
 
 describe('referans altyazı stili (vurgulu kutulu)', () => {
   it('hazır stiller: klasik ve referans', () => {
-    expect(CAPTION_PRESETS.map((p) => p.id)).toEqual(['classic', 'boxed-highlight', 'premium-gold'])
+    expect(CAPTION_PRESETS.map((p) => p.id)).toEqual(['classic', 'boxed-highlight', 'shorts', 'premium-gold'])
     expect(ref).toMatchObject({ italic: true, uppercase: true, maxWords: 4, box: { enabled: true }, highlight: { enabled: true } })
     expect(ref.highlight!.colors).toHaveLength(3) // sarı, kırmızı, mavi
   })
