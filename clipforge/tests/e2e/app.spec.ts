@@ -1213,7 +1213,8 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(sel).toBeVisible()
     await expect(sel).toHaveValue('off')
     await sel.selectOption('medium')
-    await expect(page.getByTestId('toast').filter({ hasText: 'Arka plan sesi azaltılacak' }).first()).toBeVisible()
+    await sel.selectOption('off')
+    await expect(page.getByTestId('toast').filter({ hasText: 'Arka plan sesi geri getirildi' }).first()).toBeVisible()
   })
 
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {

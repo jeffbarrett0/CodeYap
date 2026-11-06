@@ -1,3 +1,4 @@
+import { denoiseKey, denoiseReady } from './denoiseState'
 import type { ClipforgeApi } from '@shared/ipc'
 import { resolveLayout } from '@shared/export/layout'
 import { aspectSize, clipDuration, clipEnd } from '@shared/timeline/model'
@@ -43,7 +44,15 @@ export class PreviewEngine {
 
   private mediaFor(clip: Clip, assets: MediaAsset[], kind: 'video' | 'audio', index = 0): string | null {
     const a = assets.find((x) => x.id === clip.assetId)
-    return a ? this.api.mediaUrl(a, kind, index) : null
+    if (!a) return null
+    // arka plan sesi azaltma açıksa ve temizlenmiş önizleme kopyası hazırsa o çalınır
+    const dn = kind === 'audio' ? this.denoiseVariant(clip, index) : undefined
+    return this.api.mediaUrl(a, kind, index, dn)
+  }
+
+  private denoiseVariant(clip: Clip, index: number): string | undefined {
+    const lv = clip.fx?.denoise
+    return lv && denoiseReady.has(denoiseKey(clip.assetId, index, lv)) ? lv : undefined
   }
 
   /** Oynatma başlığına göre öğeleri eşitler (arama, oynat/duraklat, ses seviyesi). */
@@ -82,7 +91,7 @@ export class PreviewEngine {
         }
         this.align(v, target, playing, rate, c.id)
       } else if (track.kind === 'audio') {
-        const ak = `${this.key(c)}|${c.audioStream ?? 0}`
+        const ak = `${this.key(c)}|${c.audioStream ?? 0}|${this.denoiseVariant(c, c.audioStream ?? 0) ?? ''}`
         want.add(ak)
         let a = this.audios.get(ak)
         const src = this.mediaFor(c, assets, 'audio', c.audioStream ?? 0)

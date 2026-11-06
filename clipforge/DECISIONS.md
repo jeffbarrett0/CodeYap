@@ -442,3 +442,6 @@ Kullanıcı: çantayı mümkün olduğunca genişlet; abone ol/beğen çağrı b
 
 ## 60. Arka plan sesini kes (denoise)
 Kullanıcı: yola yakın çekimde araba sesleri gelirse tek düğmeyle azaltılsın, ses odaklansın. `Clip.fx.denoise` (hafif/orta/güçlü) → dışa aktarmada highpass + RNNoise sinir ağı (`arnndn`, model `resources/models/rnnoise-voice.rnnn` "leavened-quisling", telifsiz) + afftdn (+agate). Model yolu çalışma klasöründe göreli `rnnoise.rnnn` (Windows güvenli); model yoksa adım atlanır ve uyarı verilir. Sentetik testte yalnızca gürültü olan aralık −26,6 → −80,8 dB düştü, konuşma aralığı aynı kaldı. Sınır: aynı anda konuşma + gürültü varken gürültü tamamen silinmez, yalnızca bastırılır; önizlemede duyulmaz; Auto Kick full.mp4 (hızlı kesim) henüz kapsam dışı.
+
+## 61. Arka sesi kes: önizlemede de duyulsun; Auto Kick'e uygulanmasın
+Kullanıcı: önizlemede de duyulsun, Auto Kick'e uygulama. Çözüm: `AppService.denoisePreview` dışa aktarmadakiyle AYNI filtre zincirini (`denoiseChain`) ses akışına uygulayıp `<veri>/denoised/<varlık>_a<i>_<seviye>.m4a` olarak önbelleğe yazar; `cf-media://…/audio/<i>/<seviye>` ile servis edilir; önizleme motoru (denoiseReady) hazır olunca o kopyayı çalar. Hazırlık arka planda (uzun kayıtta dakikalar sürebilir), bildirimle haber verilir. Auto Kick full.mp4'e bağlanmadı.

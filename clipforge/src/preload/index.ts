@@ -15,11 +15,11 @@ const api: ClipforgeApi = {
     return () => ipcRenderer.removeListener(event, listener)
   },
   pathForFile: (file) => webUtils.getPathForFile(file),
-  mediaUrl(asset, kind, audioIndex = 0) {
+  mediaUrl(asset, kind, audioIndex = 0, variant) {
     const v = encodeURIComponent(asset.proxyPath ?? asset.thumbnailPath ?? '')
     if (kind === 'video') return asset.kind === 'video' ? `cf-media://m/${asset.id}/video?v=${v}` : null
     if (kind === 'image') return asset.kind === 'image' ? `cf-media://m/${asset.id}/image` : null
-    if (kind === 'audio') return asset.audioStreams[audioIndex] ? `cf-media://m/${asset.id}/audio/${audioIndex}?v=${v}` : null
+    if (kind === 'audio') return asset.audioStreams[audioIndex] ? `cf-media://m/${asset.id}/audio/${audioIndex}${variant ? `/${variant}` : ''}?v=${v}` : null
     return asset.thumbnailPath ? `cf-media://m/${asset.id}/thumb?v=${v}` : null
   }
 }

@@ -41,6 +41,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       for (const p of r.picks) out.push(await makeAutoClip(r.projectPath, p, { face: r.face, facePos: r.facePos, faceShare: r.faceShare, faceZoom: r.faceZoom, faceFocus: r.faceFocus, screenZoom: r.screenZoom, horizontal: r.horizontal, captions: r.captions }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }))
       return out
     },
+    'audio:denoise': (r) => app.denoisePreview(r),
     'story:start': (req) => story.start(req),
     'story:cancel': (id) => story.cancel(id),
     'story:list': () => story.list(),

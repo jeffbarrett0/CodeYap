@@ -81,8 +81,8 @@ void app.whenReady().then(async () => {
 
   protocol.handle('cf-media', async (req) => {
     const u = new URL(req.url)
-    const [assetId, kind, idx] = u.pathname.split('/').filter(Boolean)
-    const file = service.resolveMediaPath(u.hostname === 'm' ? assetId : u.hostname, kind, Number(idx ?? 0))
+    const [assetId, kind, idx, variant] = u.pathname.split('/').filter(Boolean)
+    const file = service.resolveMediaPath(u.hostname === 'm' ? assetId : u.hostname, kind, Number(idx ?? 0), variant)
     if (!file) return new Response('Bulunamadı', { status: 404 })
     // Range'i kendimiz karşılarız (net.fetch(file://) yok sayıyordu → büyük videolarda bozuk oynatma)
     try {

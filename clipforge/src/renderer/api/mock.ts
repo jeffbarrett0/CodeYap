@@ -123,6 +123,7 @@ export function createMockApi(): ClipforgeApi {
     'dialog:openMedia': () => ['/demo/2024-05-12 21-30-45.mkv'],
     'dialog:openFile': () => w.__mock?.openFile ?? 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
+    'audio:denoise': (r) => r.level,
     'autoclips:start': (req) => {
       const id = `autoclips-${acJobs.size + 1}`
       const status: AutoClipsStatus = { id, request: req, name: req.projectPath.split(/[\\/]/).pop()?.replace(/\.clipforge$/, '') ?? 'proje', status: 'running', stages: initialAutoClipsStages(), startedAt: Date.now() }
@@ -401,6 +402,6 @@ export function createMockApi(): ClipforgeApi {
       return () => set.delete(cb as never)
     },
     pathForFile: (f) => `/demo/${f.name}`,
-    mediaUrl: (asset, kind, idx = 0) => (kind === 'image' ? (asset.kind === 'image' ? '/demo/image.png' : null) : kind === 'video' ? '/demo/sample.mp4' : kind === 'audio' ? (asset.audioStreams[idx] ? `/demo/audio_${idx}.m4a` : null) : null)
+    mediaUrl: (asset, kind, idx = 0, _variant) => (kind === 'image' ? (asset.kind === 'image' ? '/demo/image.png' : null) : kind === 'video' ? '/demo/sample.mp4' : kind === 'audio' ? (asset.audioStreams[idx] ? `/demo/audio_${idx}.m4a` : null) : null)
   }
 }

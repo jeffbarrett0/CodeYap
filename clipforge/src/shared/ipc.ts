@@ -108,6 +108,8 @@ export interface IpcInvoke {
   /** Arama sonucundan bağımsız klip projesi dosyası üretir (ana proje değişmez) */
   'project:createClip': [[Project, string, string], { path: string }]
   'media:import': [[string[]], string[]]
+  /** Önizleme için arka plan sesi azaltılmış ses kopyası üretir (önbellekli); dönen değer = `variant` (seviye) */
+  'audio:denoise': [[{ assetId: string; audioStream: number; level: 'light' | 'medium' | 'strong' }], string]
   'media:markers': [[string], Marker[]]
   'media:syncOffset': [[{ screenAssetId: string; camAssetId: string }], number]
   'transcript:start': [[TranscribeRequest], string]
@@ -187,7 +189,7 @@ export interface ClipforgeApi {
   /** Sürükle-bırak ile gelen dosyanın mutlak yolu (Electron: webUtils.getPathForFile) */
   pathForFile(file: File): string
   /** Önizleme medyası için URL (Electron: cf-media://, mock: statik dosya) */
-  mediaUrl(asset: MediaAsset, kind: 'video' | 'audio' | 'thumb' | 'image', audioIndex?: number): string | null
+  mediaUrl(asset: MediaAsset, kind: 'video' | 'audio' | 'thumb' | 'image', audioIndex?: number, variant?: string): string | null
 }
 
 declare global {

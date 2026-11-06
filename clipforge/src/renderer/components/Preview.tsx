@@ -243,6 +243,7 @@ function TimelinePreview() {
   const [box, setBox] = useState({ w: 0, h: 0 })
   const [menu, setMenu] = useState<MenuState | null>(null)
   const cropClipId = useStore((s) => s.cropClipId)
+  const denoiseTick = useStore((s) => s.denoiseTick)
   useEffect(() => {
     const el = areaRef.current
     if (!el) return
@@ -303,7 +304,7 @@ function TimelinePreview() {
     eng.sync(tl, st.project.assets, playhead, playing && rateRef.current > 0, Math.abs(rateRef.current) || 1)
     const ctx = c.getContext('2d')
     if (ctx) eng.draw(ctx, c.width, c.height, tl, st.project.assets, playhead, !st.playing)
-  }, [playhead, tl, playing, width, height, cropClipId])
+  }, [playhead, tl, playing, width, height, cropClipId, denoiseTick])
 
   // video kareleri sonradan yüklenince de çiz
   useEffect(() => {

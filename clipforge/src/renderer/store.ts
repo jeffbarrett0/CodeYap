@@ -22,6 +22,7 @@ import { BUILTIN_TEMPLATES, templateFromTimeline } from '@shared/timeline/templa
 import { presetById } from '@shared/timeline/captionStyles'
 import type { Caption, CaptionStyle, ChatLog, ClipCandidate, ExportOptions, LayoutTemplate, NormRect, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
 import { requireApi } from './api'
+import { denoiseKey, denoiseReady } from './preview/denoiseState'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
@@ -255,6 +256,9 @@ interface State {
   setPlayhead(t: number): void
   setSourceTime(t: number): void
   setPlaying(p: boolean): void
+  /** Arka plan sesi azaltması açık ses kliplerinin önizleme kopyalarını hazırlar (arka planda); hazır olunca önizlemede duyulur */
+  prepareDenoise(): Promise<void>
+  denoiseTick: number
   setZoom(z: number): void
 
   newProject(): Promise<void>
@@ -942,6 +946,35 @@ export const useStore = create<State>()((set, get) => {
     setPlayhead: (t) => set({ playhead: Math.max(0, t) }),
     setSourceTime: (t) => set({ sourceTime: Math.max(0, t) }),
     setPlaying: (playing) => set({ playing }),
+    denoiseTick: 0,
+    async prepareDenoise() {
+      const tl = get().project.timeline
+      const need = new Map<string, { assetId: string; audioStream: number; level: 'light' | 'medium' | 'strong' }>()
+      for (const t of tl.tracks) {
+        if (t.kind !== 'audio') continue
+        for (const c of t.clips) {
+          const lv = c.fx?.denoise
+          if (!lv) continue
+          const stream = c.audioStream ?? 0
+          const key = denoiseKey(c.assetId, stream, lv)
+          if (!denoiseReady.has(key)) need.set(key, { assetId: c.assetId, audioStream: stream, level: lv })
+        }
+      }
+      if (need.size === 0) return
+      get().toast('info', 'Temizlenmiş ses hazırlanıyor… hazır olunca önizlemede de duyulur (uzun kayıtlarda birkaç dakika sürebilir).')
+      let ok = 0
+      for (const [key, r] of need) {
+        try {
+          await api().invoke('audio:denoise', r)
+          denoiseReady.add(key)
+          ok++
+          set({ denoiseTick: get().denoiseTick + 1 })
+        } catch (e) {
+          get().toast('error', `Arka plan sesi azaltma önizlemesi hazırlanamadı: ${errText(e)} (dışa aktarmada yine uygulanır).`)
+        }
+      }
+      if (ok > 0) get().toast('success', 'Temizlenmiş ses hazır: önizlemede de duyulur.')
+    },
     setZoom: (zoom) => set({ zoom: Math.min(400, Math.max(4, zoom)) }),
 
     // ───── proje ─────
@@ -963,6 +996,7 @@ export const useStore = create<State>()((set, get) => {
         set({ project: r.project, projectPath: r.path, parentProjectPath: null, dirty: false, transcripts, selection: [], selectedAssetId: null, playhead: 0, historyVersion: 0, results: [], clipDraft: null, activeLane: null, selectedCaptionId: null, selectedCaptionIds: [] })
         const missing = r.project.assets.filter((a) => a.missing)
         get().toast(missing.length ? 'error' : 'success', missing.length ? `Bulunamayan medya: ${missing.map((m) => m.name).join(', ')}` : 'Proje açıldı.')
+        void get().prepareDenoise()
         return true
       } catch (e) {
         get().toast('error', errText(e))

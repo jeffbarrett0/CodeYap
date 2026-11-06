@@ -1,4 +1,5 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { parseChatLog } from '../shared/chat/parse'
 import { DEFAULT_SEARCH_OPTIONS } from '../shared/search/engine'
@@ -9,7 +10,8 @@ import { scoreCandidates, snapCandidate, DEFAULT_KEYWORDS } from '../shared/sugg
 import type { AppInfo, ChatImportRequest, ExportRequest, IpcEventName, IpcEvents, OpenedProject, SearchRequest, SuggestRequest, ToolStatus, TranscribeRequest } from '../shared/ipc'
 import type { ChatLog, MediaAsset, Marker, Project, SearchResult, Timeline, Transcript, WhisperModelSize } from '../shared/types'
 import { runExport } from './export'
-import { resolveFfmpegPath, resolveFfprobePath, setCpuMode, ToolError, toolVersion } from './ffmpeg'
+import { resolveFfmpegPath, resolveFfprobePath, runTool, setCpuMode, ToolError, toolVersion } from './ffmpeg'
+import { denoiseChain } from '../shared/export/plan'
 import { audioLevelSeries, detectScenes, extractWavChunk } from './media/audio'
 import { importMedia, loadMarkers, type MediaTools } from './media/import'
 import { makeProxy } from './media/proxy'
@@ -485,9 +487,14 @@ export class AppService {
   }
 
   /** cf-media:// isteği için dosya yolu çözümü (yalnızca kayıtlı medya ve türetilmiş dosyaları) */
-  resolveMediaPath(assetId: string, kind: string, index = 0): string | null {
+  resolveMediaPath(assetId: string, kind: string, index = 0, variant?: string): string | null {
     const a = this.assets.get(assetId)
     if (!a) return null
+    // arka plan sesi azaltılmış önizleme kopyası (hazırsa)
+    if (kind === 'audio' && variant && /^(light|medium|strong)$/.test(variant)) {
+      const f = join(this.dataDir, 'denoised', `${assetId}_a${index}_${variant}.m4a`)
+      return existsSync(f) ? f : null
+    }
     if (kind === 'image') return a.kind === 'image' ? a.path : null
     if (kind === 'thumb') return a.thumbnailPath ? join(this.dataDir, a.thumbnailPath) : null
     if (kind === 'audio') {
@@ -498,5 +505,50 @@ export class AppService {
     }
     if (a.proxyPath) return join(this.dataDir, a.proxyPath)
     return a.kind === 'video' && /\.(mp4|webm|mov)$/i.test(a.path) ? a.path : null
+  }
+
+  private denoising = new Map<string, Promise<string>>()
+
+  /**
+   * Önizleme için arka plan sesi azaltılmış ses kopyası: dışa aktarmadaki AYNI filtre zinciriyle (RNNoise + gürültü azaltma) üretilir,
+   * `<veri>/denoised/` altında önbelleğe alınır. Dönen değer `variant` (seviye): `cf-media://…/audio/<i>/<seviye>` ile çalınır.
+   */
+  denoisePreview(r: { assetId: string; audioStream: number; level: 'light' | 'medium' | 'strong' }): Promise<string> {
+    const key = `${r.assetId}|${r.audioStream}|${r.level}`
+    const busy = this.denoising.get(key)
+    if (busy) return busy
+    const job = (async () => {
+      const a = this.assets.get(r.assetId)
+      if (!a || !a.audioStreams[r.audioStream]) throw new Error('Ses akışı bulunamadı.')
+      const dir = join(this.dataDir, 'denoised')
+      await mkdir(dir, { recursive: true })
+      const name = `${r.assetId}_a${r.audioStream}_${r.level}.m4a`
+      const out = join(dir, name)
+      if (existsSync(out)) return r.level
+      const src = this.resolveMediaPath(r.assetId, 'audio', r.audioStream)
+      if (!src) throw new Error('Ses önizleme kopyası henüz hazır değil; birkaç saniye sonra tekrar deneyin.')
+      const isProxy = !!a.audioStreams[r.audioStream]?.proxyPath
+      let chain = denoiseChain(r.level)
+      let haveModel = false
+      try {
+        await copyFile(join(this.deps.resourcesDir, 'models', 'rnnoise-voice.rnnn'), join(dir, 'rnnoise.rnnn'))
+        haveModel = true
+      } catch {
+        haveModel = false
+      }
+      if (!haveModel) chain = chain.replace(/arnndn=m=rnnoise\.rnnn:mix=[0-9.]+,?/g, '')
+      const tmp = join(dir, `${name}.part.m4a`)
+      try {
+        // model göreli ASCII adla (cwd = denoised): Windows'ta filtre yolunda sürücü harfi/iki nokta sorunu olmaz
+        await runTool(this.tools.ffmpeg, ['-y', '-v', 'error', '-nostdin', '-i', src, '-vn', '-map', `0:a:${isProxy ? 0 : r.audioStream}`, '-af', `aformat=sample_rates=48000:channel_layouts=stereo${chain}`, '-c:a', 'aac', '-b:a', '128k', tmp], { cwd: dir })
+        await rename(tmp, out)
+      } catch (e) {
+        await rm(tmp, { force: true }).catch(() => undefined)
+        throw e
+      }
+      return r.level
+    })().finally(() => this.denoising.delete(key))
+    this.denoising.set(key, job)
+    return job
   }
 }

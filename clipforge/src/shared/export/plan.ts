@@ -77,7 +77,7 @@ function videoFx(c: Clip, dur: number, w: number, h: number, fps: number, alpha:
  * Arka plan sesini azaltma zinciri: yüksek geçiren (uğultu/rüzgâr) + RNNoise sinir ağı modeli (araba, kalabalık gibi konuşma dışı sesler)
  * + (orta/güçlü) spektral gürültü azaltma + (güçlü) gürültü kapısı; konuşma için hafif sıkıştırıcı. Model yolu göreli ve ASCII (Windows'ta sorunsuz).
  */
-function denoiseChain(level: 'light' | 'medium' | 'strong'): string {
+export function denoiseChain(level: 'light' | 'medium' | 'strong'): string {
   const m = 'arnndn=m=rnnoise.rnnn'
   if (level === 'light') return `,highpass=f=80,${m}:mix=0.7`
   if (level === 'medium') return `,highpass=f=90,${m}:mix=1,afftdn=nr=8:nf=-45,acompressor=threshold=0.12:ratio=2.5:attack=5:release=120:makeup=1.5`
