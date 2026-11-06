@@ -248,6 +248,8 @@ export interface Clip {
 export interface ClipFx {
   /** Klip boyunca `from` → `to` yakınlık (1 = normal, 1,15 = %15 yakın); `x`,`y` = yakınlaşma odağı (0..1, 0,5 = orta) */
   zoom?: { from: number; to: number; x: number; y: number }
+  /** Renk havası: görüntüye uygulanan hazır renk ayarı */
+  grade?: 'warm' | 'cool' | 'vivid' | 'cinematic' | 'bw' | 'vintage' | 'bright'
   /** Açılış geçişi (sn): görüntü karanlıktan/saydamdan belirir, ses yavaş yükselir */
   fadeIn?: number
   /** Kapanış geçişi (sn): görüntü kararır/saydamlaşır, ses yavaş kısılır */

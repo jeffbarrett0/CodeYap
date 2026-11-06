@@ -40,11 +40,22 @@ function slice(clip: Clip, track: Track, rs: number, re: number): Piece | null {
  *  - Görüntü: siyah taban → ekran klipleri → kamera klipleri → altyazı (ASS).
  *  - Ses: iz seviyeleri uygulanıp `amix` ile karıştırılır, isteğe bağlı loudnorm.
  */
-/** Klip efektleri (zoom + görüntü geçişi) için filtre parçası; boyut: klibin çıkış kutusu (w×h), süre: klip süresi */
+/** Renk havaları (ffmpeg filtreleri) */
+const GRADES: Record<string, string> = {
+  warm: 'colorbalance=rs=0.08:gs=0.02:bs=-0.08:rm=0.06:bm=-0.06,eq=saturation=1.08',
+  cool: 'colorbalance=rs=-0.06:bs=0.08:rm=-0.04:bm=0.06',
+  vivid: 'eq=saturation=1.35:contrast=1.08',
+  cinematic: 'eq=contrast=1.12:saturation=0.92:gamma=0.97,colorbalance=rs=-0.03:bs=0.05:rh=0.04:bh=-0.03',
+  bw: 'hue=s=0,eq=contrast=1.1',
+  vintage: 'eq=saturation=0.8:contrast=0.95:brightness=0.02,colorbalance=rs=0.06:gs=0.02:bs=-0.08',
+  bright: 'eq=brightness=0.05:contrast=1.05:saturation=1.1'
+}
+
+/** Klip efektleri (zoom + görüntü geçişi + renk havası) için filtre parçası; boyut: klibin çıkış kutusu (w×h), süre: klip süresi */
 function videoFx(c: Clip, dur: number, w: number, h: number, fps: number, alpha: boolean): string {
   const fx = c.fx
   if (!fx) return ''
-  let f = ''
+  let f = fx.grade && GRADES[fx.grade] ? `,${GRADES[fx.grade]}` : ''
   const z = fx.zoom
   if (z && (Math.abs(z.from - 1) > 1e-3 || Math.abs(z.to - 1) > 1e-3)) {
     const z0 = Math.min(4, Math.max(1, z.from))

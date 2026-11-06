@@ -35,12 +35,12 @@ import { runAutoKick } from '../main/autokick/pipeline'
 import { chapterTimestamp, chapterWarnings, formatChapters } from '../shared/chapters'
 import { makeTopicClip, makeTopicCompilation, topicCandidates } from '../main/autokick/clips'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
-import { clipsAt, timelineToSource } from '../shared/timeline/ops'
+import { clipsAt, makeTextClip, timelineToSource } from '../shared/timeline/ops'
 import { buildSegments } from '../shared/transcript/sentences'
 import { planSilenceCuts } from '../shared/timeline/silence'
 import { timelineWords } from '../shared/timeline/transcript'
 import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/export/presets'
-import type { MediaAsset } from '../shared/types'
+import type { Clip, MediaAsset, TextSpec } from '../shared/types'
 import { log, makeService, Session, waitTask } from './session'
 
 const run = promisify(execFile)
@@ -121,7 +121,10 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
   zoom <proje> --at sn --dur sn [--from 1] [--to 1.15] [--focus 0.5,0.5] [--layer V3]   o aralıkta ana görüntüyü yavaşça yakınlaştırır/uzaklaştırır (vurgu için; dışa aktarmada uygulanır)
   fade <proje> [--in 0.6] [--out 1.2]    videonun başına ses+görüntü GİRİŞİ, sonuna ÇIKIŞI ekler (karardan açılır, sonda kararır, ses yumuşakça girer/çıkar)
-  sfx <proje> --type whoosh|swish|pop|ding|riser --at sn [--vol 0.6]   kısa ses efekti (kendi üretimimiz, telifsiz) ses katmanına koyar (grafik girişinde whoosh, vurguda pop gibi)
+  sfx <proje> --type whoosh|swish|pop|ding|riser|boom|shutter|click|notify --at sn [--vol 0.6]   kısa ses efekti (kendi üretimimiz, telifsiz) ses katmanına koyar (grafik girişinde whoosh, vurguda pop gibi)
+  grade <proje> --look warm|cool|vivid|cinematic|bw|vintage|bright [--at sn --dur sn] [--layer V3]   renk havası (tümüne ya da bir aralığa; dışa aktarmada uygulanır)
+  text <proje> --text "metin" --at sn [--dur 3] [--pos top|center|bottom] [--size 84] [--color #FFE600] [--animation slide-up|pulse|fade|none]   ekranda animasyonlu büyük yazı (vurgu cümlesi, başlık, espri)
+  cta <proje> [--file a.png,b.png | --folder klasör] [--every 150] [--first 60] [--dur 5] [--pos bottom-right] [--size 0.22]   KULLANICININ çağrı butonlarını (abone ol/beğen/bildirim; resources/cta/) belirli aralıkla köşede gösterir; buton dosyası yoksa bir şey eklemez
   captions <proje> [--style classic|boxed-highlight|premium-gold] [--max-chars 22] [--lang en]   transkriptten altyazı üretir (--lang en: İngilizce çeviri, yapay zekâ ayarı gerekir) (boxed-highlight: referans stil)
   delete-lane <proje> <V1|V2|V3|I1|I2|A1|CC>                      o katmandaki her şeyi siler
   frame <proje> --at sn --out resim.jpg  çizelgedeki bir anın karesini kaydeder (görsel kontrol)
@@ -178,12 +181,42 @@ async function ensureAsset(s: Session, file: string): Promise<MediaAsset> {
   return added
 }
 
+/** Verilen video katmanında [at,end] aralığını ayrı klip parçalarına böler ve o parçaları döndürür */
+function rangePieces(s: Session, trackId: string, at: number, end: number): Clip[] {
+  for (const t of [at, end]) {
+    const c = s.timeline.tracks.find((x) => x.id === trackId)!.clips.find((x) => x.start < t - 0.05 && clipEnd(x) > t + 0.05)
+    if (c) s.apply(cmd.split(c.id, t))
+  }
+  return s.timeline.tracks.find((x) => x.id === trackId)!.clips.filter((c) => c.start >= at - 0.05 && clipEnd(c) <= end + 0.05)
+}
+
+/** Ana görüntü katmanı: verilen katman ya da `at` anında klibi olan EN ALTTAKİ video katmanı */
+function mainVideoTrack(s: Session, at: number, layer?: string) {
+  const vt = s.timeline.tracks.filter((t) => t.kind === 'video')
+  const track = layer ? vt.find((t) => t.id === layer) : [...vt].reverse().find((t) => t.clips.some((c) => c.start <= at + 1e-6 && clipEnd(c) > at + 1e-6))
+  if (!track) throw new Error(layer ? `Katman yok: ${layer}` : `${at} sn'de görüntü klibi yok.`)
+  return track
+}
+
+/** Çıkış karesinde bir görselin (oran korunarak) köşe/kenar yerleşimi: genişlik oranı `w`, kenar boşluğu 0,03 */
+function cornerRect(pos: string, w: number, ratio: number, frameAspect: number): { x: number; y: number; w: number; h: number } {
+  const h = (w / ratio) * frameAspect // normalize yükseklik (kare genişliği/yüksekliği oranı ile)
+  const m = 0.03
+  const x = pos.includes('left') ? m : pos.includes('right') ? 1 - w - m : (1 - w) / 2
+  const y = pos.startsWith('top') ? m * frameAspect : pos.startsWith('center') ? (1 - h) / 2 : 1 - h - m * frameAspect
+  return { x, y: Math.min(Math.max(0, y), 1 - h), w, h }
+}
+
 /** Kendi ürettiğimiz (telifsiz) kısa ses efektleri: ffmpeg lavfi kaynağı + filtre */
 const SFX: Record<string, { src: string; af: string }> = {
   whoosh: { src: 'anoisesrc=d=0.8:c=pink:r=48000:a=0.7', af: 'highpass=f=250,lowpass=f=5500,afade=t=in:d=0.35:curve=qsin,afade=t=out:st=0.35:d=0.45:curve=qsin,volume=3' },
   swish: { src: 'anoisesrc=d=0.4:c=white:r=48000:a=0.5', af: 'highpass=f=1200,lowpass=f=9000,afade=t=in:d=0.12,afade=t=out:st=0.12:d=0.28,volume=2' },
   pop: { src: 'aevalsrc=0.8*sin(2*PI*(900*t-2200*t*t)):d=0.16:s=48000', af: 'afade=t=out:st=0.02:d=0.14' },
   ding: { src: 'aevalsrc=0.5*sin(2*PI*1318*t)+0.25*sin(2*PI*2637*t):d=1.3:s=48000', af: 'afade=t=in:d=0.005,afade=t=out:st=0:d=1.3:curve=exp' },
+  boom: { src: 'aevalsrc=0.9*sin(2*PI*(95*t-110*t*t))*exp(-3*t):d=1:s=48000', af: 'lowpass=f=300,afade=t=in:d=0.004,afade=t=out:st=0.5:d=0.5' },
+  shutter: { src: 'anoisesrc=d=0.18:c=white:r=48000:a=0.8', af: 'highpass=f=2000,afade=t=in:d=0.002,afade=t=out:st=0.03:d=0.15,volume=1.6' },
+  click: { src: 'aevalsrc=0.8*sin(2*PI*2200*t)*exp(-90*t):d=0.08:s=48000', af: 'afade=t=out:st=0.04:d=0.04' },
+  notify: { src: 'aevalsrc=0.45*sin(2*PI*880*t)*(t<0.12)+0.45*sin(2*PI*1320*t)*(t>=0.12)*exp(-6*(t-0.12)):d=0.6:s=48000', af: 'afade=t=out:st=0.35:d=0.25' },
   riser: { src: 'aevalsrc=0.35*sin(2*PI*(180*t+170*t*t)):d=2:s=48000', af: 'afade=t=in:d=1.6,afade=t=out:st=1.85:d=0.15' }
 }
 
@@ -684,16 +717,9 @@ async function main(argv: string[]): Promise<unknown> {
       if (from < 1 || to < 1 || from > 3 || to > 3) throw new Error('Yakınlık 1 ile 3 arasında olmalı (1 = normal, 1.15 = %15 yakın).')
       const [fx0, fy0] = (str(a.opt.focus) ?? '0.5,0.5').split(',').map(Number)
       if (!Number.isFinite(fx0) || !Number.isFinite(fy0)) throw new Error('--focus "x,y" (0..1) verin.')
-      const vt = s.timeline.tracks.filter((t) => t.kind === 'video')
-      const layer = str(a.opt.layer)
-      const track = layer ? vt.find((t) => t.id === layer) : [...vt].reverse().find((t) => t.clips.some((c) => c.start <= at + 1e-6 && clipEnd(c) > at + 1e-6))
-      if (!track) throw new Error(layer ? `Katman yok: ${layer}` : `${at} sn'de görüntü klibi yok.`)
+      const track = mainVideoTrack(s, at, str(a.opt.layer))
       const end = at + dur
-      for (const t of [at, end]) {
-        const c = s.timeline.tracks.find((x) => x.id === track.id)!.clips.find((x) => x.start < t - 0.05 && clipEnd(x) > t + 0.05)
-        if (c) s.apply(cmd.split(c.id, t))
-      }
-      const pieces = s.timeline.tracks.find((x) => x.id === track.id)!.clips.filter((c) => c.start >= at - 0.05 && clipEnd(c) <= end + 0.05)
+      const pieces = rangePieces(s, track.id, at, end)
       if (pieces.length === 0) throw new Error('Bu aralıkta klip bulunamadı.')
       // aralık birden çok parçaya düşerse yakınlık parçalar arasında kesintisiz ilerler
       const total = pieces.reduce((n, c) => n + (c.srcOut - c.srcIn), 0)
@@ -757,6 +783,89 @@ async function main(argv: string[]): Promise<unknown> {
       s.apply(cmd.addClip(id, { ...r.clip, label: `Efekt: ${type}`, volume: vol }))
       await s.save()
       return out({ ok: true, type, at: r1(at), durationSec: r1(asset.durationSec), track: id, volume: vol })
+    }
+    case 'grade': {
+      const looks = ['warm', 'cool', 'vivid', 'cinematic', 'bw', 'vintage', 'bright']
+      const look = str(a.opt.look)
+      if (!look || !looks.includes(look)) throw new Error(`--look ${looks.join('|')} verin (renk havası).`)
+      const total = timelineDuration(s.timeline)
+      const at = num(a.opt.at, 'at') ?? 0
+      const end = num(a.opt.dur, 'dur') !== undefined ? at + (num(a.opt.dur, 'dur') as number) : total
+      const track = mainVideoTrack(s, Math.max(0, at), str(a.opt.layer))
+      const pieces = rangePieces(s, track.id, at, end)
+      if (pieces.length === 0) throw new Error('Bu aralıkta klip bulunamadı.')
+      for (const c of pieces) s.apply(cmd.updateClip(c.id, { fx: { ...c.fx, grade: look as NonNullable<Clip['fx']>['grade'] } }))
+      await s.save()
+      return out({ ok: true, look, layer: track.id, start: r1(at), end: r1(Math.min(end, total)), pieces: pieces.length, note: 'Renk havası dışa aktarmada uygulanır.' })
+    }
+    case 'text': {
+      const text = str(a.opt.text)
+      const at = num(a.opt.at, 'at')
+      if (!text || at === undefined) throw new Error('Kullanım: text <proje> --text "metin" --at sn [--dur 3] [--pos top|center|bottom] [--size 80] [--color #FFE600] [--animation slide-up|pulse|fade|none]')
+      const dur = num(a.opt.dur, 'dur') ?? 3
+      const pos = str(a.opt.pos) ?? 'center'
+      const rects: Record<string, { x: number; y: number; w: number; h: number }> = { top: { x: 0.04, y: 0.07, w: 0.92, h: 0.17 }, center: { x: 0.04, y: 0.4, w: 0.92, h: 0.2 }, bottom: { x: 0.04, y: 0.74, w: 0.92, h: 0.18 } }
+      if (!rects[pos]) throw new Error('--pos top|center|bottom olmalı.')
+      const anim = (str(a.opt.animation) ?? 'slide-up') as TextSpec['animation']
+      if (!['none', 'fade', 'pulse', 'slide-up'].includes(anim)) throw new Error('--animation none|fade|pulse|slide-up olmalı.')
+      const spec: TextSpec = { text: text.replace(/\\n/g, '\n'), fontFamily: 'Arial Black', fontSize: num(a.opt.size, 'size') ?? 84, color: str(a.opt.color) ?? '#FFFFFF', outlineColor: '#000000', outlineWidth: 7, bold: true, animation: anim }
+      let id = ''
+      for (let i = 1; i <= 6 && !id; i++) {
+        const cand = i === 1 ? `T_${pos}` : `T_${pos}${i}`
+        const tr = s.timeline.tracks.find((t) => t.id === cand)
+        if (!tr) {
+          s.apply(cmd.addTrack({ id: cand, name: `Metin (${pos})${i > 1 ? ` ${i}` : ''}`, kind: 'text', role: 'text', placement: { rect: rects[pos], fit: 'contain', visible: true, opacity: 1 } }))
+          id = cand
+        } else if (!tr.clips.some((c) => c.start < at + dur && at < clipEnd(c))) id = cand
+      }
+      if (!id) throw new Error('Bu anda aynı yerde çok fazla metin üst üste.')
+      s.apply(cmd.addClip(id, makeTextClip(id, at, dur, spec)))
+      await s.save()
+      return out({ ok: true, text: spec.text, at: r1(at), end: r1(at + dur), pos, track: id, animation: anim })
+    }
+    case 'cta': {
+      // kullanıcının KENDİ çağrı butonları (abone ol / beğen / bildirim…): belirli aralıklarla köşede belirir. Dosya yoksa HİÇBİR ŞEY eklenmez (uydurma buton yok).
+      const folder = str(a.opt.folder) ?? join(s.service.deps.resourcesDir, 'cta')
+      const fileOpt = str(a.opt.file)
+      const files = fileOpt
+        ? fileOpt.split(',').map((f) => resolve(f.trim()))
+        : (await readdir(folder).catch(() => [] as string[])).filter((f) => MEDIA_EXT.test(f)).sort().map((f) => join(folder, f))
+      if (files.length === 0) return out({ ok: true, placed: 0, note: `Buton dosyası yok (${fileOpt ? '--file' : folder}). Kullanıcının butonları klasöre konunca çalışır; kendi butonumuzu uydurmuyoruz.` })
+      const every = num(a.opt.every, 'every') ?? 150
+      const first = num(a.opt.first, 'first') ?? 60
+      const dur = num(a.opt.dur, 'dur') ?? 5
+      const pos = str(a.opt.pos) ?? 'bottom-right'
+      const wFrac = num(a.opt.size, 'size') ?? 0.22
+      const total = timelineDuration(s.timeline)
+      const aspectNow = aspectSize(s.timeline.aspect)
+      const frameAspect = aspectNow.width / aspectNow.height
+      const assets: MediaAsset[] = []
+      for (const f of files) assets.push(await ensureAsset(s, f))
+      const sfxType = str(a.opt.sfx) ?? 'notify'
+      const times: number[] = []
+      for (let t = first; t + dur <= total - 3; t += every) times.push(t)
+      if (times.length === 0) return out({ ok: true, placed: 0, note: `Video çok kısa (${r1(total)} sn): ilk buton ${first} sn'de başlar, ${every} sn aralıkla.` })
+      const trackFor = (kind: 'image' | 'video') => {
+        const id = kind === 'image' ? 'CTA' : 'CTAV'
+        if (!s.timeline.tracks.some((t) => t.id === id)) {
+          const first0 = assets.find((x) => x.kind === kind)!
+          const ratio = first0.width > 0 && first0.height > 0 ? first0.width / first0.height : 3
+          s.apply(cmd.addTrack({ id, name: kind === 'image' ? 'Çağrı butonları' : 'Çağrı butonları (video)', kind, role: kind === 'image' ? 'image' : 'screen', placement: { rect: cornerRect(pos, wFrac, ratio, frameAspect), fit: 'contain', visible: true, opacity: 1 } }))
+        }
+        return s.timeline.tracks.find((t) => t.id === id)!
+      }
+      const placed: { at: number; file: string }[] = []
+      times.forEach((t, i) => {
+        const asset = assets[i % assets.length]
+        if (asset.kind !== 'image' && asset.kind !== 'video') return
+        const tr = trackFor(asset.kind)
+        const r = clipForTrack(asset, tr, { at: t, duration: Math.min(dur, asset.kind === 'video' ? asset.durationSec : dur) })
+        if ('error' in r) return
+        s.apply(cmd.addClip(tr.id, { ...r.clip, label: `Buton: ${asset.name}`, fx: { fadeIn: 0.35, fadeOut: 0.35 } }))
+        placed.push({ at: r1(t), file: asset.name })
+      })
+      await s.save()
+      return out({ ok: true, placed: placed.length, every, first, dur, pos, items: placed, sfx: sfxType === 'none' ? undefined : `Her butonla birlikte: sfx --type ${sfxType} --at <aynı sn> (isterseniz ekleyin)`, note: 'Zaman çizelgesi zamanıdır: kesim/ekleme bittikten SONRA çalıştırın.' })
     }
     case 'captions': {
       const styleId = str(a.opt.style)

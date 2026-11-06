@@ -436,3 +436,6 @@ Kullanıcı: Paris yalnızca örnekti; 10–30 dk vlogda daha çok görsel (2B/3
 
 ## 58. "Claude ile editle" = tam yaratıcı özgürlük
 Kullanıcı: ek görsel fırsatları önerme, kendiliğinden ekle; "sahne senin", "şov yap"; beğenmezse söyler. Komut buna göre yeniden yazıldı (öneri/onay yok; disiplin korunur: uydurma yok, çağrı metni yok, güncel veri, konuşma net). `graphic --scene` ile tüm hikâye sahneleri (rakam kartı, liste, zaman çizelgesi…) vlog çizelgesine konabilir.
+
+## 59. Araç çantası genişledi + çağrı butonları
+Kullanıcı: çantayı mümkün olduğunca genişlet; abone ol/beğen çağrı butonlarını 2–3 dakikada bir koyabilirsin, kendi özel butonlarını 2 gün içinde verecek. Eklenenler: `text` (animasyonlu ekran yazısı), `grade` (renk havası: fx.grade → ffmpeg), `cta` (kullanıcının buton dosyalarını `resources/cta/` ya da `--file` ile aralıklı gösterir; dosya yoksa hiçbir şey eklemez), yeni sfx türleri (boom, shutter, click, notify). Kural değişti: çağrı yalnızca KULLANICININ butonlarıyla; kendi icat ettiğimiz "abone ol" yazısı/butonu yok; başka kanal adı/logosu yasak.
