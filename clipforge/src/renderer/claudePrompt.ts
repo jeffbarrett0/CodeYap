@@ -24,16 +24,18 @@ export function claudeEditPrompt(videoPath: string, projectDir?: string): string
  */
 export function claudeVlogPrompt(projectPath: string): string {
   return [
-    `clipforge klasöründe çalış. Şu vlogu (10–30 dk olabilir) temizleyip ZENGİNLEŞTİREREK edit et: ${projectPath}`,
+    `clipforge klasöründe çalış. Şu vlogu (10–30 dk olabilir) edit et: ${projectPath}`,
     '',
-    '1. Transkript yoksa çıkar (transcribe), sonra konuşmamı baştan sona OKU (transcript): akışı, bölümleri, vurgulu/heyecanlı anları, anılan yerleri, sayıları anla.',
-    '2. Temizle: sessizlikleri ve ııı/eee dolgularını kes (silence); boşluk kalmadığını show ile doğrula. Kesimden sonra zamanlar kayar: sonraki adımlarda script ile KURGU SONRASI zamanları kullan.',
-    '3. Zenginleştir (editi sana bıraktım, doğrudan uygula; yedek .bak alınır, kaynak videoya dokunma):',
-    '   • Görsel: konuşulan yer/yolculuk için graphic --type globe (3B dönen küre + rota) ya da map (2B harita + rota) (--from/--to; tek yer ise yakınlaşan harita); bölüm/gün/konu başlığı için --type title; konuştuğum sayı/karşılaştırma için --type chart (yalnızca KONUŞULAN değerlerle). İçerik el verdiği kadar sık koy (kabaca her 30–90 sn), her grafik 3–5 sn, üst üste bindirme. Konuşulmayan yer/rakam/rota UYDURMA.',
-    '   • Zoom: vurgulu cümlelerde ve yeni konuya girişte zoom --at --dur 2-4 --to 1.1-1.2 (yavaş yakınlaşma); yaklaşık 20–45 sn arayla, art arda yığma, aralarda normal görüntü kalsın.',
-    '   • Ses: fade --in 0.6 --out 1.5 (başta girişi, sonda çıkışı); grafik başlarken ona 0.1 sn kala sfx --type whoosh, vurgu anlarına pop/ding, büyük bölüm geçişine riser (--vol 0.4-0.6; konuşma net duyulmalı, abartma).',
-    '   • Bir b-roll klasörü verdiysem broll-plan ile konuşmayla eşleştir.',
-    '4. Grafiklerin olduğu anların karesine frame ile bak (taşma/çakışma var mı). Zoom ve ses efektleri dışa aktarmada duyulup görülür; arayüz önizlemesinde görünmeyebilir.',
-    '5. Bitince yaptıklarını zamanlarıyla listele (ne eklendi/kesildi); beğenmediklerimi geri alabileyim. Çağrı/yönlendirme metni ekleme. Dışa aktarmayı ben isteyince yap.'
+    'SAHNE SENİN: tüm yaratıcılık sende. Bana öneri sunma, onay isteme, "şunu da ekleyebilirim" deme; neyi nasıl yapacağına KENDİN karar ver ve hepsini kendiliğinden uygula. Videoyu olabildiğince zengin, akıcı ve etkileyici yap — şov yap. Beğenmediğimi sonra söylerim, sen düzeltirsin.',
+    '',
+    '1. Transkript yoksa çıkar (transcribe), konuşmamı baştan sona OKU (transcript): akış, bölümler, vurgulu/heyecanlı anlar, yerler, sayılar, hikâyenin temposu.',
+    '2. Temizle: silence (sessizlik + ııı/eee), show ile boşluk kalmadığını doğrula. Kesimden sonra zamanlar kayar: sonraki adımlarda script ile KURGU SONRASI zamanları kullan.',
+    '3. Zenginleştir — araç çantan (hepsini, uygun gördüğün sıklıkta ve kombinasyonda kullan):',
+    '   • graphic --type globe|map (3B küre / 2B harita + rota, --from/--to), --type title (bölüm/gün/konu başlığı), --type chart; ayrıca graphic --scene \'{...}\' ile her hikâye sahnesi: stats (rakam kartı), list, timeline, quote, person (isim bandı), place, teamcard, leaderboard, compare (biçimler: story schema). Bir b-roll klasörü varsa broll-plan/overlay.',
+    '   • zoom --at sn --dur 2-4 --to 1.1-1.2 [--focus x,y] (yavaş yakınlaşma; vurgu, itiraf, espri, yeni konu girişi), fade --in 0.6 --out 1.5 (başta giriş, sonda çıkış), sfx --type whoosh|swish|pop|ding|riser --at sn --vol 0.5 (grafik girişleri, vurgular, geçişler).',
+    '   • captions (gerekli görürsen), ritim: sıkıcı yeri hareketlendir, güçlü anı vurgula, nefes aldır.',
+    '4. Kendi disiplinin: yalnızca KONUŞULAN yer/rakam/olayı görselleştir, bilgi UYDURMA (güncel istatistik gerekiyorsa web\'den doğrula); konuşma her zaman net duyulsun; çağrı/yönlendirme (abone ol, beğen…) metni ASLA ekleme; kaynak videoya dokunma (yedek .bak).',
+    '5. Grafik/kart anlarının karesine frame ile bak, taşma/çakışma varsa düzelt. Zoom ve ses efektleri dışa aktarmada duyulup görülür.',
+    '6. Bitince ne yaptığını zamanlarıyla kısaca listele (öneri değil, rapor). Dışa aktarmayı ben isteyince yap.'
   ].join('\n')
 }

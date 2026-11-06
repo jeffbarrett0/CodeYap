@@ -433,3 +433,6 @@ Zaman çizelgesi araç çubuğuna (Sessizleri kes / Boşlukları kapat yanına) 
 
 ## 57. Vlog zenginleştirme: zoom, ses giriş/çıkışı, ses efekti
 Kullanıcı: Paris yalnızca örnekti; 10–30 dk vlogda daha çok görsel (2B/3B), ses giriş/çıkışları, zoom vb. İstenen: `Clip.fx` (zoom from/to/odak, fadeIn/fadeOut) → dışa aktarmada `zoompan` (2× büyütülüp, titremesiz) + `fade`/`afade`; CLI `zoom`, `fade`, `sfx` (ffmpeg lavfi ile üretilen telifsiz whoosh/swish/pop/ding/riser; üst üste binenler SFX2… katmanlarına). Önizleme (arayüz) bu efektleri henüz göstermez; dışa aktarma gösterir. "Claude ile edit yap" komutu bunları kullanır.
+
+## 58. "Claude ile editle" = tam yaratıcı özgürlük
+Kullanıcı: ek görsel fırsatları önerme, kendiliğinden ekle; "sahne senin", "şov yap"; beğenmezse söyler. Komut buna göre yeniden yazıldı (öneri/onay yok; disiplin korunur: uydurma yok, çağrı metni yok, güncel veri, konuşma net). `graphic --scene` ile tüm hikâye sahneleri (rakam kartı, liste, zaman çizelgesi…) vlog çizelgesine konabilir.

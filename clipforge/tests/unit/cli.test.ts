@@ -516,6 +516,11 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(sf.track).toBe('SFX')
     expect(cli('sfx', p, '--type', 'pop', '--at', '2.8').track).toBe('SFX2') // üst üste binen efekt yeni katmana
     expect(cli('show', p).tracks.find((t: any) => t.id === 'SFX').clips).toHaveLength(1)
+    // herhangi bir hikâye sahnesi vlog çizelgesine konabilir (rakam kartı); çağrı metni reddedilir
+    const sc = cli('graphic', p, '--scene', JSON.stringify({ type: 'stats', title: 'Bugün', cards: [{ label: 'YÜRÜDÜK', value: '18', unit: 'KM' }] }), '--at', '8', '--dur', '2')
+    expect(sc.ok, JSON.stringify(sc)).toBe(true)
+    expect(sc.type).toBe('stats')
+    expect(cli('graphic', p, '--scene', '{kötü json').ok).toBe(false)
     expect(cli('zoom', p, '--at', '3', '--dur', '2', '--to', '9').ok).toBe(false)
     expect(cli('sfx', p, '--type', 'yok', '--at', '1').ok).toBe(false)
     expect(cli('zoom', p, '--dur', '2').ok).toBe(false)

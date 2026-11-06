@@ -24,6 +24,7 @@ import { parseRect } from '../shared/autoclips'
 import { cleanBrand, runStory } from '../main/story/pipeline'
 import { renderBackdrop, renderFootballFrame, renderStoryScene } from '../main/story/render'
 import { contentProblem, normalizeScenes } from '../shared/story/plan'
+import { DEFAULT_STORY_THEME, type StoryContent } from '../shared/story/types'
 import { STORY_SCHEMA } from '../shared/story/schema'
 import { loadKnowledge, saveDataset } from '../main/story/knowledge'
 import { datasetWarnings, daysBetween, findPlayerRows, resolveSceneData, teamFacts, usedDatasets } from '../shared/story/data'
@@ -112,6 +113,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   broll-plan <proje> --folder klasör [--asset a] [--dur 3.5] [--layer V2] [--apply]       dosya adlarındaki kelimeleri konuşmada arar, yerleşim ÖNERİR (--apply: uygular)
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
+  graphic <proje> --scene '{"type":"stats",...}'|sahne.json [--at sn] [--dur 5] [--layer V1]   herhangi bir hikâye sahnesini (rakam kartı stats, list, timeline, quote, person, teamcard, leaderboard, compare, football…) vlog çizelgesine koyar; biçim: story schema
   ideas <proje> [--asset a] [--max 8] [--ai] [--auto | --write oneriler.json | --clear]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
   chapters <proje> [--ai | --titles basliklar.json] [--density low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
   cut-intro <proje> [--ref ekran.png] [--duration 164] [--dry]   yayın başı videosunu (referans ekran görüntüsüyle eşleşen ilk bölüm, ör. telifli şarkılı geri sayım) keser
@@ -540,6 +542,37 @@ async function main(argv: string[]): Promise<unknown> {
       return out({ applied: !!a.opt.apply, layer, plan, placed, hint: a.opt.apply ? undefined : 'Bunlar ÖNERİDİR; onaylarsanız aynı komutu --apply ile çalıştırın ya da tek tek `overlay` kullanın.' })
     }
     case 'graphic': {
+      // --scene: herhangi bir hikâye sahnesi (stats rakam kartı, list, timeline, quote, person, teamcard, leaderboard, compare, football…) — `story schema`daki içerik JSON'u
+      if (str(a.opt.scene)) {
+        const raw = str(a.opt.scene)!
+        let content: StoryContent
+        try {
+          content = JSON.parse(raw.trim().startsWith('{') ? raw : await readFile(resolve(raw), 'utf8')) as StoryContent
+        } catch {
+          throw new Error('--scene geçerli JSON ya da JSON dosyası olmalı (içerik biçimi: `story schema`).')
+        }
+        const kn = await loadKnowledge(s.service.deps)
+        content = resolveSceneData(content, kn.datasets)
+        const problem = contentProblem(content)
+        if (problem) throw new Error(`Sahne (${content.type}): ${problem}`)
+        const world = await loadWorld(s.service.deps.resourcesDir)
+        const size = { ...aspectSize(s.timeline.aspect), fps: 30 }
+        const dur = num(a.opt.dur, 'dur') ?? 5
+        const gdir = join(dirname(s.path), `${basename(s.path, '.clipforge')}-data`, 'graphics')
+        await mkdir(gdir, { recursive: true })
+        const theme = { ...DEFAULT_STORY_THEME, ...(str(a.opt.accent) ? { accent: str(a.opt.accent)! } : {}) }
+        const bg = join(gdir, `zemin-${size.width}x${size.height}.png`)
+        await renderBackdrop(theme, size, s.service.tools.ffmpeg, bg)
+        const sceneFile = str(a.opt.out) ? resolve(str(a.opt.out)!) : join(gdir, `${content.type}-${Date.now().toString(36)}.mp4`)
+        await renderStoryScene(content, theme, size, dur, s.service.tools.ffmpeg, sceneFile, { world, backdrop: bg, baseDir: dirname(s.path) })
+        if (a.opt['no-place']) return out({ ok: true, file: sceneFile, durationSec: dur, size: `${size.width}x${size.height}` })
+        const sAsset = await ensureAsset(s, sceneFile)
+        const sLayer = str(a.opt.layer) ?? 'V1'
+        const sAt = num(a.opt.at, 'at') ?? timelineDuration(s.timeline)
+        const sr = placeOnLayer(s, sAsset, sLayer, sAt)
+        await s.save()
+        return out({ ok: true, type: content.type, file: sceneFile, layer: sLayer, start: r1(sr.start), end: r1(sr.end) })
+      }
       const type = str(a.opt.type)
       if (!type || !['globe', 'map', 'title', 'chart'].includes(type)) throw new Error('--type globe|map|title|chart verin.')
       const world = await loadWorld(s.service.deps.resourcesDir)
