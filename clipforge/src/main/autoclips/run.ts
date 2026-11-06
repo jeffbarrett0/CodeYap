@@ -154,7 +154,7 @@ export class AutoClipsManager {
 export function chainAutoClips(
   s: { id: string; status: string; result?: { projectPath: string } },
   handled: Set<string>,
-  settings: { autoClipsAfterKick: boolean; autoClipsMax: number; autoClipsExport: boolean; autoClipsHorizontal?: boolean },
+  settings: { autoClipsAfterKick: boolean; autoClipsMax: number; autoClipsMaxHorizontal?: number; autoClipsExport: boolean; autoClipsHorizontal?: boolean },
   manager: { start(req: AutoClipsRequest): string }
 ): string | null {
   if (s.status !== 'done' || !s.result || handled.has(s.id)) return null
@@ -162,6 +162,6 @@ export function chainAutoClips(
   if (!settings.autoClipsAfterKick) return null
   const id = manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport })
   // yatay (YouTube) klipler de: dikey işten sonra sırayla çalışır (iş kuyruğu tek tek)
-  if (settings.autoClipsHorizontal) manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport, horizontal: true })
+  if (settings.autoClipsHorizontal) manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMaxHorizontal ?? 15, exportVideos: settings.autoClipsExport, horizontal: true })
   return id
 }

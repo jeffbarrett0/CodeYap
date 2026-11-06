@@ -48,6 +48,10 @@ describe('Auto Clips: konu bölümleri', () => {
     expect(clips.some((c) => c.subject.includes('Lemina'))).toBe(true)
     expect(clips.some((c) => c.subject.includes('Zaha'))).toBe(true)
   })
+  it('konu 75 sn konuşulduysa klip yarıda kesilmez: konuşulan sürenin büyük kısmını kapsar', () => {
+    const c = clips.find((x) => x.subject.includes('Lemina'))!
+    expect(c.durationSec).toBeGreaterThanOrEqual(60)
+  })
   it('Lemina klibi, Lemina konuşulan aralıkta (60-135 sn civarı) ve o aralığın içinde başlar/biter', () => {
     const c = clips.find((x) => x.subject.includes('Lemina'))!
     expect(c.start).toBeGreaterThan(40)
@@ -279,6 +283,20 @@ describe('Auto Clips: yatay (YouTube) klipler', () => {
     expect(h.some((c) => c.durationSec > MAX_CLIP_SEC)).toBe(true)
     const v = findAutoClips(words)
     expect(v.every((c) => c.durationSec <= MAX_CLIP_SEC)).toBe(true)
+  })
+  it('yatay: en az 3 dk, en çok 25 dk; aynı konu tek klipte toplanır, farklı konular birleşmez', () => {
+    const words = stream([{ secs: 60, vocab: FOOD }, { secs: 360, vocab: FOOT, name: 'Lemina' }, { secs: 120, vocab: FOOD }, { secs: 300, vocab: FOOT, name: 'Zaha' }, { secs: 60, vocab: FOOD }])
+    const h = findAutoClips(words, { horizontal: true })
+    for (const c of h) {
+      expect(c.durationSec).toBeGreaterThanOrEqual(180)
+      expect(c.durationSec).toBeLessThanOrEqual(1500)
+    }
+    const lem = h.filter((c) => c.subject.includes('Lemina'))
+    const zaha = h.filter((c) => c.subject.includes('Zaha'))
+    expect(lem).toHaveLength(1) // 6 dk'lık konuşma parçalanmaz
+    expect(lem[0].durationSec).toBeGreaterThan(240)
+    expect(zaha.length).toBeGreaterThanOrEqual(1)
+    expect(h.some((c) => c.subject.includes('Lemina') && c.subject.includes('Zaha'))).toBe(false) // iki konu tek klibe karışmaz
   })
 })
 

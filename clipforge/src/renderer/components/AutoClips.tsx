@@ -90,7 +90,8 @@ export function AutoClipsDialog() {
           <label className="check"><input type="checkbox" checked={settings.autoClipsAfterKick} onChange={(e) => void updateSettings({ autoClipsAfterKick: e.target.checked })} data-testid="autoclips-after" /> Auto Kick bitince klipleri kendiliğinden üret</label>
           <label className="check"><input type="checkbox" checked={settings.autoClipsExport} onChange={(e) => void updateSettings({ autoClipsExport: e.target.checked })} data-testid="autoclips-export" /> Klipleri MP4 olarak da dışa aktar (9:16)</label>
           <label className="check"><input type="checkbox" checked={settings.autoClipsHorizontal} onChange={(e) => void updateSettings({ autoClipsHorizontal: e.target.checked })} data-testid="autoclips-horizontal" /> YATAY (16:9, YouTube) klipleri de üret: süre sınırı yok, konunun doğal uzunluğu</label>
-          <label className="row" style={{ gap: 6 }}>En çok klip <Num value={settings.autoClipsMax} step={1} min={1} max={30} label="En çok klip" onChange={(v) => void updateSettings({ autoClipsMax: Math.round(v) })} /></label>
+          <label className="row" style={{ gap: 6 }}>En çok yatay klip <Num value={settings.autoClipsMaxHorizontal} step={1} min={1} max={60} label="En çok yatay klip" onChange={(v) => void updateSettings({ autoClipsMaxHorizontal: Math.round(v) })} /></label>
+          <label className="row" style={{ gap: 6 }}>En çok klip (dikey) <Num value={settings.autoClipsMax} step={1} min={1} max={30} label="En çok klip" onChange={(v) => void updateSettings({ autoClipsMax: Math.round(v) })} /></label>
           {jobs.filter((j) => !autoClipsProject || j.request.projectPath === autoClipsProject).slice(0, 2).map((job) => (
             <div key={job.id} className="col" data-testid="autoclips-job" data-status={job.status} style={{ gap: 4 }}>
               <div className="row" style={{ justifyContent: 'space-between' }}>

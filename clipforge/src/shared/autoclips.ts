@@ -35,8 +35,8 @@ export interface AutoClipOptions {
 export const MIN_CLIP_SEC = 20
 export const MAX_CLIP_SEC = 178
 export const DEFAULT_AUTOCLIP_OPTIONS: AutoClipOptions = { minSec: MIN_CLIP_SEC, maxSec: MAX_CLIP_SEC, max: 12, targetSec: 90 }
-/** Yatay klip varsayılanları: süre sınırı yok denecek kadar geniş (en az 45 sn, en çok 20 dk; tercih ~4 dk) */
-export const HORIZONTAL_CLIP_OPTIONS: AutoClipOptions = { minSec: 45, maxSec: 1200, max: 12, targetSec: 240, horizontal: true }
+/** Yatay klip varsayılanları: süre sınırı yok denecek kadar geniş (en az 3 dk, en çok 25 dk; tercih ~6-7 dk; az sayıda, uzun ve kaliteli klip) */
+export const HORIZONTAL_CLIP_OPTIONS: AutoClipOptions = { minSec: 180, maxSec: 1500, max: 15, targetSec: 400, horizontal: true }
 export const HORIZONTAL_MAX_SEC = 3600
 
 const END_PUNCT = /[.!?…]+["'”’)\]]*$/u
@@ -96,7 +96,23 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
   const segs = buildSegments(words)
   const chapters = findChapters(words, horizontal ? { ...DENSITY.medium, minSec: Math.max(30, o.minSec * 0.8), targetSec: 180, maxChapters: 200 } : { ...DENSITY.high, minSec: Math.max(15, o.minSec * 0.8), targetSec: 70, maxChapters: 400 })
   const cands: AutoClipCandidate[] = []
-  chapters.forEach((ch) => {
+  // Aynı konunun art arda gelen bölümleri TEK klipte birleşir (konu yarıda kesilmez); FARKLI konular birleşmez.
+  // Adlı bölümler ortak bir ad/anahtar kelime taşıyorsa, adsızlar aynı başlıktaysa aynı konudur.
+  const kw = (c: { keywords: string[] }) => new Set(c.keywords.map((k) => foldTr(k)))
+  const sameTopic = (a: (typeof chapters)[number], b: (typeof chapters)[number]) => {
+    if (a.title === 'Giriş' || a.title === 'Sohbet' || b.title === 'Giriş' || b.title === 'Sohbet') return false
+    if (a.title === b.title) return true
+    const ka = kw(a)
+    return a.keywords.length > 0 && b.keywords.length > 0 && [...kw(b)].some((k) => ka.has(k))
+  }
+  const joinGap = horizontal ? 120 : 60
+  const merged = chapters.reduce<typeof chapters>((acc, ch) => {
+    const prev = acc[acc.length - 1]
+    if (prev && sameTopic(prev, ch) && ch.start - prev.end <= joinGap && ch.end - prev.start <= o.maxSec) acc[acc.length - 1] = { ...prev, end: ch.end, keywords: [...new Set([...prev.keywords, ...ch.keywords])] }
+    else acc.push({ ...ch })
+    return acc
+  }, [])
+  merged.forEach((ch) => {
     if (ch.title === 'Giriş' || ch.title === 'Sohbet') return
     const named = ch.keywords.length > 0 // adlı bölüm: findChapters ad bulduysa keywords adları taşır
     // bölümdeki cümleler
@@ -107,7 +123,8 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
     if (named && names.length) {
       const idx = inside.flatMap((g, i) => (names.some((k) => foldTr(g.text).includes(k)) ? [i] : []))
       if (idx.length >= 2) {
-        const tight = inside.slice(Math.max(0, idx[0] - 1), Math.min(inside.length, idx[idx.length - 1] + 2))
+        // konu son anıldıktan sonra da birkaç cümle sürer (zamir/devam cümleleri): yarıda kesilmesin diye +3 cümle, bölüm sınırına kadar
+        const tight = inside.slice(Math.max(0, idx[0] - 1), Math.min(inside.length, idx[idx.length - 1] + 4))
         if (tight[tight.length - 1].end - tight[0].start >= o.minSec) inside = tight
       }
     }
@@ -147,7 +164,8 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
     }
   })
   // adlı konular varsa yalnızca onlar (anahtar kelime başlıkları "Oldukça, Pilav" gibi anlamsız olabilir); hiç ad yoksa anahtar kelimelerle devam
-  const pool = cands.some((c) => c.score >= 10) ? cands.filter((c) => c.score >= 10) : cands
+  // yatayda adsız ama konuşmada yoğun geçen konular da (ör. "webinar") alınır; yalnızca zayıf anahtar kelime başlıkları elenir
+  const pool = horizontal ? cands.filter((c) => c.score >= 8) : cands.some((c) => c.score >= 10) ? cands.filter((c) => c.score >= 10) : cands
   // en iyi N'i seç, zaman sırasına diz, kimlik ver
   const best = [...pool].sort((a, b) => b.score - a.score).slice(0, o.max).sort((a, b) => a.start - b.start)
   return best.map((c, i) => ({ ...c, id: `ac${i + 1}` }))

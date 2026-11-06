@@ -483,6 +483,8 @@ export interface Settings {
   autoClipsOverlayPath: string
   /** Otomatik üretimde en çok kaç klip */
   autoClipsMax: number
+  /** yatay klipler için en çok klip (süre sınırı geniş, çıkarabildiği kadar) */
+  autoClipsMaxHorizontal: number
   llmProvider: 'off' | 'openai' | 'anthropic'
   /** boşsa sağlayıcının varsayılanı (OpenAI: gpt-4o-mini, Anthropic: claude-haiku-5-5) */
   llmModel: string

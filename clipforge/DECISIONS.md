@@ -417,3 +417,10 @@ Auto Kick ve Auto Clips işleri bittiğinde ("Tamamlandı") kartta "⏱ Toplam s
 
 ## 52. Uzun yolda "whisper.cpp bulunamadı" (Windows)
 Uzun video adı (Auto Kick klasörü + proje klasörü + uzun anahtar) çalışma klasörü yolunu 260 karakterin üstüne çıkarınca Windows süreci başlatamıyor (ENOENT) ve hata yanıltıcı biçimde "whisper.cpp bulunamadı" görünüyordu. `shortWorkDir`: yol 120 karakterden uzunsa ya da ASCII değilse geçici ses parçaları `<temp>/clipforge-tr/<kısa ad>` altında tutulur.
+
+## 53. Yatay klip kuralları
+Yatay klipler en az 1 dk, en çok 20 dk (kullanıcı: "kısa tutmaya çalışma"), çıkarabildiği kadar (en çok 30). Aynı konunun ardışık bölümleri tek klip; farklı konular birleştirilmez ("bütün konuştuklarımızı bir klipte toplama"). Adsız konular (ör. "webinar") yatayda da alınır.
+
+## 54. Konu yarıda kesilmesin; yatay klipler 3–25 dk
+- Dikey/yatay: aynı konunun ardışık bölümleri (ortak ad/anahtar kelime, aralık ≤60 sn dikey / ≤120 sn yatay) tek klipte birleşir; son anılıştan sonra +3 cümle. Kullanıcı: "Orkun 50 sn konuşuldu, klip 30 sn'de yarım kaldı".
+- Yatay: en az 3, en çok 25 dk, tercih ~6,5 dk, en çok 15 klip (kullanıcı: "çok fazla küçük klip istemiyorum").
