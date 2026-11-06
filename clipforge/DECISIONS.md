@@ -414,3 +414,6 @@ Auto Kick ve Auto Clips işleri bittiğinde ("Tamamlandı") kartta "⏱ Toplam s
 - Sessizlik kesme eşiği 0,7 → 0,55 sn (kullanıcı: "bazı yerleri atlamışsın, çok hafif düşür"). Ayar dosyasında eski varsayılan (0,7) kayıtlıysa yüklenirken 0,55'e alınır.
 - Klip başı/sonu: `refineClipBounds` — bağlaçlı/çok kısa baş cümle atılır, yarım son cümle atılır/tamamlanır, söz payı (0,3 sn önce, 0,5 sn sonra). Süre sınırları bozulmaz.
 - Yatay mod (`horizontal`): 2:58 sınırı yok (45 sn–20 dk; tavan 1 sa), yüz/şerit yok, 16:9 `youtube` ön ayarı; zincirde dikeyden sonra çalışır. `topic-video` konu geçişlerini tek yatay videoda toplar.
+
+## 52. Uzun yolda "whisper.cpp bulunamadı" (Windows)
+Uzun video adı (Auto Kick klasörü + proje klasörü + uzun anahtar) çalışma klasörü yolunu 260 karakterin üstüne çıkarınca Windows süreci başlatamıyor (ENOENT) ve hata yanıltıcı biçimde "whisper.cpp bulunamadı" görünüyordu. `shortWorkDir`: yol 120 karakterden uzunsa ya da ASCII değilse geçici ses parçaları `<temp>/clipforge-tr/<kısa ad>` altında tutulur.

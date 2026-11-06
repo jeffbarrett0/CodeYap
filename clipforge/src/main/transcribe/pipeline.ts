@@ -1,4 +1,5 @@
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { planChunks, mergeChunkResults, type ChunkResult } from '../../shared/transcript/chunking'
 import { buildSegments } from '../../shared/transcript/sentences'
@@ -38,6 +39,18 @@ export interface PipelineDeps {
 }
 
 const transcriptPath = (dataDir: string, assetId: string) => join(dataDir, 'transcripts', `${assetId}.json`)
+
+/**
+ * Geçici çalışma klasörü (ses parçaları + whisper çıktısı). Windows bir programı 260 karakterden uzun çalışma klasöründe BAŞLATAMAZ
+ * (ENOENT → "whisper.cpp bulunamadı" gibi yanıltıcı hata): uzun video adları + uzun anahtar yolu aşabilir. Yol uzunsa kısa, ASCII
+ * bir geçici klasör kullanılır (sonuçlar yine `transcripts/chunks` önbelleğine yazılır).
+ */
+export function shortWorkDir(dataDir: string, key: string, tmp: string = tmpdir()): string {
+  const normal = join(dataDir, 'tmp', key)
+  // eslint-disable-next-line no-control-regex
+  if (normal.length <= 120 && /^[\x00-\x7f]*$/.test(normal)) return normal
+  return join(tmp, 'clipforge-tr', `${key.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 16)}_${hash(key)}`)
+}
 
 export async function loadTranscript(dataDir: string, assetId: string): Promise<Transcript | null> {
   try {
@@ -84,7 +97,7 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
   const chunks = planChunks(asset.durationSec, chunkSec, overlap)
   const key = `${asset.id}_t${p.track}_${p.language}_${p.model}_${d.provider.kind}_${chunkSec}_${overlap}_${hash(p.prompt ?? '')}`
   const cacheDir = join(d.dataDir, 'transcripts', 'chunks', key)
-  const workDir = join(d.dataDir, 'tmp', key)
+  const workDir = shortWorkDir(d.dataDir, key)
   await mkdir(cacheDir, { recursive: true })
   await mkdir(workDir, { recursive: true })
 
