@@ -1,7 +1,7 @@
 import { DENSITY, findChapters } from './chapters'
 import { buildSegments } from './transcript/sentences'
 import { foldTr } from './text'
-import type { LayoutTemplate, NormRect, Placement, TranscriptWord } from './types'
+import type { LayoutTemplate, NormRect, Placement, Segment, TranscriptWord } from './types'
 
 /**
  * Auto Clips: kesilmiş videonun transkriptinden "klip olarak paylaşılabilecek" konu bölümlerini bulur (kişi/takım adına göre:
@@ -28,22 +28,73 @@ export interface AutoClipOptions {
   max: number
   /** tercih edilen klip uzunluğu */
   targetSec: number
+  /** YATAY (16:9, YouTube) klip: dikeydeki 2 dk 58 sn sınırı yok; konunun doğal uzunluğu (varsayılan 45 sn – 20 dk) */
+  horizontal?: boolean
 }
 /** Klip süresi sınırları (kullanıcı kuralı): en az 20 sn, en çok 2 dk 58 sn (178 sn). Bir konu bu aralığa sığıyorsa BÖLÜNMEZ (70 sn'de kesilmez). */
 export const MIN_CLIP_SEC = 20
 export const MAX_CLIP_SEC = 178
 export const DEFAULT_AUTOCLIP_OPTIONS: AutoClipOptions = { minSec: MIN_CLIP_SEC, maxSec: MAX_CLIP_SEC, max: 12, targetSec: 90 }
+/** Yatay klip varsayılanları: süre sınırı yok denecek kadar geniş (en az 45 sn, en çok 20 dk; tercih ~4 dk) */
+export const HORIZONTAL_CLIP_OPTIONS: AutoClipOptions = { minSec: 45, maxSec: 1200, max: 12, targetSec: 240, horizontal: true }
+export const HORIZONTAL_MAX_SEC = 3600
+
+const END_PUNCT = /[.!?…]+["'”’)\]]*$/u
+/** Cümleyi bağlayan/yarım başlatan sözler: klip bunlarla başlamasın ("ve şey işte…") */
+const WEAK_START = new Set(['ve', 'ama', 'ya', 'yani', 'işte', 'iste', 'şey', 'sey', 'ki', 'de', 'da', 'tamam', 'hani', 'fakat', 'çünkü', 'cunku', 'yok', 'neyse', 'hımm', 'ee', 'eee', 'ıı', 'ııı'])
+const wc = (g: Segment) => g.text.split(/\s+/).filter(Boolean).length
+const firstWord = (g: Segment) => foldTr(g.text.split(/\s+/)[0] ?? '').replace(/[^\p{L}]/gu, '')
+const weakStart = (g: Segment) => wc(g) < 3 || WEAK_START.has(firstWord(g)) || WEAK_START.has((g.text.split(/\s+/)[0] ?? '').toLowerCase().replace(/[^\p{L}]/gu, ''))
+
+/**
+ * Klibin başı ve sonu RASTGELE olmasın: (1) bağlaçla/çok kısa cümleyle başlayan baştaki cümleler atılır (en fazla 3),
+ * (2) yarım kalmış (noktasız, çok kısa) son cümle atılır ya da tamamlayan komşu cümle eklenir; (3) sözün başına 0,3 sn, sonuna 0,5 sn
+ * pay verilir (komşu kelimeye taşmadan) — söz bitmeden kesilmez. Süre sınırlarını (min/max) bozmaz.
+ */
+export function refineClipBounds(piece: Segment[], segs: Segment[], words: TranscriptWord[], minSec: number, maxSec: number): { start: number; end: number; piece: Segment[] } {
+  let a = 0
+  let b = piece.length - 1
+  const hasPunct = piece.some((g) => END_PUNCT.test(g.text.trim()))
+  for (let k = 0; k < 3 && a < b; k++) {
+    if (!weakStart(piece[a])) break
+    if (piece[b].end - piece[a + 1].start < minSec) break
+    a++
+  }
+  if (hasPunct) {
+    while (b > a && !END_PUNCT.test(piece[b].text.trim()) && piece[b - 1].end - piece[a].start >= minSec) b--
+    // hâlâ yarım bitiyorsa ve devamı kısa/yakınsa tamamlayıcı cümleyi ekle
+    if (!END_PUNCT.test(piece[b].text.trim())) {
+      const idx = segs.indexOf(piece[b])
+      const nxt = idx >= 0 ? segs[idx + 1] : undefined
+      if (nxt && nxt.start - piece[b].end < 1.5 && wc(nxt) <= 14 && nxt.end - piece[a].start <= maxSec) {
+        piece = [...piece.slice(0, b + 1), nxt]
+        b++
+      }
+    }
+  }
+  const first = piece[a]
+  const last = piece[b]
+  const prevEnd = first.firstWord > 0 ? words[first.firstWord - 1].end : 0
+  const nextStart = last.lastWord < words.length - 1 ? words[last.lastWord + 1].start : Infinity
+  const total = words[words.length - 1]?.end ?? last.end
+  const start = Math.max(0, first.start - Math.min(0.3, Math.max(0, first.start - prevEnd - 0.05)))
+  let end = Math.min(total, last.end + Math.min(0.5, Math.max(0, nextStart - last.end - 0.05)))
+  if (end - start > maxSec) end = start + maxSec
+  return { start, end, piece: piece.slice(a, b + 1) }
+}
 
 const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n).replace(/\s+\S*$/, '')}…`)
 
 export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClipOptions> = {}): AutoClipCandidate[] {
   // tanımsız (undefined) alanlar varsayılanı ezmesin
-  const o = { ...DEFAULT_AUTOCLIP_OPTIONS, ...Object.fromEntries(Object.entries(options).filter(([, v]) => typeof v === 'number' && Number.isFinite(v))) } as AutoClipOptions
-  o.minSec = Math.min(MAX_CLIP_SEC - 10, Math.max(MIN_CLIP_SEC, o.minSec))
-  o.maxSec = Math.min(MAX_CLIP_SEC, Math.max(o.minSec + 10, o.maxSec))
+  const horizontal = options.horizontal === true
+  const o = { ...(horizontal ? HORIZONTAL_CLIP_OPTIONS : DEFAULT_AUTOCLIP_OPTIONS), ...Object.fromEntries(Object.entries(options).filter(([, v]) => typeof v === 'number' && Number.isFinite(v))) } as AutoClipOptions
+  const hardMax = horizontal ? HORIZONTAL_MAX_SEC : MAX_CLIP_SEC
+  o.minSec = Math.min(hardMax - 10, Math.max(MIN_CLIP_SEC, o.minSec))
+  o.maxSec = Math.min(hardMax, Math.max(o.minSec + 10, o.maxSec))
   if (words.length < 20) return []
   const segs = buildSegments(words)
-  const chapters = findChapters(words, { ...DENSITY.high, minSec: Math.max(15, o.minSec * 0.8), targetSec: 70, maxChapters: 400 })
+  const chapters = findChapters(words, horizontal ? { ...DENSITY.medium, minSec: Math.max(30, o.minSec * 0.8), targetSec: 180, maxChapters: 200 } : { ...DENSITY.high, minSec: Math.max(15, o.minSec * 0.8), targetSec: 70, maxChapters: 400 })
   const cands: AutoClipCandidate[] = []
   chapters.forEach((ch) => {
     if (ch.title === 'Giriş' || ch.title === 'Sohbet') return
@@ -70,8 +121,11 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
       // en uzun süreyi aşıyorsa sondaki cümleler atılır (cümle sınırında kalır)
       while (piece.length > 1 && piece[piece.length - 1].end - piece[0].start > o.maxSec) piece = piece.slice(0, -1)
       if (piece.length === 0) continue
-      const start = piece[0].start
-      const end = piece[piece.length - 1].end
+      // başlangıç/bitiş: rastgele başlamasın/bitmesin (bağlaçlı baş, yarım son cümle) + söz bitmeden kesilmesin (pay)
+      const ref = refineClipBounds(piece, segs, words, o.minSec, o.maxSec)
+      piece = ref.piece
+      const start = ref.start
+      const end = ref.end
       const dur = end - start
       if (dur < o.minSec || dur > o.maxSec) continue
       const subjectWords = ch.title.split(',').map((x) => x.trim()).filter(Boolean)
@@ -79,7 +133,7 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
       const hits = piece.filter((g) => key.some((k) => k.length >= 3 && foldTr(g.text).includes(k)))
       const pick = (hits.length >= 2 ? hits : piece).slice(0, 2)
       const mentions = hits.length
-      const score = (named ? 10 : 2) + Math.min(mentions, 6) * 1.5 - Math.abs(dur - o.targetSec) / 90
+      const score = (named ? 10 : 2) + Math.min(mentions, 6) * 1.5 - Math.abs(dur - o.targetSec) / Math.max(90, o.targetSec)
       cands.push({
         id: '',
         start,
@@ -221,6 +275,8 @@ export interface AutoClipsRequest {
   screenZoom?: number
   /** klipleri MP4 olarak da dışa aktar */
   exportVideos?: boolean
+  /** YATAY (16:9, YouTube) klipler: 2 dk 58 sn sınırı yok, yüz/şerit eklenmez, "youtube" ön ayarıyla dışa aktarılır */
+  horizontal?: boolean
 }
 export interface AutoClipsStageState {
   id: AutoClipsStage

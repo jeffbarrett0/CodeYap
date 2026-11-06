@@ -105,3 +105,13 @@ describe('zaman çizelgesine uygulama', () => {
 })
 
 void cutBoundsForWords
+
+describe('sessizlik eşiği varsayılanı', () => {
+  it('0,55 sn: 0,6 sn boşluk artık kesilir (eskiden 0,7 sn altı atlanırdı)', async () => {
+    const { DEFAULT_SETTINGS } = await import('@shared/settings')
+    expect(DEFAULT_SETTINGS.silenceMinGapSec).toBe(0.55)
+    const words = [w('bir', 0.3), w('iki', 1.2), w('üç', 4)]
+    const p = planSilenceCuts(words, 6)
+    expect(p.cuts.length).toBeGreaterThan(0)
+  })
+})

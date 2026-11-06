@@ -19,7 +19,7 @@ import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
 import { detectIntro, introReference } from '../main/autokick/intro'
 import { autoClipCandidates, makeAutoClip } from '../main/autoclips/pipeline'
-import { runAutoClips } from '../main/autoclips/run'
+import { exportClipProject, runAutoClips } from '../main/autoclips/run'
 import { parseRect } from '../shared/autoclips'
 import { cleanBrand, runStory } from '../main/story/pipeline'
 import { renderBackdrop, renderFootballFrame, renderStoryScene } from '../main/story/render'
@@ -32,7 +32,7 @@ import { runTool } from '../main/ffmpeg'
 import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
 import { chapterTimestamp, chapterWarnings, formatChapters } from '../shared/chapters'
-import { makeTopicClip, topicCandidates } from '../main/autokick/clips'
+import { makeTopicClip, makeTopicCompilation, topicCandidates } from '../main/autokick/clips'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { clipsAt, timelineToSource } from '../shared/timeline/ops'
 import { buildSegments } from '../shared/transcript/sentences'
@@ -84,11 +84,12 @@ const r1 = (n: number) => Math.round(n * 100) / 100
 const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON döndürür)
 
   info                                   ffmpeg/ffprobe/whisper durumu
-  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 178] [--max 12] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.12] [--face-focus 0.495,0.58] [--screen-zoom 1.15] [--overlay serit.png | --no-overlay]
+  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 178] [--max 12] [--horizontal] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.12] [--face-focus 0.495,0.58] [--screen-zoom 1.15] [--overlay serit.png | --no-overlay]
                                          transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
+  topic-video <proje|AutoKick klasörü> --topic "Lemina" [--gap 25] [--min-sec 8] [--export]   konunun konuşulduğu TÜM yerleri tek YATAY (16:9) videoda birleştirir
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
-  auto-kick <video> [--out klasör] [--clips [--max 10] [--no-export]] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.7]
+  auto-kick <video> [--out klasör] [--clips [--max 10] [--no-export] [--no-horizontal]] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.55]
                                          yayın kaydı → transkript → sessizleri kırp → tam video (<out>/<ad> - full.mp4 + proje); biten aşamalar yeniden çalıştırmada atlanır
   story data list|show <id>|search <ad>|add <dosya.json>   bilgi paketi: kaynaklı veri (gol krallığı, puan durumu…); sıralama/takım kartı sahneleri bunu kullanır
   story teams [ad]                       takım forma/renk veritabanı (Bayern → kırmızı, Galatasaray → sarı-kırmızı parçalı…); sahnelerde home/away.team ve content.team bunu kullanır
@@ -114,7 +115,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   ideas <proje> [--asset a] [--max 8] [--ai] [--auto | --write oneriler.json | --clear]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
   chapters <proje> [--ai | --titles basliklar.json] [--density low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
   cut-intro <proje> [--ref ekran.png] [--duration 164] [--dry]   yayın başı videosunu (referans ekran görüntüsüyle eşleşen ilk bölüm, ör. telifli şarkılı geri sayım) keser
-  silence <proje> [--min-gap 0.7] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
+  silence <proje> [--min-gap 0.55] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
   captions <proje> [--style classic|boxed-highlight|premium-gold] [--max-chars 22] [--lang en]   transkriptten altyazı üretir (--lang en: İngilizce çeviri, yapay zekâ ayarı gerekir) (boxed-highlight: referans stil)
   delete-lane <proje> <V1|V2|V3|I1|I2|A1|CC>                      o katmandaki her şeyi siler
@@ -203,6 +204,18 @@ async function main(argv: string[]): Promise<unknown> {
     const svc = await makeService()
     return out(await svc.info())
   }
+  if (command === 'topic-video') {
+    if (!projectArg) throw new Error('Auto Kick projesini ya da klasörünü verin: topic-video <proje|klasör> --topic "Lemina"')
+    const topic = str(a.opt.topic)
+    if (!topic) throw new Error('--topic "konu" verin.')
+    // tüm geçişler: süre sınırı yok (bloklar 1 saate kadar), yakın geçişler tek blokta
+    const cands = await topicCandidates(projectArg, topic, { maxSec: 3600, minSec: num(a.opt['min-sec'], 'min-sec') ?? 8, mergeGapSec: num(a.opt.gap, 'gap') ?? 25, limit: 200 })
+    if (cands.length === 0) throw new Error('Bu konuda transkriptte geçiş bulunamadı (yazılışı değiştirip deneyin).')
+    const made = await makeTopicCompilation(projectArg, topic, cands.map((c) => [c.start, c.end] as [number, number]))
+    let video: string | undefined
+    if (a.opt.export) video = await exportClipProject(made.projectPath, {}, undefined, (f) => log(`[topic-video:export] %${Math.round(f * 100)}`), 'youtube')
+    return out({ topic, parts: made.parts, durationSec: r1(made.durationSec), project: made.projectPath, video, ranges: cands.map((c) => ({ start: r1(c.start), end: r1(c.end), durationSec: r1(c.durationSec), hits: c.hits, text: c.text })), hint: 'Konunun konuşulduğu tüm yerler kronolojik sırayla tek YATAY videoda birleştirildi (Auto Kick projesi değişmedi). Dışa aktarmak için --export ya da export --preset youtube.' })
+  }
   if (command === 'topic-clips') {
     if (!projectArg) throw new Error('Auto Kick projesini ya da klasörünü verin: topic-clips <proje|klasör> --topic "Osimhen"')
     const topic = str(a.opt.topic)
@@ -227,36 +240,40 @@ async function main(argv: string[]): Promise<unknown> {
     if (a.opt.export) {
       const rect0 = str(a.opt.face) ? parseRect(str(a.opt.face)!) : null
       if (str(a.opt.face) && !rect0) throw new Error('--face "x,y,w,h" (0..1) verin.')
-      const res = await runAutoClips({ projectPath: projectArg, minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max'), face: rect0 ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), faceZoom: num(a.opt['face-zoom'], 'face-zoom'), faceFocus: parseFocus(str(a.opt['face-focus'])), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom'), exportVideos: true }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
+      const res = await runAutoClips({ projectPath: projectArg, minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max'), face: rect0 ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), faceZoom: num(a.opt['face-zoom'], 'face-zoom'), faceFocus: parseFocus(str(a.opt['face-focus'])), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom'), exportVideos: true, horizontal: a.opt.horizontal ? true : undefined }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
       return out({ ok: true, dir: res.dir, count: res.clips.length, clips: res.clips.map((x) => ({ subject: x.subject, headline: x.headline, start: r1(x.start), end: r1(x.end), project: x.projectPath, video: x.videoPath, error: x.error })) })
     }
-    const r = await autoClipCandidates(projectArg, { minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max') }, {})
+    const r = await autoClipCandidates(projectArg, { minSec: num(a.opt['min-sec'], 'min-sec'), maxSec: num(a.opt['max-sec'], 'max-sec'), max: num(a.opt.max, 'max'), ...(a.opt.horizontal ? { horizontal: true } : {}) }, {})
     const picksArg = str(a.opt.pick)
     const picks = a.opt.all ? r.candidates : picksArg ? picksArg.split(',').map((x) => r.candidates[Number(x) - 1]).filter(Boolean) : []
     if (a.opt.pick && picks.length === 0) throw new Error(`Seçilen aday yok (1–${r.candidates.length}).`)
     const rect = str(a.opt.face) ? parseRect(str(a.opt.face)!) : null
     if (str(a.opt.face) && !rect) throw new Error('--face "x,y,w,h" (0..1, ör. 0.7,0.64,0.29,0.34) verin.')
     const made = []
-    for (const p of picks) made.push({ id: p.id, ...(await makeAutoClip(projectArg, p, { face: rect ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), faceZoom: num(a.opt['face-zoom'], 'face-zoom'), faceFocus: parseFocus(str(a.opt['face-focus'])), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom'), overlay: a.opt['no-overlay'] ? false : str(a.opt.overlay) ? resolve(str(a.opt.overlay)!) : undefined }, {})) })
+    for (const p of picks) made.push({ id: p.id, ...(await makeAutoClip(projectArg, p, { face: rect ?? undefined, facePos: str(a.opt['face-pos']) === 'bottom' ? 'bottom' : 'top', faceShare: num(a.opt['face-share'], 'face-share'), faceZoom: num(a.opt['face-zoom'], 'face-zoom'), faceFocus: parseFocus(str(a.opt['face-focus'])), screenZoom: num(a.opt['screen-zoom'], 'screen-zoom'), overlay: a.opt['no-overlay'] ? false : str(a.opt.overlay) ? resolve(str(a.opt.overlay)!) : undefined, horizontal: a.opt.horizontal ? true : undefined }, {})) })
     return out({
       project: r.projectPath,
       totalSec: r1(r.totalSec),
       candidates: r.candidates.map((c, i) => ({ pick: i + 1, id: c.id, start: r1(c.start), end: r1(c.end), durationSec: r1(c.durationSec), subject: c.subject, headline: c.headline, summary: c.summary, score: c.score })),
       created: made,
-      hint: made.length ? 'Klip projeleri (9:16: yüz üstte, konuşulan görüntü altta) Auto Kick projesine dokunmadan oluşturuldu.' : 'Bunlar ÖNERİDİR (zaman aralığı + ne konuşulduğu). Üretmek için --pick N (virgülle) ya da --all; yüz bölgesi için --face x,y,w,h (kaynak karede, 0..1).'
+      hint: made.length ? (a.opt.horizontal ? 'YATAY (16:9) klip projeleri Auto Kick projesine dokunmadan oluşturuldu; dışa aktarmak için export --preset youtube.' : 'Klip projeleri (9:16: yüz üstte, konuşulan görüntü altta) Auto Kick projesine dokunmadan oluşturuldu.') : 'Bunlar ÖNERİDİR (zaman aralığı + ne konuşulduğu). Üretmek için --pick N (virgülle) ya da --all; yüz bölgesi için --face x,y,w,h (kaynak karede, 0..1).'
     })
   }
   if (command === 'auto-kick') {
     if (!projectArg) throw new Error('Yayın kaydı yolunu verin: auto-kick <video> [--out klasör]')
     const r = await runAutoKick(
-      { videoPath: projectArg, outDir: str(a.opt.out), language: str(a.opt.lang), model: str(a.opt.model) as never, track: num(a.opt.track, 'track'), quality: a.opt.quality === 'high' ? 'high' : 'fast', silence: a.opt['min-gap'] || a.opt.keep || a.opt['no-fillers'] ? { minGapSec: num(a.opt['min-gap'], 'min-gap') ?? 0.7, keepSec: num(a.opt.keep, 'keep') ?? 0.15, cutFillers: !a.opt['no-fillers'] } : undefined },
+      { videoPath: projectArg, outDir: str(a.opt.out), language: str(a.opt.lang), model: str(a.opt.model) as never, track: num(a.opt.track, 'track'), quality: a.opt.quality === 'high' ? 'high' : 'fast', silence: a.opt['min-gap'] || a.opt.keep || a.opt['no-fillers'] ? { minGapSec: num(a.opt['min-gap'], 'min-gap') ?? 0.55, keepSec: num(a.opt.keep, 'keep') ?? 0.15, cutFillers: !a.opt['no-fillers'] } : undefined },
       {},
       { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }
     )
     // gözetimsiz zincir: --clips ile tam video çıktıktan sonra Auto Clips da çalışır (klip projeleri + MP4)
     if (a.opt.clips) {
       const clips = await runAutoClips({ projectPath: r.projectPath, max: num(a.opt.max, 'max') ?? 10, exportVideos: !a.opt['no-export'] }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
-      return out({ ok: true, ...r, clips: { dir: clips.dir, count: clips.clips.length, items: clips.clips.map((x) => ({ subject: x.subject, start: r1(x.start), end: r1(x.end), project: x.projectPath, video: x.videoPath, error: x.error })) } })
+      // yatay (YouTube) klipler de (ayar açıksa ya da --no-horizontal verilmediyse)
+      const wantH = a.opt['no-horizontal'] ? false : (await makeService()).settings.value.autoClipsHorizontal
+      const hclips = wantH ? await runAutoClips({ projectPath: r.projectPath, max: num(a.opt.max, 'max') ?? 10, exportVideos: !a.opt['no-export'], horizontal: true }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips-yatay:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }) : null
+      const items = (c: typeof clips) => c.clips.map((x) => ({ subject: x.subject, start: r1(x.start), end: r1(x.end), project: x.projectPath, video: x.videoPath, error: x.error }))
+      return out({ ok: true, ...r, clips: { dir: clips.dir, count: clips.clips.length, items: items(clips) }, ...(hclips ? { horizontalClips: { dir: hclips.dir, count: hclips.clips.length, items: items(hclips) } } : {}) })
     }
     return out({ ok: true, ...r, note: 'Klipler için: auto-clips <klasör> ya da auto-kick ... --clips (bitince klipleri de üretir).' })
   }

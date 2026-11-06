@@ -29,6 +29,7 @@ export function AutoClipsDialog() {
   const [face, setFace] = useState<NormRect>(DEFAULT_AUTOCLIP_LAYOUT.face)
   const [facePos, setFacePos] = useState<'top' | 'bottom'>('top')
   const [maxSec, setMaxSec] = useState(MAX_CLIP_SEC)
+  const [horizontal, setHorizontal] = useState(false)
   const [faceZoom, setFaceZoom] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceZoom * 100))
   const [focus, setFocus] = useState({ x: Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceFocus.x * 100), y: Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceFocus.y * 100) })
   const [zoom, setZoom] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.screenZoom * 100))
@@ -41,7 +42,7 @@ export function AutoClipsDialog() {
     setCands(null)
     setMade([])
     try {
-      const r = await api.invoke('autoclips:find', { projectPath: p, maxSec })
+      const r = await api.invoke('autoclips:find', { projectPath: p, maxSec, ...(horizontal ? { horizontal: true } : {}) })
       setCands(r.candidates)
       setPicked(new Set(r.candidates.map((c) => c.id)))
       if (r.faceRegion) setFace(r.faceRegion)
@@ -71,7 +72,7 @@ export function AutoClipsDialog() {
     setError('')
     try {
       const picks = cands.filter((c) => picked.has(c.id)).map((c) => ({ start: c.start, end: c.end, subject: c.subject }))
-      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100, faceZoom: faceZoom / 100, faceFocus: { x: focus.x / 100, y: focus.y / 100 }, screenZoom: zoom / 100 }))
+      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100, faceZoom: faceZoom / 100, faceFocus: { x: focus.x / 100, y: focus.y / 100 }, screenZoom: zoom / 100, ...(horizontal ? { horizontal: true } : {}) }))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -88,9 +89,10 @@ export function AutoClipsDialog() {
           <b>Otomatik zincir (bilgisayar başında olmasanız da)</b>
           <label className="check"><input type="checkbox" checked={settings.autoClipsAfterKick} onChange={(e) => void updateSettings({ autoClipsAfterKick: e.target.checked })} data-testid="autoclips-after" /> Auto Kick bitince klipleri kendiliğinden üret</label>
           <label className="check"><input type="checkbox" checked={settings.autoClipsExport} onChange={(e) => void updateSettings({ autoClipsExport: e.target.checked })} data-testid="autoclips-export" /> Klipleri MP4 olarak da dışa aktar (9:16)</label>
+          <label className="check"><input type="checkbox" checked={settings.autoClipsHorizontal} onChange={(e) => void updateSettings({ autoClipsHorizontal: e.target.checked })} data-testid="autoclips-horizontal" /> YATAY (16:9, YouTube) klipleri de üret: süre sınırı yok, konunun doğal uzunluğu</label>
           <label className="row" style={{ gap: 6 }}>En çok klip <Num value={settings.autoClipsMax} step={1} min={1} max={30} label="En çok klip" onChange={(v) => void updateSettings({ autoClipsMax: Math.round(v) })} /></label>
-          {job && (
-            <div className="col" data-testid="autoclips-job" data-status={job.status} style={{ gap: 4 }}>
+          {jobs.filter((j) => !autoClipsProject || j.request.projectPath === autoClipsProject).slice(0, 2).map((job) => (
+            <div key={job.id} className="col" data-testid="autoclips-job" data-status={job.status} style={{ gap: 4 }}>
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <b title={job.name}>{job.name}</b>
                 <span className={`badge ${job.status === 'done' ? 'blue' : job.status === 'failed' ? 'red' : ''}`} data-testid="autoclips-status">{{ running: 'Çalışıyor', done: 'Tamamlandı', failed: 'Hata', cancelled: 'İptal edildi' }[job.status]}</span>
@@ -121,14 +123,15 @@ export function AutoClipsDialog() {
                 </div>
               )}
             </div>
-          )}
+          ))}
         </div>
         <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
           <button className="btn" onClick={() => void pick()} data-testid="autoclips-pick">Auto Kick projesini seç…</button>
           <span className="hint" style={{ wordBreak: 'break-all' }} data-testid="autoclips-path">{path || 'Henüz seçilmedi (Auto Kick bitince otomatik gelir)'}</span>
         </div>
         <div className="row wrap" style={{ gap: 10, alignItems: 'center' }}>
-          <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={10} min={30} max={MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
+          <label className="check"><input type="checkbox" checked={horizontal} onChange={(e) => { setHorizontal(e.target.checked); setMaxSec(e.target.checked ? 900 : MAX_CLIP_SEC); setCands(null) }} data-testid="autoclips-horizontal-manual" /> Yatay (16:9, YouTube) klip: süre sınırı yok</label>
+          <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={horizontal ? 60 : 10} min={30} max={horizontal ? 3600 : MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
           <button className="btn primary" disabled={!path || busy} onClick={() => void find()} data-testid="autoclips-find">{busy && !cands ? 'Konular bulunuyor…' : cands ? 'Yeniden bul' : 'Klip önerilerini bul'}</button>
         </div>
         {error && <div className="warnbox" role="alert" data-testid="autoclips-error">{error}</div>}

@@ -52,3 +52,40 @@ export async function makeTopicClip(projectPath: string, topic: string, start: n
   await c.save()
   return { projectPath: created.path, durationSec: dur }
 }
+
+/**
+ * KONU DERLEMESİ (yatay video): konunun konuşulduğu TÜM aralıklar kronolojik sırayla tek videoda birleştirilir
+ * ("Lemina'yı nerede konuştuysam hepsi bir video"). Auto Kick projesi değişmez; kare olduğu gibi (16:9) kalır.
+ * `ranges`: çizelge zamanında [başlangıç, bitiş] aralıkları (çakışanlar birleştirilir).
+ */
+export async function makeTopicCompilation(projectPath: string, topic: string, ranges: [number, number][], env: Env = {}): Promise<{ projectPath: string; durationSec: number; parts: number }> {
+  const s = await Session.open(await resolveProjectPath(projectPath), await makeService(env))
+  const total = timelineDuration(s.timeline)
+  const asset = s.project.assets[0]
+  if (!asset) throw new Error('Projede medya yok.')
+  const sorted = ranges.map(([a, b]) => [Math.max(0, a), Math.min(total, b)] as [number, number]).filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0])
+  const merged: [number, number][] = []
+  for (const r of sorted) {
+    const last = merged[merged.length - 1]
+    if (last && r[0] <= last[1] + 0.05) last[1] = Math.max(last[1], r[1])
+    else merged.push([r[0], r[1]])
+  }
+  if (merged.length === 0) throw new Error('Derlenecek aralık yok.')
+  // aralıklar dışındaki bölümleri sondan başa doğru kes (zamanlar kaymasın)
+  let tl = s.timeline
+  const gaps: [number, number][] = []
+  let cur = 0
+  for (const [a, b] of merged) {
+    if (a > cur + 1e-3) gaps.push([cur, a])
+    cur = b
+  }
+  if (cur < total - 1e-3) gaps.push([cur, total])
+  for (const [a, b] of [...gaps].reverse()) tl = cutRange(tl, a, b, true)
+  tl = { ...tl, captions: [], aspect: '16:9', aspectAuto: false }
+  const dur = timelineDuration(tl)
+  const created = await s.service.createClipProject(s.project, asset.id, `${topic.trim() || 'Konu'} · derleme ${Math.round(dur / 60)} dk (yatay)`)
+  const c = await Session.open(created.path, await makeService(env))
+  c.project = { ...c.project, timeline: tl }
+  await c.save()
+  return { projectPath: created.path, durationSec: dur, parts: merged.length }
+}

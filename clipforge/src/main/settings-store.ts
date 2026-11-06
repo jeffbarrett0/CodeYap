@@ -14,7 +14,10 @@ export class SettingsStore {
 
   async load(): Promise<Settings> {
     try {
-      this.cur = normalizeSettings(JSON.parse(await readFile(this.file, 'utf8')))
+      const raw = JSON.parse(await readFile(this.file, 'utf8'))
+      // eski varsayılan (0,7 sn) kayıtlıysa yeni, biraz daha duyarlı varsayılana (0,55 sn) alınır
+      if (raw && raw.silenceMinGapSec === 0.7) raw.silenceMinGapSec = DEFAULT_SETTINGS.silenceMinGapSec
+      this.cur = normalizeSettings(raw)
     } catch {
       this.cur = { ...DEFAULT_SETTINGS }
     }

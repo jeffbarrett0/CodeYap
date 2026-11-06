@@ -29,7 +29,7 @@ export async function autoClipCandidates(projectPath: string, opts: Partial<Auto
  * Seçilen aralıktan BAĞIMSIZ klip projesi (9:16): kaynaktaki yüz bölgesi ÜSTTE (kırpılıp büyütülür), konuşulan görüntü ALTTA. Ortaya yazı konmaz.
  * Auto Kick projesi değişmez. Düzen yerleşimi sonradan arayüzde elle de ayarlanabilir.
  */
-export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
+export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string; /** yatay (16:9) klip: yüz/şerit yok, kare olduğu gibi */ horizontal?: boolean } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
   const s = await Session.open(await resolveProjectPath(projectPath), await makeService(env))
   const total = timelineDuration(s.timeline)
   if (!(cand.end > cand.start) || cand.start < 0 || cand.end > total + 0.5) throw new Error(`Geçersiz aralık: ${cand.start.toFixed(1)}–${cand.end.toFixed(1)} (çizelge ${total.toFixed(1)} sn).`)
@@ -41,6 +41,17 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
   if (cand.end < total - 1e-3) tl = cutRange(tl, cand.end, total, true)
   if (cand.start > 1e-3) tl = cutRange(tl, 0, cand.start, true)
   tl = { ...tl, captions: [] }
+  if (layout.horizontal) {
+    // YATAY klip (YouTube): kare olduğu gibi kalır (kaynak kalitesi), yüz/şerit eklenmez; yalnızca konuşulan aralık
+    tl = { ...tl, aspect: '16:9', aspectAuto: false }
+    const hdur = timelineDuration(tl)
+    const hname = `${cand.subject.trim() || 'Klip'} · ${Math.round(hdur)} sn (yatay)`
+    const hcreated = await s.service.createClipProject(s.project, asset.id, hname)
+    const hc = await Session.open(hcreated.path, await makeService(env))
+    hc.project = { ...hc.project, timeline: tl }
+    await hc.save()
+    return { projectPath: hcreated.path, durationSec: hdur, name: hname }
+  }
   // düzen: 9:16, yüz üstte/altta; konuşulan görüntü (tüm kare) ortada-altta. Yüz klipleri aynı kaynağın yüz bölgesi kırpmasıdır.
   const tpl = autoClipTemplate({ facePos, faceShare: layout.faceShare })
   const v1 = tl.tracks.find((t) => t.id === 'V1')

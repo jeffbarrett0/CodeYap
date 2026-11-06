@@ -56,7 +56,8 @@ describe('Auto Clips: konu bölümleri', () => {
   it('en çok N aday; çok kısa/boş transkriptte aday yok; seçenekler uygulanır', () => {
     expect(findAutoClips(words, { max: 1 })).toHaveLength(1)
     expect(findAutoClips([])).toEqual([])
-    expect(findAutoClips(words, { minSec: 400 })).toEqual([])
+    // alt sınır en çok 168 sn'ye kadar yükselir (üst sınır 178): daha uzun istek buna sıkıştırılır
+    for (const c of findAutoClips(words, { minSec: 400 })) expect(c.durationSec).toBeGreaterThanOrEqual(168)
   })
   it('yüz bölgesi ayrıştırma: geçerli x,y,w,h; bozuk/taşan reddedilir; varsayılan sağ alt', () => {
     expect(parseRect('0.7,0.64,0.29,0.34')).toEqual({ x: 0.7, y: 0.64, w: 0.29, h: 0.34 })
@@ -233,5 +234,63 @@ describe('geçen süre biçimi', () => {
     expect(fmtElapsed(45_000)).toBe('45 sn')
     expect(fmtElapsed(200_000)).toBe('3 dk 20 sn')
     expect(fmtElapsed(4_325_000)).toBe('1 sa 12 dk')
+  })
+})
+
+describe('Auto Clips: başlangıç/bitiş rastgele olmasın', () => {
+  const W = (text: string, start: number): TranscriptWord => ({ text, start, end: start + 0.4, confidence: 1 })
+  /** cümleler: [metin, başlangıç sn]; her cümle ~3 sn, araları 1 sn sessizlik */
+  const build = (sents: string[]) => {
+    const words: TranscriptWord[] = []
+    let t = 0
+    for (const s of sents) {
+      for (const w of s.split(' ')) { words.push(W(w, t)); t += 0.45 }
+      t += 1
+    }
+    return words
+  }
+  it('bağlaçla başlayan kısa baş cümle ve yarım biten son cümle atılır; söz payı verilir', async () => {
+    const { refineClipBounds } = await import('@shared/autoclips')
+    const { buildSegments } = await import('../../src/shared/transcript/sentences')
+    const lines = ['Ve işte.', 'Lemina bu sezon çok iyi oynuyor.', 'Orta sahada topu çok iyi taşıyor.', 'Bence takımın en önemli oyuncusu oldu.', 'Ama bir de şey']
+    const words = build(lines)
+    const segs = buildSegments(words)
+    const r = refineClipBounds(segs, segs, words, 5, 100)
+    expect(r.piece[0].text).toMatch(/^Lemina/)
+    expect(r.piece[r.piece.length - 1].text).toMatch(/oldu\.$/)
+    // pay: baştaki söz bitmeden kesilmez, sonda 0,5 sn pay
+    expect(r.start).toBeLessThanOrEqual(r.piece[0].start)
+    expect(r.end).toBeGreaterThan(r.piece[r.piece.length - 1].end)
+  })
+  it('süre alt sınırı bozulacaksa baş/son cümleye dokunulmaz', async () => {
+    const { refineClipBounds } = await import('@shared/autoclips')
+    const { buildSegments } = await import('../../src/shared/transcript/sentences')
+    const words = build(['Ve işte.', 'Lemina iyi oynadı bugün.'])
+    const segs = buildSegments(words)
+    const r = refineClipBounds(segs, segs, words, 30, 100)
+    expect(r.piece).toHaveLength(2)
+  })
+})
+
+describe('Auto Clips: yatay (YouTube) klipler', () => {
+  it('yatayda 2 dk 58 sn sınırı yok: uzun konu tek klip kalır; dikeyde bölünür/sığmaz', () => {
+    const words = stream([{ secs: 60, vocab: FOOD }, { secs: 330, vocab: FOOT, name: 'Lemina' }, { secs: 60, vocab: FOOD }])
+    const h = findAutoClips(words, { horizontal: true, maxSec: 900 })
+    expect(h.some((c) => c.durationSec > MAX_CLIP_SEC)).toBe(true)
+    const v = findAutoClips(words)
+    expect(v.every((c) => c.durationSec <= MAX_CLIP_SEC)).toBe(true)
+  })
+})
+
+describe('zincir: yatay klipler', () => {
+  it('ayar açıksa dikeyden sonra yatay iş de başlatılır; kapalıysa yalnızca dikey', () => {
+    const started: { horizontal?: boolean }[] = []
+    const mgr = { start: (r: { horizontal?: boolean }) => (started.push(r), `j${started.length}`) }
+    const st = (id: string) => ({ id, status: 'done', result: { projectPath: '/x/p.clipforge' } })
+    chainAutoClips(st('a1'), new Set(), { autoClipsAfterKick: true, autoClipsMax: 5, autoClipsExport: true, autoClipsHorizontal: true }, mgr)
+    expect(started.map((r) => !!r.horizontal)).toEqual([false, true])
+    started.length = 0
+    chainAutoClips(st('a2'), new Set(), { autoClipsAfterKick: true, autoClipsMax: 5, autoClipsExport: true, autoClipsHorizontal: false }, mgr)
+    expect(started.map((r) => !!r.horizontal)).toEqual([false])
   })
 })

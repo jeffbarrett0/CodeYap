@@ -409,3 +409,8 @@ Kullanıcı ortamında whisper-cli çalışma klasörünü (cwd) uygulamıyor ya
 
 ## 50. Toplam süre göstergesi
 Auto Kick ve Auto Clips işleri bittiğinde ("Tamamlandı") kartta "⏱ Toplam süre: 1 sa 12 dk" yazar (`finishedAt − startedAt`, `fmtElapsed`). Auto Clips süresi klip üretme + MP4 dışa aktarmayı kapsar.
+
+## 51. Sessizlik eşiği, klip sınırları, yatay klipler
+- Sessizlik kesme eşiği 0,7 → 0,55 sn (kullanıcı: "bazı yerleri atlamışsın, çok hafif düşür"). Ayar dosyasında eski varsayılan (0,7) kayıtlıysa yüklenirken 0,55'e alınır.
+- Klip başı/sonu: `refineClipBounds` — bağlaçlı/çok kısa baş cümle atılır, yarım son cümle atılır/tamamlanır, söz payı (0,3 sn önce, 0,5 sn sonra). Süre sınırları bozulmaz.
+- Yatay mod (`horizontal`): 2:58 sınırı yok (45 sn–20 dk; tavan 1 sa), yüz/şerit yok, 16:9 `youtube` ön ayarı; zincirde dikeyden sonra çalışır. `topic-video` konu geçişlerini tek yatay videoda toplar.

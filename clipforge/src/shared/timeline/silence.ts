@@ -11,7 +11,7 @@ export interface SilenceOptions {
   minCutSec: number
 }
 
-export const DEFAULT_SILENCE_OPTIONS: SilenceOptions = { minGapSec: 0.7, keepSec: 0.15, cutFillers: true, minCutSec: 0.2 }
+export const DEFAULT_SILENCE_OPTIONS: SilenceOptions = { minGapSec: 0.55, keepSec: 0.15, cutFillers: true, minCutSec: 0.2 }
 
 /**
  * Tam konuşma olmayan dolgu sesleri (Türkçe: ı, ıı, ııı, e, ee, eee, hımm, ömm …). Gerçek sözcükleri (ah, oh, evet …) içermez.

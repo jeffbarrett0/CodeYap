@@ -19,13 +19,13 @@ export interface AutoClipsHooks {
 }
 
 /** Bir klip projesini 9:16 MP4 olarak dışa aktarır (proje dosyasının yanına, aynı adla) */
-export async function exportClipProject(projectPath: string, env: Env, signal?: AbortSignal, onProgress?: (f: number) => void): Promise<string> {
+export async function exportClipProject(projectPath: string, env: Env, signal?: AbortSignal, onProgress?: (f: number) => void, preset: 'shorts' | 'youtube' = 'shorts'): Promise<string> {
   const service = await makeService(env)
   const s = await Session.open(projectPath, service)
   const total = timelineDuration(s.timeline)
   if (total <= 0) throw new Error('Klip boş.')
   const out = join(dirname(projectPath), `${basename(projectPath).replace(/\.clipforge$/i, '')}.mp4`)
-  const options = optionsFromPreset('shorts')
+  const options = optionsFromPreset(preset)
   const id = service.exportStart({ name: 'autoclips', timeline: { ...s.timeline, aspect: options.aspect }, assets: s.project.assets, options, range: { start: 0, end: total }, outputPath: out })
   const onAbort = () => service.queue.cancel(id)
   signal?.addEventListener('abort', onAbort, { once: true })
@@ -48,7 +48,7 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   const stage = hooks.onStage
   check()
   stage('find', { status: 'running', progress: 0 })
-  const found = await autoClipCandidates(req.projectPath, { minSec: req.minSec, maxSec: req.maxSec, max: req.max }, env)
+  const found = await autoClipCandidates(req.projectPath, { minSec: req.minSec, maxSec: req.maxSec, max: req.max, ...(req.horizontal ? { horizontal: true } : {}) }, env)
   if (found.candidates.length === 0) {
     stage('find', { status: 'done', progress: 1, detail: 'Klip olabilecek net bir konu bulunamadı' })
     stage('make', { status: 'skipped' })
@@ -62,7 +62,7 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   for (const [i, c] of found.candidates.entries()) {
     check()
     try {
-      const m = await makeAutoClip(req.projectPath, c, { face: req.face, facePos: req.facePos, faceShare: req.faceShare, faceZoom: req.faceZoom, faceFocus: req.faceFocus, screenZoom: req.screenZoom }, env)
+      const m = await makeAutoClip(req.projectPath, c, { face: req.face, facePos: req.facePos, faceShare: req.faceShare, faceZoom: req.faceZoom, faceFocus: req.faceFocus, screenZoom: req.screenZoom, horizontal: req.horizontal }, env)
       clips[i].projectPath = m.projectPath
     } catch (e) {
       check()
@@ -79,7 +79,7 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
     for (const [i, c] of todo.entries()) {
       check()
       try {
-        c.videoPath = await exportClipProject(c.projectPath!, env, hooks.signal, (f) => stage('export', { progress: (i + f) / todo.length, detail: `${i + 1}/${todo.length}: ${c.subject}` }))
+        c.videoPath = await exportClipProject(c.projectPath!, env, hooks.signal, (f) => stage('export', { progress: (i + f) / todo.length, detail: `${i + 1}/${todo.length}: ${c.subject}` }), req.horizontal ? 'youtube' : 'shorts')
       } catch (e) {
         check()
         c.error = `MP4 dışa aktarılamadı: ${e instanceof Error ? e.message : String(e)}`
@@ -108,7 +108,7 @@ export class AutoClipsManager {
 
   start(req: AutoClipsRequest): string {
     const id = `autoclips-${++this.seq}`
-    const status: AutoClipsStatus = { id, request: req, name: basename(req.projectPath).replace(/\.clipforge$/i, ''), status: 'running', stages: initialAutoClipsStages(), startedAt: Date.now() }
+    const status: AutoClipsStatus = { id, request: req, name: `${basename(req.projectPath).replace(/\.clipforge$/i, '')}${req.horizontal ? ' (yatay)' : ''}`, status: 'running', stages: initialAutoClipsStages(), startedAt: Date.now() }
     const ctrl = new AbortController()
     this.jobs.set(id, { status, ctrl })
     const push = () => this.emit(structuredClone(status))
@@ -154,11 +154,14 @@ export class AutoClipsManager {
 export function chainAutoClips(
   s: { id: string; status: string; result?: { projectPath: string } },
   handled: Set<string>,
-  settings: { autoClipsAfterKick: boolean; autoClipsMax: number; autoClipsExport: boolean },
+  settings: { autoClipsAfterKick: boolean; autoClipsMax: number; autoClipsExport: boolean; autoClipsHorizontal?: boolean },
   manager: { start(req: AutoClipsRequest): string }
 ): string | null {
   if (s.status !== 'done' || !s.result || handled.has(s.id)) return null
   handled.add(s.id)
   if (!settings.autoClipsAfterKick) return null
-  return manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport })
+  const id = manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport })
+  // yatay (YouTube) klipler de: dikey işten sonra sırayla çalışır (iş kuyruğu tek tek)
+  if (settings.autoClipsHorizontal) manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport, horizontal: true })
+  return id
 }
