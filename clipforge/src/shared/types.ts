@@ -250,6 +250,8 @@ export interface ClipFx {
   zoom?: { from: number; to: number; x: number; y: number }
   /** Renk havası: görüntüye uygulanan hazır renk ayarı */
   grade?: 'warm' | 'cool' | 'vivid' | 'cinematic' | 'bw' | 'vintage' | 'bright'
+  /** Arka plan sesini (araba, rüzgâr, uğultu) azaltıp konuşmaya odaklar; dışa aktarmada uygulanır */
+  denoise?: 'light' | 'medium' | 'strong'
   /** Açılış geçişi (sn): görüntü karanlıktan/saydamdan belirir, ses yavaş yükselir */
   fadeIn?: number
   /** Kapanış geçişi (sn): görüntü kararır/saydamlaşır, ses yavaş kısılır */

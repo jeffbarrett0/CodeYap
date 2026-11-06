@@ -454,3 +454,28 @@ export function snapDropTime(track: Pick<Track, 'clips'>, raw: number): number {
   return t
 }
 
+
+export type DenoiseLevel = 'light' | 'medium' | 'strong'
+
+/** Ses taşıyan tüm kliplere (ses izleri + sesi seçili video klipleri) arka plan sesi azaltmayı açar/kapatır (level=null: kapat) */
+export function setDenoise(tl: Timeline, level: DenoiseLevel | null): Timeline {
+  return mapTracks(tl, (t) => {
+    if (t.kind !== 'audio' && t.kind !== 'video') return t
+    return {
+      ...t,
+      clips: t.clips.map((c) => {
+        if (t.kind === 'video' && c.audioStream === undefined) return c
+        if (level) return { ...c, fx: { ...c.fx, denoise: level } }
+        if (!c.fx?.denoise) return c
+        const { denoise: _d, ...rest } = c.fx
+        return { ...c, fx: Object.keys(rest).length ? rest : undefined }
+      })
+    }
+  })
+}
+
+/** Şu an açık olan arka plan sesi azaltma seviyesi (hiçbir klipte yoksa null) */
+export function denoiseLevel(tl: Timeline): DenoiseLevel | null {
+  for (const t of tl.tracks) for (const c of t.clips) if (c.fx?.denoise) return c.fx.denoise
+  return null
+}

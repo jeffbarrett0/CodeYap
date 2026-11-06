@@ -1207,6 +1207,15 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('toast').filter({ hasText: /Claude Code komutu kopyalandı|projeyi kaydedin/ }).first()).toBeVisible({ timeout: 10_000 })
   })
 
+  test('Arka sesi kes: araç çubuğunda seviye seçilir ve bildirim çıkar', async ({ page }) => {
+    await page.goto('/')
+    const sel = page.getByTestId('denoise')
+    await expect(sel).toBeVisible()
+    await expect(sel).toHaveValue('off')
+    await sel.selectOption('medium')
+    await expect(page.getByTestId('toast').filter({ hasText: 'Arka plan sesi azaltılacak' }).first()).toBeVisible()
+  })
+
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {
     await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { chapters: 'Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.' } }))
     await boot(page)

@@ -439,3 +439,6 @@ Kullanıcı: ek görsel fırsatları önerme, kendiliğinden ekle; "sahne senin"
 
 ## 59. Araç çantası genişledi + çağrı butonları
 Kullanıcı: çantayı mümkün olduğunca genişlet; abone ol/beğen çağrı butonlarını 2–3 dakikada bir koyabilirsin, kendi özel butonlarını 2 gün içinde verecek. Eklenenler: `text` (animasyonlu ekran yazısı), `grade` (renk havası: fx.grade → ffmpeg), `cta` (kullanıcının buton dosyalarını `resources/cta/` ya da `--file` ile aralıklı gösterir; dosya yoksa hiçbir şey eklemez), yeni sfx türleri (boom, shutter, click, notify). Kural değişti: çağrı yalnızca KULLANICININ butonlarıyla; kendi icat ettiğimiz "abone ol" yazısı/butonu yok; başka kanal adı/logosu yasak.
+
+## 60. Arka plan sesini kes (denoise)
+Kullanıcı: yola yakın çekimde araba sesleri gelirse tek düğmeyle azaltılsın, ses odaklansın. `Clip.fx.denoise` (hafif/orta/güçlü) → dışa aktarmada highpass + RNNoise sinir ağı (`arnndn`, model `resources/models/rnnoise-voice.rnnn` "leavened-quisling", telifsiz) + afftdn (+agate). Model yolu çalışma klasöründe göreli `rnnoise.rnnn` (Windows güvenli); model yoksa adım atlanır ve uyarı verilir. Sentetik testte yalnızca gürültü olan aralık −26,6 → −80,8 dB düştü, konuşma aralığı aynı kaldı. Sınır: aynı anda konuşma + gürültü varken gürültü tamamen silinmez, yalnızca bastırılır; önizlemede duyulmaz; Auto Kick full.mp4 (hızlı kesim) henüz kapsam dışı.

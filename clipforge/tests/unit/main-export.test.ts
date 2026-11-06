@@ -260,4 +260,17 @@ describe('proje kaydet / aç', () => {
     await expect(openProject(bad)).rejects.toThrow(/ClipForge projesi değil/)
     await expect(openProject(join(root, 'yok.clipforge'))).rejects.toThrow(/okunamadı/)
   })
+
+  it('arka plan sesi azaltma: model varsa uygulanır; model yoksa dışa aktarma yine başarılı olur ve uyarı verir', async () => {
+    let tl = timeline()
+    tl = ops.setDenoise(tl, 'medium')
+    const out1 = join(root, 'dn1.mp4')
+    const r1 = await runExport({ name: 'k', timeline: tl, assets: [asset], options: quick('shorts', { normalizeAudio: false }), range: { start: 0, end: 4 }, outputPath: out1 }, tools, { resourcesDir: join(__dirname, '..', '..', 'resources') })
+    expect(existsSync(out1)).toBe(true)
+    expect(r1.warnings.some((w) => /Gürültü azaltma modeli/.test(w))).toBe(false)
+    const out2 = join(root, 'dn2.mp4')
+    const r2 = await runExport({ name: 'k', timeline: tl, assets: [asset], options: quick('shorts', { normalizeAudio: false }), range: { start: 0, end: 4 }, outputPath: out2 }, tools) // resourcesDir yok
+    expect(existsSync(out2)).toBe(true)
+    expect(r2.warnings.some((w) => /Gürültü azaltma modeli/.test(w))).toBe(true)
+  })
 })

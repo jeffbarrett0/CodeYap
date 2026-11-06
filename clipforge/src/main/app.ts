@@ -401,7 +401,7 @@ export class AppService {
       kind: 'export',
       title: `Dışa aktarma: ${req.name}`,
       run: async (ctx) => {
-        const { outputPath, warnings } = await runExport(req, this.tools, { signal: ctx.signal, progress: ctx.progress })
+        const { outputPath, warnings } = await runExport(req, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
         // YouTube bölüm zamanları: dışa aktarılan videonun yanına .txt (yalnızca tam video; hata dışa aktarmayı bozmaz)
         let timestampsPath: string | undefined
         if (req.timestamps && req.range.start <= 0.01) {

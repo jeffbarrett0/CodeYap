@@ -162,3 +162,30 @@ describe('klip efektleri (zoom, giriş/çıkış)', () => {
     expect(g).not.toMatch(/zoompan|fade=|afade=/)
   })
 })
+
+describe('arka plan sesi azaltma', () => {
+  it('seviyeye göre zincir kurulur; model göreli ASCII dosya adıyla (Windows güvenli); kapalıyken filtre yok', () => {
+    const o = optionsFromPreset('youtube')
+    const a = { ...asset, width: 1280, height: 720 }
+    const mkTl = (level?: 'light' | 'medium' | 'strong') => {
+      let tl = createDefaultTimeline()
+      tl = ops.addClip(tl, 'V3', mk('v', 'V3', 0, 0, 10))
+      tl = ops.addClip(tl, 'A1', mk('ga', 'A1', 0, 0, 10, { audioStream: 0 }))
+      return level ? ops.setDenoise(tl, level) : tl
+    }
+    const get = (tl: ReturnType<typeof mkTl>) => buildExportPlan(tl, () => a, o, 'x.mp4')
+    const off = get(mkTl())
+    expect(off.needsRnnoise).toBeFalsy()
+    expect(off.files.find((x) => x.name === 'filters.txt')!.content).not.toMatch(/arnndn/)
+    for (const lv of ['light', 'medium', 'strong'] as const) {
+      const p = get(mkTl(lv))
+      const f = p.files.find((x) => x.name === 'filters.txt')!.content
+      expect(p.needsRnnoise).toBe(true)
+      expect(f).toMatch(/highpass=f=\d+,arnndn=m=rnnoise\.rnnn:mix=/)
+      if (lv !== 'light') expect(f).toMatch(/afftdn/)
+      if (lv === 'strong') expect(f).toMatch(/agate/)
+    }
+    expect(ops.denoiseLevel(mkTl('medium'))).toBe('medium')
+    expect(ops.denoiseLevel(ops.setDenoise(mkTl('medium'), null))).toBeNull()
+  })
+})

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { buildExportPlan } from '../shared/export/plan'
@@ -14,7 +14,7 @@ import type { MediaTools } from './media/import'
 export async function runExport(
   req: ExportRequest,
   tools: MediaTools,
-  opts: { signal?: AbortSignal; progress?: (f: number, msg?: string) => void } = {}
+  opts: { signal?: AbortSignal; progress?: (f: number, msg?: string) => void; /** uygulama kaynakları klasörü (gürültü azaltma modeli için) */ resourcesDir?: string } = {}
 ): Promise<{ outputPath: string; warnings: string[] }> {
   try {
     return await runExportOnce(req, tools, opts)
@@ -32,7 +32,7 @@ export async function runExport(
 async function runExportOnce(
   req: ExportRequest,
   tools: MediaTools,
-  opts: { signal?: AbortSignal; progress?: (f: number, msg?: string) => void }
+  opts: { signal?: AbortSignal; progress?: (f: number, msg?: string) => void; resourcesDir?: string }
 ): Promise<{ outputPath: string; warnings: string[] }> {
   const byId = new Map(req.assets.map((a) => [a.id, a]))
   const missing = req.assets.filter((a) => a.missing)
@@ -46,9 +46,27 @@ async function runExportOnce(
   if (plan.durationSec <= 0.1) throw new ToolError('Dışa aktarılacak içerik yok: zaman çizelgesi boş.')
 
   await mkdir(dirname(req.outputPath), { recursive: true })
+  const warnings = [...plan.warnings]
   const work = await mkdtemp(join(tmpdir(), 'clipforge-export-'))
   try {
-    for (const f of plan.files) await writeFile(join(work, f.name), f.content, 'utf8')
+    let haveModel = false
+    if (plan.needsRnnoise && opts.resourcesDir) {
+      try {
+        await copyFile(join(opts.resourcesDir, 'models', 'rnnoise-voice.rnnn'), join(work, 'rnnoise.rnnn'))
+        haveModel = true
+      } catch {
+        haveModel = false
+      }
+    }
+    for (const f of plan.files) {
+      let content = f.content
+      // model dosyası yoksa sinir ağı adımı atlanır (kalan filtreler yine çalışır) ve kullanıcı uyarılır
+      if (plan.needsRnnoise && !haveModel && f.name === 'filters.txt') {
+        content = content.replace(/arnndn=m=rnnoise\.rnnn:mix=[0-9.]+,?/g, '')
+        warnings.push('Gürültü azaltma modeli bulunamadı (resources/models/rnnoise-voice.rnnn): yalnızca yüksek geçiren ve spektral gürültü azaltma uygulandı.')
+      }
+      await writeFile(join(work, f.name), content, 'utf8')
+    }
     // ffmpeg uzantıdan biçimi çıkarır: `.part` uzantısı bunu bozacağından biçimi açıkça belirt
     const args = [...plan.args.slice(0, -1), '-f', 'mp4', plan.args.at(-1) as string]
     opts.progress?.(0, 'Kodlanıyor')
@@ -65,5 +83,5 @@ async function runExportOnce(
   } finally {
     await rm(work, { recursive: true, force: true }).catch(() => undefined)
   }
-  return { outputPath: req.outputPath, warnings: plan.warnings }
+  return { outputPath: req.outputPath, warnings }
 }

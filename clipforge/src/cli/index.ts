@@ -122,6 +122,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   zoom <proje> --at sn --dur sn [--from 1] [--to 1.15] [--focus 0.5,0.5] [--layer V3]   o aralıkta ana görüntüyü yavaşça yakınlaştırır/uzaklaştırır (vurgu için; dışa aktarmada uygulanır)
   fade <proje> [--in 0.6] [--out 1.2]    videonun başına ses+görüntü GİRİŞİ, sonuna ÇIKIŞI ekler (karardan açılır, sonda kararır, ses yumuşakça girer/çıkar)
   sfx <proje> --type whoosh|swish|pop|ding|riser|boom|shutter|click|notify --at sn [--vol 0.6]   kısa ses efekti (kendi üretimimiz, telifsiz) ses katmanına koyar (grafik girişinde whoosh, vurguda pop gibi)
+  denoise <proje> [--level light|medium|strong|off]   arka plan seslerini (araba, rüzgâr, uğultu) azaltıp konuşmaya odaklar (RNNoise + gürültü azaltma; dışa aktarmada uygulanır)
   grade <proje> --look warm|cool|vivid|cinematic|bw|vintage|bright [--at sn --dur sn] [--layer V3]   renk havası (tümüne ya da bir aralığa; dışa aktarmada uygulanır)
   text <proje> --text "metin" --at sn [--dur 3] [--pos top|center|bottom] [--size 84] [--color #FFE600] [--animation slide-up|pulse|fade|none]   ekranda animasyonlu büyük yazı (vurgu cümlesi, başlık, espri)
   cta <proje> [--file a.png,b.png | --folder klasör] [--every 150] [--first 60] [--dur 5] [--pos bottom-right] [--size 0.22]   KULLANICININ çağrı butonlarını (abone ol/beğen/bildirim; resources/cta/) belirli aralıkla köşede gösterir; buton dosyası yoksa bir şey eklemez
@@ -783,6 +784,14 @@ async function main(argv: string[]): Promise<unknown> {
       s.apply(cmd.addClip(id, { ...r.clip, label: `Efekt: ${type}`, volume: vol }))
       await s.save()
       return out({ ok: true, type, at: r1(at), durationSec: r1(asset.durationSec), track: id, volume: vol })
+    }
+    case 'denoise': {
+      const level = str(a.opt.level) ?? 'medium'
+      if (!['light', 'medium', 'strong', 'off'].includes(level)) throw new Error('--level light|medium|strong|off olmalı.')
+      s.apply(cmd.denoise(level === 'off' ? null : (level as 'light' | 'medium' | 'strong')))
+      const n = s.timeline.tracks.flatMap((t) => t.clips).filter((c) => c.fx?.denoise).length
+      await s.save()
+      return out({ ok: true, level, clips: n, note: level === 'off' ? 'Arka plan sesi azaltma kapatıldı.' : 'Dışa aktarılan videoda uygulanır (önizlemede duyulmaz).' })
     }
     case 'grade': {
       const looks = ['warm', 'cool', 'vivid', 'cinematic', 'bw', 'vintage', 'bright']

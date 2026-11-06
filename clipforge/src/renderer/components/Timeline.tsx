@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cmd } from '@shared/timeline/commands'
 import { localizeCaption } from '@shared/timeline/captions'
 import { clipDuration, clipEnd, groupMembers, timelineDuration } from '@shared/timeline/model'
-import { snapDropTime, snapPoints } from '@shared/timeline/ops'
+import { denoiseLevel, snapDropTime, snapPoints } from '@shared/timeline/ops'
 import type { Clip, Track } from '@shared/types'
 import { useStore } from '../store'
 import { claudeVlogPrompt } from '../claudePrompt'
@@ -209,6 +209,15 @@ export function Timeline() {
         <button className="btn sm" onClick={() => useStore.getState().joinSelected()} title="Seçili klibi hemen sonraki, kaynakta kesintisiz devam eden klibiyle birleştirir" data-testid="join">⇄ Birleştir</button>
         <button className="btn sm" onClick={() => useStore.getState().cutSilence()} title="Konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini tek tıkla keser" data-testid="cut-silence-tb">✂ Sessizleri kes</button>
         <button className="btn sm" onClick={() => useStore.getState().closeGaps()} title="Hiçbir izde içerik olmayan boşlukları siler" data-testid="close-gaps">Boşlukları kapat</button>
+        <label className="row" style={{ gap: 4 }} title="Arka plandaki araba, rüzgâr, uğultu gibi sesleri azaltır, sizin sesinize odaklanır. Dışa aktarılan videoda uygulanır (önizlemede duyulmaz)">
+          🔇 Arka sesi kes
+          <select value={denoiseLevel(tl) ?? 'off'} onChange={(e) => { const v = e.target.value; exec(cmd.denoise(v === 'off' ? null : (v as 'light' | 'medium' | 'strong'))); useStore.getState().toast('success', v === 'off' ? 'Arka plan sesi geri getirildi.' : 'Arka plan sesi azaltılacak: dışa aktarılan videoda uygulanır (önizlemede duyulmaz).') }} aria-label="Arka plan sesini azalt" data-testid="denoise">
+            <option value="off">Kapalı</option>
+            <option value="light">Hafif</option>
+            <option value="medium">Orta</option>
+            <option value="strong">Güçlü</option>
+          </select>
+        </label>
         <button className="btn sm primary" onClick={() => void claudeEdit()} title="Vlogu Claude Code ile edit ettirir: sessizleri keser, boşlukları kapatır, 2B/3B harita ve başlık grafikleri, zoom, ses giriş/çıkışı ve ses efektleriyle zenginleştirir. Komutu kopyalar; Claude Code'a yapıştırırsınız" data-testid="claude-edit">✨ Claude ile edit yap</button>
         <span style={{ width: 8 }} />
         <button className="btn sm" onClick={() => { setViewMode('timeline'); setPlaying(!playing) }} aria-label="Oynat/duraklat (Space)">{playing ? '⏸' : '▶'} <kbd>Space</kbd></button>

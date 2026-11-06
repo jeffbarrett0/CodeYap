@@ -11,6 +11,8 @@ export interface ExportPlan {
   files: { name: string; content: string }[]
   durationSec: number
   warnings: string[]
+  /** Filtreler `rnnoise.rnnn` model dosyasını kullanıyor: çalışma klasörüne kopyalanmalı (yoksa arnndn adımı atlanır) */
+  needsRnnoise?: boolean
 }
 
 type AssetLookup = (id: ID) => Pick<MediaAsset, 'path' | 'kind' | 'audioStreams'> & Partial<Pick<MediaAsset, 'width' | 'height'>> | undefined
@@ -69,6 +71,17 @@ function videoFx(c: Clip, dur: number, w: number, h: number, fps: number, alpha:
   if (fx.fadeIn && fx.fadeIn > 0) f += `,fade=t=in:st=0:d=${Math.min(fx.fadeIn, dur).toFixed(3)}${alpha ? ':alpha=1' : ''}`
   if (fx.fadeOut && fx.fadeOut > 0) f += `,fade=t=out:st=${Math.max(0, dur - fx.fadeOut).toFixed(3)}:d=${Math.min(fx.fadeOut, dur).toFixed(3)}${alpha ? ':alpha=1' : ''}`
   return f
+}
+
+/**
+ * Arka plan sesini azaltma zinciri: yüksek geçiren (uğultu/rüzgâr) + RNNoise sinir ağı modeli (araba, kalabalık gibi konuşma dışı sesler)
+ * + (orta/güçlü) spektral gürültü azaltma + (güçlü) gürültü kapısı; konuşma için hafif sıkıştırıcı. Model yolu göreli ve ASCII (Windows'ta sorunsuz).
+ */
+function denoiseChain(level: 'light' | 'medium' | 'strong'): string {
+  const m = 'arnndn=m=rnnoise.rnnn'
+  if (level === 'light') return `,highpass=f=80,${m}:mix=0.7`
+  if (level === 'medium') return `,highpass=f=90,${m}:mix=1,afftdn=nr=8:nf=-45,acompressor=threshold=0.12:ratio=2.5:attack=5:release=120:makeup=1.5`
+  return `,highpass=f=100,${m}:mix=1,${m}:mix=0.6,afftdn=nr=14:nf=-40,agate=threshold=0.015:ratio=2.5:attack=8:release=200,acompressor=threshold=0.1:ratio=3:attack=5:release=100:makeup=2`
 }
 
 /** Ses giriş/çıkış geçişi (afade) */
@@ -239,7 +252,7 @@ export function buildExportPlan(
       const delay = Math.round(p.at * 1000)
       const label = `au${audioLabels.length}`
       lines.push(
-        `[${idx}:a:${stream}]asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol.toFixed(3)}${audioFx(c, p.dur)}${delay > 0 ? `,adelay=${delay}|${delay}` : ''}[${label}]`
+        `[${idx}:a:${stream}]asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo${c.fx?.denoise ? denoiseChain(c.fx.denoise) : ''},volume=${vol.toFixed(3)}${audioFx(c, p.dur)}${delay > 0 ? `,adelay=${delay}|${delay}` : ''}[${label}]`
       )
       audioLabels.push(label)
     }
@@ -302,5 +315,6 @@ export function buildExportPlan(
     f3(D),
     outputPath
   ]
-  return { args, files, durationSec: D, warnings }
+  const needsRnnoise = lines.some((l) => l.includes('rnnoise.rnnn'))
+  return { args, files, durationSec: D, warnings, needsRnnoise }
 }

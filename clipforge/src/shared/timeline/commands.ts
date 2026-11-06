@@ -22,6 +22,8 @@ export const cmd = {
   removeMany: (ids: ID[], single = true, label = 'Toplu sil'): TimelineCommand => makeCommand(label, (t) => ids.reduce((acc, id) => ops.deleteClip(acc, id, false, single), t)),
   updateClip: (clipId: ID, patch: Partial<Clip>, coalesce = false): TimelineCommand =>
     makeCommand('Klip özelliği', (t) => ops.updateClip(t, clipId, patch), coalesce ? `upd:${clipId}:${Object.keys(patch).join(',')}` : undefined),
+  /** Arka plan sesini azalt (seviye) / kapat (null): tüm ses taşıyan kliplere, tek geri alma adımı */
+  denoise: (level: ops.DenoiseLevel | null): TimelineCommand => makeCommand(level ? 'Arka plan sesini azalt' : 'Arka plan sesini geri getir', (t) => ops.setDenoise(t, level)),
   track: (trackId: ID, patch: Parameters<typeof ops.updateTrack>[2], coalesce = false): TimelineCommand =>
     makeCommand('İz ayarı', (t) => ops.updateTrack(t, trackId, patch), coalesce ? `trk:${trackId}:${Object.keys(patch).join(',')}` : undefined),
   captions: (captions: Caption[]): TimelineCommand => makeCommand('Altyazıları güncelle', (t) => ops.setCaptions(t, captions)),
