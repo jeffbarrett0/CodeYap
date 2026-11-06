@@ -5,6 +5,7 @@ import { clipDuration, clipEnd, groupMembers, timelineDuration } from '@shared/t
 import { snapDropTime, snapPoints } from '@shared/timeline/ops'
 import type { Clip, Track } from '@shared/types'
 import { useStore } from '../store'
+import { claudeVlogPrompt } from '../claudePrompt'
 import { fmt } from './ui'
 
 const ROLE_CLASS: Record<string, string> = { screen: 'screen', webcam: 'webcam', game: 'game', voice: 'voice', mix: 'mix', image: 'image', text: 'text' }
@@ -24,6 +25,15 @@ interface DragState {
 export function Timeline() {
   const { project, selection, select, playhead, setPlayhead, zoom, setZoom, exec, undo, redo, historyVersion, splitAtPlayhead, deleteSelection, playing, setPlaying, viewMode, setViewMode } = useStore()
   const tl = project.timeline
+  /** "Claude ile edit yap": projeyi kaydeder, Claude Code'a yapıştırılacak vlog komutunu kopyalar (editi Claude Code yapar) */
+  const claudeEdit = async () => {
+    const st = useStore.getState()
+    if (!st.projectPath || st.dirty) await st.saveProject(!st.projectPath)
+    const path = useStore.getState().projectPath
+    if (!path) return st.toast('info', 'Önce projeyi kaydedin (Dosya → Kaydet), sonra tekrar basın: Claude Code projenin yolunu bilmeli.')
+    void navigator.clipboard?.writeText(claudeVlogPrompt(path)).catch(() => undefined)
+    st.toast('success', 'Claude Code komutu kopyalandı: Claude Code içine yapıştırın (sessizleri keser, boşlukları kapatır, yolculukları grafikle anlatır).')
+  }
   const selectedCaptionId = useStore((s) => s.selectedCaptionId)
   const selectedCaptionIds = useStore((s) => s.selectedCaptionIds)
   const activeLane = useStore((s) => s.activeLane)
@@ -199,6 +209,7 @@ export function Timeline() {
         <button className="btn sm" onClick={() => useStore.getState().joinSelected()} title="Seçili klibi hemen sonraki, kaynakta kesintisiz devam eden klibiyle birleştirir" data-testid="join">⇄ Birleştir</button>
         <button className="btn sm" onClick={() => useStore.getState().cutSilence()} title="Konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini tek tıkla keser" data-testid="cut-silence-tb">✂ Sessizleri kes</button>
         <button className="btn sm" onClick={() => useStore.getState().closeGaps()} title="Hiçbir izde içerik olmayan boşlukları siler" data-testid="close-gaps">Boşlukları kapat</button>
+        <button className="btn sm primary" onClick={() => void claudeEdit()} title="Vlogu Claude Code ile edit ettirir: sessizleri keser, boşlukları kapatır, konuştuğunuz yolculuk/yerlere (Belçika'dan Paris'e) 2B/3B rota grafiği koyar. Komutu kopyalar; Claude Code'a yapıştırırsınız" data-testid="claude-edit">✨ Claude ile edit yap</button>
         <span style={{ width: 8 }} />
         <button className="btn sm" onClick={() => { setViewMode('timeline'); setPlaying(!playing) }} aria-label="Oynat/duraklat (Space)">{playing ? '⏸' : '▶'} <kbd>Space</kbd></button>
         <span className="tc" style={{ marginLeft: 6 }}>{fmt(playhead, true)}</span>

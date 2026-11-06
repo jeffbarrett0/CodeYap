@@ -427,3 +427,6 @@ Yatay klipler en az 1 dk, en çok 20 dk (kullanıcı: "kısa tutmaya çalışma"
 
 ## 55. Kısa video altyazısı (`shorts`)
 Referans kısa videodaki gibi: iri beyaz kalın yazı + siyah kontur, kutusuz/vurgusuz, satırda 2–4 kelime (`minWords:2` ile tek kelime komşuya katılır), yüz alanının altında, şeridin hemen üstünde. `autoClipsCaptions` ayarı (varsayılan kapalı; önceki "altyazı istenmedikçe ekleme" kuralı) ve `--captions` ile dikey Auto Clips kliplerine otomatik eklenir. Yatay kliplerde yok.
+
+## 56. "Claude ile edit yap" düğmesi (vlog)
+Zaman çizelgesi araç çubuğuna (Sessizleri kes / Boşlukları kapat yanına) ✨ düğmesi: projeyi kaydedip vlog komutunu panoya kopyalar. Editi uygulama değil Claude Code yapar (uygulama Claude'u çağıramaz). Komut: transkript → sessiz kesme + boşluk kapatma → yolculuk cümlelerine 2B/3B rota grafiği (doğrudan) → diğer fırsatlar öneri → frame ile kontrol → liste.

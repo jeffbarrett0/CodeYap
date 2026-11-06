@@ -1199,6 +1199,14 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-job')).toHaveCount(0)
   })
 
+  test('Claude ile edit yap: araç çubuğunda durur; proje kaydedilmemişse anlaşılır uyarı verir', async ({ page }) => {
+    await page.goto('/')
+    const b = page.getByTestId('claude-edit')
+    await expect(b).toBeVisible()
+    await b.click()
+    await expect(page.getByTestId('toast').filter({ hasText: /Claude Code komutu kopyalandı|projeyi kaydedin/ }).first()).toBeVisible({ timeout: 10_000 })
+  })
+
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {
     await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { chapters: 'Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.' } }))
     await boot(page)

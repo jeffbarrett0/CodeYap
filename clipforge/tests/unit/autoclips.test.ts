@@ -334,3 +334,15 @@ describe('kısa video altyazısı (2–4 kelime)', () => {
     expect(caps.map((c) => c.text).join(' ')).toBe(txt.join(' '))
   })
 })
+
+describe('Claude ile edit yap (vlog komutu)', () => {
+  it('proje yolunu, sessiz kesme, boşluk kapatma ve rota grafiğini içerir; çağrı metni yok', async () => {
+    const { claudeVlogPrompt } = await import('../../src/renderer/claudePrompt')
+    const t = claudeVlogPrompt('C:\\Videolar\\paris.clipforge')
+    expect(t).toContain('C:\\Videolar\\paris.clipforge')
+    expect(t).toMatch(/silence/)
+    expect(t).toMatch(/graphic --type globe/)
+    expect(t).toMatch(/Belçika/)
+    expect(t.toLowerCase()).not.toMatch(/abone|takip et/)
+  })
+})

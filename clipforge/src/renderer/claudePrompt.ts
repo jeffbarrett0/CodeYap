@@ -16,3 +16,20 @@ export function claudeEditPrompt(videoPath: string, projectDir?: string): string
     .filter((l, i, a) => l !== '' || (i > 0 && a[i - 1] !== ''))
     .join('\n')
 }
+
+/**
+ * Vlog projesi için Claude Code komutu ("Claude ile edit yap"): sessizlikleri/ııı'ları keser, boşlukları kapatır, konuşmayı okuyup
+ * yolculuk/yer geçen yerlere (Belçika'dan Paris'e…) 2B/3B rota grafiği koyar. Claude Code bu klasörde `clipforge` komutlarıyla yapar.
+ */
+export function claudeVlogPrompt(projectPath: string): string {
+  return [
+    `clipforge klasöründe çalış. Şu vlog projesini edit et: ${projectPath}`,
+    '',
+    '1. Transkript yoksa çıkar (transcribe), sonra konuşmamı baştan sona oku (transcript).',
+    '2. Sessizlikleri ve ııı/eee gibi dolgu seslerini kes (silence); boşluk kalmadığını show ile doğrula (boşlukları kapat).',
+    '3. script ile konuştuğum yerleri bul. "Belçika\'dan Paris\'e gidiyorum" gibi yolculuk cümlelerinde, o cümlenin söylendiği ana rota grafiği koy: graphic --type globe (3B dönen küre + rota) ya da --type map (2B harita + rota), --from/--to ile, yaklaşık 4 sn. Tek yer anılırsa o yere yakınlaşan harita. Konuşulmayan yeri/rotayı uydurma.',
+    '4. Konuşmadan çıkan başka görselleştirme fırsatları (başlık, rakam) olursa önce bana öner, kendiliğinden ekleme.',
+    '5. Grafiklerin olduğu anların karesine frame ile bak, taşma/çakışma var mı kontrol et.',
+    '6. Bitince yaptıklarını listele (zaman + ne eklendi/kesildi). Yedek (.bak) alınır; kaynak videoyu değiştirme. Çağrı/yönlendirme metni ekleme. Dışa aktarmayı ben isteyince yap.'
+  ].join('\n')
+}
