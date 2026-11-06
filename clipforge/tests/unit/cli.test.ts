@@ -497,6 +497,30 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(cli('auto-clips', proj4, '--face', '0.9,0.9,0.5,0.5').ok).toBe(false)
   }, 180_000)
 
+  it('zoom / fade / sfx: yakınlaşma ve giriş-çıkış geçişi klibe işlenir, ses efekti SFX katmanına konur; hatalı girdi reddedilir', () => {
+    const p = join(tmp, 'fx.clipforge')
+    const ffm = require('ffmpeg-static') as string
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=10:duration=12', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=12', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(tmp, 'fx.mp4')])
+    cli('new', p)
+    cli('import', p, join(tmp, 'fx.mp4'), '--add', '--layer', 'V3')
+    const z = cli('zoom', p, '--at', '3', '--dur', '4', '--to', '1.3')
+    expect(z.ok, JSON.stringify(z)).toBe(true)
+    expect(z.pieces).toBe(1)
+    const before = cli('show', p).tracks.find((t: any) => t.id === 'V3').clips
+    expect(before.length).toBe(3) // 0–3, 3–7 (zoom), 7–12
+    const f = cli('fade', p, '--in', '1', '--out', '2')
+    expect(f.ok).toBe(true)
+    expect(f.clips).toBeGreaterThanOrEqual(2)
+    const sf = cli('sfx', p, '--type', 'whoosh', '--at', '2.7')
+    expect(sf.ok, JSON.stringify(sf)).toBe(true)
+    expect(sf.track).toBe('SFX')
+    expect(cli('sfx', p, '--type', 'pop', '--at', '2.8').track).toBe('SFX2') // üst üste binen efekt yeni katmana
+    expect(cli('show', p).tracks.find((t: any) => t.id === 'SFX').clips).toHaveLength(1)
+    expect(cli('zoom', p, '--at', '3', '--dur', '2', '--to', '9').ok).toBe(false)
+    expect(cli('sfx', p, '--type', 'yok', '--at', '1').ok).toBe(false)
+    expect(cli('zoom', p, '--dur', '2').ok).toBe(false)
+  }, 120_000)
+
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')
     writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))

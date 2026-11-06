@@ -142,3 +142,23 @@ describe('şablonlar', () => {
     expect(COPYRIGHT_NOTICE).toContain('hukuki tavsiye değildir')
   })
 })
+
+describe('klip efektleri (zoom, giriş/çıkış)', () => {
+  it('zoom → zoompan, görüntü geçişi → fade, ses geçişi → afade; efektsiz klipte hiçbiri yok', () => {
+    const o = optionsFromPreset('youtube')
+    const a = { ...asset, width: 1280, height: 720 }
+    let tl = createDefaultTimeline() // katman konumlu (güncel) proje
+    tl = ops.addClip(tl, 'V3', mk('v', 'V3', 0, 0, 10, { fx: { zoom: { from: 1, to: 1.3, x: 0.5, y: 0.4 }, fadeIn: 1, fadeOut: 1.5 } }))
+    tl = ops.addClip(tl, 'A1', mk('ga', 'A1', 0, 0, 10, { audioStream: 0, fx: { fadeIn: 1, fadeOut: 1.5 } }))
+    const f = buildExportPlan(tl, () => a, o, 'x.mp4').files.find((x) => x.name === 'filters.txt')!.content
+    expect(f).toMatch(/zoompan=z='1\.0000\+\(0\.3000\)\*on\/300'/)
+    expect(f).toMatch(/fade=t=in:st=0:d=1\.000/)
+    expect(f).toMatch(/fade=t=out:st=8\.500:d=1\.500/)
+    expect(f).toMatch(/afade=t=in:st=0:d=1\.000/)
+    expect(f).toMatch(/afade=t=out:st=8\.500:d=1\.500/)
+    let plain = createDefaultTimeline()
+    plain = ops.addClip(plain, 'V3', mk('v', 'V3', 0, 0, 10))
+    const g = buildExportPlan(plain, () => a, o, 'x.mp4').files.find((x) => x.name === 'filters.txt')!.content
+    expect(g).not.toMatch(/zoompan|fade=|afade=/)
+  })
+})

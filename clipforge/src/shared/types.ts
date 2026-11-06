@@ -241,6 +241,17 @@ export interface Clip {
   overlay?: NormRect
   /** Kamera klibinin kaynak karesinden kırpılacak bölge (tek dosyalık kayıtlar) */
   crop?: NormRect
+  /** Efektler: yavaş yakınlaşma/uzaklaşma (zoom) ve görüntü/ses giriş-çıkış geçişleri (dışa aktarmada uygulanır) */
+  fx?: ClipFx
+}
+
+export interface ClipFx {
+  /** Klip boyunca `from` → `to` yakınlık (1 = normal, 1,15 = %15 yakın); `x`,`y` = yakınlaşma odağı (0..1, 0,5 = orta) */
+  zoom?: { from: number; to: number; x: number; y: number }
+  /** Açılış geçişi (sn): görüntü karanlıktan/saydamdan belirir, ses yavaş yükselir */
+  fadeIn?: number
+  /** Kapanış geçişi (sn): görüntü kararır/saydamlaşır, ses yavaş kısılır */
+  fadeOut?: number
 }
 
 export interface Track {

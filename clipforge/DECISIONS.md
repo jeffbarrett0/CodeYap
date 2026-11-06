@@ -430,3 +430,6 @@ Referans kısa videodaki gibi: iri beyaz kalın yazı + siyah kontur, kutusuz/vu
 
 ## 56. "Claude ile edit yap" düğmesi (vlog)
 Zaman çizelgesi araç çubuğuna (Sessizleri kes / Boşlukları kapat yanına) ✨ düğmesi: projeyi kaydedip vlog komutunu panoya kopyalar. Editi uygulama değil Claude Code yapar (uygulama Claude'u çağıramaz). Komut: transkript → sessiz kesme + boşluk kapatma → yolculuk cümlelerine 2B/3B rota grafiği (doğrudan) → diğer fırsatlar öneri → frame ile kontrol → liste.
+
+## 57. Vlog zenginleştirme: zoom, ses giriş/çıkışı, ses efekti
+Kullanıcı: Paris yalnızca örnekti; 10–30 dk vlogda daha çok görsel (2B/3B), ses giriş/çıkışları, zoom vb. İstenen: `Clip.fx` (zoom from/to/odak, fadeIn/fadeOut) → dışa aktarmada `zoompan` (2× büyütülüp, titremesiz) + `fade`/`afade`; CLI `zoom`, `fade`, `sfx` (ffmpeg lavfi ile üretilen telifsiz whoosh/swish/pop/ding/riser; üst üste binenler SFX2… katmanlarına). Önizleme (arayüz) bu efektleri henüz göstermez; dışa aktarma gösterir. "Claude ile edit yap" komutu bunları kullanır.

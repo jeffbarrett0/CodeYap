@@ -18,18 +18,22 @@ export function claudeEditPrompt(videoPath: string, projectDir?: string): string
 }
 
 /**
- * Vlog projesi için Claude Code komutu ("Claude ile edit yap"): sessizlikleri/ııı'ları keser, boşlukları kapatır, konuşmayı okuyup
- * yolculuk/yer geçen yerlere (Belçika'dan Paris'e…) 2B/3B rota grafiği koyar. Claude Code bu klasörde `clipforge` komutlarıyla yapar.
+ * Vlog projesi için Claude Code komutu ("Claude ile edit yap"): vlogu (10–30 dk) temizler ve ZENGİNLEŞTİRİR — sessizlik/dolgu kesimi,
+ * konuşulan yerlere 2B/3B harita-küre rotaları, başlık/grafik kartları, zoom'lar, ses giriş/çıkışı ve ses efektleri. Claude Code bu klasörde
+ * `clipforge` komutlarıyla yapar (uygulama Claude'u çağıramaz; komut panoya kopyalanır).
  */
 export function claudeVlogPrompt(projectPath: string): string {
   return [
-    `clipforge klasöründe çalış. Şu vlog projesini edit et: ${projectPath}`,
+    `clipforge klasöründe çalış. Şu vlogu (10–30 dk olabilir) temizleyip ZENGİNLEŞTİREREK edit et: ${projectPath}`,
     '',
-    '1. Transkript yoksa çıkar (transcribe), sonra konuşmamı baştan sona oku (transcript).',
-    '2. Sessizlikleri ve ııı/eee gibi dolgu seslerini kes (silence); boşluk kalmadığını show ile doğrula (boşlukları kapat).',
-    '3. script ile konuştuğum yerleri bul. "Belçika\'dan Paris\'e gidiyorum" gibi yolculuk cümlelerinde, o cümlenin söylendiği ana rota grafiği koy: graphic --type globe (3B dönen küre + rota) ya da --type map (2B harita + rota), --from/--to ile, yaklaşık 4 sn. Tek yer anılırsa o yere yakınlaşan harita. Konuşulmayan yeri/rotayı uydurma.',
-    '4. Konuşmadan çıkan başka görselleştirme fırsatları (başlık, rakam) olursa önce bana öner, kendiliğinden ekleme.',
-    '5. Grafiklerin olduğu anların karesine frame ile bak, taşma/çakışma var mı kontrol et.',
-    '6. Bitince yaptıklarını listele (zaman + ne eklendi/kesildi). Yedek (.bak) alınır; kaynak videoyu değiştirme. Çağrı/yönlendirme metni ekleme. Dışa aktarmayı ben isteyince yap.'
+    '1. Transkript yoksa çıkar (transcribe), sonra konuşmamı baştan sona OKU (transcript): akışı, bölümleri, vurgulu/heyecanlı anları, anılan yerleri, sayıları anla.',
+    '2. Temizle: sessizlikleri ve ııı/eee dolgularını kes (silence); boşluk kalmadığını show ile doğrula. Kesimden sonra zamanlar kayar: sonraki adımlarda script ile KURGU SONRASI zamanları kullan.',
+    '3. Zenginleştir (editi sana bıraktım, doğrudan uygula; yedek .bak alınır, kaynak videoya dokunma):',
+    '   • Görsel: konuşulan yer/yolculuk için graphic --type globe (3B dönen küre + rota) ya da map (2B harita + rota) (--from/--to; tek yer ise yakınlaşan harita); bölüm/gün/konu başlığı için --type title; konuştuğum sayı/karşılaştırma için --type chart (yalnızca KONUŞULAN değerlerle). İçerik el verdiği kadar sık koy (kabaca her 30–90 sn), her grafik 3–5 sn, üst üste bindirme. Konuşulmayan yer/rakam/rota UYDURMA.',
+    '   • Zoom: vurgulu cümlelerde ve yeni konuya girişte zoom --at --dur 2-4 --to 1.1-1.2 (yavaş yakınlaşma); yaklaşık 20–45 sn arayla, art arda yığma, aralarda normal görüntü kalsın.',
+    '   • Ses: fade --in 0.6 --out 1.5 (başta girişi, sonda çıkışı); grafik başlarken ona 0.1 sn kala sfx --type whoosh, vurgu anlarına pop/ding, büyük bölüm geçişine riser (--vol 0.4-0.6; konuşma net duyulmalı, abartma).',
+    '   • Bir b-roll klasörü verdiysem broll-plan ile konuşmayla eşleştir.',
+    '4. Grafiklerin olduğu anların karesine frame ile bak (taşma/çakışma var mı). Zoom ve ses efektleri dışa aktarmada duyulup görülür; arayüz önizlemesinde görünmeyebilir.',
+    '5. Bitince yaptıklarını zamanlarıyla listele (ne eklendi/kesildi); beğenmediklerimi geri alabileyim. Çağrı/yönlendirme metni ekleme. Dışa aktarmayı ben isteyince yap.'
   ].join('\n')
 }

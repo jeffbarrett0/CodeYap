@@ -32,7 +32,7 @@ export function Timeline() {
     const path = useStore.getState().projectPath
     if (!path) return st.toast('info', 'Önce projeyi kaydedin (Dosya → Kaydet), sonra tekrar basın: Claude Code projenin yolunu bilmeli.')
     void navigator.clipboard?.writeText(claudeVlogPrompt(path)).catch(() => undefined)
-    st.toast('success', 'Claude Code komutu kopyalandı: Claude Code içine yapıştırın (sessizleri keser, boşlukları kapatır, yolculukları grafikle anlatır).')
+    st.toast('success', 'Claude Code komutu kopyalandı: Claude Code içine yapıştırın (temizler ve zenginleştirir: grafik, zoom, ses efekti).')
   }
   const selectedCaptionId = useStore((s) => s.selectedCaptionId)
   const selectedCaptionIds = useStore((s) => s.selectedCaptionIds)
@@ -209,7 +209,7 @@ export function Timeline() {
         <button className="btn sm" onClick={() => useStore.getState().joinSelected()} title="Seçili klibi hemen sonraki, kaynakta kesintisiz devam eden klibiyle birleştirir" data-testid="join">⇄ Birleştir</button>
         <button className="btn sm" onClick={() => useStore.getState().cutSilence()} title="Konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini tek tıkla keser" data-testid="cut-silence-tb">✂ Sessizleri kes</button>
         <button className="btn sm" onClick={() => useStore.getState().closeGaps()} title="Hiçbir izde içerik olmayan boşlukları siler" data-testid="close-gaps">Boşlukları kapat</button>
-        <button className="btn sm primary" onClick={() => void claudeEdit()} title="Vlogu Claude Code ile edit ettirir: sessizleri keser, boşlukları kapatır, konuştuğunuz yolculuk/yerlere (Belçika'dan Paris'e) 2B/3B rota grafiği koyar. Komutu kopyalar; Claude Code'a yapıştırırsınız" data-testid="claude-edit">✨ Claude ile edit yap</button>
+        <button className="btn sm primary" onClick={() => void claudeEdit()} title="Vlogu Claude Code ile edit ettirir: sessizleri keser, boşlukları kapatır, 2B/3B harita ve başlık grafikleri, zoom, ses giriş/çıkışı ve ses efektleriyle zenginleştirir. Komutu kopyalar; Claude Code'a yapıştırırsınız" data-testid="claude-edit">✨ Claude ile edit yap</button>
         <span style={{ width: 8 }} />
         <button className="btn sm" onClick={() => { setViewMode('timeline'); setPlaying(!playing) }} aria-label="Oynat/duraklat (Space)">{playing ? '⏸' : '▶'} <kbd>Space</kbd></button>
         <span className="tc" style={{ marginLeft: 6 }}>{fmt(playhead, true)}</span>

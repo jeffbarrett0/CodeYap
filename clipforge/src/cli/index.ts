@@ -117,6 +117,9 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   cut-intro <proje> [--ref ekran.png] [--duration 164] [--dry]   yayın başı videosunu (referans ekran görüntüsüyle eşleşen ilk bölüm, ör. telifli şarkılı geri sayım) keser
   silence <proje> [--min-gap 0.55] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
+  zoom <proje> --at sn --dur sn [--from 1] [--to 1.15] [--focus 0.5,0.5] [--layer V3]   o aralıkta ana görüntüyü yavaşça yakınlaştırır/uzaklaştırır (vurgu için; dışa aktarmada uygulanır)
+  fade <proje> [--in 0.6] [--out 1.2]    videonun başına ses+görüntü GİRİŞİ, sonuna ÇIKIŞI ekler (karardan açılır, sonda kararır, ses yumuşakça girer/çıkar)
+  sfx <proje> --type whoosh|swish|pop|ding|riser --at sn [--vol 0.6]   kısa ses efekti (kendi üretimimiz, telifsiz) ses katmanına koyar (grafik girişinde whoosh, vurguda pop gibi)
   captions <proje> [--style classic|boxed-highlight|premium-gold] [--max-chars 22] [--lang en]   transkriptten altyazı üretir (--lang en: İngilizce çeviri, yapay zekâ ayarı gerekir) (boxed-highlight: referans stil)
   delete-lane <proje> <V1|V2|V3|I1|I2|A1|CC>                      o katmandaki her şeyi siler
   frame <proje> --at sn --out resim.jpg  çizelgedeki bir anın karesini kaydeder (görsel kontrol)
@@ -171,6 +174,15 @@ async function ensureAsset(s: Session, file: string): Promise<MediaAsset> {
   if (!added) throw new Error(`İçe aktarılamadı: ${abs}`)
   s.project = { ...s.project, assets: [...s.project.assets, added] }
   return added
+}
+
+/** Kendi ürettiğimiz (telifsiz) kısa ses efektleri: ffmpeg lavfi kaynağı + filtre */
+const SFX: Record<string, { src: string; af: string }> = {
+  whoosh: { src: 'anoisesrc=d=0.8:c=pink:r=48000:a=0.7', af: 'highpass=f=250,lowpass=f=5500,afade=t=in:d=0.35:curve=qsin,afade=t=out:st=0.35:d=0.45:curve=qsin,volume=3' },
+  swish: { src: 'anoisesrc=d=0.4:c=white:r=48000:a=0.5', af: 'highpass=f=1200,lowpass=f=9000,afade=t=in:d=0.12,afade=t=out:st=0.12:d=0.28,volume=2' },
+  pop: { src: 'aevalsrc=0.8*sin(2*PI*(900*t-2200*t*t)):d=0.16:s=48000', af: 'afade=t=out:st=0.02:d=0.14' },
+  ding: { src: 'aevalsrc=0.5*sin(2*PI*1318*t)+0.25*sin(2*PI*2637*t):d=1.3:s=48000', af: 'afade=t=in:d=0.005,afade=t=out:st=0:d=1.3:curve=exp' },
+  riser: { src: 'aevalsrc=0.35*sin(2*PI*(180*t+170*t*t)):d=2:s=48000', af: 'afade=t=in:d=1.6,afade=t=out:st=1.85:d=0.15' }
 }
 
 const MEDIA_EXT = /\.(mp4|mov|mkv|webm|m4v|jpe?g|png|webp)$/i
@@ -628,6 +640,90 @@ async function main(argv: string[]): Promise<unknown> {
       s.apply(cmd.cutRange(from, to, !a.opt['no-ripple']))
       await s.save()
       return out({ ok: true, removedSec: r1(to - from), newDurationSec: r1(timelineDuration(s.timeline)) })
+    }
+    case 'zoom': {
+      const at = num(a.opt.at, 'at')
+      const dur = num(a.opt.dur, 'dur') ?? 2
+      if (at === undefined) throw new Error('--at <sn> verin (ör. zoom p.clipforge --at 12 --dur 2.5 --to 1.15).')
+      if (!(dur > 0.3)) throw new Error('--dur en az 0.3 sn olmalı.')
+      const from = num(a.opt.from, 'from') ?? 1
+      const to = num(a.opt.to, 'to') ?? 1.15
+      if (from < 1 || to < 1 || from > 3 || to > 3) throw new Error('Yakınlık 1 ile 3 arasında olmalı (1 = normal, 1.15 = %15 yakın).')
+      const [fx0, fy0] = (str(a.opt.focus) ?? '0.5,0.5').split(',').map(Number)
+      if (!Number.isFinite(fx0) || !Number.isFinite(fy0)) throw new Error('--focus "x,y" (0..1) verin.')
+      const vt = s.timeline.tracks.filter((t) => t.kind === 'video')
+      const layer = str(a.opt.layer)
+      const track = layer ? vt.find((t) => t.id === layer) : [...vt].reverse().find((t) => t.clips.some((c) => c.start <= at + 1e-6 && clipEnd(c) > at + 1e-6))
+      if (!track) throw new Error(layer ? `Katman yok: ${layer}` : `${at} sn'de görüntü klibi yok.`)
+      const end = at + dur
+      for (const t of [at, end]) {
+        const c = s.timeline.tracks.find((x) => x.id === track.id)!.clips.find((x) => x.start < t - 0.05 && clipEnd(x) > t + 0.05)
+        if (c) s.apply(cmd.split(c.id, t))
+      }
+      const pieces = s.timeline.tracks.find((x) => x.id === track.id)!.clips.filter((c) => c.start >= at - 0.05 && clipEnd(c) <= end + 0.05)
+      if (pieces.length === 0) throw new Error('Bu aralıkta klip bulunamadı.')
+      // aralık birden çok parçaya düşerse yakınlık parçalar arasında kesintisiz ilerler
+      const total = pieces.reduce((n, c) => n + (c.srcOut - c.srcIn), 0)
+      let acc = 0
+      for (const c of pieces) {
+        const d = c.srcOut - c.srcIn
+        const z0 = from + ((to - from) * acc) / total
+        const z1 = from + ((to - from) * (acc + d)) / total
+        s.apply(cmd.updateClip(c.id, { fx: { ...c.fx, zoom: { from: z0, to: z1, x: fx0, y: fy0 } } }))
+        acc += d
+      }
+      await s.save()
+      return out({ ok: true, layer: track.id, start: r1(at), end: r1(end), from, to, pieces: pieces.length, note: 'Yakınlaşma dışa aktarmada uygulanır (arayüz önizlemesinde görünmeyebilir).' })
+    }
+    case 'fade': {
+      const fin = num(a.opt.in, 'in') ?? 0.6
+      const fout = num(a.opt.out, 'out') ?? 1.2
+      const clips = s.timeline.tracks.filter((t) => t.kind === 'video' || t.kind === 'audio').flatMap((t) => t.clips)
+      if (clips.length === 0) throw new Error('Zaman çizelgesinde video/ses klibi yok.')
+      const t0 = Math.min(...clips.map((c) => c.start))
+      const t1 = Math.max(...clips.map((c) => clipEnd(c)))
+      let n = 0
+      for (const c of clips) {
+        const patch: { fadeIn?: number; fadeOut?: number } = {}
+        if (fin > 0 && c.start <= t0 + 0.05) patch.fadeIn = fin
+        if (fout > 0 && clipEnd(c) >= t1 - 0.05) patch.fadeOut = fout
+        if (patch.fadeIn || patch.fadeOut) (s.apply(cmd.updateClip(c.id, { fx: { ...c.fx, ...patch } })), n++)
+      }
+      await s.save()
+      return out({ ok: true, fadeInSec: fin, fadeOutSec: fout, clips: n })
+    }
+    case 'sfx': {
+      const type = str(a.opt.type) ?? 'whoosh'
+      const at = num(a.opt.at, 'at')
+      if (at === undefined) throw new Error('--at <sn> verin (ör. sfx p.clipforge --type whoosh --at 12).')
+      const rec = SFX[type]
+      if (!rec) throw new Error(`Bilinmeyen efekt: ${type}. Seçenekler: ${Object.keys(SFX).join(', ')}`)
+      const dir = join(`${s.path}-data`, 'sfx')
+      await mkdir(dir, { recursive: true })
+      const file = join(dir, `${type}.wav`)
+      await runTool(s.service.tools.ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', rec.src, '-af', `${rec.af},aformat=sample_rates=48000:channel_layouts=stereo`, file])
+      const asset = await ensureAsset(s, file)
+      const vol = num(a.opt.vol, 'vol') ?? 0.6
+      let id = ''
+      for (const cand of ['SFX', 'SFX2', 'SFX3', 'SFX4', 'SFX5']) {
+        const tr = s.timeline.tracks.find((t) => t.id === cand)
+        if (!tr) {
+          s.apply(cmd.addTrack({ id: cand, name: cand === 'SFX' ? 'Ses efektleri' : `Ses efektleri ${cand.slice(3)}`, kind: 'audio', role: 'mix' }))
+          id = cand
+          break
+        }
+        if (!tr.clips.some((c) => c.start < at + asset.durationSec && at < clipEnd(c))) {
+          id = cand
+          break
+        }
+      }
+      if (!id) throw new Error('Bu anda çok fazla ses efekti üst üste.')
+      const track = s.timeline.tracks.find((t) => t.id === id)!
+      const r = clipForTrack(asset, track, { at, duration: asset.durationSec })
+      if ('error' in r) throw new Error(r.error)
+      s.apply(cmd.addClip(id, { ...r.clip, label: `Efekt: ${type}`, volume: vol }))
+      await s.save()
+      return out({ ok: true, type, at: r1(at), durationSec: r1(asset.durationSec), track: id, volume: vol })
     }
     case 'captions': {
       const styleId = str(a.opt.style)

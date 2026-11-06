@@ -13,7 +13,7 @@ export interface ExportPlan {
   warnings: string[]
 }
 
-type AssetLookup = (id: ID) => Pick<MediaAsset, 'path' | 'kind' | 'audioStreams'> | undefined
+type AssetLookup = (id: ID) => Pick<MediaAsset, 'path' | 'kind' | 'audioStreams'> & Partial<Pick<MediaAsset, 'width' | 'height'>> | undefined
 
 interface Piece {
   clip: Clip
@@ -40,6 +40,36 @@ function slice(clip: Clip, track: Track, rs: number, re: number): Piece | null {
  *  - Görüntü: siyah taban → ekran klipleri → kamera klipleri → altyazı (ASS).
  *  - Ses: iz seviyeleri uygulanıp `amix` ile karıştırılır, isteğe bağlı loudnorm.
  */
+/** Klip efektleri (zoom + görüntü geçişi) için filtre parçası; boyut: klibin çıkış kutusu (w×h), süre: klip süresi */
+function videoFx(c: Clip, dur: number, w: number, h: number, fps: number, alpha: boolean): string {
+  const fx = c.fx
+  if (!fx) return ''
+  let f = ''
+  const z = fx.zoom
+  if (z && (Math.abs(z.from - 1) > 1e-3 || Math.abs(z.to - 1) > 1e-3)) {
+    const z0 = Math.min(4, Math.max(1, z.from))
+    const z1 = Math.min(4, Math.max(1, z.to))
+    const n = Math.max(1, Math.round(dur * fps))
+    const fxp = Math.min(1, Math.max(0, z.x))
+    const fyp = Math.min(1, Math.max(0, z.y))
+    // iki kat büyütülüp zoompan'a verilir: kare kayması/titreme olmasın; zoompan her giriş karesi için bir çıkış karesi (d=1) üretir
+    f += `,scale=${w * 2}:${h * 2}:flags=lanczos,zoompan=z='${z0.toFixed(4)}+(${(z1 - z0).toFixed(4)})*on/${n}':x='(iw-iw/zoom)*${fxp.toFixed(3)}':y='(ih-ih/zoom)*${fyp.toFixed(3)}':d=1:s=${w}x${h}:fps=${fps}`
+  }
+  if (fx.fadeIn && fx.fadeIn > 0) f += `,fade=t=in:st=0:d=${Math.min(fx.fadeIn, dur).toFixed(3)}${alpha ? ':alpha=1' : ''}`
+  if (fx.fadeOut && fx.fadeOut > 0) f += `,fade=t=out:st=${Math.max(0, dur - fx.fadeOut).toFixed(3)}:d=${Math.min(fx.fadeOut, dur).toFixed(3)}${alpha ? ':alpha=1' : ''}`
+  return f
+}
+
+/** Ses giriş/çıkış geçişi (afade) */
+function audioFx(c: Clip, dur: number): string {
+  const fx = c.fx
+  if (!fx) return ''
+  let f = ''
+  if (fx.fadeIn && fx.fadeIn > 0) f += `,afade=t=in:st=0:d=${Math.min(fx.fadeIn, dur).toFixed(3)}`
+  if (fx.fadeOut && fx.fadeOut > 0) f += `,afade=t=out:st=${Math.max(0, dur - fx.fadeOut).toFixed(3)}:d=${Math.min(fx.fadeOut, dur).toFixed(3)}`
+  return f
+}
+
 export function buildExportPlan(
   tl: Timeline,
   assetOf: AssetLookup,
@@ -113,7 +143,14 @@ export function buildExportPlan(
           t.placement.fit === 'cover'
             ? `scale=${r.w}:${r.h}:flags=lanczos:force_original_aspect_ratio=increase,crop=${r.w}:${r.h}`
             : `scale=${r.w}:${r.h}:flags=lanczos:force_original_aspect_ratio=decrease`
-        lines.push(`[${idx}:v]${alpha}setpts=PTS-STARTPTS,fps=${fps},${crop}${fit}${fade},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
+        // efekt (zoom) için kare boyutu: cover = kutu; contain = kaynağın (kırpılmış) oranıyla kutuya sığan boyut
+        const asrc = assetOf(c.assetId)
+        const sw = (asrc?.width ?? 0) * (c.crop?.w ?? 1)
+        const sh = (asrc?.height ?? 0) * (c.crop?.h ?? 1)
+        const k = t.placement.fit === 'cover' || sw <= 0 || sh <= 0 ? 0 : Math.min(r.w / sw, r.h / sh)
+        const even = (n: number) => Math.max(2, Math.round(n / 2) * 2)
+        const fx = k > 0 ? { w: even(sw * k), h: even(sh * k) } : { w: r.w, h: r.h }
+        lines.push(`[${idx}:v]${alpha}setpts=PTS-STARTPTS,fps=${fps},${crop}${fit}${fade}${videoFx(c, p.dur, fx.w, fx.h, fps, alpha !== '')},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
         const next = `L${++layer}`
         const pos = t.placement.fit === 'cover' ? `${r.x}:${r.y}` : `x=${r.x}+(${r.w}-overlay_w)/2:y=${r.y}+(${r.h}-overlay_h)/2`
         lines.push(`[${cur}][ly${L}]overlay=${pos}:eof_action=pass:repeatlast=0[${next}]`)
@@ -191,7 +228,7 @@ export function buildExportPlan(
       const delay = Math.round(p.at * 1000)
       const label = `au${audioLabels.length}`
       lines.push(
-        `[${idx}:a:${stream}]asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol.toFixed(3)}${delay > 0 ? `,adelay=${delay}|${delay}` : ''}[${label}]`
+        `[${idx}:a:${stream}]asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol.toFixed(3)}${audioFx(c, p.dur)}${delay > 0 ? `,adelay=${delay}|${delay}` : ''}[${label}]`
       )
       audioLabels.push(label)
     }
