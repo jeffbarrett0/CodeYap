@@ -1199,12 +1199,10 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-job')).toHaveCount(0)
   })
 
-  test('Claude ile edit yap: araç çubuğunda durur; proje kaydedilmemişse anlaşılır uyarı verir', async ({ page }) => {
+  test('"Claude ile edit yap" düğmesi artık yok (araç çubuğunda ve Auto Kick sonucunda)', async ({ page }) => {
     await page.goto('/')
-    const b = page.getByTestId('claude-edit')
-    await expect(b).toBeVisible()
-    await b.click()
-    await expect(page.getByTestId('toast').filter({ hasText: /Claude Code komutu kopyalandı|projeyi kaydedin/ }).first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('claude-edit')).toHaveCount(0)
+    await expect(page.getByText('Claude ile edit yap')).toHaveCount(0)
   })
 
   test('Arka sesi kes: araç çubuğunda seviye seçilir ve bildirim çıkar', async ({ page }) => {

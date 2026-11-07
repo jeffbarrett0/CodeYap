@@ -3,7 +3,6 @@ import type { TopicCandidate } from '@shared/topic'
 import { LANGUAGES } from '@shared/settings'
 import { fmtElapsed, type AutoKickStatus, type TranscriptionReadiness } from '@shared/autokick'
 import { requireApi } from '../api'
-import { claudeEditPrompt } from '../claudePrompt'
 import { useStore } from '../store'
 import { Field, Modal, Num, Progress } from './ui'
 
@@ -57,7 +56,6 @@ function Job({ job }: { job: AutoKickStatus }) {
           <div className="row wrap">
             {r.timestampsPath && <div className="hint" data-testid="autokick-timestamps" style={{ wordBreak: 'break-all' }}>YouTube zaman damgaları: {r.timestampsPath}</div>}
             <button className="btn sm" onClick={() => void api.invoke('shell:reveal', r.fullVideoPath)} data-testid="autokick-reveal">Klasörü aç</button>
-            <button className="btn sm" onClick={() => { void navigator.clipboard?.writeText(claudeEditPrompt(r.fullVideoPath, r.outDir)).catch(() => undefined); toast('success', 'Claude Code komutu kopyalandı: Claude Code içine yapıştırın.') }} data-testid="autokick-claude" title="Sessizleri kırpılmış tam videoyu Claude Code ile zenginleştirin: konuştuğunuz yerlere harita/uçak, rakam, gol krallığı, takım kartı gibi sahneler çizer">Claude ile edit yap</button>
             <button className="btn sm" onClick={() => void openProject(r.projectPath).then((ok) => ok && closeDialog(null))} data-testid="autokick-open">Projeyi uygulamada aç</button>
           </div>
         </div>

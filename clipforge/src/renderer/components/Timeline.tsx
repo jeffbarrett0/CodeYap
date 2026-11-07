@@ -5,7 +5,6 @@ import { clipDuration, clipEnd, groupMembers, timelineDuration } from '@shared/t
 import { clipIsMuted, denoiseLevel, mutedState, snapDropTime, snapPoints } from '@shared/timeline/ops'
 import type { Clip, Track } from '@shared/types'
 import { useStore } from '../store'
-import { claudeVlogPrompt } from '../claudePrompt'
 import { fmt } from './ui'
 
 const ROLE_CLASS: Record<string, string> = { screen: 'screen', webcam: 'webcam', game: 'game', voice: 'voice', mix: 'mix', image: 'image', text: 'text' }
@@ -25,15 +24,6 @@ interface DragState {
 export function Timeline() {
   const { project, selection, select, playhead, setPlayhead, zoom, setZoom, exec, undo, redo, historyVersion, splitAtPlayhead, deleteSelection, playing, setPlaying, viewMode, setViewMode } = useStore()
   const tl = project.timeline
-  /** "Claude ile edit yap": projeyi kaydeder, Claude Code'a yapıştırılacak vlog komutunu kopyalar (editi Claude Code yapar) */
-  const claudeEdit = async () => {
-    const st = useStore.getState()
-    if (!st.projectPath || st.dirty) await st.saveProject(!st.projectPath)
-    const path = useStore.getState().projectPath
-    if (!path) return st.toast('info', 'Önce projeyi kaydedin (Dosya → Kaydet), sonra tekrar basın: Claude Code projenin yolunu bilmeli.')
-    void navigator.clipboard?.writeText(claudeVlogPrompt(path)).catch(() => undefined)
-    st.toast('success', 'Claude Code komutu kopyalandı: Claude Code içine yapıştırın (temizler ve zenginleştirir: grafik, zoom, ses efekti).')
-  }
   const selectedCaptionId = useStore((s) => s.selectedCaptionId)
   const selectedCaptionIds = useStore((s) => s.selectedCaptionIds)
   const activeLane = useStore((s) => s.activeLane)
@@ -219,7 +209,6 @@ export function Timeline() {
             <option value="strong">Güçlü</option>
           </select>
         </label>
-        <button className="btn sm primary" onClick={() => void claudeEdit()} title="Vlogu Claude Code ile edit ettirir: sessizleri keser, boşlukları kapatır, 2B/3B harita ve başlık grafikleri, zoom, ses giriş/çıkışı ve ses efektleriyle zenginleştirir. Komutu kopyalar; Claude Code'a yapıştırırsınız" data-testid="claude-edit">✨ Claude ile edit yap</button>
         <span style={{ width: 8 }} />
         <button className="btn sm" onClick={() => { setViewMode('timeline'); setPlaying(!playing) }} aria-label="Oynat/duraklat (Space)">{playing ? '⏸' : '▶'} <kbd>Space</kbd></button>
         <span className="tc" style={{ marginLeft: 6 }}>{fmt(playhead, true)}</span>

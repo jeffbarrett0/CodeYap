@@ -457,3 +457,6 @@ Kullanıcı: Fragman'a basınca yatay/dikey seçeneği; otomatik fragman için �
 
 ## 65. Fragman: fareyle aralık seçimi
 Kullanıcı: 20 dakikalık videoyu göster, saniye yazmak yerine fareyle seçeyim. `RangePicker`: üstte tüm vlog şeridi (tıkla/sürükle pencereyi götürür), altta ayrıntı şeridi (sürükle = aralık; 30 sn–5 dk pencere), mevcut seçimler renkli blok, oynatma başlığı çizgisi, üzerine gelince transkriptten o anın cümlesi, ±0,5 sn ince ayar. Seçim dk:sn alanlarına yazılır (elle düzenlenebilir). Sınır: videonun karesi/dalga formu gösterilmez; konum konuşma metni ve zaman cetveline bakılarak bulunur.
+
+## 66. "Claude ile edit yap" düğmeleri kaldırıldı
+Kullanıcı isteği: araç çubuğundaki ✨ ve Auto Kick sonucundaki "Claude ile edit yap" düğmeleri kaldırıldı (`claudeVlogPrompt` silindi). Düzenleme akışı değişmedi: kullanıcı Claude Code'a doğrudan yazar; Story/Fragman pencerelerindeki "komutu kopyala" düğmeleri durur.
