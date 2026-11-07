@@ -30,10 +30,13 @@ import { loadKnowledge, saveDataset } from '../main/story/knowledge'
 import { datasetWarnings, daysBetween, findPlayerRows, resolveSceneData, teamFacts, usedDatasets } from '../shared/story/data'
 import { TEAMS, findTeam } from '../shared/story/teams'
 import { runTool } from '../main/ffmpeg'
+import { renderSfx, SFX } from '../main/sfx'
+import { buildTrailer } from '../main/trailer/build'
+import type { TrailerSegment } from '../shared/trailer'
 import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
 import { chapterTimestamp, chapterWarnings, formatChapters } from '../shared/chapters'
-import { makeTopicClip, makeTopicCompilation, topicCandidates } from '../main/autokick/clips'
+import { makeTopicClip, makeTopicCompilation, resolveProjectPath, topicCandidates } from '../main/autokick/clips'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { audioCarriersOf, clipsAt, makeTextClip, timelineToSource } from '../shared/timeline/ops'
 import { buildSegments } from '../shared/transcript/sentences'
@@ -87,6 +90,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   info                                   ffmpeg/ffprobe/whisper durumu
   auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 178] [--max 12] [--horizontal (3–25 dk)] [--captions (2–4 kelimelik iri altyazı)] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.12] [--face-focus 0.495,0.58] [--screen-zoom 1.15] [--overlay serit.png | --no-overlay]
                                          transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
+  trailer <proje> --segments "30-55,120-150,400-440" [--asset-segments "assetId:0-30"] [--target 45] [--title "Paris Vlog"] [--sub "altyazı"] [--export]   FRAGMAN: vlogdan seçilen 10–60 sn'lik parçalardan hızlı kurgulu fragman projesi (en güçlü an başa, whoosh/boom, kapanış kartı); --export: youtube MP4
   topic-video <proje|AutoKick klasörü> --topic "Lemina" [--gap 25] [--min-sec 8] [--export]   konunun konuşulduğu TÜM yerleri tek YATAY (16:9) videoda birleştirir
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
@@ -209,19 +213,6 @@ function cornerRect(pos: string, w: number, ratio: number, frameAspect: number):
   return { x, y: Math.min(Math.max(0, y), 1 - h), w, h }
 }
 
-/** Kendi ürettiğimiz (telifsiz) kısa ses efektleri: ffmpeg lavfi kaynağı + filtre */
-const SFX: Record<string, { src: string; af: string }> = {
-  whoosh: { src: 'anoisesrc=d=0.8:c=pink:r=48000:a=0.7', af: 'highpass=f=250,lowpass=f=5500,afade=t=in:d=0.35:curve=qsin,afade=t=out:st=0.35:d=0.45:curve=qsin,volume=3' },
-  swish: { src: 'anoisesrc=d=0.4:c=white:r=48000:a=0.5', af: 'highpass=f=1200,lowpass=f=9000,afade=t=in:d=0.12,afade=t=out:st=0.12:d=0.28,volume=2' },
-  pop: { src: 'aevalsrc=0.8*sin(2*PI*(900*t-2200*t*t)):d=0.16:s=48000', af: 'afade=t=out:st=0.02:d=0.14' },
-  ding: { src: 'aevalsrc=0.5*sin(2*PI*1318*t)+0.25*sin(2*PI*2637*t):d=1.3:s=48000', af: 'afade=t=in:d=0.005,afade=t=out:st=0:d=1.3:curve=exp' },
-  boom: { src: 'aevalsrc=0.9*sin(2*PI*(95*t-110*t*t))*exp(-3*t):d=1:s=48000', af: 'lowpass=f=300,afade=t=in:d=0.004,afade=t=out:st=0.5:d=0.5' },
-  shutter: { src: 'anoisesrc=d=0.18:c=white:r=48000:a=0.8', af: 'highpass=f=2000,afade=t=in:d=0.002,afade=t=out:st=0.03:d=0.15,volume=1.6' },
-  click: { src: 'aevalsrc=0.8*sin(2*PI*2200*t)*exp(-90*t):d=0.08:s=48000', af: 'afade=t=out:st=0.04:d=0.04' },
-  notify: { src: 'aevalsrc=0.45*sin(2*PI*880*t)*(t<0.12)+0.45*sin(2*PI*1320*t)*(t>=0.12)*exp(-6*(t-0.12)):d=0.6:s=48000', af: 'afade=t=out:st=0.35:d=0.25' },
-  riser: { src: 'aevalsrc=0.35*sin(2*PI*(180*t+170*t*t)):d=2:s=48000', af: 'afade=t=in:d=1.6,afade=t=out:st=1.85:d=0.15' }
-}
-
 const MEDIA_EXT = /\.(mp4|mov|mkv|webm|m4v|jpe?g|png|webp)$/i
 
 async function suggestFor(s: Session, asset: MediaAsset, a: Args) {
@@ -252,6 +243,28 @@ async function main(argv: string[]): Promise<unknown> {
   if (command === 'info') {
     const svc = await makeService()
     return out(await svc.info())
+  }
+  if (command === 'trailer') {
+    if (!projectArg) throw new Error('Vlog projesini verin: trailer <proje> --segments "30-55,120-150"')
+    const segs: TrailerSegment[] = []
+    const rng = (txt: string) => {
+      const m = /^\s*([\d.]+)\s*-\s*([\d.]+)\s*$/.exec(txt)
+      if (!m) throw new Error(`Aralık "başlangıç-bitiş" biçiminde olmalı (sn): "${txt}"`)
+      return [Number(m[1]), Number(m[2])] as [number, number]
+    }
+    for (const x of (str(a.opt.segments) ?? '').split(',').filter((v) => v.trim())) {
+      const [st, en] = rng(x)
+      segs.push({ id: `s${segs.length + 1}`, kind: 'timeline', start: st, end: en })
+    }
+    for (const x of (str(a.opt['asset-segments']) ?? '').split(',').filter((v) => v.trim())) {
+      const [asId, r] = x.split(':')
+      const [st, en] = rng(r ?? '')
+      segs.push({ id: `s${segs.length + 1}`, kind: 'asset', assetId: asId.trim(), start: st, end: en })
+    }
+    const res = await buildTrailer({ projectPath: await resolveProjectPath(projectArg), segments: segs, targetSec: num(a.opt.target, 'target'), title: str(a.opt.title), subtitle: str(a.opt.sub) }, {})
+    let video: string | undefined
+    if (a.opt.export) video = await exportClipProject(res.projectPath, {}, undefined, (f) => log(`[trailer:export] %${Math.round(f * 100)}`), 'youtube')
+    return out({ ok: true, project: res.projectPath, durationSec: r1(res.durationSec), video, shots: res.shots.map((x) => ({ segment: x.segmentId, start: r1(x.a), end: r1(x.b), text: x.text })), hint: 'Fragman projesi ana projeye dokunmadan oluşturuldu; uygulamada açıp düzenleyebilir ya da export --preset youtube ile alabilirsiniz.' })
   }
   if (command === 'topic-video') {
     if (!projectArg) throw new Error('Auto Kick projesini ya da klasörünü verin: topic-video <proje|klasör> --topic "Lemina"')
@@ -757,12 +770,8 @@ async function main(argv: string[]): Promise<unknown> {
       const type = str(a.opt.type) ?? 'whoosh'
       const at = num(a.opt.at, 'at')
       if (at === undefined) throw new Error('--at <sn> verin (ör. sfx p.clipforge --type whoosh --at 12).')
-      const rec = SFX[type]
-      if (!rec) throw new Error(`Bilinmeyen efekt: ${type}. Seçenekler: ${Object.keys(SFX).join(', ')}`)
-      const dir = join(`${s.path}-data`, 'sfx')
-      await mkdir(dir, { recursive: true })
-      const file = join(dir, `${type}.wav`)
-      await runTool(s.service.tools.ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', rec.src, '-af', `${rec.af},aformat=sample_rates=48000:channel_layouts=stereo`, file])
+      if (!SFX[type]) throw new Error(`Bilinmeyen efekt: ${type}. Seçenekler: ${Object.keys(SFX).join(', ')}`)
+      const file = await renderSfx(s.service.tools.ffmpeg, type, join(`${s.path}-data`, 'sfx'))
       const asset = await ensureAsset(s, file)
       const vol = num(a.opt.vol, 'vol') ?? 0.6
       let id = ''

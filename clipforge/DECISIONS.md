@@ -448,3 +448,6 @@ Kullanıcı: önizlemede de duyulsun, Auto Kick'e uygulama. Çözüm: `AppServic
 
 ## 62. Klip bazında sesi kapatma
 Kullanıcı: ikinci video eklenince birinin (ya da diğerinin) sesini kesebilmek (ev edit sırasında can sıkıyordu). Video + bağlı ses klibi grup olduğundan, video klibi seçilince grubun ses klibi `muted` olur (`ops.setClipsMuted`); sesi olmayan klipte değişmez ve bilgi verilir. Arayüz: araç çubuğu düğmesi, M tuşu, denetçi kutusu, klipte 🔇. Önizleme ses seviyesini 0'lar, dışa aktarma kapalı klibin sesini filtre grafiğine koymaz. CLI `mute`.
+
+## 63. Fragman (trailer) özelliği
+Kullanıcı: 30 dk'lık YouTube vlogundan 10–60 sn'lik parçalar verecek; "Fragman"a basınca "videodan belirli yerleri seç" denmeli; güzel bir fragman çıkmalı. Ayrı pencere (üst çubuk → Fragman). Parçalar zaman çizelgesi aralığı ya da kütüphane videosu; en güçlü anlar puanlanıp kısa planlara kesilir, kanca başa, zoom/whoosh/boom/giriş geçişi/kapanış kartı; sonuç AYRI proje (`-fragman/`). `createTrailerProject` kaynağın tüm medyasını (aynı dosyalar) taşır. Ses efektleri `main/sfx.ts`ye ortaklaştırıldı. Sınır: puanlama sezgiseldir (transkript kalitesine bağlı); müzik yok; kapanış kartı yalnızca başlık+alt başlık metni.

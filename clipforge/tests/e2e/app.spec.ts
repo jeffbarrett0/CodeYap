@@ -1234,6 +1234,27 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('lane-A1').getByTestId('clip')).not.toHaveClass(/muted/)
   })
 
+  test('Fragman: düğme pencereyi açar, "yerleri seç" der; 10–60 sn parça eklenir, geçersiz parça uyarılır; oluşturunca sonuç gelir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('trailer-btn').click()
+    await expect(page.getByTestId('trailer-intro')).toContainText('fragmanda görünmesini istediğin yerleri seç')
+    await expect(page.getByTestId('trailer-build')).toBeDisabled() // parça yokken pasif
+    // geçersiz: 5 sn
+    await page.getByLabel('Parça başlangıcı').fill('10')
+    await page.getByLabel('Parça bitişi').fill('15')
+    await page.getByTestId('trailer-add-range').click()
+    await expect(page.getByTestId('trailer-error')).toContainText('10–60')
+    // geçerli: 30 sn
+    await page.getByLabel('Parça bitişi').fill('40')
+    await page.getByTestId('trailer-add-range').click()
+    await expect(page.getByTestId('trailer-segment')).toHaveCount(1)
+    await page.getByTestId('trailer-title').fill('PARİS VLOG')
+    await expect(page.getByTestId('trailer-build')).toBeEnabled()
+    await page.getByTestId('trailer-build').click()
+    await expect(page.getByTestId('trailer-result')).toContainText('Fragman hazır', { timeout: 15_000 })
+    await expect(page.getByTestId('trailer-open')).toBeVisible()
+  })
+
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {
     await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { chapters: 'Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.' } }))
     await boot(page)

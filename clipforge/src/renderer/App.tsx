@@ -7,6 +7,7 @@ import { ExportDialog, HelpDialog, SettingsDialog } from './components/Dialogs'
 import { AutoKickDialog } from './components/AutoKick'
 import { StoryDialog } from './components/Story'
 import { AutoClipsDialog } from './components/AutoClips'
+import { TrailerDialog } from './components/Trailer'
 import { StatusBar, Toasts, TopBar } from './components/Chrome'
 import { useStore } from './store'
 
@@ -124,6 +125,7 @@ export function App() {
       {dialog === 'autokick' && <AutoKickDialog />}
       {dialog === 'story' && <StoryDialog />}
       {dialog === 'autoclips' && <AutoClipsDialog />}
+      {dialog === 'trailer' && <TrailerDialog />}
       <Toasts />
     </div>
   )

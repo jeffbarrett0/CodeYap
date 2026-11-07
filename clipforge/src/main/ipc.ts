@@ -8,6 +8,7 @@ import { AutoKickManager } from './autokick/pipeline'
 import { StoryManager } from './story/pipeline'
 import { autoClipCandidates, makeAutoClip } from './autoclips/pipeline'
 import { AutoClipsManager, chainAutoClips } from './autoclips/run'
+import { buildTrailer } from './trailer/build'
 import { transcriptionReadiness } from '../shared/autokick'
 import { makeTopicClip, topicCandidates } from './autokick/clips'
 
@@ -41,6 +42,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       for (const p of r.picks) out.push(await makeAutoClip(r.projectPath, p, { face: r.face, facePos: r.facePos, faceShare: r.faceShare, faceZoom: r.faceZoom, faceFocus: r.faceFocus, screenZoom: r.screenZoom, horizontal: r.horizontal, captions: r.captions }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }))
       return out
     },
+    'trailer:build': (r) => buildTrailer(r, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'audio:denoise': (r) => app.denoisePreview(r),
     'story:start': (req) => story.start(req),
     'story:cancel': (id) => story.cancel(id),

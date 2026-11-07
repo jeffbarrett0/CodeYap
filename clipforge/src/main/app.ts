@@ -474,6 +474,34 @@ export class AppService {
     return { path }
   }
 
+  /**
+   * Fragman projesi: kaynak projenin TÜM medyası (aynı dosyalar, kopyalanmaz) + boş zaman çizelgesi; `<ana proje>-fragman/` altına yazılır.
+   * Ana proje dosyasına dokunulmaz.
+   */
+  async createTrailerProject(source: Project, name: string): Promise<{ path: string }> {
+    const first = source.assets[0]
+    if (!first) throw new ToolError('Fragman için projede medya yok.')
+    const project = buildClipProject(source, first.id, name)
+    if (!project) throw new ToolError('Fragman için kaynak medya bulunamadı.')
+    project.assets = structuredClone(source.assets)
+    project.markers = Object.fromEntries(source.assets.filter((a) => source.markers[a.id]).map((a) => [a.id, structuredClone(source.markers[a.id])]))
+    const folder = this.projectPath ? join(dirname(this.projectPath), `${basename(this.projectPath).replace(/\.clipforge$/i, '')}-fragman`) : join(this.deps.userDataDir, 'trailers')
+    await mkdir(folder, { recursive: true })
+    const base = safeFileName(name)
+    let path = join(folder, `${base}.clipforge`)
+    for (let i = 2; await access(path).then(() => true, () => false); i++) path = join(folder, `${base} (${i}).clipforge`)
+    const rel: string[] = []
+    for (const a of source.assets) {
+      if (a.thumbnailPath) rel.push(a.thumbnailPath)
+      if (a.proxyPath) rel.push(a.proxyPath)
+      for (const st of a.audioStreams) if (st.proxyPath) rel.push(st.proxyPath)
+      rel.push(`transcripts/${a.id}.json`)
+    }
+    await seedDataDir(this.dataDir, dataDirFor(path), rel)
+    await saveProject(project, path, project.assets.map((a) => a.id))
+    return { path }
+  }
+
   async openProject(path: string): Promise<OpenedProject> {
     const project = await openProject(path)
     this.assets.clear()

@@ -1,3 +1,4 @@
+import type { TrailerRequest, TrailerResult } from './trailer'
 /**
  * Main ↔ renderer arasındaki tipli IPC sözleşmesi.
  *
@@ -108,6 +109,8 @@ export interface IpcInvoke {
   /** Arama sonucundan bağımsız klip projesi dosyası üretir (ana proje değişmez) */
   'project:createClip': [[Project, string, string], { path: string }]
   'media:import': [[string[]], string[]]
+  /** Fragman: seçilen 10–60 sn'lik parçalardan hızlı kurgulu fragman projesi üretir (kaynak proje değişmez) */
+  'trailer:build': [[TrailerRequest], TrailerResult]
   /** Önizleme için arka plan sesi azaltılmış ses kopyası üretir (önbellekli); dönen değer = `variant` (seviye) */
   'audio:denoise': [[{ assetId: string; audioStream: number; level: 'light' | 'medium' | 'strong' }], string]
   'media:markers': [[string], Marker[]]

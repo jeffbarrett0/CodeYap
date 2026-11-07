@@ -26,7 +26,7 @@ import { denoiseKey, denoiseReady } from './preview/denoiseState'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
-export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'story' | 'autoclips'
+export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'story' | 'autoclips' | 'trailer'
 
 export interface Toast {
   id: string

@@ -124,6 +124,7 @@ export function createMockApi(): ClipforgeApi {
     'dialog:openFile': () => w.__mock?.openFile ?? 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
     'audio:denoise': (r) => r.level,
+    'trailer:build': (r) => ({ projectPath: '/demo/fragman.clipforge', durationSec: Math.min(r.targetSec ?? 45, 40), shots: r.segments.map((s) => ({ segmentId: s.id, a: s.start, b: s.start + 4, text: 'Örnek an' })) }),
     'autoclips:start': (req) => {
       const id = `autoclips-${acJobs.size + 1}`
       const status: AutoClipsStatus = { id, request: req, name: req.projectPath.split(/[\\/]/).pop()?.replace(/\.clipforge$/, '') ?? 'proje', status: 'running', stages: initialAutoClipsStages(), startedAt: Date.now() }

@@ -558,6 +558,31 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(cli('zoom', p, '--dur', '2').ok).toBe(false)
   }, 120_000)
 
+  it('trailer (fragman): seçilen 10–60 sn parçalardan ayrı proje; kanca, kesim sesleri, kapanış kartı; ana proje değişmez; geçersiz parça reddedilir', () => {
+    const p = join(tmp, 'vlog-fragman.clipforge')
+    const ffm = require('ffmpeg-static') as string
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=10:duration=60', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=60', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(tmp, 'vlog60.mp4')])
+    cli('new', p)
+    cli('import', p, join(tmp, 'vlog60.mp4'), '--add', '--layer', 'V3')
+    const before = md5(p)
+    const r = cli('trailer', p, '--segments', '5-20,30-50', '--target', '15', '--title', 'DENEME VLOG', '--sub', 'Yakında')
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.project).toMatch(/-fragman[\\/].*\.clipforge$/)
+    expect(r.durationSec).toBeGreaterThan(8)
+    expect(r.durationSec).toBeLessThan(25)
+    expect(r.shots.length).toBeGreaterThanOrEqual(2)
+    const sh = cli('show', r.project)
+    const ids = sh.tracks.filter((t: any) => t.clips.length > 0).map((t: any) => t.id)
+    expect(ids).toContain('SFX') // kesimlerde whoosh
+    expect(ids).toContain('SFX2') // kapanışta boom
+    expect(sh.tracks.find((t: any) => t.id === 'V3').clips.length).toBeGreaterThanOrEqual(2)
+    expect(sh.tracks.find((t: any) => t.id === 'V1').clips.length).toBe(1) // kapanış kartı
+    expect(md5(p)).toBe(before) // ana proje değişmez
+    expect(cli('trailer', p, '--segments', '5-12').ok).toBe(false) // 10 sn'den kısa
+    expect(cli('trailer', p, '--segments', '0-70').ok).toBe(false) // 60 sn'den uzun
+    expect(cli('trailer', p).ok).toBe(false)
+  }, 180_000)
+
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')
     writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))
