@@ -8,7 +8,8 @@ import { cmd } from '../../shared/timeline/commands'
 import { clipsForVideoWithAudio } from '../../shared/timeline/create'
 import { nearestAspect, timelineDuration } from '../../shared/timeline/model'
 import { findGaps } from '../../shared/timeline/ops'
-import { ffprobeJson } from '../ffmpeg'
+import { cpuPolicy, ffprobeJson, setCpuMode } from '../ffmpeg'
+import type { Settings } from '../../shared/types'
 import { mergeRanges, renderFastCut, snapToFrame, type Range } from './fastcut'
 import { planSilenceCuts } from '../../shared/timeline/silence'
 import { timelineWords } from '../../shared/timeline/transcript'
@@ -68,6 +69,17 @@ export async function runAutoKick(req: AutoKickRequest, env: { userDataDir?: str
   }
   const service = await makeService(env)
   const settings = service.settings.value
+  // gözetimsiz iş: tüm çekirdekler (bilgisayar o sırada yavaşlayabilir; Ayarlar'dan kapatılır). Bitince eski mod geri yüklenir.
+  const prevCpu = cpuPolicy.mode
+  if (settings.autoKickFullSpeed) setCpuMode('full')
+  try {
+    return await runAutoKickInner(req, p, hooks, service, settings, stage, check)
+  } finally {
+    setCpuMode(prevCpu)
+  }
+}
+
+async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoKickPaths>, hooks: AutoKickHooks, service: Awaited<ReturnType<typeof makeService>>, settings: Settings, stage: AutoKickHooks['onStage'], check: () => void): Promise<AutoKickResult> {
   // 0) ön kontrol: whisper/ffmpeg hazır mı? Uzun işe başlamadan, anlaşılır mesajla (içe aktarmadan ÖNCE) ───
   const info = await service.info()
   if (!info.ffmpeg.ok || !info.ffprobe.ok) throw new Error(`ffmpeg/ffprobe çalışmıyor (${info.ffmpeg.error ?? info.ffprobe.error ?? 'bulunamadı'}). Uygulamayı yeniden kurun ya da Ayarlar'dan yolunu gösterin.`)

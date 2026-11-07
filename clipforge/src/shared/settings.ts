@@ -25,6 +25,10 @@ export const DEFAULT_SETTINGS: Settings = {
   exportDefaults: { presetId: 'shorts' },
   suggestKeywords: [],
   proxyHeight: 540,
+  /** Hızlı transkripsiyon: whisper.cpp'de ışın araması yerine açgözlü çözümleme (belirgin hızlı, doğrulukta çok küçük fark) */
+  whisperFast: true,
+  /** Auto Kick (gözetimsiz) çalışırken tüm çekirdekleri kullan (daha hızlı; bilgisayar o sırada yavaşlar) */
+  autoKickFullSpeed: true,
   silenceMinGapSec: 0.55,
   silenceKeepSec: 0.15,
   cutFillers: true,

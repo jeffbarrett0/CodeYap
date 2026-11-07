@@ -191,6 +191,29 @@ d('transkripsiyon hattı (sahte sağlayıcı + gerçek ffmpeg parçalama)', () =
     expect(r3.reused).toBe(false)
   })
 
+  it('parçalar eşzamanlı işlenebilir: sıra ve sonuç aynı kalır, aynı anda en az iki parça çalışır', async () => {
+    let active = 0
+    let peak = 0
+    const inner = new MockProvider(truth, 8)
+    const provider = {
+      kind: 'mock' as const,
+      async transcribeChunk(req: Parameters<MockProvider['transcribeChunk']>[0]) {
+        active++
+        peak = Math.max(peak, active)
+        await new Promise((r) => setTimeout(r, 40))
+        try {
+          return await inner.transcribeChunk(req)
+        } finally {
+          active--
+        }
+      }
+    }
+    const dataDir = join(root, 'data-conc')
+    const r = await transcribeAsset(asset, { track: 0, language: 'tr', model: 'tiny' }, { tools, provider, dataDir, chunkSec: 8, overlapSec: 2, concurrency: 3 })
+    expect(r.transcript.words.map((w) => w.text)).toEqual(truth.map((w) => w.text))
+    expect(peak).toBeGreaterThanOrEqual(2)
+  })
+
   it('özel sözlük ipucu sağlayıcıya iletilir, çıktıya bulanık düzeltme uygulanır; ipucu değişince yeniden üretilir', async () => {
     const seen: (string | undefined)[] = []
     const kabuk = wordsFromLines([{ at: 2, text: 'Abdullah Kabukçu geldi.' }, { at: 12, text: "Kabukçu'nun sözleri kabuk gibi." }], 0.3)

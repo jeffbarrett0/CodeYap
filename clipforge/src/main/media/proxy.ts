@@ -26,8 +26,9 @@ export async function makeProxy(
     const h = Math.min(proxyHeight, asset.height || proxyHeight)
     args.push(
       '-map', '0:v:0', '-an',
-      '-vf', `scale=-2:${h % 2 === 0 ? h : h - 1}`,
-      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-pix_fmt', 'yuv420p', '-g', '30', '-keyint_min', '30', '-sc_threshold', '0',
+      // önizleme kopyası: 60 fps kaynak 30 fps'e düşürülür (kodlama yükü yarıya iner), en hızlı hazır ayar
+      '-vf', `${asset.fps > 32 ? 'fps=30,' : ''}scale=-2:${h % 2 === 0 ? h : h - 1}`,
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '30', '-pix_fmt', 'yuv420p', '-g', '30', '-keyint_min', '30', '-sc_threshold', '0',
       '-movflags', '+faststart',
       join(dataDir, dir, 'proxy.mp4')
     )

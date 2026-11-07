@@ -10,7 +10,7 @@ import { scoreCandidates, snapCandidate, DEFAULT_KEYWORDS } from '../shared/sugg
 import type { AppInfo, ChatImportRequest, ExportRequest, IpcEventName, IpcEvents, OpenedProject, SearchRequest, SuggestRequest, ToolStatus, TranscribeRequest } from '../shared/ipc'
 import type { ChatLog, MediaAsset, Marker, Project, SearchResult, Timeline, Transcript, WhisperModelSize } from '../shared/types'
 import { runExport } from './export'
-import { resolveFfmpegPath, resolveFfprobePath, runTool, setCpuMode, ToolError, toolVersion } from './ffmpeg'
+import { cpuThreads, resolveFfmpegPath, resolveFfprobePath, runTool, setCpuMode, ToolError, toolVersion } from './ffmpeg'
 import { denoiseChain } from '../shared/export/plan'
 import { audioLevelSeries, detectScenes, extractWavChunk } from './media/audio'
 import { importMedia, loadMarkers, type MediaTools } from './media/import'
@@ -288,13 +288,16 @@ export class AppService {
     if (s.provider === 'whisper-cpp' && !(await modelInstalled(this.modelDir, model))) {
       throw new ToolError(`Whisper "${model}" modeli kurulu değil. Ayarlar → Transkripsiyon bölümünden indirin (${whisperModelFile(this.modelDir, model)}).`)
     }
-    const provider = createProvider(s, this.modelDir, join(this.deps.resourcesDir, 'faster_whisper_cli.py'), this.whisperBin)
+    // 8+ çekirdekli bilgisayarda iki parça aynı anda (her biri toplam iş parçacığının yarısıyla): tek whisper süreci işlemciyi tam kullanamaz
+    const totalThreads = Math.min(16, cpuThreads(0.5))
+    const conc = s.provider === 'whisper-cpp' && totalThreads >= 8 ? 2 : 1
+    const provider = createProvider(s, this.modelDir, join(this.deps.resourcesDir, 'faster_whisper_cli.py'), this.whisperBin, { threads: Math.max(2, Math.floor(totalThreads / conc)) })
     const soft = await builtinGlossary(this.deps)
     const task = this.queue.add({
       kind: 'transcribe',
       title: `Transkripsiyon: ${asset.name} (Track ${req.track + 1}, ${req.language})`,
       run: async (ctx) => {
-        const { transcript, reused } = await transcribeAsset(asset, { track: req.track, language: req.language, model, force: req.force, prompt: buildPrompt(s.vocabulary, s.transcribeFillers), vocabulary: parseVocabulary(s.vocabulary), softVocabulary: soft }, { tools: this.tools, provider, dataDir: this.dataDir, signal: ctx.signal, progress: ctx.progress })
+        const { transcript, reused } = await transcribeAsset(asset, { track: req.track, language: req.language, model, force: req.force, prompt: buildPrompt(s.vocabulary, s.transcribeFillers), vocabulary: parseVocabulary(s.vocabulary), softVocabulary: soft }, { tools: this.tools, provider, dataDir: this.dataDir, signal: ctx.signal, progress: ctx.progress, concurrency: conc })
         this.search.load(asset.id, transcript)
         this.deps.emit('transcript:ready', { assetId: asset.id, transcript, reused })
       }

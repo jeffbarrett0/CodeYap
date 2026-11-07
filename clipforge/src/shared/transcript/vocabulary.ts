@@ -104,10 +104,18 @@ export function applyVocabulary(words: TranscriptWord[], vocabulary: string[], s
   // yerleşik (futbol) sözlüğü: kullanıcı sözlüğünden daha temkinli — daha yüksek benzerlik; yalnızca büyük harfle başlayan ya da emin olunamayan kelimeler
   const softWords = toWords(soft).filter((w) => !vocabWords.includes(w) && (foldTr(w).match(LETTERS) ?? []).join('').length >= 6)
   const corrections: VocabResult['corrections'] = []
+  // HIZ: aynı yazımdaki kelimeler (2 saatlik yayında ~25 bin kelimenin yalnızca birkaç bini farklıdır) için sonuç bir kez hesaplanır
+  const fixMemo = new Map<string, string | null>()
   let out = words.map((w, index) => {
     if (w.corrected !== undefined) return w // elle düzeltilmiş kelimeye dokunma
-    let fixed = vocabWords.length ? correctWord(w.text, vocabWords) : null
-    if (!fixed && softWords.length && (/^[A-ZÇĞİÖŞÜ]/.test(w.text) || (w.confidence !== undefined && w.confidence < 0.6))) fixed = correctWord(w.text, softWords, 0.82)
+    const soft = softWords.length > 0 && (/^[A-ZÇĞİÖŞÜ]/.test(w.text) || (w.confidence !== undefined && w.confidence < 0.6))
+    const mk = `${w.text}|${soft ? 1 : 0}`
+    let fixed = fixMemo.get(mk)
+    if (fixed === undefined) {
+      fixed = vocabWords.length ? correctWord(w.text, vocabWords) : null
+      if (!fixed && soft) fixed = correctWord(w.text, softWords, 0.82)
+      fixMemo.set(mk, fixed)
+    }
     if (!fixed || fixed === w.text) return w
     corrections.push({ index, from: w.text, to: fixed })
     return { ...w, text: fixed, corrected: w.text }
@@ -116,6 +124,7 @@ export function applyVocabulary(words: TranscriptWord[], vocabulary: string[], s
   const terms = [...new Set([...vocabWords, ...softWords])].filter((t) => (foldTr(t).match(LETTERS) ?? []).join('').length >= 7)
   if (terms.length) {
     const merged: TranscriptWord[] = []
+    const pairMemo = new Map<string, string | null>()
     for (let i = 0; i < out.length; i++) {
       const a2 = out[i]
       const b2 = out[i + 1]
@@ -123,10 +132,16 @@ export function applyVocabulary(words: TranscriptWord[], vocabulary: string[], s
         const sa = split(a2.text)
         const sb2 = split(b2.text)
         const joined = (foldTr(sa.core).match(LETTERS) ?? []).join('') + (foldTr(sb2.core.split(/['’]/)[0]).match(LETTERS) ?? []).join('')
-        const hit = terms.find((t) => {
-          const tf = (foldTr(t).match(LETTERS) ?? []).join('')
-          return joined.length >= tf.length && joined.length <= tf.length + MAX_SUFFIX && similarity(joined.slice(0, tf.length), tf) >= 0.9 && sa.core.length >= 3 && sb2.core.length >= 2
-        })
+        const pk = `${joined}|${sa.core.length >= 3 ? 1 : 0}${sb2.core.length >= 2 ? 1 : 0}`
+        let hit = pairMemo.get(pk)
+        if (hit === undefined) {
+          hit =
+            terms.find((t) => {
+              const tf = (foldTr(t).match(LETTERS) ?? []).join('')
+              return joined.length >= tf.length && joined.length <= tf.length + MAX_SUFFIX && similarity(joined.slice(0, tf.length), tf) >= 0.9 && sa.core.length >= 3 && sb2.core.length >= 2
+            }) ?? null
+          pairMemo.set(pk, hit)
+        }
         if (hit) {
           const aps = /(['’].*)$/.exec(sb2.core)
           corrections.push({ index: i, from: `${a2.text} ${b2.text}`, to: hit + (aps ? aps[1] : '') + sb2.post })

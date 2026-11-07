@@ -460,3 +460,6 @@ Kullanıcı: 20 dakikalık videoyu göster, saniye yazmak yerine fareyle seçeyi
 
 ## 66. "Claude ile edit yap" düğmeleri kaldırıldı
 Kullanıcı isteği: araç çubuğundaki ✨ ve Auto Kick sonucundaki "Claude ile edit yap" düğmeleri kaldırıldı (`claudeVlogPrompt` silindi). Düzenleme akışı değişmedi: kullanıcı Claude Code'a doğrudan yazar; Story/Fragman pencerelerindeki "komutu kopyala" düğmeleri durur.
+
+## 67. Hız: sözlük önbelleği, hızlı whisper, eşzamanlı parça, önizleme kopyası
+Kullanıcı: kayıt içe aktarma ve transkript aşamaları çok uzun sürüyor. Bulgu: (1) `applyVocabulary` her kelime/çift için tüm terimlerle benzerlik hesaplıyordu (30 bin kelime × 1500 terim: >200 sn, şimdi ~0,5 sn); (2) whisper-cli varsayılanı ışın araması (beam 5) → `-bs 1 -bo 1` (ayar `whisperFast`); (3) tek whisper süreci çok çekirdekte işlemciyi tam kullanamaz → 8+ çekirdekte 2 parça eşzamanlı; (4) Auto Kick gözetimsiz → `autoKickFullSpeed` ile tam çekirdek; (5) editördeki önizleme kopyası 30 fps + ultrafast. Ölçülemeyenler: gerçek whisper hızlanması (burada whisper yok; kullanıcının makinesinde denenecek).

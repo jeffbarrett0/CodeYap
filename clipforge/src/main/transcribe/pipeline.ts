@@ -34,6 +34,8 @@ export interface PipelineDeps {
   dataDir: string
   signal?: AbortSignal
   progress?: (fraction: number, message?: string) => void
+  /** aynı anda işlenen parça sayısı (varsayılan 1) */
+  concurrency?: number
   chunkSec?: number
   overlapSec?: number
 }
@@ -101,11 +103,19 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
   await mkdir(cacheDir, { recursive: true })
   await mkdir(workDir, { recursive: true })
 
-  const results: ChunkResult[] = []
-  try {
-    for (const c of chunks) {
-      if (d.signal?.aborted) throw new CancelledError()
-      d.progress?.(c.index / chunks.length, `Parça ${c.index + 1}/${chunks.length} işleniyor`)
+  // parçalar en fazla `concurrency` işle birlikte (sıra korunur): çok çekirdekli bilgisayarda tek whisper süreci tüm işlemciyi kullanamaz
+  const conc = Math.max(1, Math.min(d.concurrency ?? 1, chunks.length))
+  const results: ChunkResult[] = new Array(chunks.length)
+  let next = 0
+  let done = 0
+  let stop = false
+  const worker = async () => {
+    for (;;) {
+      if (stop || d.signal?.aborted) throw new CancelledError()
+      const i = next++
+      if (i >= chunks.length) return
+      const c = chunks[i]
+      d.progress?.(done / chunks.length, `Parça ${Math.min(done + 1, chunks.length)}/${chunks.length} işleniyor`)
       const cachePath = join(cacheDir, `${c.index}.json`)
       let words: TranscriptWord[] | null = null
       if (!p.force) {
@@ -125,8 +135,12 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
         }
         await writeJsonAtomic(cachePath, words)
       }
-      results.push({ start: c.start, end: c.end, words })
+      results[i] = { start: c.start, end: c.end, words }
+      done++
     }
+  }
+  try {
+    await Promise.all(Array.from({ length: conc }, () => worker().catch((e) => { stop = true; throw e })))
   } finally {
     await rm(workDir, { recursive: true, force: true }).catch(() => undefined)
   }

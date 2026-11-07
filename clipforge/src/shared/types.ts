@@ -472,6 +472,10 @@ export interface Settings {
   suggestKeywords: string[]
   proxyHeight: number
   /** Sessizlik kesme: bu süreden uzun kelime arası boşluklar (sn) */
+  /** Hızlı transkripsiyon (açgözlü çözümleme) */
+  whisperFast: boolean
+  /** Auto Kick çalışırken tüm çekirdekler */
+  autoKickFullSpeed: boolean
   silenceMinGapSec: number
   /** Kesimden sonra her iki yanda bırakılan pay (sn) */
   silenceKeepSec: number

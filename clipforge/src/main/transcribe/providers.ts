@@ -95,7 +95,9 @@ export class WhisperCppProvider implements TranscriptionProvider {
   constructor(
     private readonly binary: string,
     private readonly modelDir: string,
-    private readonly threadsOverride?: number
+    private readonly threadsOverride?: number,
+    /** hızlı çözümleme: ışın araması yerine açgözlü (-bs 1 -bo 1) */
+    private readonly fast = false
   ) {}
 
   /** "dengeli" kipte çekirdeklerin yarısı (bilgisayar kullanılabilir kalır), "tam"da hepsi */
@@ -137,6 +139,7 @@ export class WhisperCppProvider implements TranscriptionProvider {
     let cur = await variants[0]()
     // vazgeçilebilir bayraklar: sürüm bir bayrağı tanımazsa ("unknown argument") o bayrak çıkarılıp bir kez daha denenir
     let optional: [string, string?][] = [['-sow'], ['-np'], ['-t', String(this.threads)]]
+    if (this.fast) optional.push(['-bs', '1'], ['-bo', '1'])
     if (req.prompt) optional.push(['--prompt', req.prompt])
     let lastErr: unknown
     for (let attempt = 0; attempt < 12; attempt++) {
@@ -262,7 +265,7 @@ export class MockProvider implements TranscriptionProvider {
   }
 }
 
-export function createProvider(s: Settings, modelDir: string, scriptPath: string, whisperBin: string): TranscriptionProvider {
+export function createProvider(s: Settings, modelDir: string, scriptPath: string, whisperBin: string, opts: { threads?: number } = {}): TranscriptionProvider {
   switch (s.provider) {
     case 'openai-api':
       return new OpenAIProvider(s.openaiApiKey, s.openaiBaseUrl)
@@ -270,6 +273,6 @@ export function createProvider(s: Settings, modelDir: string, scriptPath: string
       return new FasterWhisperProvider(s.fasterWhisperPython || 'python3', scriptPath)
     case 'whisper-cpp':
     default:
-      return new WhisperCppProvider(whisperBin, modelDir)
+      return new WhisperCppProvider(whisperBin, modelDir, opts.threads, s.whisperFast)
   }
 }

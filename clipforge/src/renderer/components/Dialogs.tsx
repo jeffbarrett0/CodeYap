@@ -161,6 +161,7 @@ export function SettingsDialog() {
           <Field label="Özel sözlük: isimler, yöresel kelimeler, terimler (satır ya da virgülle)">
             <textarea rows={4} value={s.vocabulary} onChange={(e) => set({ vocabulary: e.target.value })} placeholder={'Abdullah Kavukçu\nDursun Özbek'} aria-label="Özel sözlük" data-testid="vocab-input" />
           </Field>
+          <label className="check" title="whisper.cpp ışın araması yerine açgözlü çözümleme kullanır: transkripsiyon belirgin hızlanır, doğrulukta çok küçük fark olabilir"><input type="checkbox" checked={s.whisperFast} onChange={(e) => set({ whisperFast: e.target.checked })} data-testid="whisper-fast" /> Hızlı transkripsiyon (daha hızlı; doğrulukta çok küçük fark olabilir)</label>
           <label className="check"><input type="checkbox" checked={s.transcribeFillers} onChange={(e) => set({ transcribeFillers: e.target.checked })} /> ııı, eee, hımm gibi dolgu seslerini de yazıya dök (sessizlik/dolgu kesme için)</label>
           <div className="hint">Sözlük hem Whisper'a ipucu olarak verilir hem de çıkan yazıya bulanık düzeltme olarak uygulanır ("kabukçu" → "Kavukçu"). Yeni sözlükten sonra transkripti yeniden üretin ya da Transkript sekmesinde "Özel sözlüğü uygula"ya basın. Emin olunamayan kelimeler transkriptte dalgalı çizgiyle işaretlenir. Özel isimlerde <b>medium</b> model belirgin biçimde daha doğrudur.</div>
           {s.provider === 'whisper-cpp' && (

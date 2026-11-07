@@ -119,4 +119,21 @@ fs.writeFileSync(of + '.json', JSON.stringify({ transcription: [{ offsets: { fro
     const p = new WhisperCppProvider(bin, root, 2)
     await expect(p.transcribeChunk({ wavPath: join(d, 'chunk_0.wav'), offsetSec: 0, language: 'tr', model: 'tiny', workDir: d })).rejects.toThrow(/whisper\.cpp/)
   })
+
+  it('hızlı mod: açgözlü çözümleme bayrakları (-bs 1 -bo 1) eklenir; kapalıyken eklenmez; sürüm tanımazsa çıkarılıp yeniden denenir', async () => {
+    process.env.WLOG = join(root, 'log-fast.jsonl')
+    const d = workDir()
+    const run = async (bin: string, fast: boolean) => {
+      const p = new WhisperCppProvider(bin, root, 2, fast)
+      await p.transcribeChunk({ wavPath: join(d, 'chunk_0.wav'), offsetSec: 0, language: 'tr', model: 'tiny', workDir: d })
+    }
+    await run(fake(null), true)
+    await run(fake(null), false)
+    const calls = readFileSync(process.env.WLOG, 'utf8').trim().split('\n').map((l) => JSON.parse(l).args as string[])
+    expect(calls[0]).toEqual(expect.arrayContaining(['-bs', '1', '-bo', '1']))
+    expect(calls[1]).not.toContain('-bs')
+    await run(fake('-bs'), true) // eski sürüm -bs'i tanımaz: bayrak çıkarılır, iş yine biter
+    const last = readFileSync(process.env.WLOG, 'utf8').trim().split('\n').map((l) => JSON.parse(l).args as string[]).pop() as string[]
+    expect(last).not.toContain('-bs')
+  })
 })

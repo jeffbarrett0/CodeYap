@@ -94,3 +94,14 @@ describe('yerleşik (futbol) sözlüğü ve bölünmüş terimler', () => {
     expect(applyVocabulary([W2('kabukçu', 0)], ['Kavukçu']).words[0].text).toBe('Kavukçu')
   })
 })
+
+describe('sözlük düzeltme hızı', () => {
+  it('uzun yayın (30 bin kelime) ve büyük yerleşik sözlük (1500 terim) saniyeler içinde biter; aynı kelimeler önbelleğe alınır', () => {
+    const soft = Array.from({ length: 1500 }, (_, i) => `Oyuncu${String.fromCharCode(97 + (i % 26))}${i}son Takimadi${i}`)
+    const base = ['Osimhen', 'galatasaray', 'şimdi', 'arkadaşlar', 'Lemina', 'konuşuyoruz', 'Batrakov', 'maç', 'çok', 'gerçekten', 'Zaha', 'bence', 'yani', 'Barış', 'Alper', 'Yılmaz']
+    const words = Array.from({ length: 30000 }, (_, i) => ({ text: base[i % 16] + (i % 97 === 0 ? 'x' : ''), start: i * 0.4, end: i * 0.4 + 0.3, confidence: 1 }))
+    const t0 = Date.now()
+    applyVocabulary(words, ['Osimhen', 'Lemina'], soft)
+    expect(Date.now() - t0).toBeLessThan(5000) // önceden dakikalar sürüyordu
+  })
+})

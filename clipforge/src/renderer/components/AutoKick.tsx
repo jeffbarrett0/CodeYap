@@ -164,7 +164,7 @@ function Readiness() {
 }
 
 export function AutoKickDialog() {
-  const { settings, openDialog, autoKick } = useStore()
+  const { settings, openDialog, autoKick, updateSettings } = useStore()
   const api = requireApi()
   const [video, setVideo] = useState('')
   const [outDir, setOutDir] = useState('')
@@ -219,6 +219,7 @@ export function AutoKickDialog() {
                   <option value="high">Maksimum (çok daha yavaş)</option>
                 </select>
               </Field>
+              <label className="check" title="Gözetimsiz çalışırken tüm işlemci çekirdeklerini kullanır: iş daha hızlı biter, bilgisayar o sırada yavaşlar"><input type="checkbox" checked={settings.autoKickFullSpeed} onChange={(e) => void updateSettings({ autoKickFullSpeed: e.target.checked })} data-testid="autokick-fullspeed" /> Tam hız (bilgisayarı yavaşlatır, iş daha çabuk biter)</label>
               <Field label="Şu kadar sn'den uzun sessizlik kesilir"><Num value={minGap} min={0.2} max={10} step={0.1} label="Sessizlik süresi" onChange={setMinGap} /></Field>
               <label className="check"><input type="checkbox" checked={fillers} onChange={(e) => setFillers(e.target.checked)} /> "ııı / eee" dolgu seslerini de kes</label>
             </div>
