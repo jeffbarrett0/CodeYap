@@ -28,6 +28,11 @@ export interface TrailerShot {
   text: string
 }
 
+/** moments: 10–60 sn'lik parçalardan en güçlü anları bul · exact: seçilen klipleri OLDUĞU GİBİ sırayla birleştir · auto: hiçbir şey seçilmez, tüm vlog taranır */
+export type TrailerMode = 'moments' | 'exact' | 'auto'
+/** exact modunda bir klibin süre sınırları */
+export const TRAILER_EXACT_MIN = 2
+
 export interface TrailerOptions {
   /** hedef toplam süre (sn, kapanış kartı dahil) */
   targetSec: number
@@ -37,12 +42,14 @@ export interface TrailerOptions {
 export const DEFAULT_TRAILER_OPTIONS: TrailerOptions = { targetSec: 45, endCardSec: 3 }
 
 /** Parça süresi 10–60 sn mi? Sorun varsa Türkçe mesaj, yoksa null */
-export function validateSegments(segs: TrailerSegment[]): string | null {
-  if (segs.length === 0) return 'Fragman için en az bir parça seçin (her biri 10–60 saniye).'
+export function validateSegments(segs: TrailerSegment[], mode: TrailerMode = 'moments'): string | null {
+  if (mode === 'auto') return null
+  const min = mode === 'exact' ? TRAILER_EXACT_MIN : TRAILER_MIN_SEG
+  if (segs.length === 0) return mode === 'exact' ? 'Fragman için en az bir klip seçin.' : 'Fragman için en az bir parça seçin (her biri 10–60 saniye).'
   for (const [i, s] of segs.entries()) {
     const d = s.end - s.start
-    if (!(d >= TRAILER_MIN_SEG - 0.01)) return `${i + 1}. parça ${d.toFixed(1)} sn: en az ${TRAILER_MIN_SEG} saniye olmalı.`
-    if (!(d <= TRAILER_MAX_SEG + 0.01)) return `${i + 1}. parça ${d.toFixed(1)} sn: en çok ${TRAILER_MAX_SEG} saniye olmalı.`
+    if (!(d >= min - 0.01)) return `${i + 1}. ${mode === 'exact' ? 'klip' : 'parça'} ${d.toFixed(1)} sn: en az ${min} saniye olmalı.`
+    if (!(d <= TRAILER_MAX_SEG + 0.01)) return `${i + 1}. ${mode === 'exact' ? 'klip' : 'parça'} ${d.toFixed(1)} sn: en çok ${TRAILER_MAX_SEG} saniye olmalı.`
   }
   return null
 }
@@ -101,7 +108,9 @@ function candidates(words: TranscriptWord[], segStart: number, segEnd: number, s
  * Parçalardan fragman planları: her parçadan en güçlü an alınır, bütçe kalırsa en yüksek puanlı ek anlar eklenir; en iyi plan başa (kanca),
  * kalanlar kullanıcının verdiği sırayla dizilir. `wordsFor`: parçanın kelimeleri (parçanın zaman düzleminde).
  */
-export function planShots(segs: TrailerSegment[], wordsFor: (s: TrailerSegment) => TranscriptWord[], options: Partial<TrailerOptions> = {}): TrailerShot[] {
+export function planShots(segs: TrailerSegment[], wordsFor: (s: TrailerSegment) => TranscriptWord[], options: Partial<TrailerOptions> & { mode?: TrailerMode } = {}): TrailerShot[] {
+  // exact: kullanıcının seçtiği klipler olduğu gibi, verdiği sırayla
+  if (options.mode === 'exact') return segs.map((s) => ({ segmentId: s.id, kind: s.kind, assetId: s.assetId, a: s.start, b: s.end, score: 0, text: '' }))
   const o = { ...DEFAULT_TRAILER_OPTIONS, ...options }
   const budget = Math.max(8, o.targetSec - o.endCardSec)
   const nShots = Math.max(segs.length, Math.min(14, Math.round(budget / 4)))
@@ -128,6 +137,10 @@ export interface TrailerRequest {
   /** vlog projesi (parçalar bunun zaman çizelgesinden ya da kütüphanesinden seçilir) */
   projectPath: string
   segments: TrailerSegment[]
+  /** varsayılan moments */
+  mode?: TrailerMode
+  /** çıktı yönü: yatay 16:9 (varsayılan) ya da dikey 9:16 */
+  aspect?: '16:9' | '9:16'
   /** hedef toplam süre (sn), varsayılan 45 */
   targetSec?: number
   /** kapanış kartındaki başlık (vlog adı); boşsa kart eklenmez */
@@ -139,4 +152,21 @@ export interface TrailerResult {
   projectPath: string
   durationSec: number
   shots: { segmentId: string; a: number; b: number; text: string }[]
+}
+
+/** Otomatik fragman: vlogun başı/sonundan %3 pay bırakıp tamamını eşit bölgelere ayırır; her bölgeden en güçlü an seçilir */
+export function autoSegments(totalSec: number, targetSec = DEFAULT_TRAILER_OPTIONS.targetSec): TrailerSegment[] {
+  const n = Math.max(5, Math.min(12, Math.round(targetSec / 4.5)))
+  const from = totalSec * 0.03
+  const len = (totalSec * 0.94) / n
+  return Array.from({ length: n }, (_, i) => ({ id: `auto${i + 1}`, kind: 'timeline' as const, start: from + i * len, end: from + (i + 1) * len }))
+}
+
+/** "1:10", "01:10:05", "70", "70,5" → saniye; anlaşılmazsa null */
+export function parseClock(text: string): number | null {
+  const t = text.trim().replace(',', '.')
+  if (!t) return null
+  const parts = t.split(':')
+  if (parts.length > 3 || parts.some((p) => !/^\d+(\.\d+)?$/.test(p.trim()))) return null
+  return parts.reduce((acc, p) => acc * 60 + Number(p), 0)
 }

@@ -451,3 +451,6 @@ Kullanıcı: ikinci video eklenince birinin (ya da diğerinin) sesini kesebilmek
 
 ## 63. Fragman (trailer) özelliği
 Kullanıcı: 30 dk'lık YouTube vlogundan 10–60 sn'lik parçalar verecek; "Fragman"a basınca "videodan belirli yerleri seç" denmeli; güzel bir fragman çıkmalı. Ayrı pencere (üst çubuk → Fragman). Parçalar zaman çizelgesi aralığı ya da kütüphane videosu; en güçlü anlar puanlanıp kısa planlara kesilir, kanca başa, zoom/whoosh/boom/giriş geçişi/kapanış kartı; sonuç AYRI proje (`-fragman/`). `createTrailerProject` kaynağın tüm medyasını (aynı dosyalar) taşır. Ses efektleri `main/sfx.ts`ye ortaklaştırıldı. Sınır: puanlama sezgiseldir (transkript kalitesine bağlı); müzik yok; kapanış kartı yalnızca başlık+alt başlık metni.
+
+## 64. Fragman: yön + üç yol
+Kullanıcı: Fragman'a basınca yatay/dikey seçeneği; otomatik fragman için üçüncü buton; "klip seç" butonuyla (1:10–1:20 gibi) seçilenlerin güzelce birleştirilmesi. Eklenenler: yön (16:9 / 9:16; dikeyde ana görüntü ortadan 9:16 kırpılır, tüm video katmanları tam kare cover), `mode` exact/moments/auto (`planShots` exact'te aralıkları olduğu gibi döndürür; `autoSegments` vlogu eşit bölgelere ayırır), dk:sn girişi (`parseClock`), CLI `--clips/--auto/--vertical`. Sınır: dikey kırpma ortadan yapılır (konuşmacı kenardaysa kadraj kaçabilir; yüz takibi yok).

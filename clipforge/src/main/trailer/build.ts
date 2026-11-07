@@ -6,7 +6,7 @@ import { clipForTrack, clipsForVideoWithAudio } from '../../shared/timeline/crea
 import { aspectSize, clipEnd, newId, timelineDuration } from '../../shared/timeline/model'
 import { cutRange } from '../../shared/timeline/ops'
 import { timelineWords } from '../../shared/timeline/transcript'
-import { DEFAULT_TRAILER_OPTIONS, planShots, validateSegments, type TrailerRequest, type TrailerResult, type TrailerSegment, type TrailerShot } from '../../shared/trailer'
+import { autoSegments, DEFAULT_TRAILER_OPTIONS, planShots, validateSegments, type TrailerRequest, type TrailerResult, type TrailerSegment, type TrailerShot } from '../../shared/trailer'
 import type { Clip, MediaAsset, Timeline, TranscriptWord } from '../../shared/types'
 import { loadWorld, renderScene } from '../graphics/render'
 import { renderSfx } from '../sfx'
@@ -28,7 +28,8 @@ function sliceClips(tl: Timeline, a: number, b: number): Clip[] {
  * açılışta/kapanışta ses+görüntü geçişi. Konuşma sesi her planda aynen kalır.
  */
 export async function buildTrailer(req: TrailerRequest, env: Env = {}): Promise<TrailerResult> {
-  const problem = validateSegments(req.segments)
+  const mode = req.mode ?? 'moments'
+  const problem = validateSegments(req.segments, mode)
   if (problem) throw new Error(problem)
   const service = await makeService(env)
   const src = await Session.open(req.projectPath, service)
@@ -36,7 +37,9 @@ export async function buildTrailer(req: TrailerRequest, env: Env = {}): Promise<
   const transcripts = src.transcripts
   const total = timelineDuration(tl)
   const allWords = timelineWords(tl, transcripts)
-  for (const s of req.segments) {
+  const segments = mode === 'auto' ? autoSegments(total, req.targetSec ?? DEFAULT_TRAILER_OPTIONS.targetSec) : req.segments
+  if (mode === 'auto' && allWords.length < 10) throw new Error('Otomatik fragman için transkript gerekli: önce transkripsiyonu yapın (ya da parçaları kendiniz seçin).')
+  for (const s of segments) {
     if (s.kind === 'timeline' && (s.start < 0 || s.end > total + 0.5)) throw new Error(`Parça ${s.start.toFixed(1)}–${s.end.toFixed(1)} sn zaman çizelgesinin (${total.toFixed(1)} sn) dışında.`)
     if (s.kind === 'asset' && !src.project.assets.find((a) => a.id === s.assetId)) throw new Error('Parçanın kaynak videosu projede bulunamadı.')
   }
@@ -45,14 +48,22 @@ export async function buildTrailer(req: TrailerRequest, env: Env = {}): Promise<
       ? allWords.filter((w) => w.end > s.start && w.start < s.end).map((w) => ({ text: w.text, start: w.start, end: w.end, confidence: w.confidence }))
       : (transcripts[s.assetId as string]?.words ?? []).filter((w) => w.end > s.start && w.start < s.end)
   const opts = { ...DEFAULT_TRAILER_OPTIONS, targetSec: req.targetSec ?? DEFAULT_TRAILER_OPTIONS.targetSec, endCardSec: req.title?.trim() ? DEFAULT_TRAILER_OPTIONS.endCardSec : 0 }
-  const shots = planShots(req.segments, wordsFor, opts)
+  const shots = planShots(segments, wordsFor, { ...opts, mode })
   if (shots.length === 0) throw new Error('Seçilen parçalardan fragman planı çıkarılamadı.')
 
   // yeni proje (kaynak değişmez)
   const projName = `${src.project.name} · fragman`
   const created = await service.createTrailerProject(src.project, projName)
   const c = await Session.open(created.path, service)
-  const base: Timeline = { ...tl, tracks: tl.tracks.map((t) => ({ ...t, clips: [] })), captions: [] }
+  const vertical = req.aspect === '9:16'
+  // dikey: tüm video katmanları tam kare "cover" olur; ana görüntü kaynağın ortasından 9:16 kesilir
+  const base: Timeline = {
+    ...tl,
+    aspect: vertical ? '9:16' : req.aspect ?? tl.aspect,
+    aspectAuto: false,
+    tracks: tl.tracks.map((t) => ({ ...t, clips: [], ...(vertical && t.kind === 'video' && t.placement ? { placement: { ...t.placement, rect: { x: 0, y: 0, w: 1, h: 1 }, fit: 'cover' as const, visible: true } } : {}) })),
+    captions: []
+  }
   const mainTrack = [...tl.tracks].reverse().find((t) => t.kind === 'video') // en alttaki görüntü katmanı: ana görüntü
   const videoTrack = tl.tracks.find((t) => t.kind === 'video')
   const audioTracks = tl.tracks.filter((t) => t.kind === 'audio')
@@ -77,6 +88,12 @@ export async function buildTrailer(req: TrailerRequest, env: Env = {}): Promise<
     for (const k of clips) {
       const isMain = !!mainTrack && k.trackId === mainTrack.id
       const tr = tl.tracks.find((t) => t.id === k.trackId)
+      if (vertical && isMain && tr?.kind === 'video') {
+        const ass = src.project.assets.find((a) => a.id === k.assetId)
+        const ar = ass && ass.width > 0 && ass.height > 0 ? ass.width / ass.height : 16 / 9
+        const w = Math.min(1, 9 / 16 / ar)
+        k.crop = { x: (1 - w) / 2, y: 0, w, h: 1 }
+      }
       if (isMain && tr?.kind === 'video') k.fx = { ...k.fx, zoom: i % 2 === 0 ? { from: 1, to: 1.12, x: 0.5, y: 0.45 } : { from: 1.12, to: 1, x: 0.5, y: 0.45 } }
       if (tr?.kind === 'audio' || (tr?.kind === 'video' && k.audioStream !== undefined)) k.fx = { ...k.fx, fadeIn: i === 0 ? 0.5 : 0.04, fadeOut: 0.06 }
       if (i === 0 && isMain) k.fx = { ...k.fx, fadeIn: 0.5 }

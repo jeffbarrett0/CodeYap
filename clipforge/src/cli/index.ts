@@ -32,7 +32,7 @@ import { TEAMS, findTeam } from '../shared/story/teams'
 import { runTool } from '../main/ffmpeg'
 import { renderSfx, SFX } from '../main/sfx'
 import { buildTrailer } from '../main/trailer/build'
-import type { TrailerSegment } from '../shared/trailer'
+import { parseClock, type TrailerMode, type TrailerSegment } from '../shared/trailer'
 import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
 import { chapterTimestamp, chapterWarnings, formatChapters } from '../shared/chapters'
@@ -90,7 +90,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   info                                   ffmpeg/ffprobe/whisper durumu
   auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 178] [--max 12] [--horizontal (3–25 dk)] [--captions (2–4 kelimelik iri altyazı)] [--pick 1,3 | --all | --export] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.12] [--face-focus 0.495,0.58] [--screen-zoom 1.15] [--overlay serit.png | --no-overlay]
                                          transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
-  trailer <proje> --segments "30-55,120-150,400-440" [--asset-segments "assetId:0-30"] [--target 45] [--title "Paris Vlog"] [--sub "altyazı"] [--export]   FRAGMAN: vlogdan seçilen 10–60 sn'lik parçalardan hızlı kurgulu fragman projesi (en güçlü an başa, whoosh/boom, kapanış kartı); --export: youtube MP4
+  trailer <proje> (--clips "1:10-1:20,2:05-2:30" | --segments "30-55,120-150" | --auto) [--vertical] [--target 45] [--title "Paris Vlog"] [--sub "altyazı"] [--export]   FRAGMAN: --clips seçilen yerleri OLDUĞU GİBİ birleştirir; --segments 10–60 sn'lik parçalardan en güçlü anları bulur; --auto tüm vlogu tarar; --vertical 9:16; whoosh/boom/kapanış kartı; --export: MP4
   topic-video <proje|AutoKick klasörü> --topic "Lemina" [--gap 25] [--min-sec 8] [--export]   konunun konuşulduğu TÜM yerleri tek YATAY (16:9) videoda birleştirir
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
@@ -245,14 +245,18 @@ async function main(argv: string[]): Promise<unknown> {
     return out(await svc.info())
   }
   if (command === 'trailer') {
-    if (!projectArg) throw new Error('Vlog projesini verin: trailer <proje> --segments "30-55,120-150"')
+    if (!projectArg) throw new Error('Vlog projesini verin: trailer <proje> (--clips "1:10-1:20,2:05-2:30" | --segments "30-55,120-150" | --auto)')
     const segs: TrailerSegment[] = []
     const rng = (txt: string) => {
-      const m = /^\s*([\d.]+)\s*-\s*([\d.]+)\s*$/.exec(txt)
-      if (!m) throw new Error(`Aralık "başlangıç-bitiş" biçiminde olmalı (sn): "${txt}"`)
-      return [Number(m[1]), Number(m[2])] as [number, number]
+      const [x, y] = txt.split('-')
+      const st = parseClock(x ?? '')
+      const en = parseClock(y ?? '')
+      if (st === null || en === null) throw new Error(`Aralık "başlangıç-bitiş" biçiminde olmalı (sn ya da dk:sn, ör. 1:10-1:20): "${txt}"`)
+      return [st, en] as [number, number]
     }
-    for (const x of (str(a.opt.segments) ?? '').split(',').filter((v) => v.trim())) {
+    const mode: TrailerMode = a.opt.auto ? 'auto' : str(a.opt.clips) ? 'exact' : 'moments'
+    const list = mode === 'exact' ? str(a.opt.clips) : str(a.opt.segments)
+    for (const x of (list ?? '').split(',').filter((v) => v.trim())) {
       const [st, en] = rng(x)
       segs.push({ id: `s${segs.length + 1}`, kind: 'timeline', start: st, end: en })
     }
@@ -261,10 +265,11 @@ async function main(argv: string[]): Promise<unknown> {
       const [st, en] = rng(r ?? '')
       segs.push({ id: `s${segs.length + 1}`, kind: 'asset', assetId: asId.trim(), start: st, end: en })
     }
-    const res = await buildTrailer({ projectPath: await resolveProjectPath(projectArg), segments: segs, targetSec: num(a.opt.target, 'target'), title: str(a.opt.title), subtitle: str(a.opt.sub) }, {})
+    const vertical = !!a.opt.vertical || str(a.opt.aspect) === '9:16'
+    const res = await buildTrailer({ projectPath: await resolveProjectPath(projectArg), segments: segs, mode, aspect: vertical ? '9:16' : '16:9', targetSec: num(a.opt.target, 'target'), title: str(a.opt.title), subtitle: str(a.opt.sub) }, {})
     let video: string | undefined
-    if (a.opt.export) video = await exportClipProject(res.projectPath, {}, undefined, (f) => log(`[trailer:export] %${Math.round(f * 100)}`), 'youtube')
-    return out({ ok: true, project: res.projectPath, durationSec: r1(res.durationSec), video, shots: res.shots.map((x) => ({ segment: x.segmentId, start: r1(x.a), end: r1(x.b), text: x.text })), hint: 'Fragman projesi ana projeye dokunmadan oluşturuldu; uygulamada açıp düzenleyebilir ya da export --preset youtube ile alabilirsiniz.' })
+    if (a.opt.export) video = await exportClipProject(res.projectPath, {}, undefined, (f) => log(`[trailer:export] %${Math.round(f * 100)}`), vertical ? 'shorts' : 'youtube')
+    return out({ ok: true, mode, aspect: vertical ? '9:16' : '16:9', project: res.projectPath, durationSec: r1(res.durationSec), video, shots: res.shots.map((x) => ({ segment: x.segmentId, start: r1(x.a), end: r1(x.b), text: x.text })), hint: 'Fragman projesi ana projeye dokunmadan oluşturuldu; uygulamada açıp düzenleyebilir ya da dışa aktarabilirsiniz.' })
   }
   if (command === 'topic-video') {
     if (!projectArg) throw new Error('Auto Kick projesini ya da klasörünü verin: topic-video <proje|klasör> --topic "Lemina"')

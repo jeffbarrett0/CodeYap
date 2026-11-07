@@ -1234,24 +1234,41 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('lane-A1').getByTestId('clip')).not.toHaveClass(/muted/)
   })
 
-  test('Fragman: düğme pencereyi açar, "yerleri seç" der; 10–60 sn parça eklenir, geçersiz parça uyarılır; oluşturunca sonuç gelir', async ({ page }) => {
+  test('Fragman: yön seçilir; Klip seç / Parçalardan en güçlü anlar / Otomatik üç yol; dk:sn ile klip eklenir; sonuç gelir', async ({ page }) => {
     await boot(page)
     await page.getByTestId('trailer-btn').click()
     await expect(page.getByTestId('trailer-intro')).toContainText('fragmanda görünmesini istediğin yerleri seç')
-    await expect(page.getByTestId('trailer-build')).toBeDisabled() // parça yokken pasif
-    // geçersiz: 5 sn
-    await page.getByLabel('Parça başlangıcı').fill('10')
-    await page.getByLabel('Parça bitişi').fill('15')
-    await page.getByTestId('trailer-add-range').click()
-    await expect(page.getByTestId('trailer-error')).toContainText('10–60')
-    // geçerli: 30 sn
-    await page.getByLabel('Parça bitişi').fill('40')
+    await expect(page.getByTestId('trailer-aspect-16:9')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('trailer-build')).toBeDisabled() // klip yokken pasif
+    // 1) Klip seç (varsayılan): 1:10 – 1:20 → tam 10 sn
+    await page.getByTestId('trailer-from').fill('1:10')
+    await page.getByTestId('trailer-to').fill('1:20')
     await page.getByTestId('trailer-add-range').click()
     await expect(page.getByTestId('trailer-segment')).toHaveCount(1)
-    await page.getByTestId('trailer-title').fill('PARİS VLOG')
+    await expect(page.getByTestId('trailer-segments')).toContainText('10.0 sn')
+    // çok kısa klip uyarılır
+    await page.getByTestId('trailer-from').fill('2:00')
+    await page.getByTestId('trailer-to').fill('2:01')
+    await page.getByTestId('trailer-add-range').click()
+    await expect(page.getByTestId('trailer-error')).toContainText('2–60')
+    // 2) Parçalar modu ayrı liste: 5 sn parça reddedilir (10–60)
+    await page.getByTestId('trailer-mode-moments').click()
+    await expect(page.getByTestId('trailer-segment')).toHaveCount(0)
+    await page.getByTestId('trailer-from').fill('0:10')
+    await page.getByTestId('trailer-to').fill('0:15')
+    await page.getByTestId('trailer-add-range').click()
+    await expect(page.getByTestId('trailer-error')).toContainText('10–60')
+    // 3) Otomatik: seçim gerekmez
+    await page.getByTestId('trailer-mode-auto').click()
     await expect(page.getByTestId('trailer-build')).toBeEnabled()
+    await expect(page.getByTestId('trailer-build')).toContainText('Otomatik fragman yap')
+    // dikey + klip modu ile oluştur
+    await page.getByTestId('trailer-aspect-9:16').click()
+    await page.getByTestId('trailer-mode-exact').click()
+    await page.getByTestId('trailer-title').fill('PARİS VLOG')
     await page.getByTestId('trailer-build').click()
     await expect(page.getByTestId('trailer-result')).toContainText('Fragman hazır', { timeout: 15_000 })
+    await expect(page.getByTestId('trailer-result')).toContainText('dikey')
     await expect(page.getByTestId('trailer-open')).toBeVisible()
   })
 

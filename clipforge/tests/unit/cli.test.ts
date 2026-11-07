@@ -581,6 +581,18 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(cli('trailer', p, '--segments', '5-12').ok).toBe(false) // 10 sn'den kısa
     expect(cli('trailer', p, '--segments', '0-70').ok).toBe(false) // 60 sn'den uzun
     expect(cli('trailer', p).ok).toBe(false)
+    // klip seç (olduğu gibi, dk:sn) + dikey
+    const ex = cli('trailer', p, '--clips', '0:10-0:20,0:30-0:42', '--vertical')
+    expect(ex.ok, JSON.stringify(ex)).toBe(true)
+    expect(ex.mode).toBe('exact')
+    expect(ex.aspect).toBe('9:16')
+    expect(ex.shots.map((x: any) => [x.start, x.end])).toEqual([[10, 20], [30, 42]]) // tam seçilen aralıklar
+    expect(cli('show', ex.project).aspect).toBe('9:16')
+    expect(ex.durationSec).toBeGreaterThanOrEqual(22)
+    // otomatik: transkript yoksa anlaşılır hata
+    const au = cli('trailer', p, '--auto')
+    expect(au.ok).toBe(false)
+    expect(JSON.stringify(au)).toMatch(/transkript/)
   }, 180_000)
 
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
