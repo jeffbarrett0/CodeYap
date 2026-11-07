@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { clipEnd } from '@shared/timeline/model'
+import { clipEnd, timelineDuration } from '@shared/timeline/model'
 import { TRAILER_EXACT_MIN, TRAILER_MAX_SEG, TRAILER_MIN_SEG, parseClock, validateSegments, type TrailerMode, type TrailerResult, type TrailerSegment } from '@shared/trailer'
 import { requireApi } from '../api'
 import { useStore } from '../store'
+import { RangePicker } from './RangePicker'
 import { fmt, Modal } from './ui'
 
 const MODES: { id: TrailerMode; label: string; help: string }[] = [
@@ -35,7 +36,11 @@ export function TrailerDialog() {
   const problem = segs.length ? validateSegments(segs, mode) : null
   const min = mode === 'exact' ? TRAILER_EXACT_MIN : TRAILER_MIN_SEG
   const add = (s: Omit<TrailerSegment, 'id'>) => setSegs((x) => [...x, { ...s, id: `s${Date.now().toString(36)}${x.length}` }])
-  const clock = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
+  const clock = (sec: number) => `${Math.floor(sec / 60)}:${(sec % 60) < 10 ? '0' : ''}${(Math.round((sec % 60) * 10) / 10).toString()}`
+  const total = timelineDuration(tl)
+  const takenRanges = segs.filter((x) => x.kind === 'timeline').map((x) => ({ start: x.start, end: x.end }))
+  const fromSec = parseClock(from) ?? 0
+  const toSec = parseClock(to) ?? 0
 
   const addRange = () => {
     const a = parseClock(from)
@@ -108,7 +113,8 @@ export function TrailerDialog() {
               <button className="btn primary sm" onClick={addRange} data-testid="trailer-add-range">{mode === 'exact' ? 'Klibi ekle' : 'Parçayı ekle'}</button>
               <button className="btn sm" onClick={addSelected} data-testid="trailer-add-selected" title="Zaman çizelgesinde seçili klibi ekler">Seçili klibi ekle</button>
             </div>
-            <div className="hint">Zamanı dakika:saniye yaz (örn. 1:10 → 1:20). Oynatmayı istediğin yerde durdurup "şimdiki an"a da basabilirsin.</div>
+            <RangePicker total={total} from={fromSec} to={toSec} taken={takenRanges} min={min} onChange={(a, b) => { setFrom(clock(a)); setTo(clock(b)) }} />
+            <div className="hint">Fareyle seçebilir ya da zamanı yazabilirsin (dakika:saniye, örn. 1:10 → 1:20). Seçtikten sonra <b>{mode === 'exact' ? 'Klibi ekle' : 'Parçayı ekle'}</b>'ye bas.</div>
           </div>
         )}
 

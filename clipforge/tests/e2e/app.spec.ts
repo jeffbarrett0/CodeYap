@@ -1272,6 +1272,40 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('trailer-open')).toBeVisible()
   })
 
+  test('Fragman: fareyle aralık seçimi — üstte tüm video, altta ayrıntı şeridi; sürükleyince alanlar dolar, ekleyince liste artar', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('import-btn').click()
+    await expect(page.getByTestId('asset')).toHaveCount(1)
+    await dropAsset(page, 0, 'V1')
+    await page.getByTestId('trailer-btn').click()
+    await expect(page.getByTestId('range-picker')).toBeVisible()
+    // alt şeritte sürükle: pencere 60 sn (0–60), şerit genişliğinin %20'si → %50'si
+    const d = page.getByTestId('range-detail')
+    let box = (await d.boundingBox())!
+    await page.mouse.move(box.x + box.width * 0.2, box.y + 30)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * 0.5, box.y + 30, { steps: 6 })
+    await page.mouse.up()
+    await expect(page.getByTestId('range-selection')).toBeVisible()
+    const f1 = await page.getByTestId('trailer-from').inputValue()
+    const t1 = await page.getByTestId('trailer-to').inputValue()
+    expect(f1).toMatch(/^0:1[0-4]/) // ≈12 sn
+    expect(t1).toMatch(/^0:(2[89]|3[0-2])/) // ≈30 sn
+    await page.getByTestId('trailer-add-range').click()
+    await expect(page.getByTestId('trailer-segment')).toHaveCount(1)
+    // üst şeritte sona tıkla → pencere ilerler; orada sürükle → 1:00 sonrası
+    const o = page.getByTestId('range-overview')
+    box = (await o.boundingBox())!
+    await page.mouse.click(box.x + box.width * 0.95, box.y + 15)
+    box = (await d.boundingBox())!
+    await page.mouse.move(box.x + box.width * 0.3, box.y + 30)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * 0.6, box.y + 30, { steps: 6 })
+    await page.mouse.up()
+    expect(await page.getByTestId('trailer-from').inputValue()).toMatch(/^1:/)
+    await expect(page.getByTestId('range-hover')).toBeVisible()
+  })
+
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {
     await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { chapters: 'Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.' } }))
     await boot(page)

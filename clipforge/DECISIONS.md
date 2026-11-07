@@ -454,3 +454,6 @@ Kullanıcı: 30 dk'lık YouTube vlogundan 10–60 sn'lik parçalar verecek; "Fra
 
 ## 64. Fragman: yön + üç yol
 Kullanıcı: Fragman'a basınca yatay/dikey seçeneği; otomatik fragman için üçüncü buton; "klip seç" butonuyla (1:10–1:20 gibi) seçilenlerin güzelce birleştirilmesi. Eklenenler: yön (16:9 / 9:16; dikeyde ana görüntü ortadan 9:16 kırpılır, tüm video katmanları tam kare cover), `mode` exact/moments/auto (`planShots` exact'te aralıkları olduğu gibi döndürür; `autoSegments` vlogu eşit bölgelere ayırır), dk:sn girişi (`parseClock`), CLI `--clips/--auto/--vertical`. Sınır: dikey kırpma ortadan yapılır (konuşmacı kenardaysa kadraj kaçabilir; yüz takibi yok).
+
+## 65. Fragman: fareyle aralık seçimi
+Kullanıcı: 20 dakikalık videoyu göster, saniye yazmak yerine fareyle seçeyim. `RangePicker`: üstte tüm vlog şeridi (tıkla/sürükle pencereyi götürür), altta ayrıntı şeridi (sürükle = aralık; 30 sn–5 dk pencere), mevcut seçimler renkli blok, oynatma başlığı çizgisi, üzerine gelince transkriptten o anın cümlesi, ±0,5 sn ince ayar. Seçim dk:sn alanlarına yazılır (elle düzenlenebilir). Sınır: videonun karesi/dalga formu gösterilmez; konum konuşma metni ve zaman cetveline bakılarak bulunur.
