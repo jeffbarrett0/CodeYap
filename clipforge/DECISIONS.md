@@ -463,3 +463,6 @@ Kullanıcı isteği: araç çubuğundaki ✨ ve Auto Kick sonucundaki "Claude il
 
 ## 67. Hız: sözlük önbelleği, hızlı whisper, eşzamanlı parça, önizleme kopyası
 Kullanıcı: kayıt içe aktarma ve transkript aşamaları çok uzun sürüyor. Bulgu: (1) `applyVocabulary` her kelime/çift için tüm terimlerle benzerlik hesaplıyordu (30 bin kelime × 1500 terim: >200 sn, şimdi ~0,5 sn); (2) whisper-cli varsayılanı ışın araması (beam 5) → `-bs 1 -bo 1` (ayar `whisperFast`); (3) tek whisper süreci çok çekirdekte işlemciyi tam kullanamaz → 8+ çekirdekte 2 parça eşzamanlı; (4) Auto Kick gözetimsiz → `autoKickFullSpeed` ile tam çekirdek; (5) editördeki önizleme kopyası 30 fps + ultrafast. Ölçülemeyenler: gerçek whisper hızlanması (burada whisper yok; kullanıcının makinesinde denenecek).
+
+## 68. Hız: her yolda aynı (Auto Kick + sistem geneli)
+Kullanıcı: hızlandırmayı hem Auto Kick'te hem sistemin genelinde uygula. Gerçek transkripsiyonlar zaten `transcriptStart`'tan geçiyordu (hızlı whisper, eşzamanlı parça, sözlük önbelleği hepsinde). Eksikler kapatıldı: whisper iş parçacığı tüm çekirdek; CLI oturumları `autoKickFullSpeed` ile tam hız (`enableCliFullSpeed`; Electron içindeki Auto Kick kendi ayarını ayrıca uygular, mod geri yüklenir); `detectSpeechTrack` en küçük model + 30 sn örnek + eşzamanlı track'ler; eşzamanlı whisper çağrılarında çıktı adı çakışması giderildi.

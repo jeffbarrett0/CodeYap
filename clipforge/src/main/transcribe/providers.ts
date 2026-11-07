@@ -111,7 +111,9 @@ export class WhisperCppProvider implements TranscriptionProvider {
     // ("HER GENCİN … [abc].clipforge-data") yolu bozup kullanım metnini basıyordu. Bu yüzden çalışma klasöründe (cwd) ve
     // yalnızca ASCII, göreli dosya adlarıyla çalıştırılır; klasör yolu hiçbir bağımsız değişkende geçmez.
     const rel = relative(req.workDir, req.wavPath)
-    const prefixName = `wcpp_${Math.round(req.offsetSec)}`
+    // aynı anda birden çok çağrı aynı klasörde çalışabilir (eşzamanlı parçalar / track'ler): çıktı adı ses dosyasının adını da taşır
+    const stem = basename(req.wavPath).replace(/\.wav$/i, '').replace(/[^A-Za-z0-9_-]/g, '')
+    const prefixName = `wcpp_${Math.round(req.offsetSec)}_${stem}`
     const absPrefix = join(req.workDir, prefixName)
     // Girdi (-f) ve çıktı (-of) yazımları BİRLİKTE denenir: önce göreli ad (cwd), olmazsa mutlak yol, Windows'ta kısa (8.3) yol,
     // son çare ASCII geçici klasör. (Bazı kurulumlarda cwd uygulanmıyor ya da yol bozuluyor: hem okuma hem yazma hatası verir.)

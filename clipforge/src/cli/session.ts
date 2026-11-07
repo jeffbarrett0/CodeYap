@@ -3,6 +3,7 @@ import { copyFile, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { AppService } from '../main/app'
+import { setCpuMode } from '../main/ffmpeg'
 import type { Command } from '../shared/timeline/history'
 import { PROJECT_VERSION, type MediaAsset, type Project, type Timeline, type Transcript } from '../shared/types'
 import { createDefaultTimeline, newId } from '../shared/timeline/model'
@@ -26,6 +27,12 @@ export function findResources(): string {
   return resolve(__dirname, '..', '..', 'resources')
 }
 
+/** Komut satırı (Claude Code / elle) oturumları: gözetimsiz iş sayılır, ayar açıksa tüm çekirdekler kullanılır (arayüzdeki Auto Kick ayrıca kendi ayarını uygular) */
+let cliFullSpeed = false
+export function enableCliFullSpeed(): void {
+  cliFullSpeed = true
+}
+
 export async function makeService(opts: { userDataDir?: string; resourcesDir?: string } = {}): Promise<AppService> {
   const s = new AppService({
     userDataDir: opts.userDataDir ?? defaultUserData(),
@@ -36,6 +43,7 @@ export async function makeService(opts: { userDataDir?: string; resourcesDir?: s
     headless: true
   })
   await s.init()
+  if (cliFullSpeed && s.settings.value.autoKickFullSpeed) setCpuMode('full')
   return s
 }
 

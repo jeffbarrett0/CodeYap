@@ -14,6 +14,7 @@ Aramadan klip: `search p.clipforge "söz"` → `new-clip-project p.clipforge --q
 ## Hız (transkripsiyon / içe aktarma)
 - **Sözlük düzeltmesi** (`applyVocabulary`): aynı yazımdaki kelimeler/çiftler önbelleğe alınır (30 bin kelime × 1500 terim: dakikalar → ~0,5 sn); transkripsiyonun "modifikasyon" aşaması artık saniyeler sürer.
 - **Whisper**: ayar `whisperFast` (varsayılan AÇIK) → `-bs 1 -bo 1` (açgözlü çözümleme; ışın aramasına göre belirgin hızlı, doğrulukta çok küçük fark; sürüm tanımazsa bayrak çıkarılır). 8+ çekirdekte iki 10 dk'lık parça AYNI ANDA işlenir (her süreç iş parçacığının yarısıyla; sıra korunur). Auto Kick çalışırken ayar `autoKickFullSpeed` (varsayılan açık) ile tüm çekirdekler kullanılır (iş bitince eski mod geri gelir).
+- **Her yolda aynı hız (kullanıcı: "Auto Kick'te ve sistemin genelinde")**: tüm gerçek transkripsiyonlar `transcriptStart`'tan geçer (arayüz, Auto Kick, CLI, Anlatım→Görsel) → hızlı whisper + eşzamanlı parça + sözlük önbelleği hepsinde; whisper iş parçacığı TÜM çekirdek (süreç önceliği dengeli kipte düşük: arayüz akıcı kalır); komut satırı oturumları da `autoKickFullSpeed` açıksa tam hızda çalışır; çok track'li kayıtlarda konuşma track'i tespiti (`detectSpeechTrack`) artık kurulu en küçük modelle (tiny/base), 30 sn örnekle ve track'ler eşzamanlı yapılır; eşzamanlı çağrılar için whisper çıktı adı ses dosyasının adını taşır.
 - **Önizleme kopyası** (kayıt içe aktarıldıktan sonra arka planda): 60 fps kaynak 30 fps'e düşürülür, `ultrafast` ön ayar. Auto Kick önizleme kopyası ÜRETMEZ.
 
 ## Auto Kick (yayın kaydı → tam video)

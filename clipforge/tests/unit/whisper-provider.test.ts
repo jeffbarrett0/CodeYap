@@ -45,7 +45,7 @@ describe('whisper.cpp sağlayıcısı: Windows yol sorunu ve sürüm farkları',
     const f = call.args[call.args.indexOf('-f') + 1]
     const o = call.args[call.args.indexOf('-of') + 1]
     expect(f).toBe('chunk_0.wav')
-    expect(o).toBe('wcpp_600')
+    expect(o).toBe('wcpp_600_chunk_0')
     // model ve istem hariç hiçbir bağımsız değişkende klasör ayracı, Türkçe karakter ya da köşeli parantez yok
     const m = call.args.indexOf('-m')
     const pr = call.args.indexOf('--prompt')
@@ -108,7 +108,7 @@ fs.writeFileSync(of + '.json', JSON.stringify({ transcription: [{ offsets: { fro
     expect(words.map((w) => w.text)).toEqual(['Merhaba'])
     const calls = readFileSync(process.env.WLOG, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { of: string; wav: string })
     expect(calls.length).toBeGreaterThanOrEqual(3) // göreli → mutlak → ... → ASCII kopya
-    expect(calls[0].of).toBe('wcpp_0') // ilk deneme: göreli çıktı adı
+    expect(calls[0].of).toBe('wcpp_0_chunk_0') // ilk deneme: göreli çıktı adı
     expect(calls[calls.length - 1].of).toMatch(/cf-whisper/)
   })
   it('tüm yazımlar başarısızsa asıl hata (whisper çıktısı) gösterilir, sonsuz döngü olmaz', async () => {

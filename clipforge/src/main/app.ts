@@ -165,22 +165,28 @@ export class AppService {
     const fallback = Math.min(asset.transcriptionTrack ?? 0, Math.max(0, n - 1))
     if (n <= 1) return { track: 0, words: [] }
     const s = this.settings.value
-    const m = model ?? s.whisperModel
-    const provider = createProvider(s, this.modelDir, join(this.deps.resourcesDir, 'faster_whisper_cli.py'), this.whisperBin)
-    const len = Math.min(60, asset.durationSec)
+    // yalnızca "hangi track'te konuşma var" sorusu: kurulu EN KÜÇÜK model (tiny/base) yeter, tam model gerekmez (çok daha hızlı)
+    let m = model ?? s.whisperModel
+    if (s.provider === 'whisper-cpp') for (const small of ['tiny', 'base'] as WhisperModelSize[]) if (await modelInstalled(this.modelDir, small)) { m = small; break }
+    // track'ler AYNI ANDA ve tüm çekirdeklerle (her biri payına düşen iş parçacığıyla)
+    const threads = Math.max(2, Math.floor(Math.min(16, cpuThreads(1)) / n))
+    const provider = createProvider(s, this.modelDir, join(this.deps.resourcesDir, 'faster_whisper_cli.py'), this.whisperBin, { threads })
+    const len = Math.min(30, asset.durationSec)
     const work = join(this.dataDir, 'tmp', `probe-${asset.id}`)
     await mkdir(work, { recursive: true })
     const words = new Array<number>(n).fill(0)
     try {
       for (const frac of [0.3, 0.6]) {
         const start = Math.max(0, (asset.durationSec - len) * frac)
-        for (let t = 0; t < n; t++) {
-          if (signal?.aborted) throw new ToolError('İptal edildi.')
-          const wav = join(work, `p_${t}.wav`)
-          await extractWavChunk(asset, t, start, len, wav, this.tools, signal)
-          const w = await provider.transcribeChunk({ wavPath: wav, offsetSec: start, language, model: m, signal, workDir: work })
-          words[t] += w.length
-        }
+        await Promise.all(
+          Array.from({ length: n }, async (_, t) => {
+            if (signal?.aborted) throw new ToolError('İptal edildi.')
+            const wav = join(work, `p_${t}.wav`)
+            await extractWavChunk(asset, t, start, len, wav, this.tools, signal)
+            const w = await provider.transcribeChunk({ wavPath: wav, offsetSec: start, language, model: m, signal, workDir: work })
+            words[t] += w.length
+          })
+        )
         if (Math.max(...words) >= 8) break
       }
     } finally {
@@ -289,7 +295,8 @@ export class AppService {
       throw new ToolError(`Whisper "${model}" modeli kurulu değil. Ayarlar → Transkripsiyon bölümünden indirin (${whisperModelFile(this.modelDir, model)}).`)
     }
     // 8+ çekirdekli bilgisayarda iki parça aynı anda (her biri toplam iş parçacığının yarısıyla): tek whisper süreci işlemciyi tam kullanamaz
-    const totalThreads = Math.min(16, cpuThreads(0.5))
+    // transkripsiyon tüm çekirdeklerle (süreç önceliği dengeli kipte düşük kalır: arayüz akıcı kalır)
+    const totalThreads = Math.min(16, cpuThreads(1))
     const conc = s.provider === 'whisper-cpp' && totalThreads >= 8 ? 2 : 1
     const provider = createProvider(s, this.modelDir, join(this.deps.resourcesDir, 'faster_whisper_cli.py'), this.whisperBin, { threads: Math.max(2, Math.floor(totalThreads / conc)) })
     const soft = await builtinGlossary(this.deps)

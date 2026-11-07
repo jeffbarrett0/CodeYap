@@ -44,7 +44,7 @@ import { planSilenceCuts } from '../shared/timeline/silence'
 import { timelineWords } from '../shared/timeline/transcript'
 import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/export/presets'
 import type { Clip, MediaAsset, TextSpec } from '../shared/types'
-import { log, makeService, Session, waitTask } from './session'
+import { enableCliFullSpeed, log, makeService, Session, waitTask } from './session'
 
 const run = promisify(execFile)
 
@@ -235,6 +235,7 @@ async function suggestFor(s: Session, asset: MediaAsset, a: Args) {
 }
 
 async function main(argv: string[]): Promise<unknown> {
+  enableCliFullSpeed() // komut satırı gözetimsiz iş sayılır: tüm çekirdekler (ayar: autoKickFullSpeed)
   const a = parse(argv)
   const [command, projectArg, ...rest] = a.pos
   if (!command || command === 'help' || a.opt.help) return void process.stdout.write(HELP)
