@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { IpcChannel, IpcInvoke, IpcResult } from '../shared/ipc'
 import type { AppService } from './app'
 import { userMessage } from './tasks'
@@ -9,6 +10,7 @@ import { StoryManager } from './story/pipeline'
 import { autoClipCandidates, makeAutoClip } from './autoclips/pipeline'
 import { AutoClipsManager, chainAutoClips } from './autoclips/run'
 import { buildTrailer } from './trailer/build'
+import { parseCtaManifest } from '../shared/cta'
 import { transcriptionReadiness } from '../shared/autokick'
 import { makeTopicClip, topicCandidates } from './autokick/clips'
 
@@ -41,6 +43,11 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       const out = []
       for (const p of r.picks) out.push(await makeAutoClip(r.projectPath, p, { face: r.face, facePos: r.facePos, faceShare: r.faceShare, faceZoom: r.faceZoom, faceFocus: r.faceFocus, screenZoom: r.screenZoom, horizontal: r.horizontal, captions: r.captions }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }))
       return out
+    },
+    'cta:list': async () => {
+      const dir = join(app.deps.resourcesDir, 'cta')
+      const manifest = parseCtaManifest(await readFile(join(dir, 'cta.json'), 'utf8').then((t) => JSON.parse(t), () => null))
+      return { manifest, buttons: (manifest?.buttons ?? []).map((b) => ({ id: b.id, label: b.label, path: join(dir, b.file) })) }
     },
     'trailer:build': (r) => buildTrailer(r, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'audio:denoise': (r) => app.denoisePreview(r),

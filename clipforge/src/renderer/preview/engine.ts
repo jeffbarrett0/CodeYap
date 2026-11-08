@@ -188,9 +188,11 @@ export class PreviewEngine {
           if (src) {
             const cropping = c.id === this.cropClipId
             const crop = cropping ? undefined : c.crop
+            const keyed = !!c.fx?.chroma && !cropping
             if (pl.fit === 'cover' && !cropping) {
               const s = coverSource(sw, sh, r.w, r.h, crop)
-              ctx.drawImage(src, s.sx, s.sy, s.sw, s.sh, r.x, r.y, r.w, r.h)
+              if (keyed) this.drawKeyed(ctx, src, s.sx, s.sy, s.sw, s.sh, r.x, r.y, r.w, r.h)
+              else ctx.drawImage(src, s.sx, s.sy, s.sw, s.sh, r.x, r.y, r.w, r.h)
             } else {
               // sığdır: kırpma varsa yalnızca kırpılmış bölge sığdırılır
               const bx = crop ? crop.x * sw : 0
@@ -198,7 +200,8 @@ export class PreviewEngine {
               const bw = crop ? crop.w * sw : sw
               const bh = crop ? crop.h * sh : sh
               const d = containRect(bw, bh, r)
-              ctx.drawImage(src, bx, by, bw, bh, d.x, d.y, d.w, d.h)
+              if (keyed) this.drawKeyed(ctx, src, bx, by, bw, bh, d.x, d.y, d.w, d.h)
+              else ctx.drawImage(src, bx, by, bw, bh, d.x, d.y, d.w, d.h)
             }
             drew = true
           }
@@ -220,6 +223,32 @@ export class PreviewEngine {
         ctx.restore()
       }
     }
+  }
+
+  private keyCanvas: HTMLCanvasElement | null = null
+
+  /** Yeşil perde önizlemesi: hedef boyutta bir tuvale çizilip yeşil baskın pikseller şeffaflaştırılır (dışa aktarmadaki chromakey'in yaklaşığı) */
+  private drawKeyed(ctx: CanvasRenderingContext2D, src: CanvasImageSource, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number) {
+    const w = Math.max(1, Math.round(dw))
+    const h = Math.max(1, Math.round(dh))
+    const kc = (this.keyCanvas ??= document.createElement('canvas'))
+    if (kc.width !== w || kc.height !== h) (kc.width = w, kc.height = h)
+    const k = kc.getContext('2d', { willReadFrequently: true })
+    if (!k) return ctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh)
+    k.clearRect(0, 0, w, h)
+    k.drawImage(src, sx, sy, sw, sh, 0, 0, w, h)
+    const img = k.getImageData(0, 0, w, h)
+    const d = img.data
+    for (let i = 0; i < d.length; i += 4) {
+      const gd = d[i + 1] - Math.max(d[i], d[i + 2])
+      if (gd > 90) d[i + 3] = 0
+      else if (gd > 40) {
+        d[i + 3] = Math.round(255 * (1 - (gd - 40) / 50))
+        d[i + 1] = Math.min(d[i + 1], Math.max(d[i], d[i + 2]) + 10)
+      }
+    }
+    k.putImageData(img, 0, 0)
+    ctx.drawImage(kc, 0, 0, w, h, dx, dy, dw, dh)
   }
 
   /** Dışa aktarmadaki ASS animasyonlarının (fade / pulse / slide-up) canvas karşılığı */

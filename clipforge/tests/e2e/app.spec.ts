@@ -1304,6 +1304,14 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('range-hover')).toBeVisible()
   })
 
+  test('Çağrı butonu: araç çubuğundan seçilince oynatma başlığına eklenir (görüntü + ses), iz oluşur', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('cta-add').selectOption('youtube')
+    await expect(page.getByTestId('toast').filter({ hasText: 'eklendi' }).first()).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('lane-CTAV').getByTestId('clip')).toHaveCount(1)
+    await expect(page.getByTestId('lane-CTAS').getByTestId('clip')).toHaveCount(1)
+  })
+
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {
     await page.addInitScript(() => ((window as unknown as { __mock: unknown }).__mock = { fail: { chapters: 'Zaman çizelgesindeki içeriğin transkripti yok: önce kayıtları transkribe edin.' } }))
     await boot(page)

@@ -250,6 +250,8 @@ export interface Clip {
 export interface ClipFx {
   /** Klip boyunca `from` → `to` yakınlık (1 = normal, 1,15 = %15 yakın); `x`,`y` = yakınlaşma odağı (0..1, 0,5 = orta) */
   zoom?: { from: number; to: number; x: number; y: number }
+  /** Yeşil perde (chroma key): bu renk şeffaf olur (ör. çağrı butonu videoları). color: #RRGGBB */
+  chroma?: { color: string; similarity?: number; blend?: number }
   /** Renk havası: görüntüye uygulanan hazır renk ayarı */
   grade?: 'warm' | 'cool' | 'vivid' | 'cinematic' | 'bw' | 'vintage' | 'bright'
   /** Arka plan sesini (araba, rüzgâr, uğultu) azaltıp konuşmaya odaklar; dışa aktarmada uygulanır */

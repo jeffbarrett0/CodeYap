@@ -33,6 +33,7 @@ import { runTool } from '../main/ffmpeg'
 import { renderSfx, SFX } from '../main/sfx'
 import { buildTrailer } from '../main/trailer/build'
 import { parseClock, type TrailerMode, type TrailerSegment } from '../shared/trailer'
+import { ctaRect, ctaSequence, parseCtaManifest, type CtaPos } from '../shared/cta'
 import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
 import { chapterTimestamp, chapterWarnings, formatChapters } from '../shared/chapters'
@@ -130,7 +131,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   denoise <proje> [--level light|medium|strong|off]   arka plan seslerini (araba, rüzgâr, uğultu) azaltıp konuşmaya odaklar (RNNoise + gürültü azaltma; dışa aktarmada uygulanır)
   grade <proje> --look warm|cool|vivid|cinematic|bw|vintage|bright [--at sn --dur sn] [--layer V3]   renk havası (tümüne ya da bir aralığa; dışa aktarmada uygulanır)
   text <proje> --text "metin" --at sn [--dur 3] [--pos top|center|bottom] [--size 84] [--color #FFE600] [--animation slide-up|pulse|fade|none]   ekranda animasyonlu büyük yazı (vurgu cümlesi, başlık, espri)
-  cta <proje> [--file a.png,b.png | --folder klasör] [--every 150] [--first 60] [--dur 5] [--pos bottom-right] [--size 0.22]   KULLANICININ çağrı butonlarını (abone ol/beğen/bildirim; resources/cta/) belirli aralıkla köşede gösterir; buton dosyası yoksa bir şey eklemez
+  cta <proje> [--every 150] [--first 60] [--pos bottom-left|bottom-right|bottom-center] [--size 0.34] [--only youtube,tiktok] [--full] [--file a.png,b.mp4]   KULLANICININ çağrı butonlarını (resources/cta/cta.json: YouTube abone ol, TikTok/X/Instagram takip et — yeşil perdeli animasyon, sesli) belirli aralıkla gösterir (sıra: YouTube, TikTok, YouTube, X, YouTube, Instagram); buton dosyası yoksa bir şey eklemez
   captions <proje> [--style classic|boxed-highlight|premium-gold] [--max-chars 22] [--lang en]   transkriptten altyazı üretir (--lang en: İngilizce çeviri, yapay zekâ ayarı gerekir) (boxed-highlight: referans stil)
   delete-lane <proje> <V1|V2|V3|I1|I2|A1|CC>                      o katmandaki her şeyi siler
   frame <proje> --at sn --out resim.jpg  çizelgedeki bir anın karesini kaydeder (görsel kontrol)
@@ -866,24 +867,64 @@ async function main(argv: string[]): Promise<unknown> {
       return out({ ok: true, text: spec.text, at: r1(at), end: r1(at + dur), pos, track: id, animation: anim })
     }
     case 'cta': {
-      // kullanıcının KENDİ çağrı butonları (abone ol / beğen / bildirim…): belirli aralıklarla köşede belirir. Dosya yoksa HİÇBİR ŞEY eklenmez (uydurma buton yok).
+      // kullanıcının KENDİ çağrı butonları (abone ol / takip et): belirli aralıklarla köşede belirir. Dosya yoksa HİÇBİR ŞEY eklenmez (uydurma buton yok).
+      // resources/cta/cta.json varsa: yeşil perdeli (chroma key) animasyonlu butonlar, sıra (YouTube–TikTok–YouTube–X–YouTube–Instagram), sesleriyle.
       const folder = str(a.opt.folder) ?? join(s.service.deps.resourcesDir, 'cta')
+      const every = num(a.opt.every, 'every') ?? 150
+      const first = num(a.opt.first, 'first') ?? 60
+      const total = timelineDuration(s.timeline)
+      const aspectNow = s.timeline.aspect
+      const manifest = !str(a.opt.file) ? parseCtaManifest(await readFile(join(folder, 'cta.json'), 'utf8').then((t) => JSON.parse(t), () => null)) : null
+      if (manifest) {
+        const only = str(a.opt.only)?.split(',').map((x) => x.trim())
+        const m2 = only ? { ...manifest, rotation: only } : manifest
+        const dur = Math.min(num(a.opt.dur, 'dur') ?? 5.2, 8)
+        const times: number[] = []
+        for (let t = first; t + dur <= total - 2; t += every) times.push(t)
+        if (times.length === 0) return out({ ok: true, placed: 0, note: `Video çok kısa (${r1(total)} sn): ilk buton ${first} sn'de başlar, ${every} sn aralıkla.` })
+        const seq = ctaSequence(m2, times.length)
+        if (seq.length === 0) throw new Error('--only ile verilen buton kimlikleri cta.json içinde yok.')
+        const pos = (str(a.opt.pos) ?? 'bottom-left') as CtaPos
+        const full = !!a.opt.full
+        const sizeOpt = num(a.opt.size, 'size')
+        const placedItems: { at: number; button: string }[] = []
+        for (const [i, entry] of seq.entries()) {
+          const asset = await ensureAsset(s, join(folder, entry.file))
+          if (asset.kind !== 'video') continue
+          if (!s.timeline.tracks.some((t) => t.id === 'CTAV')) {
+            const rect = full ? { x: 0, y: 0, w: 1, h: 1 } : ctaRect(entry, asset.width, asset.height, aspectNow, { pos, size: sizeOpt })
+            s.apply(cmd.addTrack({ id: 'CTAV', name: 'Çağrı butonları', kind: 'video', role: 'screen', placement: { rect, fit: 'contain', visible: true, opacity: 1 } }))
+          }
+          if (asset.audioStreams.length > 0 && !s.timeline.tracks.some((t) => t.id === 'CTAS')) s.apply(cmd.addTrack({ id: 'CTAS', name: 'Çağrı butonu sesi', kind: 'audio', role: 'mix' }))
+          const at = times[i]
+          const vtr = s.timeline.tracks.find((t) => t.id === 'CTAV')!
+          const r = clipForTrack(asset, vtr, { at, duration: Math.min(dur, asset.durationSec) })
+          if ('error' in r) continue
+          const grp = `cta${i}`
+          s.apply(cmd.addClip('CTAV', { ...r.clip, label: `Buton: ${entry.label}`, crop: full ? undefined : entry.crop, groupId: grp, fx: { chroma: { color: manifest.chroma } } }))
+          const atr = s.timeline.tracks.find((t) => t.id === 'CTAS')
+          if (atr) {
+            const ar = clipForTrack(asset, atr, { at, duration: Math.min(dur, asset.durationSec) })
+            if (!('error' in ar)) s.apply(cmd.addClip('CTAS', { ...ar.clip, label: `Buton sesi: ${entry.label}`, groupId: grp, volume: 0.8 }))
+          }
+          placedItems.push({ at: r1(at), button: entry.id })
+        }
+        await s.save()
+        return out({ ok: true, mode: 'cta.json', placed: placedItems.length, every, first, items: placedItems, note: 'Zaman çizelgesi zamanıdır: kesim/ekleme bittikten SONRA çalıştırın. Yeşil perde dışa aktarmada (ve önizlemede) şeffaflaşır; butonlar alttan yükselir, tıklanır, iner.' })
+      }
+      // eski kip: düz dosyalar (görsel/video), chroma yok
       const fileOpt = str(a.opt.file)
       const files = fileOpt
         ? fileOpt.split(',').map((f) => resolve(f.trim()))
         : (await readdir(folder).catch(() => [] as string[])).filter((f) => MEDIA_EXT.test(f)).sort().map((f) => join(folder, f))
       if (files.length === 0) return out({ ok: true, placed: 0, note: `Buton dosyası yok (${fileOpt ? '--file' : folder}). Kullanıcının butonları klasöre konunca çalışır; kendi butonumuzu uydurmuyoruz.` })
-      const every = num(a.opt.every, 'every') ?? 150
-      const first = num(a.opt.first, 'first') ?? 60
       const dur = num(a.opt.dur, 'dur') ?? 5
       const pos = str(a.opt.pos) ?? 'bottom-right'
       const wFrac = num(a.opt.size, 'size') ?? 0.22
-      const total = timelineDuration(s.timeline)
-      const aspectNow = aspectSize(s.timeline.aspect)
-      const frameAspect = aspectNow.width / aspectNow.height
+      const aspectSz = aspectSize(s.timeline.aspect)
+      const frameAspect = aspectSz.width / aspectSz.height
       const assets: MediaAsset[] = []
       for (const f of files) assets.push(await ensureAsset(s, f))
-      const sfxType = str(a.opt.sfx) ?? 'notify'
       const times: number[] = []
       for (let t = first; t + dur <= total - 3; t += every) times.push(t)
       if (times.length === 0) return out({ ok: true, placed: 0, note: `Video çok kısa (${r1(total)} sn): ilk buton ${first} sn'de başlar, ${every} sn aralıkla.` })
@@ -907,7 +948,7 @@ async function main(argv: string[]): Promise<unknown> {
         placed.push({ at: r1(t), file: asset.name })
       })
       await s.save()
-      return out({ ok: true, placed: placed.length, every, first, dur, pos, items: placed, sfx: sfxType === 'none' ? undefined : `Her butonla birlikte: sfx --type ${sfxType} --at <aynı sn> (isterseniz ekleyin)`, note: 'Zaman çizelgesi zamanıdır: kesim/ekleme bittikten SONRA çalıştırın.' })
+      return out({ ok: true, mode: 'dosya', placed: placed.length, every, first, dur, pos, items: placed, note: 'Zaman çizelgesi zamanıdır: kesim/ekleme bittikten SONRA çalıştırın.' })
     }
     case 'captions': {
       const styleId = str(a.opt.style)

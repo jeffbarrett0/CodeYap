@@ -595,6 +595,24 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(JSON.stringify(au)).toMatch(/transkript/)
   }, 180_000)
 
+  it('cta (cta.json): yeşil perdeli çağrı butonları sırayla, sesleriyle eklenir; --only süzer; zaman aralığı korunur', () => {
+    const p = join(tmp, 'cta-vlog.clipforge')
+    const ffm = require('ffmpeg-static') as string
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=10:duration=70', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=70', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(tmp, 'cta70.mp4')])
+    cli('new', p)
+    cli('import', p, join(tmp, 'cta70.mp4'), '--add', '--layer', 'V3')
+    const r = cli('cta', p, '--first', '5', '--every', '30')
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.mode).toBe('cta.json')
+    expect(r.items.map((x: any) => x.button)).toEqual(['youtube', 'tiktok']) // 5. ve 35. sn
+    expect(r.items.map((x: any) => x.at)).toEqual([5, 35])
+    const sh = cli('show', p)
+    expect(sh.tracks.find((t: any) => t.id === 'CTAV').clips).toHaveLength(2)
+    expect(sh.tracks.find((t: any) => t.id === 'CTAS').clips).toHaveLength(2) // butonun sesi de gelir
+    const r2 = cli('cta', p, '--first', '5', '--every', '30', '--only', 'twitter')
+    expect(r2.ok).toBe(true)
+  }, 120_000)
+
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')
     writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))

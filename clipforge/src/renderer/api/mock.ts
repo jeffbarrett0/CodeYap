@@ -124,6 +124,10 @@ export function createMockApi(): ClipforgeApi {
     'dialog:openFile': () => w.__mock?.openFile ?? 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
     'audio:denoise': (r) => r.level,
+    'cta:list': () => ({
+      manifest: { version: 1, chroma: '#00FD00', rotation: ['youtube', 'tiktok'], buttons: [{ id: 'youtube', label: 'YouTube: abone ol', file: 'youtube-abone.mp4', crop: { x: 0.17, y: 0.44, w: 0.66, h: 0.56 }, flushBottom: true }, { id: 'tiktok', label: 'TikTok: takip et', file: 'tiktok-takip.mp4', crop: { x: 0.17, y: 0.44, w: 0.66, h: 0.56 }, flushBottom: true }] },
+      buttons: [{ id: 'youtube', label: 'YouTube: abone ol', path: '/demo/cta/youtube-abone.mp4' }, { id: 'tiktok', label: 'TikTok: takip et', path: '/demo/cta/tiktok-takip.mp4' }]
+    }),
     'trailer:build': (r) => ({ projectPath: '/demo/fragman.clipforge', durationSec: Math.min(r.targetSec ?? 45, 40), shots: r.segments.map((s) => ({ segmentId: s.id, a: s.start, b: s.start + 4, text: 'Örnek an' })) }),
     'autoclips:start': (req) => {
       const id = `autoclips-${acJobs.size + 1}`

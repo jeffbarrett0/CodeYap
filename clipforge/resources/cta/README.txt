@@ -1,5 +1,7 @@
-ÇAĞRI BUTONLARI (abone ol / beğen / bildirim zili …)
+ÇAĞRI BUTONLARI (kullanıcının kendi animasyonlu butonları)
 
-Buraya kendi buton dosyalarınızı koyun (PNG/WEBP şeffaf görsel ya da MP4). "Claude ile edit yap" ve `cta` komutu
-bunları videoda 2-3 dakikada bir köşede gösterir (sırayla döner; belirişte/kayboluşta yumuşak geçiş).
-Klasör boşsa HİÇBİR çağrı butonu eklenmez (uydurma buton yok).
+youtube-abone.mp4 · tiktok-takip.mp4 · twitter-takip.mp4 · instagram-takip.mp4
+5 sn'lik YEŞİL PERDELİ (chroma key) videolar: buton alttan yükselir, tıklanır ("TAKİP ET" → "TAKİP EDİLİYOR"), geri iner; sesleri vardır.
+cta.json: yeşil renk, kırpma bölgesi (butonun hareket alanı) ve sıralama (YouTube iki kez, sırayla TikTok, X, Instagram).
+Yeni buton eklemek için dosyayı bu klasöre koyup cta.json'a satır ekleyin.
+`cta` komutu ve Fragman/vlog akışı bunları 2–3 dakikada bir köşede gösterir. Klasör boşsa HİÇBİR çağrı eklenmez.

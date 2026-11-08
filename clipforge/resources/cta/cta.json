@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "chroma": "#00FD00",
+  "rotation": ["youtube", "tiktok", "youtube", "twitter", "youtube", "instagram"],
+  "buttons": [
+    { "id": "youtube", "label": "YouTube: abone ol + beğen + zil", "file": "youtube-abone.mp4", "crop": { "x": 0.17, "y": 0.44, "w": 0.66, "h": 0.56 }, "flushBottom": true },
+    { "id": "tiktok", "label": "TikTok: takip et", "file": "tiktok-takip.mp4", "crop": { "x": 0.17, "y": 0.44, "w": 0.66, "h": 0.56 }, "flushBottom": true },
+    { "id": "twitter", "label": "X (Twitter): takip et", "file": "twitter-takip.mp4", "crop": { "x": 0.17, "y": 0.44, "w": 0.66, "h": 0.56 }, "flushBottom": true },
+    { "id": "instagram", "label": "Instagram: takip et", "file": "instagram-takip.mp4", "crop": { "x": 0.17, "y": 0.44, "w": 0.66, "h": 0.56 }, "flushBottom": true }
+  ]
+}

@@ -53,6 +53,12 @@ const GRADES: Record<string, string> = {
   bright: 'eq=brightness=0.05:contrast=1.05:saturation=1.1'
 }
 
+/** Yeşil perde: renk şeffaf olur (YUV tabanlı chromakey) + kenarlardaki yeşil yansıma giderilir. Dönen parça `,` ile biter (filtre zincirine eklenir). */
+export function chromaFilter(ch: { color: string; similarity?: number; blend?: number }): string {
+  const hex = ch.color.replace('#', '').toUpperCase().padStart(6, '0').slice(0, 6)
+  return `format=yuva420p,chromakey=color=0x${hex}:similarity=${(ch.similarity ?? 0.16).toFixed(3)}:blend=${(ch.blend ?? 0.06).toFixed(3)},despill=type=green:mix=0.5:expand=0.1,`
+}
+
 /** Klip efektleri (zoom + görüntü geçişi + renk havası) için filtre parçası; boyut: klibin çıkış kutusu (w×h), süre: klip süresi */
 function videoFx(c: Clip, dur: number, w: number, h: number, fps: number, alpha: boolean): string {
   const fx = c.fx
@@ -174,7 +180,8 @@ export function buildExportPlan(
         const k = t.placement.fit === 'cover' || sw <= 0 || sh <= 0 ? 0 : Math.min(r.w / sw, r.h / sh)
         const even = (n: number) => Math.max(2, Math.round(n / 2) * 2)
         const fx = k > 0 ? { w: even(sw * k), h: even(sh * k) } : { w: r.w, h: r.h }
-        lines.push(`[${idx}:v]${alpha}setpts=PTS-STARTPTS,fps=${fps},${crop}${fit}${fade}${videoFx(c, p.dur, fx.w, fx.h, fps, alpha !== '')},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
+        const ck = c.fx?.chroma ? chromaFilter(c.fx.chroma) : ''
+        lines.push(`[${idx}:v]${ck}${alpha}setpts=PTS-STARTPTS,fps=${fps},${crop}${fit}${fade}${videoFx(c, p.dur, fx.w, fx.h, fps, alpha !== '' || ck !== '')},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
         const next = `L${++layer}`
         const pos = t.placement.fit === 'cover' ? `${r.x}:${r.y}` : `x=${r.x}+(${r.w}-overlay_w)/2:y=${r.y}+(${r.h}-overlay_h)/2`
         lines.push(`[${cur}][ly${L}]overlay=${pos}:eof_action=pass:repeatlast=0[${next}]`)

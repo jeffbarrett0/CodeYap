@@ -1,3 +1,4 @@
+import type { CtaManifest } from './cta'
 import type { TrailerRequest, TrailerResult } from './trailer'
 /**
  * Main ↔ renderer arasındaki tipli IPC sözleşmesi.
@@ -109,6 +110,8 @@ export interface IpcInvoke {
   /** Arama sonucundan bağımsız klip projesi dosyası üretir (ana proje değişmez) */
   'project:createClip': [[Project, string, string], { path: string }]
   'media:import': [[string[]], string[]]
+  /** Çağrı butonları (resources/cta): manifest + her butonun dosya yolu */
+  'cta:list': [[], { manifest: CtaManifest | null; buttons: { id: string; label: string; path: string }[] }]
   /** Fragman: seçilen 10–60 sn'lik parçalardan hızlı kurgulu fragman projesi üretir (kaynak proje değişmez) */
   'trailer:build': [[TrailerRequest], TrailerResult]
   /** Önizleme için arka plan sesi azaltılmış ses kopyası üretir (önbellekli); dönen değer = `variant` (seviye) */

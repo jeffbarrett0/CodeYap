@@ -13,6 +13,7 @@ import { captionsForTimeline, untranslated } from '@shared/timeline/captions'
 import { planSilenceCuts } from '@shared/timeline/silence'
 import { timelineWords } from '@shared/timeline/transcript'
 import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems } from '@shared/timeline/create'
+import { ctaRect } from '@shared/cta'
 import { mutedState, removeClipsOfAsset } from '@shared/timeline/ops'
 import { clipEnd, createDefaultTimeline, findClip, groupMembers, nearestAspect, newId, timelineDuration } from '@shared/timeline/model'
 import { optionsFromPreset, exportWarnings } from '@shared/export/presets'
@@ -20,7 +21,7 @@ import { EXPORT_PRESETS } from '@shared/export/presets'
 import { PROJECT_VERSION } from '@shared/types'
 import { BUILTIN_TEMPLATES, templateFromTimeline } from '@shared/timeline/templates'
 import { presetById } from '@shared/timeline/captionStyles'
-import type { Caption, CaptionStyle, ChatLog, ClipCandidate, ExportOptions, LayoutTemplate, NormRect, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
+import type { Caption, CaptionStyle, ChatLog, Clip, ClipCandidate, ExportOptions, LayoutTemplate, NormRect, MediaAsset, Project, SearchResult, Settings, TaskInfo, Timeline, Transcript } from '@shared/types'
 import { requireApi } from './api'
 import { denoiseKey, denoiseReady } from './preview/denoiseState'
 
@@ -259,6 +260,8 @@ interface State {
   /** Arka plan sesi azaltması açık ses kliplerinin önizleme kopyalarını hazırlar (arka planda); hazır olunca önizlemede duyulur */
   prepareDenoise(): Promise<void>
   denoiseTick: number
+  /** Çağrı butonunu (YouTube abone ol / TikTok·X·Instagram takip et) oynatma başlığına ekler: yeşil perde şeffaflaşır, buton alttan yükselir, sesi de gelir */
+  addCtaButton(id: string): Promise<void>
   /** Seçili kliplerin sesini kapatır/açar (M tuşu); video klibi seçiliyse bağlı sesi */
   toggleMuteSelection(): void
   setZoom(z: number): void
@@ -949,6 +952,49 @@ export const useStore = create<State>()((set, get) => {
     setSourceTime: (t) => set({ sourceTime: Math.max(0, t) }),
     setPlaying: (playing) => set({ playing }),
     denoiseTick: 0,
+    async addCtaButton(id) {
+      const st = get()
+      try {
+        const list = await api().invoke('cta:list')
+        const entry = list.manifest?.buttons.find((b) => b.id === id)
+        const file = list.buttons.find((b) => b.id === id)
+        if (!entry || !file || !list.manifest) return st.toast('error', 'Çağrı butonu bulunamadı: resources/cta klasörünü kontrol edin.')
+        let asset = get().project.assets.find((a) => a.path === file.path)
+        if (!asset) {
+          const before = new Set(get().project.assets.map((a) => a.id))
+          await api().invoke('media:import', [file.path])
+          for (let i = 0; i < 200 && !asset; i++) {
+            await new Promise((r) => setTimeout(r, 100))
+            asset = get().project.assets.find((a) => a.path === file.path) ?? get().project.assets.find((a) => !before.has(a.id) && a.kind === 'video')
+          }
+        }
+        if (!asset) return st.toast('error', 'Çağrı butonu içe aktarılamadı.')
+        const at = get().playhead
+        const aspect = get().project.timeline.aspect
+        const dur = Math.min(5.2, asset.durationSec || 5)
+        let tl = get().project.timeline
+        const rect = ctaRect(entry, asset.width, asset.height, aspect, {})
+        if (!tl.tracks.some((t) => t.id === 'CTAV')) get().exec(cmd.addTrack({ id: 'CTAV', name: 'Çağrı butonları', kind: 'video', role: 'screen', placement: { rect, fit: 'contain', visible: true, opacity: 1 } }))
+        if (asset.audioStreams.length > 0 && !get().project.timeline.tracks.some((t) => t.id === 'CTAS')) get().exec(cmd.addTrack({ id: 'CTAS', name: 'Çağrı butonu sesi', kind: 'audio', role: 'mix' }))
+        tl = get().project.timeline
+        const vtr = tl.tracks.find((t) => t.id === 'CTAV')
+        if (!vtr) return
+        if (vtr.clips.some((c) => c.start < at + dur && at < c.start + (c.srcOut - c.srcIn))) return get().toast('info', 'Bu anda zaten bir çağrı butonu var: oynatma başlığını başka bir yere taşıyın.')
+        const grp = newId('grp')
+        const v = clipForTrack(asset, vtr, { at, duration: dur })
+        if ('error' in v) return get().toast('error', v.error)
+        const items: { trackId: string; clip: Clip }[] = [{ trackId: 'CTAV', clip: { ...v.clip, label: `Buton: ${entry.label}`, crop: entry.crop, groupId: grp, fx: { chroma: { color: list.manifest.chroma } } } }]
+        const atr = tl.tracks.find((t) => t.id === 'CTAS')
+        if (atr) {
+          const a = clipForTrack(asset, atr, { at, duration: dur })
+          if (!('error' in a)) items.push({ trackId: 'CTAS', clip: { ...a.clip, label: `Buton sesi: ${entry.label}`, groupId: grp, volume: 0.8 } })
+        }
+        get().exec(cmd.addClips(items, 'Çağrı butonu ekle'))
+        get().toast('success', `${entry.label} eklendi (${at.toFixed(1)} sn). Yeşil perde şeffaf olur; buton alttan yükselir, tıklanır, iner.`)
+      } catch (e) {
+        get().toast('error', errText(e))
+      }
+    },
     toggleMuteSelection() {
       const s = get()
       if (s.selection.length === 0) return s.toast('info', 'Önce sesini kapatmak istediğiniz klibi seçin.')

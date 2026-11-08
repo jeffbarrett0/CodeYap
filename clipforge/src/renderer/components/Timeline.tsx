@@ -200,6 +200,16 @@ export function Timeline() {
         <button className="btn sm" onClick={() => useStore.getState().cutSilence()} title="Konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini tek tıkla keser" data-testid="cut-silence-tb">✂ Sessizleri kes</button>
         <button className="btn sm" onClick={() => useStore.getState().closeGaps()} title="Hiçbir izde içerik olmayan boşlukları siler" data-testid="close-gaps">Boşlukları kapat</button>
         <button className="btn sm" onClick={() => useStore.getState().toggleMuteSelection()} disabled={selection.length === 0} title="Seçili klibin sesini kapatır/açar (M). Video klibi seçiliyse bağlı sesi kapanır; görüntü kalır. Ctrl+Z geri alır" data-testid="mute-clip">{mutedState(tl, selection) === true ? '🔊 Sesi aç' : '🔇 Sesi kapat'}</button>
+        <label className="row" style={{ gap: 4 }} title="Çağrı butonunu (abone ol / takip et) oynatma başlığının olduğu yere ekler: yeşil perde şeffaflaşır, buton alttan yükselir ve sesi gelir">
+          ＋ Çağrı butonu
+          <select value="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) void useStore.getState().addCtaButton(v) }} aria-label="Çağrı butonu ekle" data-testid="cta-add">
+            <option value="">seç…</option>
+            <option value="youtube">YouTube: abone ol</option>
+            <option value="tiktok">TikTok: takip et</option>
+            <option value="twitter">X (Twitter): takip et</option>
+            <option value="instagram">Instagram: takip et</option>
+          </select>
+        </label>
         <label className="row" style={{ gap: 4 }} title="Arka plandaki araba, rüzgâr, uğultu gibi sesleri azaltır, sizin sesinize odaklanır. Önizlemede de duyulur (temizlenmiş ses önce arka planda hazırlanır) ve dışa aktarılan videoda uygulanır">
           🔇 Arka sesi kes
           <select value={denoiseLevel(tl) ?? 'off'} onChange={(e) => { const v = e.target.value; exec(cmd.denoise(v === 'off' ? null : (v as 'light' | 'medium' | 'strong'))); if (v === 'off') useStore.getState().toast('success', 'Arka plan sesi geri getirildi.'); else void useStore.getState().prepareDenoise() }} aria-label="Arka plan sesini azalt" data-testid="denoise">
