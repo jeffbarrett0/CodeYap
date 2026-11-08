@@ -5,7 +5,6 @@ import { Timeline } from './components/Timeline'
 import { RightPanel } from './components/RightPanel'
 import { ExportDialog, HelpDialog, SettingsDialog } from './components/Dialogs'
 import { AutoKickDialog } from './components/AutoKick'
-import { StoryDialog } from './components/Story'
 import { AutoClipsDialog } from './components/AutoClips'
 import { TrailerDialog } from './components/Trailer'
 import { StatusBar, Toasts, TopBar } from './components/Chrome'
@@ -124,7 +123,6 @@ export function App() {
       {dialog === 'settings' && <SettingsDialog />}
       {dialog === 'help' && <HelpDialog />}
       {dialog === 'autokick' && <AutoKickDialog />}
-      {dialog === 'story' && <StoryDialog />}
       {dialog === 'autoclips' && <AutoClipsDialog />}
       {dialog === 'trailer' && <TrailerDialog />}
       <Toasts />
