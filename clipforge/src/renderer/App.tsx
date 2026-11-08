@@ -35,6 +35,7 @@ function useShortcuts() {
         setRate(1); jRate = 0
         st.setPlaying(!st.playing)
       } else if (k === 's') { st.splitAtPlayhead() }
+      else if (k === 'f') { e.preventDefault(); if (document.fullscreenElement) void document.exitFullscreen(); else void document.querySelector('.stage-wrap')?.requestFullscreen?.() }
       else if (k === 'm' && st.selection.length > 0) { e.preventDefault(); st.toggleMuteSelection() }
       else if (e.key === 'Delete' || e.key === 'Backspace') {
         // Yalnızca o an seçili TEK öğe silinir: odak kütüphane kartındaysa dosya, değilse seçili klip, o da yoksa seçili altyazı

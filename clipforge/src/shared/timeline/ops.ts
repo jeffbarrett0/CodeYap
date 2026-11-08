@@ -519,3 +519,22 @@ export function clipIsMuted(tl: Timeline, c: Clip): boolean {
   const s = mutedState(tl, [c.id])
   return s === true
 }
+
+/** Video klibinin bağlı SESİNİ ayırır: ses klipleri gruptan çıkar (ayrı ses katmanında kendi başına durur; görüntü ve ses artık bağımsız taşınır/silinir) */
+export function detachAudio(tl: Timeline, clipId: ID): Timeline {
+  const carriers = audioCarriersOf(tl, [clipId]).filter((c) => !!c.groupId)
+  if (carriers.length === 0) return tl
+  const ids = new Set(carriers.map((c) => c.id))
+  return mapTracks(tl, (t) => ({ ...t, clips: t.clips.map((c) => (ids.has(c.id) ? { ...c, groupId: undefined } : c)) }))
+}
+
+/** Video klibinin (bağlı) SESİNİ siler; görüntü kalır. Ses taşıyan klip yoksa değişmez. */
+export function removeAudioOf(tl: Timeline, clipId: ID): Timeline {
+  const f = findClip(tl, clipId)
+  if (!f) return tl
+  // seçilen klip zaten bir ses klibiyse yalnızca onu sil; video klibiyse bağlı ses kliplerini sil
+  const carriers = audioCarriersOf(tl, [clipId]).filter((c) => c.id !== clipId || f.track.kind === 'audio')
+  const ids = new Set(carriers.filter((c) => tl.tracks.find((t) => t.id === c.trackId)?.kind === 'audio').map((c) => c.id))
+  if (ids.size === 0) return tl
+  return mapTracks(tl, (t) => ({ ...t, clips: t.clips.filter((c) => !ids.has(c.id)) }))
+}

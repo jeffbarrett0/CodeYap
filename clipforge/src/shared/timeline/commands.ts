@@ -24,6 +24,10 @@ export const cmd = {
     makeCommand('Klip özelliği', (t) => ops.updateClip(t, clipId, patch), coalesce ? `upd:${clipId}:${Object.keys(patch).join(',')}` : undefined),
   /** Seçili kliplerin sesini kapat/aç (muted verilmezse tersine çevirir); tek geri alma adımı */
   mute: (ids: ID[], muted?: boolean): TimelineCommand => makeCommand(muted === false ? 'Sesi aç' : 'Sesi kapat', (t) => ops.setClipsMuted(t, ids, muted)),
+  /** Video klibinin bağlı sesini ayırır (ses ayrı katmanda kendi başına kalır) */
+  detachAudio: (clipId: ID): TimelineCommand => makeCommand('Sesi görüntüden ayır', (t) => ops.detachAudio(t, clipId)),
+  /** Video klibinin sesini siler; görüntü kalır */
+  removeAudio: (clipId: ID): TimelineCommand => makeCommand('Sesi sil', (t) => ops.removeAudioOf(t, clipId)),
   /** Arka plan sesini azalt (seviye) / kapat (null): tüm ses taşıyan kliplere, tek geri alma adımı */
   denoise: (level: ops.DenoiseLevel | null): TimelineCommand => makeCommand(level ? 'Arka plan sesini azalt' : 'Arka plan sesini geri getir', (t) => ops.setDenoise(t, level)),
   track: (trackId: ID, patch: Parameters<typeof ops.updateTrack>[2], coalesce = false): TimelineCommand =>

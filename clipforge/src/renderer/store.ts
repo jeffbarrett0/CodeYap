@@ -27,6 +27,8 @@ import { denoiseKey, denoiseReady } from './preview/denoiseState'
 
 /** Sağ panel sekmeleri: düzenleme (klip, katmanlar, ses, altyazı) ve bulma/kaynak (kaynak, arama, transkript, öneriler) */
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
+const waveRequested = new Set<string>()
+
 export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'story' | 'autoclips' | 'trailer'
 
 export interface Toast {
@@ -260,6 +262,12 @@ interface State {
   /** Arka plan sesi azaltması açık ses kliplerinin önizleme kopyalarını hazırlar (arka planda); hazır olunca önizlemede duyulur */
   prepareDenoise(): Promise<void>
   denoiseTick: number
+  /** Ses dalgaları (varlık|ses akışı → saniyede 2 dB değeri) */
+  waveforms: Record<string, { binPerSec: number; db: number[] }>
+  ensureWaveform(assetId: string, audioStream: number): void
+  /** Ses katmanlarını (A1/A2…) zaman çizelgesinde göster/gizle (varsayılan gizli: ses klibin üzerinde dalga olarak görünür) */
+  showAudioLanes: boolean
+  toggleAudioLanes(): void
   /** Çağrı butonunu (YouTube abone ol / TikTok·X·Instagram takip et) oynatma başlığına ekler: yeşil perde şeffaflaşır, buton alttan yükselir, sesi de gelir */
   addCtaButton(id: string): Promise<void>
   /** Seçili kliplerin sesini kapatır/açar (M tuşu); video klibi seçiliyse bağlı sesi */
@@ -952,6 +960,29 @@ export const useStore = create<State>()((set, get) => {
     setSourceTime: (t) => set({ sourceTime: Math.max(0, t) }),
     setPlaying: (playing) => set({ playing }),
     denoiseTick: 0,
+    waveforms: {},
+    ensureWaveform(assetId, audioStream) {
+      const key = `${assetId}|${audioStream}`
+      if (get().waveforms[key] || waveRequested.has(key)) return
+      waveRequested.add(key)
+      void api().invoke('media:waveform', { assetId, audioStream }).then((w) => set((s) => ({ waveforms: { ...s.waveforms, [key]: w } }))).catch(() => waveRequested.delete(key))
+    },
+    showAudioLanes: (() => {
+      try {
+        return localStorage.getItem('cf-audio-lanes') === '1'
+      } catch {
+        return false
+      }
+    })(),
+    toggleAudioLanes() {
+      const v = !get().showAudioLanes
+      try {
+        localStorage.setItem('cf-audio-lanes', v ? '1' : '0')
+      } catch {
+        /* tarayıcı depolaması yoksa yalnızca bu oturum */
+      }
+      set({ showAudioLanes: v })
+    },
     async addCtaButton(id) {
       const st = get()
       try {

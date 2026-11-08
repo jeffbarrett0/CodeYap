@@ -124,6 +124,12 @@ export function createMockApi(): ClipforgeApi {
     'dialog:openFile': () => w.__mock?.openFile ?? 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
     'audio:denoise': (r) => r.level,
+    'media:waveform': (r) => {
+      // sahte ama kararlı dalga: konuşma gibi dalgalı, ara ara sessiz
+      let seed = r.assetId.length * 7919
+      const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296)
+      return { binPerSec: 2, db: Array.from({ length: 480 }, (_, i) => (i % 17 < 3 ? -70 : -34 + rnd() * 24)) }
+    },
     'cta:list': () => ({
       manifest: { version: 1, chroma: '#00FD00', rotation: ['youtube', 'tiktok'], buttons: [{ id: 'youtube', label: 'YouTube: abone ol', file: 'youtube-abone.mp4', crop: { x: 0.17, y: 0.44, w: 0.66, h: 0.56 }, flushBottom: true }, { id: 'tiktok', label: 'TikTok: takip et', file: 'tiktok-takip.mp4', crop: { x: 0.17, y: 0.44, w: 0.66, h: 0.56 }, flushBottom: true }] },
       buttons: [{ id: 'youtube', label: 'YouTube: abone ol', path: '/demo/cta/youtube-abone.mp4' }, { id: 'tiktok', label: 'TikTok: takip et', path: '/demo/cta/tiktok-takip.mp4' }]

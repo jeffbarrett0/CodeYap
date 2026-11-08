@@ -110,6 +110,8 @@ export interface IpcInvoke {
   /** Arama sonucundan bağımsız klip projesi dosyası üretir (ana proje değişmez) */
   'project:createClip': [[Project, string, string], { path: string }]
   'media:import': [[string[]], string[]]
+  /** Klibin üzerinde gösterilecek ses dalgası: saniyede `binPerSec` değer (dB, -90..0); önbellekli */
+  'media:waveform': [[{ assetId: string; audioStream: number }], { binPerSec: number; db: number[] }]
   /** Çağrı butonları (resources/cta): manifest + her butonun dosya yolu */
   'cta:list': [[], { manifest: CtaManifest | null; buttons: { id: string; label: string; path: string }[] }]
   /** Fragman: seçilen 10–60 sn'lik parçalardan hızlı kurgulu fragman projesi üretir (kaynak proje değişmez) */

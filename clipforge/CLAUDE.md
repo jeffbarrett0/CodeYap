@@ -72,6 +72,9 @@ Sıra önemlidir: **önce kesim, sonra yerleştirme** (kesimden sonra zamanlar k
 - Yıkıcı işlemden önce yedek vardır (`<proje>.bak`); yine de kaynak videoyu asla değiştirme/silme. Dışa aktarmada telif hatırlatmasını anımsat.
 - Her yeni video için aynı kurallar geçerlidir; belirli kişi/konu adı varsayma.
 
+## Zaman çizelgesi (CapCut benzeri)
+Ses katmanları gizli; ses dalgası + sürüklenebilir hacim çizgisi video klibinin üstünde; klip sağ tık: sesi ayır / sesi sil (görüntü kalır); önizleme tam ekran (F). Ayrıntı: DECISIONS.md §70.
+
 ## Sınırlar
 - **Grafikler:** 2D/3D "çizim" sahneleri (harita, dönen küre, başlık, grafik) hazır şablonlardır; serbest 3D model/karakter ya da fotogerçekçi sahne üretilemez. Harita verisi 1:110m (küçük adalar/şehir sınırları yok); şehirler için ~50 ana şehir tanımlı, diğerleri `boylam,enlem` ile verilir. Yazı tipi Impact (Windows/macOS'ta var).
 Arayüzdeki görsel ince ayarlar (katman konum/boyutu, metin katmanı, kırpma) CLI'da henüz yok; proje JSON'u elle düzenlenebilir ama önce `.bak` alın. Ayrı oyun/konuşma ses akışı olan videolarda Ses katmanına yalnızca ilk akış girer.

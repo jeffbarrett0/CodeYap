@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'react'
-import { timelineDuration } from '@shared/timeline/model'
+import { aspectSize, timelineDuration } from '@shared/timeline/model'
 import { requireApi } from '../api'
 import { PreviewEngine, previewSize } from '../preview/engine'
 import { useStore } from '../store'
@@ -236,7 +236,14 @@ function TimelinePreview() {
   const playhead = useStore((s) => s.playhead)
   const tl = useStore((s) => s.project.timeline)
   const total = timelineDuration(tl)
-  const { width, height } = previewSize(tl)
+  // TAM EKRAN: önizleme tuvali tam çözünürlükte (1080) çizilir; böylece görüntünün gerçek kalitesi görülür
+  const [fs, setFs] = useState(false)
+  useEffect(() => {
+    const h = () => setFs(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', h)
+    return () => document.removeEventListener('fullscreenchange', h)
+  }, [])
+  const { width, height } = fs ? aspectSize(tl.aspect, 1080) : previewSize(tl)
   // Canvas, alanı en-boy oranını koruyarak doldurur; katman tutamaçları aynı kutuya oturur
   const areaRef = useRef<HTMLDivElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -351,7 +358,7 @@ function TimelinePreview() {
           <canvas ref={canvasRef} width={width} height={height} data-testid="timeline-canvas" aria-label="Zaman çizelgesi önizlemesi" />
           {cropClipId ? (
             <CropOverlay boxW={box.w} boxH={box.h} />
-          ) : (
+          ) : fs ? null : (
             <>
               <LayerOverlay />
               <CaptionOverlay />
@@ -381,6 +388,7 @@ export function Preview() {
         <button className={`btn sm${viewMode === 'source' ? ' active' : ''}`} onClick={() => setViewMode('source')} data-testid="mode-source">Kaynak</button>
         <button className={`btn sm${viewMode === 'timeline' ? ' active' : ''}`} onClick={() => setViewMode('timeline')} data-testid="mode-timeline">Zaman çizelgesi ({tl.aspect})</button>
         <span className="spacer" />
+        <button className="btn sm" onClick={() => { if (document.fullscreenElement) void document.exitFullscreen(); else void document.querySelector('.stage-wrap')?.requestFullscreen?.() }} aria-label="Tam ekran (F)" title="Tam ekran (F): görüntüyü tam çözünürlükte, büyük görürsünüz; çıkmak için Esc" data-testid="fullscreen">⛶ Tam ekran</button>
         {clipDraft && viewMode === 'source' && <span className="badge green">Klip sınırı ince ayarı: {fmt(clipDraft.start, true)} → {fmt(clipDraft.end, true)}</span>}
       </div>
       {viewMode === 'source' ? <SourcePlayer /> : <TimelinePreview />}

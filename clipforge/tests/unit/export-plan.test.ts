@@ -210,4 +210,17 @@ describe('klibin sesini kapatma', () => {
     expect(f(m)).not.toMatch(/\[\d+:a:0\]/) // kapalı klibin sesi filtre grafiğinde yok
     expect(ops.mutedState(ops.setClipsMuted(m, ['v']), ['v'])).toBe(false) // toggle: tekrar açar
   })
+
+  it('sesi görüntüden ayırır / yalnızca sesi siler (görüntü kalır)', () => {
+    let tl = createDefaultTimeline()
+    tl = ops.addClip(tl, 'V3', mk('v', 'V3', 0, 0, 10, { groupId: 'g1' }))
+    tl = ops.addClip(tl, 'A1', mk('ga', 'A1', 0, 0, 10, { audioStream: 0, groupId: 'g1' }))
+    const d = ops.detachAudio(tl, 'v')
+    expect(d.tracks.find((t) => t.id === 'A1')!.clips[0].groupId).toBeUndefined()
+    expect(d.tracks.find((t) => t.id === 'V3')!.clips[0].groupId).toBe('g1')
+    const r = ops.removeAudioOf(tl, 'v')
+    expect(r.tracks.find((t) => t.id === 'A1')!.clips).toHaveLength(0)
+    expect(r.tracks.find((t) => t.id === 'V3')!.clips).toHaveLength(1)
+    expect(ops.removeAudioOf(r, 'v')).toBe(r)
+  })
 })

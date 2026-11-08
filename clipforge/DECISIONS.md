@@ -469,3 +469,9 @@ Kullanıcı: hızlandırmayı hem Auto Kick'te hem sistemin genelinde uygula. Ge
 
 ## 69. Çağrı butonları araç çantasında (4 hazır buton)
 Kullanıcı 4 video verdi (YouTube giriş/çıkış 4K60, TikTok/Twitter/Instagram takip): hepsi 5 sn, sesli, #00FD00 YEŞİL PERDELİ; buton karenin altından yükselip tıklanıyor ("TAKİP ET"→"TAKİP EDİLİYOR"; YouTube'da abone ol+beğen+zil) ve iniyor (ölçüm: hareket alanı x 0,19–0,81, y 0,46–1,0). `resources/cta/` altına kopyalandı + `cta.json`. Yeni: `Clip.fx.chroma` (dışa aktarma `chromakey`+`despill`, önizleme canvas keying), `shared/cta.ts` (manifest, `ctaRect` alt kenara yapışık yerleşim, rotasyon), `cta` komutu cta.json kipi (sıra YouTube–TikTok–YouTube–X–YouTube–Instagram; sesleri `CTAS` izinde), araç çubuğu "＋ Çağrı butonu" ve `cta:list` IPC. Kural: çağrı yalnızca bu butonlarla.
+
+## 70. CapCut benzeri zaman çizelgesi (ses dalgası klibin üstünde)
+- Ses katmanları (A1/A2) varsayılan GİZLİ: yalnızca bir video klibine bağlı sesler gizlenir; ses dalgası video klibinin alt yarısında çizilir (`ClipWave`, `media:waveform` IPC, önbellek `<veri>/waveforms/`). "♪ Ses katmanları" düğmesi (`localStorage cf-audio-lanes`) eski görünümü açar.
+- Hacim çizgisi klibin üstünde sürüklenir (dB gösterir; çift tık = 0 dB); en altta ses kapanır. Klip başlığında ad + süre, şeritler 58 px.
+- Sağ tık menüsü: sesi kapat, **sesi görüntüden ayır** (`detachAudio`), **sesi sil, görüntü kalır** (`removeAudioOf`), klibi sil.
+- Önizleme: "⛶ Tam ekran" düğmesi / **F** tuşu (1080p tuval).

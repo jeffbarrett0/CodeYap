@@ -44,6 +44,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       for (const p of r.picks) out.push(await makeAutoClip(r.projectPath, p, { face: r.face, facePos: r.facePos, faceShare: r.faceShare, faceZoom: r.faceZoom, faceFocus: r.faceFocus, screenZoom: r.screenZoom, horizontal: r.horizontal, captions: r.captions }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }))
       return out
     },
+    'media:waveform': (r) => app.waveform(r),
     'cta:list': async () => {
       const dir = join(app.deps.resourcesDir, 'cta')
       const manifest = parseCtaManifest(await readFile(join(dir, 'cta.json'), 'utf8').then((t) => JSON.parse(t), () => null))

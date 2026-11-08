@@ -545,6 +545,39 @@ export class AppService {
     return a.kind === 'video' && /\.(mp4|webm|mov)$/i.test(a.path) ? a.path : null
   }
 
+  private waveJobs = new Map<string, Promise<{ binPerSec: number; db: number[] }>>()
+
+  /**
+   * Zaman çizelgesindeki klibin üzerinde gösterilecek ses dalgası: saniyede 2 değer (dB). Ses önizleme kopyası varsa ondan (daha hızlı),
+   * yoksa özgün dosyadan hesaplanır; sonuç `<veri>/waveforms/` altında önbelleğe alınır.
+   */
+  waveform(r: { assetId: string; audioStream: number }): Promise<{ binPerSec: number; db: number[] }> {
+    const key = `${r.assetId}|${r.audioStream}`
+    const busy = this.waveJobs.get(key)
+    if (busy) return busy
+    const job = (async () => {
+      const a = this.assets.get(r.assetId)
+      const st = a?.audioStreams[r.audioStream]
+      if (!a || !st) throw new ToolError('Ses akışı bulunamadı.')
+      const dir = join(this.dataDir, 'waveforms')
+      const file = join(dir, `${r.assetId}_a${r.audioStream}.json`)
+      try {
+        return JSON.parse(await readFile(file, 'utf8')) as { binPerSec: number; db: number[] }
+      } catch {
+        /* önbellek yok */
+      }
+      const proxy = st.proxyPath ? join(this.dataDir, st.proxyPath) : null
+      const useProxy = !!proxy && existsSync(proxy)
+      const db = await audioLevelSeries({ path: useProxy ? (proxy as string) : a.path, durationSec: a.durationSec }, useProxy ? 0 : r.audioStream, this.tools, { binPerSec: 2 })
+      const out = { binPerSec: 2, db: db.map((x) => Math.round(x * 10) / 10) }
+      await mkdir(dir, { recursive: true })
+      await writeFile(file, JSON.stringify(out), 'utf8')
+      return out
+    })().finally(() => this.waveJobs.delete(key))
+    this.waveJobs.set(key, job)
+    return job
+  }
+
   private denoising = new Map<string, Promise<string>>()
 
   /**

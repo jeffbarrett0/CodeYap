@@ -1,5 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
 
+// Ses katmanları (A1/A2) varsayılan GİZLİ; mevcut testler katmanları gördüğü için tercih açık başlatılır (varsayılanı sınayan test kendi ayarını yapar)
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('cf-audio-lanes', '1')
+    } catch {
+      /* yok */
+    }
+  })
+})
+
 async function boot(page: Page) {
   await page.goto('/')
   await expect(page.locator('.brand')).toContainText('ClipForge')
@@ -1310,6 +1321,48 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('toast').filter({ hasText: 'eklendi' }).first()).toBeVisible({ timeout: 15_000 })
     await expect(page.getByTestId('lane-CTAV').getByTestId('clip')).toHaveCount(1)
     await expect(page.getByTestId('lane-CTAS').getByTestId('clip')).toHaveCount(1)
+  })
+
+  test('CapCut benzeri zaman çizelgesi: ses katmanı varsayılan gizli, ses klibin üzerinde dalga; seviye çizgisi sürüklenir; sağ tık: sesi ayır / sil', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('cf-audio-lanes', '0')) // varsayılan davranış
+    await boot(page)
+    await page.getByTestId('import-btn').click()
+    await expect(page.getByTestId('asset')).toHaveCount(1)
+    await dropAsset(page, 0, 'V1')
+    // ekstra ses satırı yok; ses klibin üzerinde dalga olarak
+    await expect(page.getByTestId('lane-A1')).toHaveCount(0)
+    const clip = page.getByTestId('lane-V1').getByTestId('clip')
+    await expect(clip.getByTestId('clip-wave')).toBeVisible()
+    // başlıkta süre yazar
+    await expect(clip.locator('.tl-dur')).toBeVisible()
+    // ses seviyesi çizgisini aşağı sürükle
+    const h = clip.getByTestId('vol-handle')
+    const hb = (await h.boundingBox())!
+    await page.mouse.move(hb.x + 20, hb.y + hb.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(hb.x + 20, hb.y + hb.height / 2 + 14, { steps: 5 })
+    await expect(page.getByTestId('vol-tip')).toContainText('dB')
+    await page.mouse.up()
+    expect(await h.evaluate((el) => (el as HTMLElement).style.top)).not.toBe('0%')
+    // sağ tık → sesi görüntüden ayır: ses katmanı görünür olur
+    await clip.click({ button: 'right', position: { x: 60, y: 8 } })
+    await expect(page.getByTestId('clip-menu')).toBeVisible()
+    await page.getByTestId('cm-detach').click()
+    await expect(page.getByTestId('lane-A1')).toHaveCount(1)
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(1)
+    // ayrılan ses klibine sağ tık → sesi sil (görüntü kalır)
+    await page.getByTestId('lane-A1').getByTestId('clip').click({ button: 'right', position: { x: 60, y: 8 } })
+    await page.getByTestId('cm-remove-audio').click()
+    await expect(page.getByTestId('lane-A1').getByTestId('clip')).toHaveCount(0)
+    await expect(clip).toHaveCount(1)
+  })
+
+  test('Tam ekran düğmesi: önizleme tam ekrana geçer ve çıkılır', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('fullscreen').click()
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true)
+    await page.keyboard.press('f') // F tuşu da tam ekrandan çıkarır (Esc tarayıcı düzeyinde)
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false)
   })
 
   test('Zaman damgası: çizelge boşsa ve çıkarma başarısızsa anlaşılır mesaj', async ({ page }) => {

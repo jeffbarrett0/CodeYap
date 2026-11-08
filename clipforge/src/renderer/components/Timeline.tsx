@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cmd } from '@shared/timeline/commands'
 import { localizeCaption } from '@shared/timeline/captions'
 import { clipDuration, clipEnd, groupMembers, timelineDuration } from '@shared/timeline/model'
-import { clipIsMuted, denoiseLevel, mutedState, snapDropTime, snapPoints } from '@shared/timeline/ops'
+import { audioCarriersOf, clipIsMuted, denoiseLevel, mutedState, snapDropTime, snapPoints } from '@shared/timeline/ops'
+import { ClipWave } from './ClipWave'
 import type { Clip, Track } from '@shared/types'
 import { useStore } from '../store'
 import { fmt } from './ui'
@@ -29,6 +30,9 @@ export function Timeline() {
   const activeLane = useStore((s) => s.activeLane)
   const setActiveLane = useStore((s) => s.setActiveLane)
   const [laneMenu, setLaneMenu] = useState<{ x: number; y: number; lane: string } | null>(null)
+  const [clipMenu, setClipMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
+  const showAudioLanes = useStore((s) => s.showAudioLanes)
+  const ensureWaveform = useStore((s) => s.ensureWaveform)
   // Sol tuşla boş alana basılı tutup sürükleyince kutu içindeki klip/altyazılar toplu seçilir (Shift: mevcut seçime ekle)
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const marqueeRef = useRef<{ x0: number; y0: number; lane: string; additive: boolean; moved: boolean; clickT: number } | null>(null)
@@ -90,12 +94,20 @@ export function Timeline() {
   void historyVersion
 
   // Satırların (iz) sırası: görünür sıra tl.tracks sırasıdır (V2 üstte)
-  const tracks = tl.tracks
+  // Ses katmanları (A1/A2…) varsayılan GİZLİ: görüntü klibine bağlı ses, klibin üzerinde dalga olarak görünür. Bağımsız ses klipleri olan katman görünür kalır.
+  const isHiddenAudio = (t: Track) =>
+    t.kind === 'audio' && !showAudioLanes && (t.clips.length === 0 || t.clips.every((c) => !!c.groupId && tl.tracks.some((x) => x.kind !== 'audio' && x.clips.some((v) => v.groupId === c.groupId))))
+  const tracks = tl.tracks.filter((t) => !isHiddenAudio(t))
   const selGroups = useMemo(() => {
     const ids = new Set<string>()
     for (const id of selection) for (const m of groupMembers(tl, id)) ids.add(m.id)
     return ids
   }, [selection, tl])
+
+  // görünen kliplerin ses dalgalarını (bir kez) iste
+  useEffect(() => {
+    for (const t of tl.tracks) for (const c of t.clips) for (const k of audioCarriersOf(tl, [c.id])) ensureWaveform(k.assetId, k.audioStream ?? 0)
+  }, [tl, ensureWaveform])
 
   const timeFromEvent = useCallback((clientX: number) => {
     const el = scrollRef.current!
@@ -199,6 +211,7 @@ export function Timeline() {
         <button className="btn sm" onClick={() => useStore.getState().joinSelected()} title="Seçili klibi hemen sonraki, kaynakta kesintisiz devam eden klibiyle birleştirir" data-testid="join">⇄ Birleştir</button>
         <button className="btn sm" onClick={() => useStore.getState().cutSilence()} title="Konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini tek tıkla keser" data-testid="cut-silence-tb">✂ Sessizleri kes</button>
         <button className="btn sm" onClick={() => useStore.getState().closeGaps()} title="Hiçbir izde içerik olmayan boşlukları siler" data-testid="close-gaps">Boşlukları kapat</button>
+        <button className={`btn sm${showAudioLanes ? ' active' : ''}`} onClick={() => useStore.getState().toggleAudioLanes()} title="Ses katmanlarını (A1/A2…) aşağıda ayrı satır olarak göster/gizle. Gizliyken ses, görüntü klibinin üzerinde dalga olarak görünür; seviyesini çizgiyi sürükleyerek ayarlarsınız" data-testid="toggle-audio-lanes">♪ Ses katmanları: {showAudioLanes ? 'açık' : 'gizli'}</button>
         <button className="btn sm" onClick={() => useStore.getState().toggleMuteSelection()} disabled={selection.length === 0} title="Seçili klibin sesini kapatır/açar (M). Video klibi seçiliyse bağlı sesi kapanır; görüntü kalır. Ctrl+Z geri alır" data-testid="mute-clip">{mutedState(tl, selection) === true ? '🔊 Sesi aç' : '🔇 Sesi kapat'}</button>
         <label className="row" style={{ gap: 4 }} title="Çağrı butonunu (abone ol / takip et) oynatma başlığının olduğu yere ekler: yeşil perde şeffaflaşır, buton alttan yükselir ve sesi gelir">
           ＋ Çağrı butonu
@@ -291,12 +304,17 @@ export function Timeline() {
                     data-testid="clip"
                     data-clip-id={c.id}
                     onPointerDown={(e) => onClipDown(e, c, t)}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!selection.includes(c.id)) select([c.id]); setClipMenu({ x: e.clientX, y: e.clientY, clipId: c.id }) }}
                     onPointerMove={onClipMove}
                     onPointerUp={onClipUp}
                     onPointerCancel={onClipUp}
                   >
                     <span className="h l" />
-                    {clipIsMuted(tl, c) && <span title="Sesi kapalı" aria-label="Sesi kapalı">🔇 </span>}{c.label}
+                    <div className="tl-head">
+                      <span className="tl-title">{clipIsMuted(tl, c) && <span title="Sesi kapalı" aria-label="Sesi kapalı">🔇 </span>}{c.label}</span>
+                      {clipDuration(c) * zoom > 150 && <span className="tl-dur">{fmt(clipDuration(c))}</span>}
+                    </div>
+                    {(t.kind === 'video' || t.kind === 'audio') && audioCarriersOf(tl, [c.id]).length > 0 && clipDuration(c) * zoom > 24 && <ClipWave clip={c} tl={tl} widthPx={clipDuration(c) * zoom} heightPx={30} />}
                     <span className="h r" />
                   </div>
                 ))}
@@ -313,6 +331,7 @@ export function Timeline() {
       </div>
       {marquee && <div className="marquee" style={{ left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0) }} data-testid="marquee" />}
       {laneMenu && <LaneMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
+      {clipMenu && <ClipMenu menu={clipMenu} onClose={() => setClipMenu(null)} />}
     </section>
   )
 }
@@ -340,6 +359,41 @@ function LaneMenu({ menu, onClose }: { menu: { x: number; y: number; lane: strin
       <div className="hint" style={{ padding: '4px 10px' }}>{name} katmanı · {count} öğe</div>
       <button role="menuitem" data-testid="lane-select-all" disabled={count === 0} onClick={() => { onClose(); useStore.getState().selectLane(menu.lane) }}>Bu katmandaki tümünü seç <kbd>Ctrl+A</kbd></button>
       <button role="menuitem" data-testid="lane-delete-all" disabled={count === 0} onClick={() => { onClose(); useStore.getState().deleteLane(menu.lane) }}>Bu katmandaki hepsini sil</button>
+    </div>
+  )
+}
+
+/** Klibe sağ tık menüsü: sesi kapat/aç, sesi görüntüden ayır, sesi sil (görüntü kalır), klibi sil */
+function ClipMenu({ menu, onClose }: { menu: { x: number; y: number; clipId: string }; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const tl = useStore((s) => s.project.timeline)
+  const exec = useStore((s) => s.exec)
+  const toast = useStore((s) => s.toast)
+  useEffect(() => {
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) onClose()
+    }
+    window.addEventListener('pointerdown', close, true)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('pointerdown', close, true)
+      window.removeEventListener('keydown', close)
+    }
+  }, [onClose])
+  const clip = tl.tracks.flatMap((t) => t.clips).find((c) => c.id === menu.clipId)
+  const track = tl.tracks.find((t) => t.id === clip?.trackId)
+  if (!clip || !track) return null
+  const carriers = audioCarriersOf(tl, [clip.id])
+  const isVideo = track.kind === 'video'
+  const linked = carriers.filter((c) => c.groupId && c.id !== clip.id)
+  const ms = mutedState(tl, [clip.id])
+  return (
+    <div className="ctx-menu" ref={ref} style={{ left: menu.x, top: menu.y }} role="menu" data-testid="clip-menu">
+      <div className="hint" style={{ padding: '4px 10px', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{clip.label}</div>
+      <button role="menuitem" data-testid="cm-mute" disabled={ms === 'none'} onClick={() => { onClose(); exec(cmd.mute([clip.id])) }}>{ms === true ? '🔊 Sesi aç' : '🔇 Sesi kapat'} <kbd>M</kbd></button>
+      <button role="menuitem" data-testid="cm-detach" disabled={!isVideo || linked.length === 0} title="Ses, görüntüden ayrı bir ses katmanına geçer; ikisi artık bağımsız taşınır/silinir" onClick={() => { onClose(); exec(cmd.detachAudio(clip.id)); toast('success', 'Ses görüntüden ayrıldı: aşağıdaki ses katmanında kendi başına duruyor.') }}>Sesi görüntüden ayır</button>
+      <button role="menuitem" data-testid="cm-remove-audio" disabled={carriers.length === 0} title="Sesi siler, görüntü kalır (Ctrl+Z geri alır)" onClick={() => { onClose(); exec(cmd.removeAudio(clip.id)); toast('success', isVideo ? 'Ses silindi, görüntü kaldı.' : 'Ses klibi silindi.') }}>Sesi sil (görüntü kalır)</button>
+      <button role="menuitem" data-testid="cm-delete" className="danger" onClick={() => { onClose(); useStore.getState().select([clip.id]); useStore.getState().deleteSelection() }}>Klibi sil</button>
     </div>
   )
 }
