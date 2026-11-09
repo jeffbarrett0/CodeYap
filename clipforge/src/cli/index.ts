@@ -116,6 +116,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   script <proje>                         KURGU SONRASI zaman çizelgesindeki cümleler (çizelge zamanı) + geçen yerler (grafik/b-roll önerisi için)
   overlay <proje> --file dosya|--asset a --at sn [--dur 3.5] [--layer V2] [--src-in sn]   b-roll (video/foto) yerleştirir; konuşma sesi devam eder
   broll-plan <proje> --folder klasör [--asset a] [--dur 3.5] [--layer V2] [--apply]       dosya adlarındaki kelimeleri konuşmada arar, yerleşim ÖNERİR (--apply: uygular)
+  match-edit <proje> (--clips "dosya.mp4@12.5+4;..." | --folder K --auto) [--folder K] [--dur 4] [--no-zoom]   maç sonu edit: yorum videosunun üzerine maç görüntüleri (tam kare, bulanık dolgu) ekler
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
   graphic <proje> --scene '{"type":"stats",...}'|sahne.json [--at sn] [--dur 5] [--layer V1]   herhangi bir hikâye sahnesini (rakam kartı stats, list, timeline, quote, person, teamcard, leaderboard, compare, football…) vlog çizelgesine koyar; biçim: story schema
@@ -595,6 +596,57 @@ async function main(argv: string[]): Promise<unknown> {
         await s.save()
       }
       return out({ applied: !!a.opt.apply, layer, plan, placed, hint: a.opt.apply ? undefined : 'Bunlar ÖNERİDİR; onaylarsanız aynı komutu --apply ile çalıştırın ya da tek tek `overlay` kullanın.' })
+    }
+    case 'match-edit': {
+      // Maç sonu edit: yorum videosunun (yüz üstte / görüntü altta, 9:16) üzerine MAÇ GÖRÜNTÜLERİ tam kare araya girer (bulanık dolgulu);
+      // yorumcunun sesi kesintisiz sürer, maç görüntüsünün kendi sesi çalınmaz.
+      const folder = str(a.opt.folder)
+      const items: { file: string; at: number | null; dur?: number; note?: string }[] = []
+      const clipsOpt = str(a.opt.clips)
+      if (clipsOpt) {
+        for (const part of clipsOpt.split(';').map((x) => x.trim()).filter(Boolean)) {
+          const m = /^(.*)@(\d+(?:[.,]\d+)?)(?:\+(\d+(?:[.,]\d+)?))?$/.exec(part)
+          if (!m) throw new Error(`Biçim: "dosya.mp4@12.5+4" (başlangıç sn + süre); bozuk: ${part}`)
+          items.push({ file: folder ? join(resolve(folder), m[1]) : resolve(m[1]), at: Number(m[2].replace(',', '.')), dur: m[3] ? Number(m[3].replace(',', '.')) : undefined })
+        }
+      } else if (folder && a.opt.auto) {
+        const main = s.asset(str(a.opt.asset))
+        const files = (await readdir(resolve(folder))).filter((f) => MEDIA_EXT.test(f)).sort()
+        const clipsOfMain = s.timeline.tracks.filter((t) => t.kind === 'video' || t.kind === 'audio').flatMap((t) => t.clips).filter((c) => c.assetId === main.id).sort((x, y) => x.start - y.start)
+        for (const f of files) {
+          const query = geoKey(basename(f, extname(f)).replace(/[_\-.]+/g, ' ').replace(/\d+/g, ' ')).trim()
+          const res = query ? await pickResults(s, main, query, 5) : []
+          const hit = res.find((r) => r.score >= 0.7 && clipsOfMain.some((x) => r.start >= x.srcIn && r.start < x.srcOut))
+          const c = hit && clipsOfMain.find((x) => hit.start >= x.srcIn && hit.start < x.srcOut)
+          items.push({ file: join(resolve(folder), f), at: hit && c ? r1(Math.max(0, c.start + (hit.start - c.srcIn) - 0.3)) : null, note: hit ? undefined : 'Konuşmada eşleşme yok (dosya adındaki kelime geçmiyor)' })
+        }
+      } else throw new Error('--clips "dosya.mp4@12.5+4;dosya2.mp4@30" (zaman çizelgesi saniyesi) verin ya da --folder K --auto (dosya adındaki kelimeyi konuşmada arar).')
+      const layer = str(a.opt.layer) ?? 'VC'
+      if (!s.timeline.tracks.some((t) => t.id === layer)) {
+        s.apply(cmd.addTrack({ id: layer, name: 'Maç görüntüleri', kind: 'video', role: 'screen', placement: { rect: { x: 0, y: 0, w: 1, h: 1 }, fit: 'contain', visible: true, opacity: 1 } }))
+      }
+      const defDur = num(a.opt.dur, 'dur') ?? 4
+      const placed: { file: string; start: number; end: number; zoom: boolean }[] = []
+      const failed: { file: string; why: string }[] = []
+      for (const it of items) {
+        if (it.at === null) { failed.push({ file: basename(it.file), why: it.note ?? 'zaman yok' }); continue }
+        try {
+          const asset = await ensureAsset(s, it.file)
+          const track = s.timeline.tracks.find((t) => t.id === layer)!
+          const dur = Math.min(it.dur ?? defDur, asset.kind === 'image' ? 99 : asset.durationSec)
+          const r = clipForTrack(asset, track, { at: it.at, duration: dur })
+          if ('error' in r) throw new Error(r.error)
+          const end = r.clip.start + (r.clip.srcOut - r.clip.srcIn)
+          if (track.clips.some((c) => c.start < end - 1e-6 && r.clip.start < clipEnd(c) - 1e-6)) throw new Error('O aralıkta başka maç görüntüsü var')
+          const zoom = !a.opt['no-zoom']
+          s.apply(cmd.addClip(layer, { ...r.clip, label: `Maç: ${asset.name}`, fx: { blurFill: true, ...(zoom ? { zoom: { from: 1, to: 1.08, x: 0.5, y: 0.5 } } : {}) } }))
+          placed.push({ file: asset.name, start: r1(r.clip.start), end: r1(end), zoom })
+        } catch (e) {
+          failed.push({ file: basename(it.file), why: e instanceof Error ? e.message : String(e) })
+        }
+      }
+      await s.save()
+      return out({ ok: placed.length > 0, layer, placed, failed, note: 'Zaman çizelgesi saniyesidir (kesimlerden SONRA verin). Yorumcunun sesi devam eder. Altyazı: `captions --style boxed-highlight`; geçişlere `sfx --type whoosh --at <başlangıç>` ekleyin.' })
     }
     case 'graphic': {
       // --scene: herhangi bir hikâye sahnesi (stats rakam kartı, list, timeline, quote, person, teamcard, leaderboard, compare, football…) — `story schema`daki içerik JSON'u

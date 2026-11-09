@@ -475,3 +475,6 @@ Kullanıcı 4 video verdi (YouTube giriş/çıkış 4K60, TikTok/Twitter/Instagr
 - Hacim çizgisi klibin üstünde sürüklenir (dB gösterir; çift tık = 0 dB); en altta ses kapanır. Klip başlığında ad + süre, şeritler 58 px.
 - Sağ tık menüsü: sesi kapat, **sesi görüntüden ayır** (`detachAudio`), **sesi sil, görüntü kalır** (`removeAudioOf`), klibi sil.
 - Önizleme: "⛶ Tam ekran" düğmesi / **F** tuşu (1080p tuval).
+
+## 71. Maç sonu edit (referans video analizi)
+Kullanıcı "Fenerbahçe nasıl kollandı" tarzı videolar paylaşıyor. Referans: üst yüz + alt konu görseli (mevcut Auto Clips düzeni), kutulu vurgulu altyazı (mevcut `boxed-highlight`), YENİ: maç görüntüsü tam kare araya girer (bulanık dolgu). Eklenen: `Clip.fx.blurFill` (export plan + önizleme), `match-edit` komutu (`VC` katmanı, `--clips`/`--auto`). Görüntüleri kullanıcı sağlar (telif); referanstaki daire vurgusu ve zoom sonradan eklenebilir.

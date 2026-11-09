@@ -223,4 +223,16 @@ describe('klibin sesini kapatma', () => {
     expect(r.tracks.find((t) => t.id === 'V3')!.clips).toHaveLength(1)
     expect(ops.removeAudioOf(r, 'v')).toBe(r)
   })
+
+  it('blurFill: oran korunur, boş alan aynı görüntünün bulanık büyütülmüş hâliyle dolar', () => {
+    const o = optionsFromPreset('shorts')
+    const a = { ...asset, width: 1280, height: 720, audioStreams: [] }
+    let tl = createDefaultTimeline()
+    tl = ops.addTrack(tl, { id: 'VC', name: 'Maç', kind: 'video', role: 'screen', placement: { rect: { x: 0, y: 0, w: 1, h: 1 }, fit: 'contain', visible: true, opacity: 1 } })
+    tl = { ...tl, aspect: '9:16' }
+    tl = ops.addClip(tl, 'VC', mk('m', 'VC', 0, 0, 3, { fx: { blurFill: true } }))
+    const f = buildExportPlan(tl, () => a, o, 'x.mp4').files.find((x) => x.name === 'filters.txt')!.content
+    expect(f).toMatch(/boxblur=30:4/)
+    expect(f).toMatch(/split=2/)
+  })
 })

@@ -181,9 +181,19 @@ export function buildExportPlan(
         const even = (n: number) => Math.max(2, Math.round(n / 2) * 2)
         const fx = k > 0 ? { w: even(sw * k), h: even(sh * k) } : { w: r.w, h: r.h }
         const ck = c.fx?.chroma ? chromaFilter(c.fx.chroma) : ''
+        const blurFill = !!c.fx?.blurFill && t.kind === 'video' && t.placement.fit !== 'cover'
+        if (blurFill) {
+          // oran korunur; boş alan aynı görüntünün bulanık/karartılmış büyütülmüş hâliyle dolar (kutu = r)
+          lines.push(`[${idx}:v]setpts=PTS-STARTPTS,fps=${fps},${crop}split=2[bfa${L}][bfb${L}]`)
+          lines.push(`[bfa${L}]scale=${r.w}:${r.h}:flags=lanczos:force_original_aspect_ratio=increase,crop=${r.w}:${r.h},boxblur=30:4,eq=brightness=-0.12[bfg${L}]`)
+          lines.push(`[bfb${L}]${fit}${videoFx(c, p.dur, fx.w, fx.h, fps, false)}[bff${L}]`)
+          lines.push(`[bfg${L}][bff${L}]overlay=x=(${r.w}-overlay_w)/2:y=(${r.h}-overlay_h)/2[bfo${L}]`)
+          lines.push(`[bfo${L}]setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
+        } else {
         lines.push(`[${idx}:v]${ck}${alpha}setpts=PTS-STARTPTS,fps=${fps},${crop}${fit}${fade}${videoFx(c, p.dur, fx.w, fx.h, fps, alpha !== '' || ck !== '')},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
+        }
         const next = `L${++layer}`
-        const pos = t.placement.fit === 'cover' ? `${r.x}:${r.y}` : `x=${r.x}+(${r.w}-overlay_w)/2:y=${r.y}+(${r.h}-overlay_h)/2`
+        const pos = t.placement.fit === 'cover' || blurFill ? `${r.x}:${r.y}` : `x=${r.x}+(${r.w}-overlay_w)/2:y=${r.y}+(${r.h}-overlay_h)/2`
         lines.push(`[${cur}][ly${L}]overlay=${pos}:eof_action=pass:repeatlast=0[${next}]`)
         cur = next
       }

@@ -6,7 +6,7 @@ Bu klasörde Claude Code çalıştırıldığında videolar **komut satırı** (
 `npm install` → `npm run build` (CLI `out/main/cli.js` olarak derlenir; kod değişirse yeniden derleyin). Whisper yolu/modeli uygulamanın Ayarlar'ındakiyle **aynıdır** (aynı kullanıcı verisi klasörü); uygulamada bir kez transkripsiyon çalışıyorsa CLI'da da çalışır.
 
 ## Komutlar (hepsi JSON döndürür; `npm run cli -- help`)
-`new` · `import --add` · `transcribe` · `transcript` · `script` · `search` · `add-clip` · `new-clip-project` · `silence` · `cut` · `overlay` · `broll-plan` · `graphic` · `zoom` · `fade` · `sfx` · `grade` · `text` · `cta` · `mute` · `denoise` · `trailer` · `captions` · `delete-lane` · `frame` · `show` · `export` · `presets`
+`new` · `import --add` · `transcribe` · `transcript` · `script` · `search` · `add-clip` · `new-clip-project` · `silence` · `cut` · `overlay` · `broll-plan` · `graphic` · `zoom` · `fade` · `sfx` · `grade` · `text` · `cta` · `match-edit` · `mute` · `denoise` · `trailer` · `captions` · `delete-lane` · `frame` · `show` · `export` · `presets`
 
 Tipik akış: `new p.clipforge` → `import p.clipforge video.mp4 --add` → `transcribe p.clipforge` → `transcript p.clipforge` (içeriği OKU) → `silence` (varsayılan eşik 0,55 sn) → `captions` → `frame` (bir kareye bakıp doğrula) → `export p.clipforge --out cikti.mp4 --preset shorts`.
 Aramadan klip: `search p.clipforge "söz"` → `new-clip-project p.clipforge --query "söz" --pick 1 --sec 25 --out klip.clipforge` (ana proje değişmez).
@@ -71,6 +71,15 @@ Sıra önemlidir: **önce kesim, sonra yerleştirme** (kesimden sonra zamanlar k
 - **Kurguyu kullanıcı belirler.** Ne kesileceği, üst/alt yerleşimler, kapanış yazıları kullanıcının kararıdır; istenmedikçe yalnızca öneri sun. Emin olmadığında önce sor.
 - Yıkıcı işlemden önce yedek vardır (`<proje>.bak`); yine de kaynak videoyu asla değiştirme/silme. Dışa aktarmada telif hatırlatmasını anımsat.
 - Her yeni video için aynı kurallar geçerlidir; belirli kişi/konu adı varsayma.
+
+## Maç sonu edit (referans: "Fenerbahçe nasıl kollandı" tarzı dikey videolar)
+Referans video (9:16, 94 sn): **üstte yorumcunun yüzü (~%42), altta yorumun konusu** (haber/tweet ekran görüntüsü), kesişimde sosyal medya şeridi, ortada 2–3 kelimelik **kutulu altyazı** (anahtar kelime sarı: `boxed-highlight`), yorumcu bir pozisyondan bahsedince **maç görüntüsü TAM KARE araya girer** (yatay görüntü ortada net, üst/alt aynı görüntünün bulanık büyütülmüşü), yorum sesi kesintisiz sürer, görüntü yavaşça yakınlaşır. Akış (kurguyu kullanıcı belirler; Claude Code uygular):
+1. Yorum videosu → Auto Clips düzeni (yüz üstte/görüntü altta, şerit): `auto-clips … --pick/--all` ya da `new-clip-project`.
+2. `transcribe` → `transcript` OKU; hangi cümlede hangi pozisyon anlatılıyor çıkar.
+3. Kullanıcının verdiği **maç görüntülerini** (kendi sağladığı dosyalar; internetten maç görüntüsü indirme/telif) araya koy: `match-edit <proje> --clips "poz1.mp4@12.5+4;poz2.mp4@30+3" [--folder K] [--dur 4] [--no-zoom]` (zaman = zaman çizelgesi sn; `VC` katmanı, `fx.blurFill` = oran korunur + bulanık dolgu, hafif zoom) ya da `--folder K --auto` (dosya adındaki kelimeleri konuşmada arar).
+4. Geçişlere `sfx --type whoosh --at <başlangıç>`; `captions --style boxed-highlight`; gerekirse `zoom`/`text`.
+5. `export --preset shorts`. Maç görüntüsünün kendi sesi çalınmaz (yalnızca görüntü eklenir). Başka kanalların adı/logosu (referanstaki filigran dahil) kopyalanmaz.
+Dışa aktarma `fx.blurFill`'i (split + boxblur + overlay) ve önizleme (canvas blur) destekler. Arayüzde ayrı pencere YOK; elle: görüntüyü bir video katmanına sürükle ve katmanın "sığdır" modunu kullan.
 
 ## Zaman çizelgesi (CapCut benzeri)
 Ses katmanları gizli; ses dalgası + sürüklenebilir hacim çizgisi video klibinin üstünde; klip sağ tık: sesi ayır / sesi sil (görüntü kalır); önizleme tam ekran (F). Ayrıntı: DECISIONS.md §70.

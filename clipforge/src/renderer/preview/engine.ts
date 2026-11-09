@@ -200,6 +200,14 @@ export class PreviewEngine {
               const bw = crop ? crop.w * sw : sw
               const bh = crop ? crop.h * sh : sh
               const d = containRect(bw, bh, r)
+              if (c.fx?.blurFill && !cropping) {
+                const s0 = coverSource(sw, sh, r.w, r.h, crop)
+                ctx.save()
+                ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip()
+                ctx.filter = `blur(${Math.max(4, Math.round(r.w / 40))}px) brightness(0.85)`
+                ctx.drawImage(src, s0.sx, s0.sy, s0.sw, s0.sh, r.x, r.y, r.w, r.h)
+                ctx.restore()
+              }
               if (keyed) this.drawKeyed(ctx, src, bx, by, bw, bh, d.x, d.y, d.w, d.h)
               else ctx.drawImage(src, bx, by, bw, bh, d.x, d.y, d.w, d.h)
             }

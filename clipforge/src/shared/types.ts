@@ -256,6 +256,8 @@ export interface ClipFx {
   grade?: 'warm' | 'cool' | 'vivid' | 'cinematic' | 'bw' | 'vintage' | 'bright'
   /** Arka plan sesini (araba, rüzgâr, uğultu) azaltıp konuşmaya odaklar; dışa aktarmada uygulanır */
   denoise?: 'light' | 'medium' | 'strong'
+  /** Oran korunur (sığdır) ve boş kalan alan aynı görüntünün bulanık, karartılmış büyütülmüş hâliyle doldurulur (dikey karede yatay maç görüntüsü) */
+  blurFill?: boolean
   /** Açılış geçişi (sn): görüntü karanlıktan/saydamdan belirir, ses yavaş yükselir */
   fadeIn?: number
   /** Kapanış geçişi (sn): görüntü kararır/saydamlaşır, ses yavaş kısılır */

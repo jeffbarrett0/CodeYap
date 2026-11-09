@@ -613,6 +613,22 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(r2.ok).toBe(true)
   }, 120_000)
 
+  it('match-edit: maç görüntüleri tam kare + bulanık dolgu ile araya girer; çakışma/hatalı dosya raporlanır', () => {
+    const p = join(tmp, 'mac.clipforge')
+    const ffm = require('ffmpeg-static') as string
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=15:duration=8', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', join(tmp, 'pozisyon-1.mp4')])
+    cli('new', p)
+    cli('import', p, join(tmp, 'cta70.mp4'), '--add', '--layer', 'V3')
+    const r = cli('match-edit', p, '--folder', tmp, '--clips', 'pozisyon-1.mp4@10+3;pozisyon-1.mp4@11+3;yok.mp4@30', '--dur', '3')
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.placed).toHaveLength(1)
+    expect(r.failed).toHaveLength(2) // çakışan + dosya yok
+    const sh = cli('show', p)
+    const c = sh.tracks.find((t: any) => t.id === 'VC').clips[0]
+    expect(c.start).toBe(10)
+    expect(cli('match-edit', p).ok).toBe(false) // parametresiz anlaşılır hata
+  }, 120_000)
+
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')
     writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))
