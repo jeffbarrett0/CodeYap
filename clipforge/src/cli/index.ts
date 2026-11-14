@@ -6,6 +6,7 @@
  *   node out/main/cli.js <komut> <proje.clipforge> [seçenekler]      (kısa: npm run cli -- <komut> ...)
  */
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
@@ -46,7 +47,7 @@ import { timelineWords } from '../shared/timeline/transcript'
 import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/export/presets'
 import type { Clip, MediaAsset, TextSpec } from '../shared/types'
 import { addReference, listReferences, referenceDir, removeReference, updateReference } from '../main/reference'
-import { enableCliFullSpeed, log, makeService, Session, waitTask } from './session'
+import { enableCliFullSpeed, findResources, log, makeService, Session, waitTask } from './session'
 
 const run = promisify(execFile)
 
@@ -117,7 +118,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   script <proje>                         KURGU SONRASI zaman çizelgesindeki cümleler (çizelge zamanı) + geçen yerler (grafik/b-roll önerisi için)
   overlay <proje> --file dosya|--asset a --at sn [--dur 3.5] [--layer V2] [--src-in sn]   b-roll (video/foto) yerleştirir; konuşma sesi devam eder
   broll-plan <proje> --folder klasör [--asset a] [--dur 3.5] [--layer V2] [--apply]       dosya adlarındaki kelimeleri konuşmada arar, yerleşim ÖNERİR (--apply: uygular)
-  reference list | add <video> | show <id> | notes <id> "metin" | adapted <id> | remove <id>   beğenilen referans videolar: ölçüm + kare tabloları; Claude Code inceleyip uyarlar
+  reference list | scan | add <video> | show <id> | notes <id> "metin" | adapted <id> | remove <id>   beğenilen referans videolar: ölçüm + kare tabloları; Claude Code inceleyip uyarlar
   match-edit <proje> (--clips "dosya.mp4@12.5+4;..." | --folder K --auto) [--folder K] [--dur 4] [--no-zoom]   maç sonu edit: yorum videosunun üzerine maç görüntüleri (tam kare, bulanık dolgu) ekler
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
@@ -355,6 +356,29 @@ async function main(argv: string[]): Promise<unknown> {
     const ud = svc.deps.userDataDir
     const sub = projectArg
     if (!sub || sub === 'list') return out({ ok: true, references: (await listReferences(ud)).map((r) => ({ id: r.id, name: r.name, durationSec: r.durationSec, size: `${r.width}x${r.height}`, avgShotSec: r.avgShotSec, splitLine: r.splitLine, status: r.status, hasNotes: !!r.notes })) })
+    if (sub === 'scan') {
+      // referans/ klasöründeki (ya da --dir) videoları ekler (zaten eklenmiş olanlar atlanır); fotoğrafları ve notları listeler
+      const dir = resolve(str(a.opt.dir) ?? join(findResources(), '..', 'referans'))
+      if (!existsSync(dir)) throw new Error(`Klasör yok: ${dir}`)
+      const names = (await readdir(dir)).sort()
+      const have = new Set((await listReferences(ud)).map((r) => r.path))
+      const added: { file: string; id: string; sheets: string[]; measured: unknown }[] = []
+      const skipped: string[] = []
+      const failed: { file: string; why: string }[] = []
+      for (const f of names.filter((x) => /\.(mp4|mov|mkv|webm|m4v)$/i.test(x))) {
+        const abs = join(dir, f)
+        if (have.has(abs)) { skipped.push(f); continue }
+        try {
+          const e = await addReference(ud, svc.tools, abs)
+          added.push({ file: f, id: e.id, sheets: e.sheets.map((x) => join(referenceDir(ud, e.id), x)), measured: { durationSec: e.durationSec, size: `${e.width}x${e.height}`, cuts: e.cuts.length, avgShotSec: e.avgShotSec, splitLine: e.splitLine } })
+        } catch (e) {
+          failed.push({ file: f, why: e instanceof Error ? e.message : String(e) })
+        }
+      }
+      const images = names.filter((x) => /\.(jpe?g|png|webp)$/i.test(x)).map((x) => join(dir, x))
+      const notes = names.filter((x) => /\.(txt|md)$/i.test(x) && !/^readme/i.test(x)).map((x) => join(dir, x))
+      return out({ ok: true, dir, added, skipped, failed, images, notes, hint: 'Kare tablolarını (sheets), fotoğrafları (images) ve notları AÇIP oku; tarzı incele, ClipForge\'a uyarla, `reference notes <id> "…"` ile kaydet.' })
+    }
     if (sub === 'add') {
       if (!rest[0]) throw new Error('Kullanım: reference add <video>')
       const e = await addReference(ud, svc.tools, resolve(rest[0]))
