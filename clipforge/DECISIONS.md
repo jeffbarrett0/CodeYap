@@ -478,3 +478,6 @@ Kullanıcı 4 video verdi (YouTube giriş/çıkış 4K60, TikTok/Twitter/Instagr
 
 ## 71. Maç sonu edit (referans video analizi)
 Kullanıcı "Fenerbahçe nasıl kollandı" tarzı videolar paylaşıyor. Referans: üst yüz + alt konu görseli (mevcut Auto Clips düzeni), kutulu vurgulu altyazı (mevcut `boxed-highlight`), YENİ: maç görüntüsü tam kare araya girer (bulanık dolgu). Eklenen: `Clip.fx.blurFill` (export plan + önizleme), `match-edit` komutu (`VC` katmanı, `--clips`/`--auto`). Görüntüleri kullanıcı sağlar (telif); referanstaki daire vurgusu ve zoom sonradan eklenebilir.
+
+## 72. Referans bölümü
+Kullanıcı: beğendiği videoyu atsın, Claude incelesin ve siteye uyarlasın. Uygulama tarafı bir "gelen kutusu": video eklenir, ölçüm + kare tabloları çıkarılır (`main/reference.ts`, `shared/reference.ts`, IPC `reference:*`, CLI `reference`, arayüz `Referans`). Asıl inceleme/uyarlama Claude Code'un işidir (görsel yorum uygulamada yapay zekâsız yapılamaz); bulgular `notes` alanına, durum `adapted`a yazılır. Bölme çizgisi ölçümü yaklaşıktır (altyazı kutusu kenarını yakalayabilir).

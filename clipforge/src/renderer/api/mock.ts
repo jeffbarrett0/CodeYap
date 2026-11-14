@@ -41,6 +41,7 @@ const INJECT: { at: number; text: string }[] = [
   { at: 75, text: 'Abdullah Kabukçu bunu yapmaz derken Kabukçu\'nun sözleri geldi.' }
 ]
 
+const mockRefs: import('@shared/reference').ReferenceEntry[] = []
 export function demoTranscript(assetId: string, duration: number, lang: string): Transcript {
   const lines: { at: number; text: string }[] = []
   let t = 0
@@ -134,6 +135,19 @@ export function createMockApi(): ClipforgeApi {
       manifest: { version: 1, chroma: '#00FD00', rotation: ['youtube', 'tiktok'], buttons: [{ id: 'youtube', label: 'YouTube: abone ol', file: 'youtube-abone.mp4', crop: { x: 0.17, y: 0.44, w: 0.66, h: 0.56 }, flushBottom: true }, { id: 'tiktok', label: 'TikTok: takip et', file: 'tiktok-takip.mp4', crop: { x: 0.17, y: 0.44, w: 0.66, h: 0.56 }, flushBottom: true }] },
       buttons: [{ id: 'youtube', label: 'YouTube: abone ol', path: '/demo/cta/youtube-abone.mp4' }, { id: 'tiktok', label: 'TikTok: takip et', path: '/demo/cta/tiktok-takip.mp4' }]
     }),
+    'reference:list': () => [...mockRefs],
+    'reference:add': (f) => {
+      const e = { id: `ref${mockRefs.length + 1}`, name: String(f).split(/[\\/]/).pop()!.replace(/\.[^.]+$/, ''), path: f, addedAt: Date.now(), durationSec: 94.6, width: 720, height: 1280, fps: 30, hasAudio: true, cuts: [8.5, 10.2, 14, 20.4], avgShotSec: 18.9, splitLine: 0.42, sheets: ['sheet_1.jpg'], notes: '', status: 'analyzed' as const }
+      mockRefs.unshift(e)
+      return e
+    },
+    'reference:sheets': () => ['data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'],
+    'reference:update': (r) => {
+      const e = mockRefs.find((x) => x.id === r.id)!
+      Object.assign(e, { ...(r.notes !== undefined ? { notes: r.notes } : {}), ...(r.status ? { status: r.status } : {}) })
+      return e
+    },
+    'reference:remove': (id) => void mockRefs.splice(0, mockRefs.length, ...mockRefs.filter((x) => x.id !== id)),
     'trailer:build': (r) => ({ projectPath: '/demo/fragman.clipforge', durationSec: Math.min(r.targetSec ?? 45, 40), shots: r.segments.map((s) => ({ segmentId: s.id, a: s.start, b: s.start + 4, text: 'Örnek an' })) }),
     'autoclips:start': (req) => {
       const id = `autoclips-${acJobs.size + 1}`

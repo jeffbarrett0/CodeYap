@@ -1,3 +1,4 @@
+import type { ReferenceEntry } from './reference'
 import type { CtaManifest } from './cta'
 import type { TrailerRequest, TrailerResult } from './trailer'
 /**
@@ -116,6 +117,12 @@ export interface IpcInvoke {
   'cta:list': [[], { manifest: CtaManifest | null; buttons: { id: string; label: string; path: string }[] }]
   /** Fragman: seçilen 10–60 sn'lik parçalardan hızlı kurgulu fragman projesi üretir (kaynak proje değişmez) */
   'trailer:build': [[TrailerRequest], TrailerResult]
+  /** Referans videolar: ekle (analiz eder), listele, kare tabloları, not/durum, sil */
+  'reference:list': [[], ReferenceEntry[]]
+  'reference:add': [[string], ReferenceEntry]
+  'reference:sheets': [[string], string[]]
+  'reference:update': [[{ id: string; notes?: string; status?: 'analyzed' | 'adapted' }], ReferenceEntry]
+  'reference:remove': [[string], void]
   /** Önizleme için arka plan sesi azaltılmış ses kopyası üretir (önbellekli); dönen değer = `variant` (seviye) */
   'audio:denoise': [[{ assetId: string; audioStream: number; level: 'light' | 'medium' | 'strong' }], string]
   'media:markers': [[string], Marker[]]

@@ -9,6 +9,7 @@ import { AutoClipsDialog } from './components/AutoClips'
 import { TrailerDialog } from './components/Trailer'
 import { StatusBar, Toasts, TopBar } from './components/Chrome'
 import { useStore } from './store'
+import { ReferenceDialog } from './components/Reference'
 
 function useShortcuts() {
   useEffect(() => {
@@ -125,6 +126,7 @@ export function App() {
       {dialog === 'autokick' && <AutoKickDialog />}
       {dialog === 'autoclips' && <AutoClipsDialog />}
       {dialog === 'trailer' && <TrailerDialog />}
+      {dialog === 'reference' && <ReferenceDialog />}
       <Toasts />
     </div>
   )

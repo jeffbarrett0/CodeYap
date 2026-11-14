@@ -45,6 +45,7 @@ import { planSilenceCuts } from '../shared/timeline/silence'
 import { timelineWords } from '../shared/timeline/transcript'
 import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/export/presets'
 import type { Clip, MediaAsset, TextSpec } from '../shared/types'
+import { addReference, listReferences, referenceDir, removeReference, updateReference } from '../main/reference'
 import { enableCliFullSpeed, log, makeService, Session, waitTask } from './session'
 
 const run = promisify(execFile)
@@ -116,6 +117,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   script <proje>                         KURGU SONRASI zaman çizelgesindeki cümleler (çizelge zamanı) + geçen yerler (grafik/b-roll önerisi için)
   overlay <proje> --file dosya|--asset a --at sn [--dur 3.5] [--layer V2] [--src-in sn]   b-roll (video/foto) yerleştirir; konuşma sesi devam eder
   broll-plan <proje> --folder klasör [--asset a] [--dur 3.5] [--layer V2] [--apply]       dosya adlarındaki kelimeleri konuşmada arar, yerleşim ÖNERİR (--apply: uygular)
+  reference list | add <video> | show <id> | notes <id> "metin" | adapted <id> | remove <id>   beğenilen referans videolar: ölçüm + kare tabloları; Claude Code inceleyip uyarlar
   match-edit <proje> (--clips "dosya.mp4@12.5+4;..." | --folder K --auto) [--folder K] [--dur 4] [--no-zoom]   maç sonu edit: yorum videosunun üzerine maç görüntüleri (tam kare, bulanık dolgu) ekler
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
@@ -346,6 +348,34 @@ async function main(argv: string[]): Promise<unknown> {
       return out({ ok: true, ...r, clips: { dir: clips.dir, count: clips.clips.length, items: items(clips) }, ...(hclips ? { horizontalClips: { dir: hclips.dir, count: hclips.clips.length, items: items(hclips) } } : {}) })
     }
     return out({ ok: true, ...r, note: 'Klipler için: auto-clips <klasör> ya da auto-kick ... --clips (bitince klipleri de üretir).' })
+  }
+  if (command === 'reference') {
+    // Referans videolar (arayüzdeki "Referans" bölümüyle aynı kayıt): list | add <video> | show <id> | notes <id> "metin" | adapted <id> | remove <id>
+    const svc = await makeService()
+    const ud = svc.deps.userDataDir
+    const sub = projectArg
+    if (!sub || sub === 'list') return out({ ok: true, references: (await listReferences(ud)).map((r) => ({ id: r.id, name: r.name, durationSec: r.durationSec, size: `${r.width}x${r.height}`, avgShotSec: r.avgShotSec, splitLine: r.splitLine, status: r.status, hasNotes: !!r.notes })) })
+    if (sub === 'add') {
+      if (!rest[0]) throw new Error('Kullanım: reference add <video>')
+      const e = await addReference(ud, svc.tools, resolve(rest[0]))
+      return out({ ok: true, id: e.id, sheets: e.sheets.map((x) => join(referenceDir(ud, e.id), x)), measured: { durationSec: e.durationSec, size: `${e.width}x${e.height}`, cuts: e.cuts.length, avgShotSec: e.avgShotSec, splitLine: e.splitLine }, hint: 'Kare tablolarını (sheets) AÇIP incele: yerleşim, altyazı, geçişler, tempo, ses. Sonra siteye uyarla ve `reference notes <id> "…"` ile bulgularını kaydet.' })
+    }
+    const id = rest[0]
+    const entry = (await listReferences(ud)).find((r) => r.id === id)
+    if (!entry) throw new Error(`Referans bulunamadı: ${id ?? '(id verin)'}. \`reference list\` ile bakın.`)
+    if (sub === 'show') return out({ ok: true, ...entry, sheets: entry.sheets.map((x) => join(referenceDir(ud, entry.id), x)) })
+    if (sub === 'notes') {
+      const text = rest.slice(1).join(' ').trim()
+      if (!text) throw new Error('Kullanım: reference notes <id> "bulgular"')
+      await updateReference(ud, entry.id, { notes: text })
+      return out({ ok: true, id: entry.id, saved: true })
+    }
+    if (sub === 'adapted') return out({ ok: true, ...(await updateReference(ud, entry.id, { status: 'adapted' })) })
+    if (sub === 'remove') {
+      await removeReference(ud, entry.id)
+      return out({ ok: true, removed: entry.id })
+    }
+    throw new Error('Kullanım: reference list | add <video> | show <id> | notes <id> "metin" | adapted <id> | remove <id>')
   }
   if (command === 'story') {
     const sub = projectArg

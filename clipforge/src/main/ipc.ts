@@ -10,6 +10,7 @@ import { StoryManager } from './story/pipeline'
 import { autoClipCandidates, makeAutoClip } from './autoclips/pipeline'
 import { AutoClipsManager, chainAutoClips } from './autoclips/run'
 import { buildTrailer } from './trailer/build'
+import { addReference, listReferences, referenceSheets, removeReference, updateReference } from './reference'
 import { parseCtaManifest } from '../shared/cta'
 import { transcriptionReadiness } from '../shared/autokick'
 import { makeTopicClip, topicCandidates } from './autokick/clips'
@@ -50,6 +51,11 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       const manifest = parseCtaManifest(await readFile(join(dir, 'cta.json'), 'utf8').then((t) => JSON.parse(t), () => null))
       return { manifest, buttons: (manifest?.buttons ?? []).map((b) => ({ id: b.id, label: b.label, path: join(dir, b.file) })) }
     },
+    'reference:list': () => listReferences(app.deps.userDataDir),
+    'reference:add': (f) => addReference(app.deps.userDataDir, app.tools, f),
+    'reference:sheets': (id) => referenceSheets(app.deps.userDataDir, id),
+    'reference:update': (r) => updateReference(app.deps.userDataDir, r.id, { ...(r.notes !== undefined ? { notes: r.notes } : {}), ...(r.status ? { status: r.status } : {}) }),
+    'reference:remove': (id) => removeReference(app.deps.userDataDir, id),
     'trailer:build': (r) => buildTrailer(r, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'audio:denoise': (r) => app.denoisePreview(r),
     'story:start': (req) => story.start(req),

@@ -629,6 +629,23 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(cli('match-edit', p).ok).toBe(false) // parametresiz anlaşılır hata
   }, 120_000)
 
+  it('reference: video eklenir (ölçüm + kare tablosu), listelenir, not/durum kaydedilir, silinir; bozuk dosya anlaşılır hata verir', () => {
+    const ffm = require('ffmpeg-static') as string
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=360x640:rate=15:duration=12', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', join(tmp, 'ref.mp4')])
+    const r = cli('reference', 'add', join(tmp, 'ref.mp4'))
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.measured.size).toBe('360x640')
+    expect(existsSync(r.sheets[0])).toBe(true)
+    expect(cli('reference', 'list').references.some((x: any) => x.id === r.id)).toBe(true)
+    expect(cli('reference', 'notes', r.id, 'üstte yüz altta görüntü').ok).toBe(true)
+    expect(cli('reference', 'show', r.id).notes).toBe('üstte yüz altta görüntü')
+    expect(cli('reference', 'adapted', r.id).status).toBe('adapted')
+    writeFileSync(join(tmp, 'bozuk.mp4'), 'merhaba')
+    expect(cli('reference', 'add', join(tmp, 'bozuk.mp4')).ok).toBe(false)
+    expect(cli('reference', 'remove', r.id).removed).toBe(r.id)
+    expect(existsSync(r.sheets[0])).toBe(false)
+  }, 120_000)
+
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')
     writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))

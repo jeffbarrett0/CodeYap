@@ -29,7 +29,7 @@ import { denoiseKey, denoiseReady } from './preview/denoiseState'
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
 const waveRequested = new Set<string>()
 
-export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer'
+export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer' | 'reference'
 
 export interface Toast {
   id: string

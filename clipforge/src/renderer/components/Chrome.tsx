@@ -13,6 +13,7 @@ export function TopBar() {
       <button className="btn" onClick={() => void pickAndImport()}>Kayıt içe aktar</button>
       <button className="btn" onClick={() => openDialog('autoclips')} data-testid="autoclips-btn" title="Auto Kick'ten çıkan videodan klipler: konuştuğunuz konuları bulur; yüz üstte, konuşulan görüntü altta 9:16 klip projesi yapar">Auto Clips{autoClipsProject ? ' ●' : ''}</button>
       <button className="btn" onClick={() => openDialog('trailer')} data-testid="trailer-btn" title="Vlogunuzdan seçtiğiniz 10–60 sn'lik yerlerden hızlı kurgulu fragman yapar">Fragman</button>
+      <button className="btn" onClick={() => openDialog('reference')} data-testid="reference-btn" title="Beğendiğin bir videoyu buraya at: ölçüm + kare tablosu çıkarılır, Claude Code inceleyip tarzını siteye uyarlar">Referans</button>
       <button className="btn primary" onClick={() => openDialog('autokick')} data-testid="autokick-btn" title="Yayın kaydını otomatik işle: transkript → sessizleri kırp → tam video → klipler">Auto Kick</button>
       <span className="projname" title={projectPath ?? ''}><b>{project.name}</b>{dirty ? ' •' : ''}</span>
       {parentProjectPath && (

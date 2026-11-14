@@ -6,7 +6,7 @@ Bu klasörde Claude Code çalıştırıldığında videolar **komut satırı** (
 `npm install` → `npm run build` (CLI `out/main/cli.js` olarak derlenir; kod değişirse yeniden derleyin). Whisper yolu/modeli uygulamanın Ayarlar'ındakiyle **aynıdır** (aynı kullanıcı verisi klasörü); uygulamada bir kez transkripsiyon çalışıyorsa CLI'da da çalışır.
 
 ## Komutlar (hepsi JSON döndürür; `npm run cli -- help`)
-`new` · `import --add` · `transcribe` · `transcript` · `script` · `search` · `add-clip` · `new-clip-project` · `silence` · `cut` · `overlay` · `broll-plan` · `graphic` · `zoom` · `fade` · `sfx` · `grade` · `text` · `cta` · `match-edit` · `mute` · `denoise` · `trailer` · `captions` · `delete-lane` · `frame` · `show` · `export` · `presets`
+`new` · `import --add` · `transcribe` · `transcript` · `script` · `search` · `add-clip` · `new-clip-project` · `silence` · `cut` · `overlay` · `broll-plan` · `graphic` · `zoom` · `fade` · `sfx` · `grade` · `text` · `cta` · `match-edit` · `reference` · `mute` · `denoise` · `trailer` · `captions` · `delete-lane` · `frame` · `show` · `export` · `presets`
 
 Tipik akış: `new p.clipforge` → `import p.clipforge video.mp4 --add` → `transcribe p.clipforge` → `transcript p.clipforge` (içeriği OKU) → `silence` (varsayılan eşik 0,55 sn) → `captions` → `frame` (bir kareye bakıp doğrula) → `export p.clipforge --out cikti.mp4 --preset shorts`.
 Aramadan klip: `search p.clipforge "söz"` → `new-clip-project p.clipforge --query "söz" --pick 1 --sec 25 --out klip.clipforge` (ana proje değişmez).
@@ -80,6 +80,9 @@ Referans video (9:16, 94 sn): **üstte yorumcunun yüzü (~%42), altta yorumun k
 4. Geçişlere `sfx --type whoosh --at <başlangıç>`; `captions --style boxed-highlight`; gerekirse `zoom`/`text`.
 5. `export --preset shorts`. Maç görüntüsünün kendi sesi çalınmaz (yalnızca görüntü eklenir). Başka kanalların adı/logosu (referanstaki filigran dahil) kopyalanmaz.
 Dışa aktarma `fx.blurFill`'i (split + boxblur + overlay) ve önizleme (canvas blur) destekler. Arayüzde ayrı pencere YOK; elle: görüntüyü bir video katmanına sürükle ve katmanın "sığdır" modunu kullan.
+
+## Referans (kullanıcının beğendiği videoyu inceleyip siteye uyarla)
+Arayüzde üst çubuk → **Referans**: kullanıcı beğendiği bir videoyu ekler (kopyalanmaz); uygulama ölçümleri (boyut, fps, plan değişimi sayısı/ortalama plan süresi, OLASI yatay bölme çizgisi — yaklaşık, kare tablosundan doğrula) ve **kare tabloları** (6×5, en çok 3 tablo; `<kullanıcı verisi>/references/<id>/sheet_N.jpg`) çıkarır; notunu yazabilir, "Claude Code komutunu kopyala" der. **Kullanıcı "referansı incele/uyarla" derse SENİN işin:** `reference list` → `reference show <id>` (kare tablolarının yolları) → tabloları AÇIP bak (yerleşim, altyazı stili, geçişler, tempo, grafik/maç görüntüsü araya girişi) + gerekirse `ffmpeg` ile ek kare/ses ölç → videonun tarzını ClipForge'a UYARLA (yeni komut/stil/şablon ya da mevcut araçlarla örnek edit) → `reference notes <id> "bulgular + neyi uyarladım"` → `reference adapted <id>`. CLI: `reference list | add <video> | show <id> | notes <id> "metin" | adapted <id> | remove <id>`. Kurallar: başka kanalların adı/logosu/filigranı kopyalanmaz; kullanıcının verdiği maç görüntüsü gibi içerikler telif sorumluluğundadır; neyin uyarlanacağında emin değilsen kullanıcıya sor.
 
 ## Zaman çizelgesi (CapCut benzeri)
 Ses katmanları gizli; ses dalgası + sürüklenebilir hacim çizgisi video klibinin üstünde; klip sağ tık: sesi ayır / sesi sil (görüntü kalır); önizleme tam ekran (F). Ayrıntı: DECISIONS.md §70.

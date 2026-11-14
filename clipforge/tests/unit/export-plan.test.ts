@@ -235,4 +235,14 @@ describe('klibin sesini kapatma', () => {
     expect(f).toMatch(/boxblur=30:4/)
     expect(f).toMatch(/split=2/)
   })
+
+  it('referans: bölme çizgisi ölçümü (belirgin tek çizgi bulunur, düz görüntüde yok)', async () => {
+    const { findSplitLine, findSplitLineFrames, aspectLabel } = await import('@shared/reference')
+    const rows = (line: number | null) => Array.from({ length: 120 }, (_, i) => (i === line ? 40 : 1 + (i % 3) * 0.2))
+    expect(findSplitLine(rows(50))).toBeCloseTo(51 / 120, 2)
+    expect(findSplitLine(rows(null))).toBeNull()
+    expect(findSplitLineFrames([rows(50), rows(50), rows(50), rows(90), rows(null)])).toBeCloseTo(0.42, 1)
+    expect(findSplitLineFrames([rows(30), rows(50), rows(70), rows(90)])).toBeNull() // kareler arasında tutarsız
+    expect(aspectLabel(720, 1280)).toBe('9:16 dikey')
+  })
 })

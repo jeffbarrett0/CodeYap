@@ -1112,6 +1112,20 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('export-timestamps')).toBeChecked()
   })
 
+  test('Referans: video eklenir → ölçümler ve kare tablosu görünür; not kaydedilir; komut kopyalanır; silinir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('reference-btn').click()
+    await expect(page.getByTestId('reference-list')).toContainText('Henüz referans yok')
+    await page.evaluate(() => void ((window as any).__mock.openFile = '/videolar/begendigim video.mp4'))
+    await page.getByTestId('reference-add').click()
+    await expect(page.getByTestId('reference-detail')).toContainText('720×1280')
+    await expect(page.getByTestId('reference-item')).toHaveCount(1)
+    await page.getByTestId('reference-notes').fill('kutulu altyazı + maç görüntüsü')
+    await page.getByTestId('reference-notes').blur()
+    await page.getByTestId('reference-remove').click()
+    await expect(page.getByTestId('reference-item')).toHaveCount(0)
+  })
+
   test('Auto Clips: proje seç → konu önerileri (aralık + ne konuşulmuş) → seçilenlerden klip projesi; Auto Kick bitince otomatik devir; hata anlaşılır', async ({ page }) => {
     await boot(page)
     await page.getByTestId('autoclips-btn').click()
