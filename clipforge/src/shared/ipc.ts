@@ -154,6 +154,8 @@ export interface IpcInvoke {
   /** Konu klibi: Auto Kick projesinin transkriptinde konuyu arar, aday klipleri önerir (projeyi değiştirmez) */
   'autokick:topic': [[{ projectPath: string; topic: string; maxSec?: number; minSec?: number }], TopicCandidate[]]
   /** Seçilen adaydan bağımsız klip projesi üretir (Auto Kick projesi değişmez) */
+  /** Yalnızca yüz klibi (Sport diyor Plus): konu aralığından ekransız yüz klibi projesi (+ isteğe bağlı MP4) */
+  'faceclip:make': [[{ projectPath: string; subject: string; start: number; end: number; shape: 'vertical' | 'square' | 'horizontal'; captions?: boolean; exportVideo?: boolean }], { projectPath: string; durationSec: number; name: string; videoPath?: string }]
   'autokick:makeClip': [[{ projectPath: string; topic: string; start: number; end: number }], { projectPath: string; durationSec: number }]
   'task:list': [[], TaskInfo[]]
   'model:download': [[WhisperModelSize], string]

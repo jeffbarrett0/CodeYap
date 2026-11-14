@@ -346,3 +346,52 @@ export function overlayRect(faceShare: number, imageRatio: number, widthFrac = 0
   const seam = facePos === 'top' ? share : 1 - share
   return { x: (1 - w) / 2, y: Math.min(1 - h, Math.max(0, seam - h / 2)), w, h }
 }
+
+/** Yalnızca yüz klibi (ör. Sport diyor Plus kesitleri): ekran yok, kamera kutusundaki yüz tüm kareyi doldurur */
+export type FaceOnlyShape = 'vertical' | 'square' | 'horizontal'
+export const FACE_ONLY_SHAPES: Record<FaceOnlyShape, { aspect: '9:16' | '1:1' | '16:9'; ratio: number; preset: 'shorts' | 'square' | 'youtube'; label: string }> = {
+  vertical: { aspect: '9:16', ratio: 1080 / 1920, preset: 'shorts', label: 'Dikey 9:16' },
+  square: { aspect: '1:1', ratio: 1, preset: 'square', label: 'Kare 1:1' },
+  horizontal: { aspect: '16:9', ratio: 1920 / 1080, preset: 'youtube', label: 'Yatay 16:9' }
+}
+
+/**
+ * Yüz kutusundan (`face`) hedef kare oranında (dikey/kare/yatay) kırpma: kamera kutusunun İÇİNDE kalır, kafa merkezi `faceFocus` etrafında,
+ * `faceZoom` kadar yakın. Kamera kutusu küçükse görüntü büyütülür: keskinlik kayıp olur (kaynak çözünürlüğüne bağlı).
+ */
+export function faceOnlyCrop(layout: Pick<AutoClipLayout, 'face' | 'faceZoom' | 'faceFocus'>, srcAspect: number, shape: FaceOnlyShape): NormRect {
+  const f = layout.face
+  const ratio = FACE_ONLY_SHAPES[shape].ratio
+  const z = Math.min(4, Math.max(1, layout.faceZoom))
+  let h = f.h / z
+  let w = (h * ratio) / srcAspect
+  if (w > f.w) {
+    w = f.w
+    h = (w * srcAspect) / ratio
+  }
+  if (h > f.h) {
+    h = f.h
+    w = (h * ratio) / srcAspect
+  }
+  const headX = f.x + Math.min(1, Math.max(0, layout.faceFocus.x)) * f.w
+  const headY = f.y + Math.min(1, Math.max(0, layout.faceFocus.y)) * f.h
+  const x = Math.min(f.x + f.w - w, Math.max(f.x, headX - w / 2))
+  const y = Math.min(f.y + f.h - h, Math.max(f.y, headY - 0.45 * h))
+  return { x, y, w, h }
+}
+
+/** Tek katmanlı şablon: V2 (yüz) tüm kareyi kaplar; V1 boş ve gizli */
+export function faceOnlyTemplate(shape: FaceOnlyShape): LayoutTemplate {
+  const full: Placement = { rect: { x: 0, y: 0, w: 1, h: 1 }, fit: 'cover', visible: true, opacity: 1 }
+  return {
+    id: 'face-only',
+    name: 'Yalnızca yüz (tam kare)',
+    builtin: true,
+    aspect: FACE_ONLY_SHAPES[shape].aspect,
+    background: '#000000',
+    layers: [
+      { id: 'V2', name: 'Yüz', kind: 'video', role: 'webcam', placement: full },
+      { id: 'V1', name: 'Video 1', kind: 'video', role: 'screen', placement: { ...full, visible: false } }
+    ]
+  }
+}

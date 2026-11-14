@@ -1112,6 +1112,24 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('export-timestamps')).toBeChecked()
   })
 
+  test('Sport diyor Plus: konu → adaylar → yalnızca yüz kesiti üretilir (MP4 dahil); bulunamazsa anlaşılır mesaj', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('sportplus-btn').click()
+    await page.evaluate(() => void ((window as any).__mock.openFile = '/yayin/AutoKick/kayit/kayit.clipforge'))
+    await page.getByTestId('sport-search').click()
+    await expect(page.getByTestId('sport-error')).toContainText('Auto Kick projesini seçin')
+    await page.getByTestId('sport-pick-project').click()
+    await page.getByTestId('sport-topic').fill('Osimhen')
+    await page.getByTestId('sport-shape').selectOption('vertical')
+    await page.getByTestId('sport-search').click()
+    await expect(page.getByTestId('sport-cand').first()).toBeVisible()
+    await page.getByTestId('sport-make').first().click()
+    await expect(page.getByTestId('sport-made').first()).toContainText('MP4 dahil')
+    await page.getByTestId('sport-topic').fill('yok')
+    await page.getByTestId('sport-search').click()
+    await expect(page.getByTestId('sport-none')).toBeVisible()
+  })
+
   test('Referans: video eklenir → ölçümler ve kare tablosu görünür; not kaydedilir; komut kopyalanır; silinir', async ({ page }) => {
     await boot(page)
     await page.getByTestId('reference-btn').click()

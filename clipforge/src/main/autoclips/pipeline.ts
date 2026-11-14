@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
 import { cmd } from '../../shared/timeline/commands'
 import { clipForTrack } from '../../shared/timeline/create'
-import { DEFAULT_AUTOCLIP_LAYOUT, autoClipTemplate, faceCrop, findAutoClips, overlayRect, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
+import { DEFAULT_AUTOCLIP_LAYOUT, FACE_ONLY_SHAPES, autoClipTemplate, faceCrop, faceOnlyCrop, faceOnlyTemplate, type FaceOnlyShape, findAutoClips, overlayRect, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
 import { newId, timelineDuration } from '../../shared/timeline/model'
 import { cutRange, setCaptions } from '../../shared/timeline/ops'
 import { captionsForTimeline } from '../../shared/timeline/captions'
@@ -31,7 +31,7 @@ export async function autoClipCandidates(projectPath: string, opts: Partial<Auto
  * Seçilen aralıktan BAĞIMSIZ klip projesi (9:16): kaynaktaki yüz bölgesi ÜSTTE (kırpılıp büyütülür), konuşulan görüntü ALTTA. Ortaya yazı konmaz.
  * Auto Kick projesi değişmez. Düzen yerleşimi sonradan arayüzde elle de ayarlanabilir.
  */
-export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string; /** yatay (16:9) klip: yüz/şerit yok, kare olduğu gibi */ horizontal?: boolean; /** otomatik altyazı: 2–4 kelime, iri beyaz, yüzün hemen altında (dikey) */ captions?: boolean } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
+export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string; /** yatay (16:9) klip: yüz/şerit yok, kare olduğu gibi */ horizontal?: boolean; /** otomatik altyazı: 2–4 kelime, iri beyaz, yüzün hemen altında (dikey) */ captions?: boolean; /** yalnızca yüz klibi (ekran yok, şerit yok): yüz tüm kareyi doldurur */ faceOnly?: FaceOnlyShape } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
   const s = await Session.open(await resolveProjectPath(projectPath), await makeService(env))
   const total = timelineDuration(s.timeline)
   if (!(cand.end > cand.start) || cand.start < 0 || cand.end > total + 0.5) throw new Error(`Geçersiz aralık: ${cand.start.toFixed(1)}–${cand.end.toFixed(1)} (çizelge ${total.toFixed(1)} sn).`)
@@ -53,6 +53,31 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
     hc.project = { ...hc.project, timeline: tl }
     await hc.save()
     return { projectPath: hcreated.path, durationSec: hdur, name: hname }
+  }
+  if (layout.faceOnly) {
+    // YALNIZCA YÜZ (Sport diyor Plus kesitleri): ekran/şerit yok; kamera kutusundaki yüz tüm kareyi doldurur
+    const shape = layout.faceOnly
+    const srcAsp = asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 16 / 9
+    const crop = faceOnlyCrop({ face, faceZoom: layout.faceZoom ?? 1.05, faceFocus: layout.faceFocus ?? DEFAULT_AUTOCLIP_LAYOUT.faceFocus }, srcAsp, shape)
+    const v1c = (tl.tracks.find((t) => t.id === 'V1')?.clips ?? []).filter((c) => c.assetId === asset.id)
+    const fclips: Clip[] = v1c.map((c) => ({ ...c, id: newId('clip'), trackId: 'V2', crop, label: 'Yüz', groupId: c.groupId }))
+    tl = {
+      ...tl,
+      tracks: (tl.tracks.some((t) => t.id === 'V2') ? tl.tracks : [...tl.tracks, { id: 'V2', name: 'Video 2', kind: 'video' as const, role: 'webcam' as const, clips: [], muted: false, locked: false, volume: 1 }]).map((t) => (t.id === 'V2' ? { ...t, clips: fclips } : t.id === 'V1' ? { ...t, clips: [] } : t))
+    }
+    tl = { ...applyTemplate(tl, faceOnlyTemplate(shape)), aspect: FACE_ONLY_SHAPES[shape].aspect, aspectAuto: false }
+    if (layout.captions) {
+      const style = { ...tl.captionStyle, ...presetById('shorts').style, enabled: true, positionY: shape === 'horizontal' ? 0.9 : 0.8 }
+      const words = Object.fromEntries(Object.entries(s.transcripts).map(([k, t]) => [k, t.words]))
+      tl = setCaptions({ ...tl, captionStyle: style }, captionsForTimeline({ ...tl, captionStyle: style }, words))
+    }
+    const fdur = timelineDuration(tl)
+    const fname = `${cand.subject.trim() || 'Klip'} · ${Math.round(fdur)} sn (yüz)`
+    const fcreated = await s.service.createClipProject(s.project, asset.id, fname)
+    const fc = await Session.open(fcreated.path, await makeService(env))
+    fc.project = { ...fc.project, timeline: tl }
+    await fc.save()
+    return { projectPath: fcreated.path, durationSec: fdur, name: fname }
   }
   // düzen: 9:16, yüz üstte/altta; konuşulan görüntü (tüm kare) ortada-altta. Yüz klipleri aynı kaynağın yüz bölgesi kırpmasıdır.
   const tpl = autoClipTemplate({ facePos, faceShare: layout.faceShare })

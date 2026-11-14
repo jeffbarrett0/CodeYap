@@ -19,7 +19,7 @@ export interface AutoClipsHooks {
 }
 
 /** Bir klip projesini 9:16 MP4 olarak dışa aktarır (proje dosyasının yanına, aynı adla) */
-export async function exportClipProject(projectPath: string, env: Env, signal?: AbortSignal, onProgress?: (f: number) => void, preset: 'shorts' | 'youtube' = 'shorts'): Promise<string> {
+export async function exportClipProject(projectPath: string, env: Env, signal?: AbortSignal, onProgress?: (f: number) => void, preset: 'shorts' | 'youtube' | 'square' = 'shorts'): Promise<string> {
   const service = await makeService(env)
   const s = await Session.open(projectPath, service)
   const total = timelineDuration(s.timeline)

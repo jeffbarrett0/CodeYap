@@ -245,4 +245,17 @@ describe('klibin sesini kapatma', () => {
     expect(findSplitLineFrames([rows(30), rows(50), rows(70), rows(90)])).toBeNull() // kareler arasında tutarsız
     expect(aspectLabel(720, 1280)).toBe('9:16 dikey')
   })
+
+  it('yalnızca yüz kırpması: kamera kutusunun içinde kalır, hedef oranı tutar (dikey/kare/yatay)', async () => {
+    const { faceOnlyCrop, FACE_ONLY_SHAPES, DEFAULT_AUTOCLIP_LAYOUT } = await import('@shared/autoclips')
+    const L = { face: DEFAULT_AUTOCLIP_LAYOUT.face, faceZoom: 1.05, faceFocus: DEFAULT_AUTOCLIP_LAYOUT.faceFocus }
+    for (const shape of ['vertical', 'square', 'horizontal'] as const) {
+      const c = faceOnlyCrop(L, 16 / 9, shape)
+      expect(c.x).toBeGreaterThanOrEqual(L.face.x - 1e-9)
+      expect(c.y).toBeGreaterThanOrEqual(L.face.y - 1e-9)
+      expect(c.x + c.w).toBeLessThanOrEqual(L.face.x + L.face.w + 1e-9)
+      expect(c.y + c.h).toBeLessThanOrEqual(L.face.y + L.face.h + 1e-9)
+      expect((c.w * 16) / 9 / c.h).toBeCloseTo(FACE_ONLY_SHAPES[shape].ratio, 2)
+    }
+  })
 })

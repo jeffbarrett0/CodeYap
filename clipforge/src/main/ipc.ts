@@ -8,7 +8,8 @@ import { setCpuMode } from './ffmpeg'
 import { AutoKickManager } from './autokick/pipeline'
 import { StoryManager } from './story/pipeline'
 import { autoClipCandidates, makeAutoClip } from './autoclips/pipeline'
-import { AutoClipsManager, chainAutoClips } from './autoclips/run'
+import { AutoClipsManager, chainAutoClips, exportClipProject } from './autoclips/run'
+import { FACE_ONLY_SHAPES } from '../shared/autoclips'
 import { buildTrailer } from './trailer/build'
 import { addReference, listReferences, referenceSheets, removeReference, updateReference } from './reference'
 import { parseCtaManifest } from '../shared/cta'
@@ -73,6 +74,12 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     'autokick:list': () => autoKick.list(),
     'autokick:check': async () => transcriptionReadiness(app.settings.value, await app.info()),
     'autokick:topic': (r) => topicCandidates(r.projectPath, r.topic, { ...(r.maxSec ? { maxSec: r.maxSec } : {}), ...(r.minSec ? { minSec: r.minSec } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
+    'faceclip:make': async (r) => {
+      const env = { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }
+      const made = await makeAutoClip(r.projectPath, { start: r.start, end: r.end, subject: r.subject }, { faceOnly: r.shape, captions: r.captions }, env)
+      const videoPath = r.exportVideo ? await exportClipProject(made.projectPath, env, undefined, undefined, FACE_ONLY_SHAPES[r.shape].preset) : undefined
+      return { ...made, videoPath }
+    },
     'autokick:makeClip': (r) => makeTopicClip(r.projectPath, r.topic, r.start, r.end, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'app:info': () => app.info(),
     'settings:get': () => app.settings.value,

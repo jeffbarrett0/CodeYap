@@ -481,3 +481,6 @@ Kullanıcı "Fenerbahçe nasıl kollandı" tarzı videolar paylaşıyor. Referan
 
 ## 72. Referans bölümü
 Kullanıcı: beğendiği videoyu atsın, Claude incelesin ve siteye uyarlasın. Uygulama tarafı bir "gelen kutusu": video eklenir, ölçüm + kare tabloları çıkarılır (`main/reference.ts`, `shared/reference.ts`, IPC `reference:*`, CLI `reference`, arayüz `Referans`). Asıl inceleme/uyarlama Claude Code'un işidir (görsel yorum uygulamada yapay zekâsız yapılamaz); bulgular `notes` alanına, durum `adapted`a yazılır. Bölme çizgisi ölçümü yaklaşıktır (altyazı kutusu kenarını yakalayabilir).
+
+## 73. Sport diyor Plus (yalnızca yüz kesiti)
+Kullanıcının sayfasına konu kesitleri (~40 sn) atılıyor; ekran yok, yalnızca yüz. Topic aday bulucu yeniden kullanıldı; yeni: `faceOnly` düzeni (tek katman V2, cover tam kare), `face-clips` komutu, `faceclip:make` IPC, arayüz penceresi. Varsayılan dikey 9:16 (kullanıcı biçimi söylemedi; seçilebilir). Kaynaktaki kamera kutusu küçük olduğu için keskinlik riski var.

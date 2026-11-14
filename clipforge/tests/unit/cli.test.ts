@@ -165,6 +165,17 @@ describe('komut satırı: sessizleri kes + altyazı + dışa aktar; arama + bağ
     expect(clip.tracks.find((t: any) => t.id === 'A1').clips.length).toBeGreaterThan(0)
     expect(cli('topic-clips', dir, '--topic', 'Neymar').candidates).toEqual([])
     expect(cli('topic-clips', dir, '--topic', 'Viktor', '--pick', '9').error).toMatch(/Seçilen aday yok/)
+    // yalnızca yüz klibi (Sport diyor Plus): ekran yok, yüz tüm kareyi doldurur; Auto Kick projesi değişmez
+    const f = cli('face-clips', projFile, '--topic', 'Viktor Nelson', '--pick', '1', '--shape', 'horizontal', '--captions')
+    expect(f.ok, JSON.stringify(f)).toBe(true)
+    expect(md5(projFile)).toBe(before)
+    const fc = cli('show', f.created[0].project)
+    expect(fc.aspect).toBe('16:9')
+    expect(fc.tracks.find((t: any) => t.id === 'V1').clips).toHaveLength(0) // ekran yok
+    const faceClip = fc.tracks.find((t: any) => t.id === 'V2').clips[0]
+    expect(faceClip.label).toBe('Yüz')
+    expect(fc.tracks.find((t: any) => t.id === 'A1').clips.length).toBeGreaterThan(0) // ses kalır
+    expect(cli('face-clips', projFile, '--topic', 'Viktor', '--shape', 'bozuk').ok).toBe(false)
   }, 300_000)
 
   it('auto-kick: whisper yoksa İÇE AKTARMADAN ÖNCE anlaşılır hata; çok track\'li kayıtta konuşma track\'i otomatik bulunur', () => {

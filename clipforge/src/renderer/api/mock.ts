@@ -275,6 +275,7 @@ export function createMockApi(): ClipforgeApi {
       { id: 'c1', start: 120, end: 168, durationSec: 48, hits: 5, score: 15.2, mentions: [{ t: 125, text: "Osimhen'in" }, { t: 140, text: 'Osimhen' }], text: "Osimhen'in transferi çok konuşuldu. Galatasaray ona büyük para verdi." },
       { id: 'c2', start: 900, end: 922, durationSec: 22, hits: 2, score: 6.1, mentions: [{ t: 905, text: 'Osimen' }], text: 'Osimen kadar iyi bir forvet yok bence.' }
     ]),
+    'faceclip:make': (r) => ({ projectPath: `/yayin/AutoKick/kayit/kayit-klipler/${r.subject} · ${Math.round(r.end - r.start)} sn (yüz).clipforge`, durationSec: r.end - r.start, name: `${r.subject} (yüz)`, videoPath: r.exportVideo ? `/yayin/AutoKick/kayit/kayit-klipler/${r.subject}.mp4` : undefined }),
     'autokick:makeClip': (r) => ({ projectPath: `/yayin/AutoKick/kayit/kayit-klipler/${r.topic} · ${Math.round(r.end - r.start)} sn.clipforge`, durationSec: r.end - r.start }),
     'captions:translate': (req) => {
       if (w.__mock?.fail?.translate) throw new Error(w.__mock.fail.translate)

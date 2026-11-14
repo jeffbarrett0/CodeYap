@@ -20,6 +20,7 @@ import { DEFAULT_SCENE, type SceneSpec } from '../shared/graphics/scenes'
 import { loadWorld, renderScene } from '../main/graphics/render'
 import { detectIntro, introReference } from '../main/autokick/intro'
 import { autoClipCandidates, makeAutoClip } from '../main/autoclips/pipeline'
+import { FACE_ONLY_SHAPES, type FaceOnlyShape } from '../shared/autoclips'
 import { exportClipProject, runAutoClips } from '../main/autoclips/run'
 import { parseRect } from '../shared/autoclips'
 import { cleanBrand, runStory } from '../main/story/pipeline'
@@ -95,6 +96,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
   trailer <proje> (--clips "1:10-1:20,2:05-2:30" | --segments "30-55,120-150" | --auto) [--vertical] [--target 45] [--title "Paris Vlog"] [--sub "altyazı"] [--export]   FRAGMAN: --clips seçilen yerleri OLDUĞU GİBİ birleştirir; --segments 10–60 sn'lik parçalardan en güçlü anları bulur; --auto tüm vlogu tarar; --vertical 9:16; whoosh/boom/kapanış kartı; --export: MP4
   topic-video <proje|AutoKick klasörü> --topic "Lemina" [--gap 25] [--min-sec 8] [--export]   konunun konuşulduğu TÜM yerleri tek YATAY (16:9) videoda birleştirir
+  face-clips <proje|AutoKick klasörü> --topic "Osimhen" [--shape vertical|square|horizontal] [--max-sec 45] [--captions] [--pick 1,3 | --all] [--export]   yalnızca yüz klibi (Sport diyor Plus)
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
   auto-kick <video> [--out klasör] [--clips [--max 10] [--no-export] [--no-horizontal]] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.55]
@@ -306,6 +308,29 @@ async function main(argv: string[]): Promise<unknown> {
       created: made,
       hint: made.length ? 'Klip projeleri Auto Kick projesine dokunmadan oluşturuldu.' : cands.length ? 'Bunlar ÖNERİDİR. Seçmek için --pick N (virgülle birden çok) ya da --all ekleyin.' : 'Bu konuda transkriptte geçiş bulunamadı (yazılışı değiştirip deneyin).'
     })
+  }
+  if (command === 'face-clips') {
+    // Yalnızca YÜZ klibi (Sport diyor Plus kesitleri): konuşulan konuyu bulur, ekran yok, yüz tüm kareyi doldurur (~40 sn)
+    if (!projectArg) throw new Error('Auto Kick projesini ya da klasörünü verin: face-clips <proje|klasör> --topic "Osimhen"')
+    const topic = str(a.opt.topic)
+    if (!topic) throw new Error('--topic "konu" verin.')
+    const shapeArg = str(a.opt.shape) ?? 'vertical'
+    if (!(shapeArg in FACE_ONLY_SHAPES)) throw new Error(`--shape ${Object.keys(FACE_ONLY_SHAPES).join('|')}`)
+    const shape = shapeArg as FaceOnlyShape
+    const maxSec = num(a.opt['max-sec'], 'max-sec') ?? 45
+    const cands = await topicCandidates(projectArg, topic, { maxSec, minSec: num(a.opt['min-sec'], 'min-sec') ?? 15, ...(a.opt.gap ? { mergeGapSec: num(a.opt.gap, 'gap') } : {}) })
+    const wanted = new Set(String(a.opt.pick ?? '').split(',').map((x) => Number(x.trim())))
+    const picks = a.opt.all ? cands : a.opt.pick ? cands.filter((_, i) => wanted.has(i + 1)) : []
+    if (a.opt.pick && picks.length === 0) throw new Error(`Seçilen aday yok (1–${cands.length}).`)
+    const rect = str(a.opt.face) ? parseRect(str(a.opt.face)!) : null
+    if (str(a.opt.face) && !rect) throw new Error('--face "x,y,w,h" (0..1) verin.')
+    const made: { pick: number; project: string; durationSec: number; video?: string }[] = []
+    for (const c of picks) {
+      const r = await makeAutoClip(projectArg, { start: c.start, end: c.end, subject: topic }, { faceOnly: shape, captions: a.opt.captions ? true : undefined, face: rect ?? undefined, faceZoom: num(a.opt['face-zoom'], 'face-zoom'), faceFocus: parseFocus(str(a.opt['face-focus'])) })
+      const video = a.opt.export ? await exportClipProject(r.projectPath, {}, undefined, (f) => log(`[face-clips:export] %${Math.round(f * 100)}`), FACE_ONLY_SHAPES[shape].preset) : undefined
+      made.push({ pick: cands.indexOf(c) + 1, project: r.projectPath, durationSec: r1(r.durationSec), video })
+    }
+    return out({ ok: true, topic, shape, candidates: cands.map((c, i) => ({ pick: i + 1, start: r1(c.start), end: r1(c.end), durationSec: r1(c.durationSec), hits: c.hits, text: c.text })), created: made, hint: made.length ? 'Yalnızca yüz klipleri oluşturuldu (Auto Kick projesi değişmedi). Kamera kutusu küçükse görüntü büyütüldüğü için keskinlik düşebilir.' : 'Bunlar ÖNERİDİR. Seçmek için --pick N ya da --all; MP4 için --export; altyazı --captions.' })
   }
   if (command === 'auto-clips') {
     if (!projectArg) throw new Error('Auto Kick klasörü ya da projesi verin: auto-clips <klasör|proje> [--pick 1,3 | --all]')
