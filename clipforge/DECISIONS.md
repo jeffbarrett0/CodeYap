@@ -487,3 +487,6 @@ Kullanıcının sayfasına konu kesitleri (~40 sn) atılıyor; ekran yok, yalnı
 
 ## 74. Zaman damgaları: konuya göre bölümler (süre sabit değil)
 Kullanıcı: varsayılan sıklık istemiyor; konu değişince bölüm, takım düzeyi başlık ("Galatasaray gündemi"), her zaman Giriş, Auto Kick bitince otomatik, biçim YouTube örneği (`00:00 Giriş`). `findChapters` konu kipi (`TOPIC_OPTIONS`, `topicMode`): bölme/üst sınır yok, ana konu süzgeci yok, takım adı ↔ oyuncu sayısı kuralı, 4800 karakter sınırı. Eski "Saniyeler:" + `00:00:00 - Başlık` biçimi kaldırıldı (kullanıcının son örneği esas alındı). Sınır: oyuncu→takım eşlemesi veritabanında yok; takım adı konuşulmazsa takım düzeyi başlık çıkmaz.
+
+## 75. CapCut tarzı klip ayarları (1. aşama: Ses + Ayarla)
+Kullanıcı CapCut'ın Video/Audio/Speed/Adjust panellerinden ekran görüntüleri verdi (keskinlik artırma, sesi 100 üzerinden görme/20'ye düşürme). Yapıldı: Ses ve Ayarla (Temel) alt sekmeleri. Ertelendi: Hız (`clipDuration` her yerde kullanılıyor, geniş değişiklik), klip başına dönüşüm, LUT/eğriler/HSL/maske. Ayarlar dışa aktarmada tam, önizlemede kısmi (canvas filtresi sınırlı).

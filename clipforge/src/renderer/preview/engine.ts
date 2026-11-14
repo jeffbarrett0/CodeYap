@@ -1,4 +1,5 @@
 import { denoiseKey, denoiseReady } from './denoiseState'
+import { previewFilter } from '@shared/adjust'
 import type { ClipforgeApi } from '@shared/ipc'
 import { resolveLayout } from '@shared/export/layout'
 import { aspectSize, clipDuration, clipEnd } from '@shared/timeline/model'
@@ -167,6 +168,7 @@ export class PreviewEngine {
         if (t < c.start || t >= clipEnd(c)) continue
         ctx.save()
         ctx.globalAlpha = pl.opacity
+        if (c.fx?.adjust) ctx.filter = previewFilter(c.fx.adjust)
         if (track.kind === 'text' && c.text) {
           if (c.text.text.trim()) {
             this.drawText(ctx, c.text, r, scale, t - c.start, clipDuration(c))

@@ -274,3 +274,13 @@ kbd { background: var(--panel3); border: 1px solid var(--border); border-bottom-
 .stage-wrap:fullscreen { background: #000; }
 .stage-wrap:fullscreen .stage-area { padding: 0; }
 .stage-wrap:fullscreen .stage-top { display: none; }
+
+/* CapCut tarzı klip ayarları: alt sekmeler + etiket/kaydırıcı/sayı satırları */
+.tabs.sub { margin-bottom: 4px; }
+.fx-row { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.fx-label { color: var(--muted); user-select: none; }
+.fx-ctl { display: flex; align-items: center; gap: 8px; }
+.fx-ctl input[type=range] { flex: 1; min-width: 0; }
+.fx-num { display: inline-flex; align-items: center; gap: 2px; background: var(--panel-2, #1c2230); border: 1px solid var(--border); border-radius: 6px; padding: 0 4px; }
+.fx-num input { width: 44px; background: transparent; border: 0; color: inherit; text-align: right; font-size: 12px; padding: 2px 0; -moz-appearance: textfield; }
+.fx-num i { font-style: normal; color: var(--muted); font-size: 11px; }

@@ -1,4 +1,5 @@
 import { localizeCaptions } from '../timeline/captions'
+import { adjustFilter } from '../adjust'
 import type { Clip, ExportOptions, ID, MediaAsset, Timeline, Track } from '../types'
 import { clipEnd, timelineDuration } from '../timeline/model'
 import { resolveLayout, toPx, type PxRect } from './layout'
@@ -64,6 +65,7 @@ function videoFx(c: Clip, dur: number, w: number, h: number, fps: number, alpha:
   const fx = c.fx
   if (!fx) return ''
   let f = fx.grade && GRADES[fx.grade] ? `,${GRADES[fx.grade]}` : ''
+  f += adjustFilter(fx.adjust)
   const z = fx.zoom
   if (z && (Math.abs(z.from - 1) > 1e-3 || Math.abs(z.to - 1) > 1e-3)) {
     const z0 = Math.min(4, Math.max(1, z.from))
@@ -95,6 +97,7 @@ function audioFx(c: Clip, dur: number): string {
   const fx = c.fx
   if (!fx) return ''
   let f = ''
+  if (fx.normalize) f += ',loudnorm=I=-16:TP=-1.5:LRA=11'
   if (fx.fadeIn && fx.fadeIn > 0) f += `,afade=t=in:st=0:d=${Math.min(fx.fadeIn, dur).toFixed(3)}`
   if (fx.fadeOut && fx.fadeOut > 0) f += `,afade=t=out:st=${Math.max(0, dur - fx.fadeOut).toFixed(3)}:d=${Math.min(fx.fadeOut, dur).toFixed(3)}`
   return f

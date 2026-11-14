@@ -258,6 +258,10 @@ export interface ClipFx {
   denoise?: 'light' | 'medium' | 'strong'
   /** Oran korunur (sığdır) ve boş kalan alan aynı görüntünün bulanık, karartılmış büyütülmüş hâliyle doldurulur (dikey karede yatay maç görüntüsü) */
   blurFill?: boolean
+  /** CapCut tarzı görüntü ayarları (Ayarla): sıcaklık, doygunluk, pozlama, kontrast, keskinlik, vinyet… (shared/adjust.ts) */
+  adjust?: import('./adjust').Adjust
+  /** Ses seviyesini hedef ses şiddetine eşitler (loudnorm) */
+  normalize?: boolean
   /** Açılış geçişi (sn): görüntü karanlıktan/saydamdan belirir, ses yavaş yükselir */
   fadeIn?: number
   /** Kapanış geçişi (sn): görüntü kararır/saydamlaşır, ses yavaş kısılır */

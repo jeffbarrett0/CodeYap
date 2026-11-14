@@ -1225,6 +1225,36 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('lane-A1').getByTestId('clip')).not.toHaveClass(/muted/)
   })
 
+  test('Klip ayarları (CapCut tarzı): Ses sekmesinde 100 → 20 ses seviyesi; Ayarla sekmesinde keskinlik/sıcaklık; sıfırla', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('import-btn').click()
+    await expect(page.getByTestId('asset')).toHaveCount(1)
+    await dropAsset(page, 0, 'V1')
+    await page.getByTestId('lane-V1').getByTestId('clip').click()
+    await page.getByTestId('rtab-inspector').click()
+    // Ses: yüzde olarak görünür, 20'ye düşürülür
+    await page.getByTestId('ctab-audio').click()
+    const vol = page.getByTestId('fx-volume').locator('input[type=number]')
+    await expect(vol).toHaveValue('100')
+    await vol.fill('20')
+    await expect(vol).toHaveValue('20')
+    await expect(page.getByTestId('fx-volume-db')).toContainText('-14.0 dB')
+    await page.getByTestId('fx-normalize').check()
+    await page.getByTestId('fx-audio-reset').click()
+    await expect(vol).toHaveValue('100')
+    // Ayarla: keskinlik artırılır, sıfırla
+    await page.getByTestId('ctab-adjust').click()
+    const sharp = page.getByTestId('adj-sharpen').locator('input[type=number]')
+    await expect(sharp).toHaveValue('0')
+    await sharp.fill('60')
+    await expect(sharp).toHaveValue('60')
+    await page.getByTestId('adj-temp').locator('input[type=number]').fill('-25')
+    await expect(page.getByTestId('adj-reset')).toBeEnabled()
+    await page.getByTestId('adj-reset').click()
+    await expect(sharp).toHaveValue('0')
+    await expect(page.getByTestId('adj-reset')).toBeDisabled()
+  })
+
   test('Fragman: yön seçilir; Klip seç / Parçalardan en güçlü anlar / Otomatik üç yol; dk:sn ile klip eklenir; sonuç gelir', async ({ page }) => {
     await boot(page)
     await page.getByTestId('trailer-btn').click()

@@ -15,6 +15,7 @@ import { TranscriptPanel } from './TranscriptPanel'
 import { IdeasPanel } from './IdeasPanel'
 import { ChaptersPanel } from './ChaptersPanel'
 import { fmt, Field, Num, Slider } from './ui'
+import { AdjustPanel, AudioClipPanel } from './ClipFxPanels'
 
 const FONTS = ['Arial', 'Impact', 'Verdana', 'Tahoma', 'Georgia', 'Trebuchet MS', 'Courier New']
 
@@ -73,6 +74,7 @@ function DraftPanel() {
 
 function Inspector() {
   const { project, selection, exec } = useStore()
+  const [sub, setSub] = useState<'video' | 'audio' | 'adjust'>('video')
   const tl = project.timeline
   const f = selection[0] ? findClip(tl, selection[0]) : null
   if (!f) return (
@@ -87,8 +89,18 @@ function Inspector() {
   const { clip, track } = f
   const members = groupMembers(tl, clip.id)
   const asset = project.assets.find((a) => a.id === clip.assetId)
+  const visual = track.kind === 'video' || track.kind === 'image'
+  const subTab = !visual && sub === 'adjust' ? 'video' : sub
   return (
     <div className="col" data-testid="inspector">
+      <div className="tabs sub" role="tablist" aria-label="Klip ayarları">
+        {([['video', visual ? 'Video' : 'Klip'], ['audio', 'Ses'], ...(visual ? [['adjust', 'Ayarla']] : [])] as [typeof sub, string][]).map(([id, n]) => (
+          <button key={id} role="tab" aria-selected={subTab === id} className={`tab${subTab === id ? ' active' : ''}`} onClick={() => setSub(id)} data-testid={`ctab-${id}`}>{n}</button>
+        ))}
+      </div>
+      {subTab === 'audio' && <AudioClipPanel clip={clip} track={track} tl={tl} />}
+      {subTab === 'adjust' && <AdjustPanel clip={clip} tl={tl} />}
+      {subTab === 'video' && (<>
       <div className="section-title">Klip</div>
       {selection.length > 1 && (
         <div className="row wrap" data-testid="multi-sel">
@@ -128,6 +140,7 @@ function Inspector() {
           )}
         </>
       )}
+      </>)}
     </div>
   )
 }
