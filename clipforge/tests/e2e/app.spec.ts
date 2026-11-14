@@ -1098,7 +1098,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('chapters-run').click()
     const text = page.getByTestId('chapters-text')
     await expect(text).toBeVisible()
-    await expect(text).toHaveValue(/^Saniyeler:\n\n00:00:00 - Giriş\n00:10:00 - Batrakov\n00:25:00 - Chevalier, Salah\n00:40:00 - Rafael Leao$/)
+    await expect(text).toHaveValue(/^00:00:00 Giriş\n00:10:00 Batrakov\n00:25:00 Chevalier, Salah\n00:40:00 Rafael Leao$/)
     await expect(page.getByTestId('chapters-warning')).toHaveCount(0)
     // düzenlenebilir
     await text.fill('00:00:00 - Açılış\n00:10:00 - Maç')

@@ -1,6 +1,7 @@
 import { key } from './graphics/geo'
 import { cap, NOT_ENTITY, STOP_KEYS, tokens } from './ideas'
 import { buildSegments } from './transcript/sentences'
+import { TEAMS } from './story/teams'
 import type { Segment, TranscriptWord } from './types'
 
 /**
@@ -19,7 +20,12 @@ export interface Chapter {
 
 export type ChapterDensity = 'low' | 'medium' | 'high'
 
+/** 'topic': bölüm süresi/sıklığı YOK — konu değişince yeni bölüm (konuşmaya göre 3 dk de olur, 15 dk da) */
+export type ChapterMode = ChapterDensity | 'topic'
+
 export interface ChapterOptions {
+  /** konuya göre kip: hedef süre/üst sınır yok; takım düzeyinde başlık ("Galatasaray gündemi"); açılış her zaman "Giriş" */
+  topicMode?: boolean
   /** bir bölümün en kısa süresi (sn) */
   minSec: number
   /** hedef ortalama bölüm süresi (sn); çok uzun bölümler (3×) konu sınırından bölünür */
@@ -32,7 +38,12 @@ export const DENSITY: Record<ChapterDensity, ChapterOptions> = {
   medium: { minSec: 60, targetSec: 210, maxChapters: 60 },
   high: { minSec: 45, targetSec: 120, maxChapters: 90 }
 }
+/** Konuya göre: minSec yalnızca gürültü süzgeci (birkaç cümlelik anılış bölüm olmasın); süre hedefi/üst sınır yok */
+export const TOPIC_OPTIONS: ChapterOptions = { topicMode: true, minSec: 90, targetSec: Infinity, maxChapters: 1000 }
 export const DEFAULT_CHAPTER_OPTIONS: ChapterOptions = DENSITY.medium
+export const optionsForMode = (m?: ChapterMode): ChapterOptions => (m && m !== 'topic' ? DENSITY[m] : TOPIC_OPTIONS)
+/** YouTube açıklaması 5000 karakterle sınırlı: liste bunu aşarsa en kısa komşu bölümler birleştirilir */
+export const MAX_CHAPTER_TEXT = 4800
 
 export interface ChaptersResult {
   chapters: Chapter[]
@@ -52,13 +63,25 @@ export function chapterTimestamp(sec: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
 }
 
-export const CHAPTERS_HEADER = 'Saniyeler:'
+/** YouTube açıklaması biçimi: 1 saatin altında "06:41", üstünde "1:06:12" */
+export function youtubeTimestamp(sec: number, totalSec: number): string {
+  const s = Math.max(0, Math.floor(sec))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const r = s % 60
+  const mm = String(m).padStart(2, '0')
+  const rr = String(r).padStart(2, '0')
+  return totalSec >= 3600 ? `${String(h).padStart(2, '0')}:${mm}:${rr}` : `${mm}:${rr}`
+}
 
-/** Yalnızca zaman damgası satırları: "00:12:42 - Ederson" */
-export const chapterLines = (chapters: Pick<Chapter, 'start' | 'title'>[]): string[] => chapters.map((c) => `${chapterTimestamp(c.start)} - ${c.title}`)
+/** Satırlar: "00:00 Giriş" (kullanıcının örneği; YouTube bunları bölüm olarak tanır) */
+export const chapterLines = (chapters: Pick<Chapter, 'start' | 'title'>[], totalSec?: number): string[] => {
+  const total = totalSec ?? (chapters.length ? Math.max(...chapters.map((c) => ('end' in c ? (c as { end: number }).end : c.start))) : 0)
+  return chapters.map((c) => `${youtubeTimestamp(c.start, total)} ${c.title}`)
+}
 
-/** Kullanıcının örneğindeki tam metin: "Saniyeler:" + boş satır + satırlar */
-export const formatChapters = (chapters: Pick<Chapter, 'start' | 'title'>[]): string => `${CHAPTERS_HEADER}\n\n${chapterLines(chapters).join('\n')}`
+/** Yapıştırılacak metin: yalnızca satırlar (başlık/boş satır yok) */
+export const formatChapters = (chapters: Pick<Chapter, 'start' | 'title'>[], totalSec?: number): string => chapterLines(chapters, totalSec).join('\n')
 
 /** YouTube kurallarına uyum: boşsa liste döner */
 export function chapterWarnings(chapters: Pick<Chapter, 'start' | 'end'>[]): string[] {
@@ -230,7 +253,7 @@ export function findChapters(words: TranscriptWord[], options: Partial<ChapterOp
   }
   mergeShort()
   // 3) çok uzun bölümleri konu sınırından (en belirgin benzerlik düşüşü) böl
-  const maxLen = o.targetSec * 3
+  const maxLen = o.topicMode ? Infinity : o.targetSec * 3
   const split = (r: { ua: number; ub: number; dom: string | null }): { ua: number; ub: number; dom: string | null }[] => {
     if (secOf(r.ua, r.ub) <= maxLen) return [r]
     const minU = Math.max(1, Math.round(o.minSec / (total / units.length)))
@@ -240,6 +263,16 @@ export function findChapters(words: TranscriptWord[], options: Partial<ChapterOp
     return best < 0 ? [r] : [...split({ ua: r.ua, ub: best, dom: r.dom }), ...split({ ua: best + 1, ub: r.ub, dom: r.dom })]
   }
   runs = runs.flatMap(split)
+  // konuya göre kip: açılış HER ZAMAN "Giriş" (ilk bölüm doğrudan bir konuyla başlasa bile ilk ~1 dk Giriş olur)
+  const GIRIS = '\u0000giris'
+  if (o.topicMode && runs.length > 0) {
+    const r0 = runs[0]
+    if (r0.dom && secOf(r0.ua, r0.ub) > 150) {
+      let k = r0.ua
+      while (k < r0.ub && secOf(r0.ua, k) < 45) k++
+      runs.splice(0, 1, { ua: r0.ua, ub: k, dom: GIRIS }, { ua: k + 1, ub: r0.ub, dom: r0.dom })
+    } else runs[0] = { ...r0, dom: GIRIS }
+  }
   // 4) en çok bölüm sayısını aşarsa en kısa komşuları birleştir
   while (runs.length > o.maxChapters) {
     let k = 0
@@ -251,23 +284,49 @@ export function findChapters(words: TranscriptWord[], options: Partial<ChapterOp
     runs.splice(k, 2, { ua: runs[k].ua, ub: runs[k + 1].ub, dom: runs[k].dom })
   }
 
-  // 5) başlıklar: aralıkta anılan adlar ("Chevalier, Salah, Guirassy"); ad yoksa anahtar kelimeler
-  // ANA KONU: bölümlerin çoğunda öne çıkan ad (ör. videonun tamamı Galatasaray hakkındaysa "Galatasaray") her başlığa yazılmaz;
-  // başlık yalnızca o bölüme özgü adları (oyuncu, rakip…) taşır
-  const perRun = runs.map((r) => {
+  // 5) başlıklar (build): aralıkta anılan adlar; konuya göre kipte takım düzeyi ("Galatasaray gündemi")
+  const teamOf = new Map<string, string>()
+  for (const t of TEAMS) for (const al of t.aliases) { const k = key(al).replace(/ /g, '').slice(0, 6); if (k.length >= 5 && !teamOf.has(k)) teamOf.set(k, t.name) }
+  const stemOf = (name: string) => key(name.split(' ')[0]).replace(/ /g, '').slice(0, 6)
+  const build = (rs: typeof runs): Chapter[] => {
+  const perRun = rs.map((r) => {
     const l = namesIn(words, toks, segs[units[r.ua].a].firstWord, segs[units[r.ub].b].lastWord)
     const t = l[0]?.n ?? 0
     return l.filter((x) => x.n >= Math.max(2, 0.4 * t)).slice(0, 4).map((x) => x.name)
   })
   const share = new Map<string, number>()
   for (const ns of perRun) for (const n of new Set(ns)) share.set(n, (share.get(n) ?? 0) + 1)
-  const dominant = new Set(runs.length >= 4 ? [...share].filter(([, c]) => c / runs.length >= 0.6).map(([n]) => n) : [])
-  const out: Chapter[] = runs.map((r, k) => {
+  const dominant = new Set(!o.topicMode && rs.length >= 4 ? [...share].filter(([, c]) => c / rs.length >= 0.6).map(([n]) => n) : [])
+  const out: Chapter[] = rs.map((r, k) => {
     const sa = units[r.ua].a
     const sb = units[r.ub].b
-    const names = perRun[k].filter((n) => !dominant.has(n))
+    let names = perRun[k].filter((n) => !dominant.has(n))
     let title = names.join(', ')
     let keywords = names
+    if (o.topicMode) {
+      if (r.dom === GIRIS) return { start: k === 0 ? 0 : segs[sa].start, end: segs[sb].end, title: 'Giriş', keywords: [], titleSource: 'draft' as const }
+      const all = namesIn(words, toks, segs[sa].firstWord, segs[sb].lastWord).filter((x) => x.n >= 2)
+      const teams = new Map<string, number>()
+      for (let wi = segs[sa].firstWord; wi <= segs[sb].lastWord; wi++) {
+        const tm = toks[wi] ? teamOf.get(toks[wi]!.stem) : undefined
+        if (tm) teams.set(tm, (teams.get(tm) ?? 0) + 1)
+      }
+      const persons: { name: string; n: number }[] = []
+      for (const x of all) {
+        // "Galatasaray Osimhen" gibi yan yana anılan takım+oyuncu: takım sözcüğü atılır, kalan ad kişidir
+        const rest = x.name.split(' ').filter((w) => !teamOf.has(stemOf(w)))
+        if (rest.length > 0) persons.push({ name: rest.join(' '), n: x.n })
+      }
+      persons.sort((m, n) => n.n - m.n)
+      const topTeam = [...teams].sort((a, b) => b[1] - a[1])[0]
+      const pTotal = persons.reduce((n, x) => n + x.n, 0)
+      if (topTeam && persons.length >= 3) title = `${topTeam[0]} gündemi`
+      else if (persons.length > 0 && persons[0].n >= 0.5 * pTotal) title = persons[0].name
+      else if (persons.length > 0) title = persons.slice(0, 3).map((x) => x.name).join(', ')
+      else if (topTeam) title = topTeam[0]
+      keywords = title ? [title] : []
+      names = keywords
+    }
     if (!title) {
       const tf: Vec = new Map()
       const surf = new Map<string, Map<string, number>>()
@@ -285,8 +344,8 @@ export function findChapters(words: TranscriptWord[], options: Partial<ChapterOp
     }
     return { start: k === 0 ? 0 : segs[sa].start, end: segs[sb].end, title, keywords, titleSource: 'draft' as const }
   })
-  // açılış: kısa ilk bölüm "Giriş" (ad yok ya da ≤2 dk)
-  if (out.length >= 2 && (out[0].keywords.length === 0 || out[0].end - out[0].start <= 120)) out[0].title = 'Giriş'
+  // açılış: kısa ilk bölüm "Giriş" (ad yok ya da ≤2 dk) — konuya göre kipte zaten her zaman Giriş
+  if (!o.topicMode && out.length >= 2 && (out[0].keywords.length === 0 || out[0].end - out[0].start <= 120)) out[0].title = 'Giriş'
   // art arda aynı başlık tek bölüm olsun
   const merged: Chapter[] = []
   for (const c of out) {
@@ -295,4 +354,18 @@ export function findChapters(words: TranscriptWord[], options: Partial<ChapterOp
     else merged.push({ ...c })
   }
   return merged
+  }
+  let result = build(runs)
+  // konuya göre kip: YouTube açıklaması sınırı (5000 karakter) aşılırsa en kısa komşu bölümler birleştirilir
+  while (o.topicMode && runs.length > 3 && formatChapters(result, total).length > MAX_CHAPTER_TEXT) {
+    let k = 0
+    let bs = Infinity
+    for (let i = 1; i + 1 < runs.length; i++) {
+      const sum = secOf(runs[i].ua, runs[i + 1].ub)
+      if (sum < bs) (bs = sum, (k = i))
+    }
+    runs.splice(k, 2, { ua: runs[k].ua, ub: runs[k + 1].ub, dom: runs[k].dom })
+    result = build(runs)
+  }
+  return result
 }

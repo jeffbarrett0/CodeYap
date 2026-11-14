@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DENSITY, chapterTimestamp, chapterWarnings, findChapters, formatChapters } from '../../src/shared/chapters'
+import { DENSITY, TOPIC_OPTIONS, chapterTimestamp, chapterWarnings, findChapters, formatChapters } from '../../src/shared/chapters'
 import type { TranscriptWord } from '../../src/shared/types'
 
 /** Konu blokları: her blok kendi kelime dağarcığı; isimli bloklarda büyük harfli özel ad cümle ortasında geçer */
@@ -51,14 +51,16 @@ describe('YouTube bölüm zamanları', () => {
     const titles = chapters.map((c) => c.title)
     for (const n of ['Rafael', 'Camavinga', 'Ederson']) expect(titles.some((t) => t.includes(n)), `${n} yok: ${titles.join(' | ')}`).toBe(true)
   })
-  it('biçim: Saniyeler: + boş satır + HH:MM:SS - Başlık', () => {
+  it('biçim: "00:00 Giriş" (1 saatin altı MM:SS, üstü HH:MM:SS); başlık/boş satır/tire yok', () => {
     expect(chapterTimestamp(0)).toBe('00:00:00')
     expect(chapterTimestamp(754)).toBe('00:12:34')
     expect(chapterTimestamp(3735)).toBe('01:02:15')
     const lines = formatChapters(chapters).split('\n')
-    expect(lines.slice(0, 3)).toEqual(['Saniyeler:', '', '00:00:00 - Giriş'])
-    expect(lines).toHaveLength(chapters.length + 2)
-    for (const l of lines.slice(2)) expect(l).toMatch(/^\d\d:\d\d:\d\d - \S/)
+    expect(lines[0]).toBe('00:00 Giriş')
+    expect(lines).toHaveLength(chapters.length)
+    for (const l of lines) expect(l).toMatch(/^\d\d:\d\d \S/)
+    const long = formatChapters([{ start: 0, title: 'Giriş' }, { start: 3735, title: 'Son' }], 7200).split('\n')
+    expect(long).toEqual(['00:00:00 Giriş', '01:02:15 Son'])
     expect(chapterWarnings(chapters)).toEqual([])
     expect(chapterWarnings([{ start: 0, end: 60 }])).toEqual(expect.arrayContaining([expect.stringMatching(/en az 3/)]))
     expect(chapterWarnings([{ start: 5, end: 8 }, { start: 8, end: 100 }, { start: 100, end: 200 }]).length).toBe(2)
@@ -69,5 +71,35 @@ describe('YouTube bölüm zamanları', () => {
     expect(n('medium')).toBeGreaterThanOrEqual(n('low'))
     expect(findChapters([])).toEqual([])
     expect(findChapters(words.slice(0, 20))).toEqual([])
+  })
+
+  it('konuya göre kip: sıklık/süre sabit değil — 3 dk de 12 dk da bölüm olur; açılış her zaman Giriş; takım düzeyi başlık', () => {
+    const names = ['Osimhen', 'Icardi', 'Torreira', 'Sara', 'Mertens', 'Barış']
+    const pl = (i: number) => names[i % names.length]
+    // 1,5 dk giriş (isimsiz) + 12 dk "Galatasaray" (6 farklı oyuncu, takım adı sık) + 3 dk tek oyuncu (Lemina) + 8 dk Beşiktaş
+    const gs = stream([{ mins: 1.5, vocab: GAME }, { mins: 12, vocab: [...FOOT, 'Galatasaray', 'Galatasaray'], name: 'Osimhen' }, { mins: 3, vocab: FOOT, name: 'Lemina' }, { mins: 8, vocab: [...FOOT, 'Beşiktaş', 'Beşiktaş'], name: 'Rashica' }])
+    void pl
+    const ch = findChapters(gs.words, TOPIC_OPTIONS)
+    expect(ch[0].title).toBe('Giriş')
+    expect(ch[0].start).toBe(0)
+    const lens = ch.map((c) => c.end - c.start)
+    expect(Math.max(...lens)).toBeGreaterThan(8 * 60) // uzun konu bölünmedi
+    expect(ch.some((c) => c.title.includes('Lemina'))).toBe(true)
+    expect(chapterWarnings(ch)).toEqual([])
+    // başlıklar tekrar etmez; metin YouTube sınırı içinde
+    expect(formatChapters(ch).length).toBeLessThan(4800)
+  })
+
+  it('konuya göre kip: birçok farklı oyuncu + takım adı → "Galatasaray gündemi"; tek oyuncu → onun adı', () => {
+    const gs = stream([
+      { mins: 1.5, vocab: GAME },
+      { mins: 9, vocab: ['Osimhen', 'Icardi', 'Torreira', 'Sara', 'Mertens', 'Galatasaray', 'Galatasaray', 'Galatasaray', 'transfer', 'forvet'] },
+      { mins: 6, vocab: [...FOOT, 'Lemina', 'Lemina', 'Lemina'] }
+    ])
+    const ch = findChapters(gs.words, TOPIC_OPTIONS)
+    const titles = ch.map((c) => c.title)
+    expect(titles[0]).toBe('Giriş')
+    expect(titles, titles.join(' | ')).toContain('Galatasaray gündemi')
+    expect(titles.some((t) => t.includes('Lemina'))).toBe(true)
   })
 })

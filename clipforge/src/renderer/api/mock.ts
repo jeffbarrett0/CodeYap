@@ -290,7 +290,7 @@ export function createMockApi(): ClipforgeApi {
         { start: 2400, end: 3735, title: 'Rafael Leao', keywords: ['transfer'], titleSource: 'draft' as const }
       ]
       const ts = (s: number) => [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((n) => String(n).padStart(2, '0')).join(':')
-      return { chapters, totalSec: 3735, text: 'Saniyeler:\n\n' + chapters.map((c) => `${ts(c.start)} - ${c.title}`).join('\n'), warnings: [], ai: { requested: !!req.useAi, used: !!req.useAi } }
+      return { chapters, totalSec: 3735, text: chapters.map((c) => `${ts(c.start)} ${c.title}`).join('\n'), warnings: [], ai: { requested: !!req.useAi, used: !!req.useAi } }
     },
     'file:writeText': () => undefined,
     'ideas:generate': (req) => {

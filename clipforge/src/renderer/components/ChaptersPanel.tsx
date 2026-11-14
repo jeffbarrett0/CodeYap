@@ -3,18 +3,18 @@ import { timelineDuration } from '@shared/timeline/model'
 import { requireApi } from '../api'
 import { useStore } from '../store'
 import { fmt } from './ui'
-import type { ChapterDensity } from '@shared/chapters'
+import type { ChapterMode } from '@shared/chapters'
 
 /**
  * YouTube zaman damgaları: DÜZENLENMİŞ videonun (kesimler ve boşluk kapatma sonrası zaman çizelgesi) konu bölümleri.
- * Çıktı, YouTube açıklamasına yapıştırılacak metindir ("Saniyeler:" ardından "00:00:00 - Giriş", "00:12:42 - Ederson", …); metni burada düzenleyebilirsiniz.
+ * Çıktı, YouTube açıklamasına yapıştırılacak metindir ("00:00 Giriş", "06:41 Fenerbahçe uygunluk puanı", …); metni burada düzenleyebilirsiniz.
  */
 export function ChaptersPanel() {
   const { project, chapters, chaptersText, chaptersBusy, chaptersError, generateChapters, setChaptersText, settings, openDialog, toast } = useStore()
   const api = requireApi()
   const aiReady = settings.llmProvider !== 'off'
   const [useAi, setUseAi] = useState(true)
-  const [density, setDensity] = useState<ChapterDensity>('medium')
+  const [density, setDensity] = useState<ChapterMode>('topic')
   const total = timelineDuration(project.timeline)
 
   const copy = () => {
@@ -37,7 +37,8 @@ export function ChaptersPanel() {
       </label>
       {!aiReady && <div className="hint">Kapalıyken başlıklar konuşulan kişi/takım adlarından üretilir ("Rafael Leao", "Chevalier, Salah"). Daha doğal başlıklar için <a href="#" onClick={(e) => { e.preventDefault(); openDialog('settings') }}>Ayarlar → Yapay zekâ</a>.</div>}
       <label className="row" style={{ gap: 6 }}>Bölüm sıklığı
-        <select value={density} onChange={(e) => setDensity(e.target.value as ChapterDensity)} aria-label="Bölüm sıklığı" data-testid="chapters-density">
+        <select value={density} onChange={(e) => setDensity(e.target.value as ChapterMode)} aria-label="Bölüm sıklığı" data-testid="chapters-density">
+          <option value="topic">Konuya göre (süre sabit değil)</option>
           <option value="low">Az (≈7 dk)</option>
           <option value="medium">Orta (≈3,5 dk)</option>
           <option value="high">Çok (≈2 dk)</option>

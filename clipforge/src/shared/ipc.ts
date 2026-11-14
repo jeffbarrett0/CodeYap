@@ -14,7 +14,7 @@ import type { StoryPlan, StoryRequest, StoryStatus } from './story/types'
 import type { AutoKickRequest, AutoKickStatus, TranscriptionReadiness } from './autokick'
 import type { TopicCandidate } from './topic'
 import type { IdeasResult } from './ideas'
-import type { ChapterDensity, ChaptersResult } from './chapters'
+import type { ChapterMode, ChaptersResult } from './chapters'
 import type {
   ChatColumnMapping,
   ChatLog,
@@ -140,7 +140,7 @@ export interface IpcInvoke {
   /** Altyazı çevirisi: aynı sayıda satır, aynı sırada (zamanlamalar korunur) */
   'captions:translate': [[{ texts: string[]; to: string }], { texts: string[] }]
   /** YouTube bölüm zamanları (timestamp): düzenlenmiş çizelgenin konu bölümleri ve başlıkları */
-  'chapters:generate': [[{ timeline: Timeline; useAi?: boolean; density?: ChapterDensity }], ChaptersResult]
+  'chapters:generate': [[{ timeline: Timeline; useAi?: boolean; density?: ChapterMode }], ChaptersResult]
   /** Metni dosyaya yazar (zaman damgaları .txt) */
   'file:writeText': [[string, string], void]
   /** Video önerileri: transkriptten ayrı video olabilecek konu bölümleri + başlık önerileri */

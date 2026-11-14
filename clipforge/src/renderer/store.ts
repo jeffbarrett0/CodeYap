@@ -4,7 +4,7 @@ import type { AutoKickStatus } from '@shared/autokick'
 import type { StoryStatus } from '@shared/story/types'
 import type { AutoClipsStatus } from '@shared/autoclips'
 import type { IdeasResult } from '@shared/ideas'
-import type { ChapterDensity, ChaptersResult } from '@shared/chapters'
+import type { ChapterMode, ChaptersResult } from '@shared/chapters'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { suggestClip, nearestBoundary, type ClipWarning } from '@shared/clip/boundaries'
 import { History } from '@shared/timeline/history'
@@ -160,7 +160,7 @@ interface State {
   chaptersText: string
   chaptersBusy: boolean
   chaptersError: string
-  generateChapters(useAi: boolean, density?: ChapterDensity): Promise<void>
+  generateChapters(useAi: boolean, density?: ChapterMode): Promise<void>
   setChaptersText(t: string): void
   /** Auto Kick işleri (arka planda sürer; pencere kapansa da devam eder) */
   autoKick: Record<string, AutoKickStatus>

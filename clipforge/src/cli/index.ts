@@ -126,7 +126,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
   graphic <proje> --scene '{"type":"stats",...}'|sahne.json [--at sn] [--dur 5] [--layer V1]   herhangi bir hikâye sahnesini (rakam kartı stats, list, timeline, quote, person, teamcard, leaderboard, compare, football…) vlog çizelgesine koyar; biçim: story schema
   ideas <proje> [--asset a] [--max 8] [--ai] [--auto | --write oneriler.json | --clear]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
-  chapters <proje> [--ai | --titles basliklar.json] [--density low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
+  chapters <proje> [--ai | --titles basliklar.json] [--density topic|low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
   cut-intro <proje> [--ref ekran.png] [--duration 164] [--dry]   yayın başı videosunu (referans ekran görüntüsüyle eşleşen ilk bölüm, ör. telifli şarkılı geri sayım) keser
   silence <proje> [--min-gap 0.55] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
@@ -825,7 +825,7 @@ async function main(argv: string[]): Promise<unknown> {
         const total = timelineDuration(s.timeline)
         const list = raw.map((x) => ({ start: toSec(x.start), title: String(x.title ?? '').trim() })).filter((x) => Number.isFinite(x.start) && x.title).sort((p, q) => p.start - q.start)
         const chs = list.map((x, i) => ({ start: x.start, end: list[i + 1]?.start ?? total, title: x.title, keywords: [] as string[], titleSource: 'ai' as const }))
-        const text = formatChapters(chs)
+        const text = formatChapters(chs, total)
         const outFile2 = str(a.opt.out)
         if (outFile2) {
           await mkdir(dirname(resolve(outFile2)), { recursive: true })
@@ -833,7 +833,7 @@ async function main(argv: string[]): Promise<unknown> {
         }
         return out({ ok: true, text, warnings: chapterWarnings(chs), written: outFile2 ? resolve(outFile2) : undefined, hint: 'Başlıklar sizin yazdığınız gibi biçimlendi; zamanlar çizelge zamanıdır.' })
       }
-      const r = await s.service.chaptersGenerate({ timeline: s.timeline, useAi: !!a.opt.ai, density: (['low', 'medium', 'high'] as const).find((d) => d === str(a.opt.density)) })
+      const r = await s.service.chaptersGenerate({ timeline: s.timeline, useAi: !!a.opt.ai, density: (['topic', 'low', 'medium', 'high'] as const).find((d) => d === str(a.opt.density)) })
       const outFile = str(a.opt.out)
       if (outFile) {
         await mkdir(dirname(resolve(outFile)), { recursive: true })
