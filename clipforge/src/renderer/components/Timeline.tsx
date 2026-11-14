@@ -203,43 +203,38 @@ export function Timeline() {
       <div className="tl-toolbar">
         <button className="btn sm icon" onClick={undo} disabled={!useStore.getState().canUndo()} title="Geri al (Ctrl+Z)" aria-label="Geri al" data-testid="undo">↶</button>
         <button className="btn sm icon" onClick={redo} disabled={!useStore.getState().canRedo()} title="Yinele (Ctrl+Shift+Z)" aria-label="Yinele" data-testid="redo">↷</button>
-        <span style={{ width: 8 }} />
+        <span className="tl-sep" />
         <button className="btn sm" onClick={splitAtPlayhead} title="Oynatma başlığında böl (S)" data-testid="split">✂ Böl</button>
         <button className="btn sm danger" onClick={(e) => deleteSelection(e.shiftKey)} disabled={selection.length === 0} title="Seçili klibi sil (Delete). Bağlı görüntü/ses klipleriyle birlikte: Shift+Delete" data-testid="delete">Sil</button>
         <button className="btn sm" onClick={() => useStore.getState().selectAllClips()} title="Tüm klipleri seç (Ctrl+A)" data-testid="select-all-clips">Tümünü seç</button>
         <button className="btn sm danger" onClick={() => useStore.getState().clearClips()} title="Tüm katmanlardaki bütün klipleri siler (kilitli izler hariç; Ctrl+Z geri alır)" data-testid="clear-clips">Tümünü sil</button>
         <button className="btn sm" onClick={() => useStore.getState().joinSelected()} title="Seçili klibi hemen sonraki, kaynakta kesintisiz devam eden klibiyle birleştirir" data-testid="join">⇄ Birleştir</button>
+        <span className="tl-sep" />
         <button className="btn sm" onClick={() => useStore.getState().cutSilence()} title="Konuşma olmayan sessizlikleri ve ııı/eee gibi dolgu seslerini tek tıkla keser" data-testid="cut-silence-tb">✂ Sessizleri kes</button>
         <button className="btn sm" onClick={() => useStore.getState().closeGaps()} title="Hiçbir izde içerik olmayan boşlukları siler" data-testid="close-gaps">Boşlukları kapat</button>
-        <button className={`btn sm${showAudioLanes ? ' active' : ''}`} onClick={() => useStore.getState().toggleAudioLanes()} title="Ses katmanlarını (A1/A2…) aşağıda ayrı satır olarak göster/gizle. Gizliyken ses, görüntü klibinin üzerinde dalga olarak görünür; seviyesini çizgiyi sürükleyerek ayarlarsınız" data-testid="toggle-audio-lanes">♪ Ses katmanları: {showAudioLanes ? 'açık' : 'gizli'}</button>
+        <span className="tl-sep" />
+        <button className={`btn sm${showAudioLanes ? ' active' : ''}`} onClick={() => useStore.getState().toggleAudioLanes()} title="Ses katmanlarını (A1/A2…) aşağıda ayrı satır olarak göster/gizle. Gizliyken ses, görüntü klibinin üzerinde dalga olarak görünür; seviyesini çizgiyi sürükleyerek ayarlarsınız" data-testid="toggle-audio-lanes">♪ Ses katmanları</button>
         <button className="btn sm" onClick={() => useStore.getState().toggleMuteSelection()} disabled={selection.length === 0} title="Seçili klibin sesini kapatır/açar (M). Video klibi seçiliyse bağlı sesi kapanır; görüntü kalır. Ctrl+Z geri alır" data-testid="mute-clip">{mutedState(tl, selection) === true ? '🔊 Sesi aç' : '🔇 Sesi kapat'}</button>
-        <label className="row" style={{ gap: 4 }} title="Çağrı butonunu (abone ol / takip et) oynatma başlığının olduğu yere ekler: yeşil perde şeffaflaşır, buton alttan yükselir ve sesi gelir">
-          ＋ Çağrı butonu
-          <select value="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) void useStore.getState().addCtaButton(v) }} aria-label="Çağrı butonu ekle" data-testid="cta-add">
-            <option value="">seç…</option>
-            <option value="youtube">YouTube: abone ol</option>
-            <option value="tiktok">TikTok: takip et</option>
-            <option value="twitter">X (Twitter): takip et</option>
-            <option value="instagram">Instagram: takip et</option>
-          </select>
-        </label>
-        <label className="row" style={{ gap: 4 }} title="Arka plandaki araba, rüzgâr, uğultu gibi sesleri azaltır, sizin sesinize odaklanır. Önizlemede de duyulur (temizlenmiş ses önce arka planda hazırlanır) ve dışa aktarılan videoda uygulanır">
-          🔇 Arka sesi kes
-          <select value={denoiseLevel(tl) ?? 'off'} onChange={(e) => { const v = e.target.value; exec(cmd.denoise(v === 'off' ? null : (v as 'light' | 'medium' | 'strong'))); if (v === 'off') useStore.getState().toast('success', 'Arka plan sesi geri getirildi.'); else void useStore.getState().prepareDenoise() }} aria-label="Arka plan sesini azalt" data-testid="denoise">
-            <option value="off">Kapalı</option>
-            <option value="light">Hafif</option>
-            <option value="medium">Orta</option>
-            <option value="strong">Güçlü</option>
-          </select>
-        </label>
-        <span style={{ width: 8 }} />
+        <select className="tl-select" title="Çağrı butonunu (abone ol / takip et) oynatma başlığının olduğu yere ekler: yeşil perde şeffaflaşır, buton alttan yükselir ve sesi gelir" value="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) void useStore.getState().addCtaButton(v) }} aria-label="Çağrı butonu ekle" data-testid="cta-add">
+          <option value="">＋ Çağrı butonu</option>
+          <option value="youtube">YouTube: abone ol</option>
+          <option value="tiktok">TikTok: takip et</option>
+          <option value="twitter">X (Twitter): takip et</option>
+          <option value="instagram">Instagram: takip et</option>
+        </select>
+        <select className="tl-select" title="Arka plandaki araba, rüzgâr, uğultu gibi sesleri azaltır, sizin sesinize odaklanır. Önizlemede de duyulur (temizlenmiş ses önce arka planda hazırlanır) ve dışa aktarılan videoda uygulanır" value={denoiseLevel(tl) ?? 'off'} onChange={(e) => { const v = e.target.value; exec(cmd.denoise(v === 'off' ? null : (v as 'light' | 'medium' | 'strong'))); if (v === 'off') useStore.getState().toast('success', 'Arka plan sesi geri getirildi.'); else void useStore.getState().prepareDenoise() }} aria-label="Arka plan sesini azalt" data-testid="denoise">
+          <option value="off">🔇 Arka ses: kapalı</option>
+          <option value="light">🔇 Arka ses: hafif</option>
+          <option value="medium">🔇 Arka ses: orta</option>
+          <option value="strong">🔇 Arka ses: güçlü</option>
+        </select>
+        <span className="tl-sep" />
         <button className="btn sm" onClick={() => { setViewMode('timeline'); setPlaying(!playing) }} aria-label="Oynat/duraklat (Space)">{playing ? '⏸' : '▶'} <kbd>Space</kbd></button>
         <span className="tc" style={{ marginLeft: 6 }}>{fmt(playhead, true)}</span>
         <span className="spacer" />
-        <span className="hint">J/K/L · S böl · Del sil (Shift: bağlılarla) · ←/→ kare</span>
-        <label className="row" style={{ gap: 6, marginLeft: 12 }}>
-          <span className="hint">Yakınlaştır</span>
-          <input style={{ width: 120 }} type="range" min={Math.log(4)} max={Math.log(400)} step={0.01} value={Math.log(zoom)} onChange={(e) => setZoom(Math.exp(Number(e.target.value)))} aria-label="Yakınlaştırma" />
+        <label className="row" style={{ gap: 4, marginLeft: 6 }}>
+          <span className="hint">🔍</span>
+          <input style={{ width: 70 }} type="range" min={Math.log(4)} max={Math.log(400)} step={0.01} value={Math.log(zoom)} onChange={(e) => setZoom(Math.exp(Number(e.target.value)))} aria-label="Yakınlaştırma" />
         </label>
       </div>
       <div className="tl-body">

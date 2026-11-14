@@ -121,7 +121,11 @@ mark { background: #53fc1830; color: #c5ffa9; border-radius: 3px; padding: 0 2px
 .tc { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; min-width: 96px; }
 
 .timeline { grid-column: 1 / -1; background: var(--panel); border-top: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
-.tl-toolbar { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-bottom: 1px solid var(--border); }
+.tl-toolbar { display: flex; align-items: center; flex-wrap: nowrap; gap: 4px; padding: 5px 8px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: thin; }
+.tl-toolbar > * { flex: none; white-space: nowrap; }
+.tl-toolbar .btn, .tl-toolbar select { white-space: nowrap; }
+.tl-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+.tl-select { height: 26px; padding: 0 6px; font-size: 12px; border-radius: 6px; width: 146px; }
 .tl-body { flex: 1; display: flex; align-items: flex-start; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .tl-labels { width: 132px; flex: none; border-right: 1px solid var(--border); background: var(--panel); }
 .tl-label { height: 58px; padding: 4px 8px; display: flex; flex-direction: column; justify-content: center; border-bottom: 1px solid var(--border); font-size: 12px; gap: 2px; }
