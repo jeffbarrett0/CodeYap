@@ -58,7 +58,7 @@ export function SportPlusDialog() {
   }
 
   return (
-    <Modal title="Sport diyor Plus — yalnızca yüz kesiti" onClose={() => openDialog(null)} wide>
+    <Modal title="SportDeoPlus — yalnızca yüz kesiti" onClose={() => openDialog(null)} wide>
       <div className="col" data-testid="sport-plus">
         <div className="hint">Bir konu yazın (ör. <i>Osimhen</i>): yayında o konuyu konuştuğunuz yerler bulunur; <b>ekran olmadan, yalnızca yüzünüz tüm karede</b> ~40 sn'lik kesit çıkarılır. Auto Kick projesine dokunulmaz; kesit ayrı projede (ve istenirse MP4 olarak) üretilir. Kamera kutusu kayıtta küçükse görüntü büyütüldüğü için keskinlik düşebilir.</div>
         <Field label="Auto Kick projesi">
