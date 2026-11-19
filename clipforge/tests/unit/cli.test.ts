@@ -657,6 +657,42 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(existsSync(r.sheets[0])).toBe(false)
   }, 120_000)
 
+  it('qa: bitmiş videoda siyah başlangıç, uzun sessizlik ve düşük ses uyarılır; temiz videoda sorun yok; videoyu değiştirmez', () => {
+    const ffm = require('ffmpeg-static') as string
+    const bad = join(tmp, 'qa-kotu.mp4')
+    // 2 sn siyah + 8 sn desen; ses: 1 sn çok kısık ton + 7 sn sessizlik
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=320x180:r=10:d=2', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=10:duration=8', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=1,volume=0.01,apad=whole_dur=10', '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]', '-map', '[v]', '-map', '2:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-t', '10', bad])
+    const before = md5(bad)
+    const r = cli('qa', bad, '--out', join(tmp, 'qa', 'rapor.txt'))
+    expect(r.ok).toBe(false)
+    const ids = r.items.map((i: any) => i.id)
+    expect(ids).toEqual(expect.arrayContaining(['first-frame', 'silence']))
+    expect(r.text).toMatch(/siyah|sessizlik/i)
+    expect(readFileSync(join(tmp, 'qa', 'rapor.txt'), 'utf8')).toContain('⚠')
+    expect(md5(bad)).toBe(before)
+    const good = join(tmp, 'qa-iyi.mp4')
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=10:duration=6', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=6,volume=0.35', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', good])
+    const g = cli('qa', good)
+    expect(g.items.map((i: any) => i.id)).not.toContain('first-frame')
+    expect(g.items.map((i: any) => i.id)).not.toContain('silence')
+    expect(cli('qa').ok).toBe(false) // dosya verilmezse anlaşılır hata
+  }, 120_000)
+
+  it('verify-numbers / retakes: ekrandaki rakam konuşmada yoksa işaretlenir; tekrar yoksa boş; hiçbir şey kesilmez', () => {
+    const p = join(tmp, 'vn.clipforge')
+    cli('new', p)
+    cli('import', p, join(tmp, 'video örnek.mp4'), '--add')
+    expect(cli('transcribe', p).ok).not.toBe(false)
+    const t = cli('text', p, '--text', '%71', '--at', '5', '--dur', '3')
+    expect(t.ok, JSON.stringify(t)).toBe(true)
+    const r = cli('verify-numbers', p)
+    expect(r.ok).toBe(false)
+    expect(r.unverified[0].number).toBe(71)
+    const rt = cli('retakes', p)
+    expect(rt.count).toBe(0)
+    expect(rt.suggestions).toEqual([])
+  }, 120_000)
+
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')
     writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))

@@ -47,6 +47,9 @@ import { planSilenceCuts } from '../shared/timeline/silence'
 import { timelineWords } from '../shared/timeline/transcript'
 import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/export/presets'
 import type { Clip, MediaAsset, TextSpec } from '../shared/types'
+import { qaText } from '../shared/qa'
+import { qaVideo } from '../main/qa'
+import { findRetakes, verifyNumbers } from '../shared/qa'
 import { addReference, listReferences, referenceDir, removeReference, updateReference } from '../main/reference'
 import { enableCliFullSpeed, findResources, log, makeService, Session, waitTask } from './session'
 
@@ -121,6 +124,9 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   overlay <proje> --file dosya|--asset a --at sn [--dur 3.5] [--layer V2] [--src-in sn]   b-roll (video/foto) yerleştirir; konuşma sesi devam eder
   broll-plan <proje> --folder klasör [--asset a] [--dur 3.5] [--layer V2] [--apply]       dosya adlarındaki kelimeleri konuşmada arar, yerleşim ÖNERİR (--apply: uygular)
   reference list | scan | add <video> | show <id> | notes <id> "metin" | adapted <id> | remove <id>   beğenilen referans videolar: ölçüm + kare tabloları; Claude Code inceleyip uyarlar
+  qa <video.mp4> [--out rapor.txt]   çıkış kontrolü: ilk kare siyah/düz mü, siyah ekran, uzun sessizlik, ses şiddeti/tepe (videoyu değiştirmez)
+  verify-numbers <proje> [--plan story-plan.json] [--pad 12]   ekrandaki rakamlar konuşmada geçiyor mu
+  retakes <proje> [--window 40] [--overlap 0.5]   aynı cümlenin tekrarı / yarım kalıp baştan alınan yerler (öneri; kesmez)
   match-edit <proje> (--clips "dosya.mp4@12.5+4;..." | --folder K --auto) [--folder K] [--dur 4] [--no-zoom]   maç sonu edit: yorum videosunun üzerine maç görüntüleri (tam kare, bulanık dolgu) ekler
   graphic <proje> --type globe|map|title|chart [--to "Türkiye"] [--from "Londra"] [--label ..] [--sub ..] [--text ..] [--data "A:10,B:20"] [--at sn] [--dur 4] [--layer V1] [--accent #FFE600] [--no-place]
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
@@ -374,6 +380,18 @@ async function main(argv: string[]): Promise<unknown> {
       return out({ ok: true, ...r, clips: { dir: clips.dir, count: clips.clips.length, items: items(clips) }, ...(hclips ? { horizontalClips: { dir: hclips.dir, count: hclips.clips.length, items: items(hclips) } } : {}) })
     }
     return out({ ok: true, ...r, note: 'Klipler için: auto-clips <klasör> ya da auto-kick ... --clips (bitince klipleri de üretir).' })
+  }
+  if (command === 'qa') {
+    // Çıkış kontrolü: bitmiş video (mp4/mkv…) için ilk kare, siyah ekran, uzun sessizlik, ses şiddeti/tepe; videoyu DEĞİŞTİRMEZ
+    if (!projectArg) throw new Error('Video dosyası verin: qa <video.mp4> [--out rapor.txt]')
+    const svc = await makeService()
+    const r = await qaVideo(resolve(projectArg), svc.tools)
+    const outFile = str(a.opt.out)
+    if (outFile) {
+      await mkdir(dirname(resolve(outFile)), { recursive: true })
+      await writeFile(resolve(outFile), qaText(r.items) + '\n', 'utf8')
+    }
+    return out({ ok: r.ok, durationSec: r1(r.measure.durationSec), firstFrame: r.measure.firstFrame ? { mean: r1(r.measure.firstFrame.mean), std: r1(r.measure.firstFrame.std) } : undefined, loudnessLufs: r.measure.loudnessLufs, peakDb: r.measure.peakDb, blackSegments: r.measure.black.length, longSilences: r.measure.silence.filter((x) => x.end - x.start >= 4).length, items: r.items, text: qaText(r.items), written: outFile ? resolve(outFile) : undefined })
   }
   if (command === 'reference') {
     // Referans videolar (arayüzdeki "Referans" bölümüyle aynı kayıt): list | add <video> | show <id> | notes <id> "metin" | adapted <id> | remove <id>
@@ -840,6 +858,40 @@ async function main(argv: string[]): Promise<unknown> {
         await writeFile(resolve(outFile), r.text + '\n', 'utf8')
       }
       return out({ totalSec: r1(r.totalSec), chapters: r.chapters.map((c) => ({ time: chapterTimestamp(c.start), startSec: r1(c.start), durationSec: r1(c.end - c.start), title: c.title, keywords: c.keywords, titleSource: c.titleSource })), text: r.text, warnings: r.warnings, ai: r.ai, written: outFile ? resolve(outFile) : undefined, hint: 'Zamanlar projenin (düzenlenmiş) zaman çizelgesine göredir: dışa aktarılan videoyla aynıdır. Başlıkları kullanıcıya sun; istenirse düzelt.' })
+    }
+    case 'verify-numbers': {
+      // Ekrandaki rakamlar (metin klipleri + isteğe bağlı story-plan.json sahneleri) konuşmada geçiyor mu; geçmeyen = doğrulanamadı (uydurma/yanlış rakam riski)
+      const words = timelineWords(s.timeline, s.transcripts)
+      if (words.length === 0) throw new Error('Zaman çizelgesindeki içeriğin transkripti yok: önce `transcribe` çalıştırın.')
+      const items: { text: string; start: number; end: number }[] = []
+      for (const t of s.timeline.tracks) for (const c of t.clips) if (c.text?.text?.trim()) items.push({ text: c.text.text, start: c.start, end: clipEnd(c) })
+      const planFile = str(a.opt.plan)
+      if (planFile) {
+        const plan = JSON.parse(await readFile(resolve(planFile), 'utf8')) as { scenes?: { start: number; end: number; enabled?: boolean; content?: unknown }[] }
+        const SKIP = new Set(['at', 'start', 'end', 'id', 'duration', 'zoom', 'x', 'y', 'delay', 'top', 'size', 'asOf'])
+        const leaves = (v: unknown, acc: string[]) => {
+          if (typeof v === 'string' || typeof v === 'number') acc.push(String(v))
+          else if (Array.isArray(v)) for (const x of v) leaves(x, acc)
+          else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) if (!SKIP.has(k)) leaves(x, acc)
+        }
+        for (const sc of plan.scenes ?? []) {
+          if (sc.enabled === false) continue
+          const acc: string[] = []
+          leaves(sc.content, acc)
+          items.push({ text: acc.join(' '), start: sc.start, end: sc.end })
+        }
+      }
+      const pad = num(a.opt.pad, 'pad') ?? 12
+      const checks = verifyNumbers(items, words, pad)
+      const bad = checks.filter((c) => !c.ok)
+      return out({ ok: bad.length === 0, checked: checks.length, unverified: bad.map((c) => ({ number: c.number, text: c.text.slice(0, 80), at: r1(c.start) })), hint: bad.length ? 'Bu rakamlar ekranda var ama yakın konuşmada geçmiyor: ya konuşulan rakam farklı/yanlış okunmuş ya da kaynaklı veri (story data, web) olabilir. Kullanıcıya göster; kendi kafana göre düzeltme.' : 'Ekrandaki tüm rakamlar konuşmayla örtüşüyor.' })
+    }
+    case 'retakes': {
+      // Yanlış başlayıp baştan alma / aynı cümlenin tekrarı: ÖNERİ (kesmez); kullanıcı karar verir
+      const words = timelineWords(s.timeline, s.transcripts)
+      if (words.length === 0) throw new Error('Zaman çizelgesindeki içeriğin transkripti yok: önce `transcribe` çalıştırın.')
+      const found = findRetakes(words, { windowSec: num(a.opt.window, 'window'), minOverlap: num(a.opt.overlap, 'overlap') })
+      return out({ count: found.length, suggestions: found.map((f) => ({ kind: f.kind, start: r1(f.start), end: r1(f.end), keepFrom: r1(f.keepAt), text: f.text.slice(0, 120), note: f.note })), hint: found.length ? 'Bunlar ÖNERİDİR, hiçbir şey kesilmedi. Onaylanan aralık için `cut <proje> --from <başlangıç> --to <bitiş>` kullanın.' : 'Tekrar ya da yarım kalan cümle bulunamadı.' })
     }
     case 'silence': {
       const words = timelineWords(s.timeline, s.transcripts)

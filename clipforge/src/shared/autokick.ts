@@ -41,6 +41,8 @@ export interface AutoKickResult {
   fullVideoPath: string
   /** YouTube zaman damgaları (.txt), bulunabildiyse */
   timestampsPath?: string
+  /** Çıkış kontrolü raporu (.txt): ilk kare, siyah ekran, sessizlik, ses seviyesi */
+  qaPath?: string
   durationBeforeSec: number
   durationAfterSec: number
   removedSec: number

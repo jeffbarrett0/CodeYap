@@ -13,6 +13,8 @@ import type { Settings } from '../../shared/types'
 import { mergeRanges, renderFastCut, snapToFrame, type Range } from './fastcut'
 import { planSilenceCuts } from '../../shared/timeline/silence'
 import { timelineWords } from '../../shared/timeline/transcript'
+import { qaText } from '../../shared/qa'
+import { qaVideo } from '../qa'
 
 export interface AutoKickHooks {
   onStage(id: AutoKickStage, patch: Partial<AutoKickStageState>): void
@@ -291,6 +293,16 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     timestampsPath = undefined
   }
 
+  // çıkış kontrolü (ilk kare, siyah ekran, uzun sessizlik, ses şiddeti): tam videonun yanına rapor; hata olursa iş yine başarılıdır
+  let qaPath: string | undefined
+  try {
+    const q = await qaVideo(p.full, service.tools)
+    qaPath = p.full.replace(/\.mp4$/i, '') + ' - kalite raporu.txt'
+    await writeFile(qaPath, qaText(q.items) + '\n', 'utf8')
+  } catch {
+    qaPath = undefined
+  }
+
   const st = state.silence
   return {
     verified: true,
@@ -298,6 +310,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     projectPath: p.project,
     fullVideoPath: p.full,
     timestampsPath,
+    qaPath,
     durationBeforeSec: st.before,
     durationAfterSec: st.after,
     removedSec: st.removedSec,
