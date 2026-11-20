@@ -1112,6 +1112,16 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('export-timestamps')).toBeChecked()
   })
 
+  test('Auto Kick: hazır zaman damgası listesi kaydı seçmeden önce yapıştırılır ve işe iletilir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('autokick-btn').click()
+    await expect(page.getByTestId('autokick-chapter-hint')).toHaveCount(0)
+    await page.getByTestId('autokick-chapter-list').fill('00:00:00 - Giriş\n01:10:06 - Osimhen')
+    await expect(page.getByTestId('autokick-chapter-hint')).toContainText('orijinal kayıta')
+    await page.getByTestId('autokick-pick').click()
+    await expect(page.getByTestId('autokick-job')).toBeVisible()
+  })
+
   test('Sport diyor Plus: konu → adaylar → yalnızca yüz kesiti üretilir (MP4 dahil); bulunamazsa anlaşılır mesaj', async ({ page }) => {
     await boot(page)
     await page.getByTestId('sportplus-btn').click()

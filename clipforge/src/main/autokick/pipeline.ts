@@ -13,6 +13,7 @@ import type { Settings } from '../../shared/types'
 import { mergeRanges, renderFastCut, snapToFrame, type Range } from './fastcut'
 import { planSilenceCuts } from '../../shared/timeline/silence'
 import { timelineWords } from '../../shared/timeline/transcript'
+import { formatChapters, mapChapterList, parseChapterList } from '../../shared/chapters'
 import { qaText } from '../../shared/qa'
 import { qaVideo } from '../qa'
 
@@ -284,10 +285,24 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
   // YouTube zaman damgaları (tam videonun yanına .txt); hata olursa iş yine başarılıdır
   let timestampsPath: string | undefined
   try {
-    const ch = await service.chaptersGenerate({ timeline: s.timeline, useAi: llmConfigured(settings) === null })
-    if (ch.chapters.length >= 3) {
-      timestampsPath = p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
-      await writeFile(timestampsPath, ch.text + '\n', 'utf8')
+    if (req.chapterList?.trim()) {
+      // kullanıcının hazır listesi (orijinal kayıt zamanı) → kesimli videonun zamanına çevrilir
+      const mainId = s.project.assets[0]?.id
+      const kept = s.timeline.tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips).filter((c) => c.assetId === mainId).map((c) => ({ srcIn: c.srcIn, srcOut: c.srcOut, start: c.start }))
+      const total = timelineDuration(s.timeline)
+      const mapped = mapChapterList(parseChapterList(req.chapterList), kept, total)
+      if (mapped.chapters.length > 0) {
+        timestampsPath = p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
+        await writeFile(timestampsPath, formatChapters(mapped.chapters, total) + '\n', 'utf8')
+        // YouTube'a yapıştırılacak dosya temiz kalsın: uyarılar (kesilen yere denk gelen bölümler) ayrı dosyaya
+        if (mapped.warnings.length) await writeFile(p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları uyarılar.txt', mapped.warnings.join('\n') + '\n', 'utf8')
+      }
+    } else {
+      const ch = await service.chaptersGenerate({ timeline: s.timeline, useAi: llmConfigured(settings) === null })
+      if (ch.chapters.length >= 3) {
+        timestampsPath = p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
+        await writeFile(timestampsPath, ch.text + '\n', 'utf8')
+      }
     }
   } catch {
     timestampsPath = undefined

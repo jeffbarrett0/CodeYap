@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DENSITY, TOPIC_OPTIONS, chapterTimestamp, chapterWarnings, findChapters, formatChapters } from '../../src/shared/chapters'
+import { DENSITY, TOPIC_OPTIONS, chapterTimestamp, chapterWarnings, findChapters, formatChapters, mapChapterList, parseChapterList } from '../../src/shared/chapters'
 import type { TranscriptWord } from '../../src/shared/types'
 
 /** Konu blokları: her blok kendi kelime dağarcığı; isimli bloklarda büyük harfli özel ad cümle ortasında geçer */
@@ -101,5 +101,25 @@ describe('YouTube bölüm zamanları', () => {
     expect(titles[0]).toBe('Giriş')
     expect(titles, titles.join(' | ')).toContain('Galatasaray gündemi')
     expect(titles.some((t) => t.includes('Lemina'))).toBe(true)
+  })
+
+  it('hazır liste (orijinal kayıt zamanı): ayrıştırılır ve kesimli videonun zamanına çevrilir', () => {
+    const list = parseChapterList('Saniyeler:\n\n00:00:00 - Giriş\n00:20:00 - Lemina\n01:10:06 - Osimhen\n1:30:00 – Veda')
+    expect(list).toEqual([{ start: 0, title: 'Giriş' }, { start: 1200, title: 'Lemina' }, { start: 4206, title: 'Osimhen' }, { start: 5400, title: 'Veda' }])
+    expect(parseChapterList('06:41 Fenerbahçe uygunluk puanı')).toEqual([{ start: 401, title: 'Fenerbahçe uygunluk puanı' }])
+    // kayıt: ilk 164 sn (yayın başı) kesildi; 1000–1100 arası sessizlik kesildi; 4000–4300 arası kesildi
+    const kept = [
+      { srcIn: 164, srcOut: 1000, start: 0 },
+      { srcIn: 1100, srcOut: 4000, start: 836 },
+      { srcIn: 4300, srcOut: 5000, start: 3736 }
+    ]
+    const r = mapChapterList(list, kept, 4436)
+    expect(r.chapters[0]).toEqual({ start: 0, title: 'Giriş' })
+    expect(r.chapters[1]).toEqual({ start: 836 + (1200 - 1100), title: 'Lemina' }) // 936
+    expect(r.chapters[2].start).toBe(3736) // 4206 kesilen aralıkta: sonraki ilk korunan ana taşınır
+    expect(r.warnings.some((w) => w.includes('Osimhen'))).toBe(true)
+    expect(r.chapters.some((c) => c.title === 'Veda')).toBe(false) // 5400 > süre: atılır
+    expect(r.warnings.some((w) => w.includes('Veda'))).toBe(true)
+    expect(formatChapters(r.chapters, 4436).split('\n')[0]).toBe('00:00:00 Giriş') // 1 saati aşan video: SS:DD:ss
   })
 })

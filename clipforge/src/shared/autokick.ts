@@ -23,6 +23,8 @@ export interface AutoKickRequest {
   silence?: { minGapSec: number; keepSec: number; cutFillers: boolean }
   /** fast: uzun yayınlar için hızlı kodlama (varsayılan); high: şablonun maksimum kalite ayarı (çok daha yavaş) */
   quality?: 'fast' | 'high'
+  /** Hazır zaman damgası listesi (ORİJİNAL kayıt zamanıyla: "00:00:00 - Giriş"). Verilirse kesimden sonra çizelge zamanına çevrilip yazılır; verilmezse otomatik konu bölümleri çıkar. */
+  chapterList?: string
 }
 
 export interface AutoKickStageState {

@@ -693,6 +693,24 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(rt.suggestions).toEqual([])
   }, 120_000)
 
+  it('auto-kick --chapters: hazır liste (orijinal zaman) kesimli videonun zamanına çevrilip tam videonun yanına yazılır; chapters --from-list aynı çeviriyi yapar', () => {
+    const dir = join(tmp, 'Liste Klasörü', 'yayın')
+    mkdirSync(join(tmp, 'Liste Klasörü'), { recursive: true })
+    writeFileSync(join(tmp, 'liste.txt'), '00:00:00 - Giriş\n00:00:13 - Hatırlama\n00:00:30 - Son konu\n')
+    const r = cli('auto-kick', join(tmp, 'video örnek.mp4'), '--out', dir, '--chapters', join(tmp, 'liste.txt'))
+    expect(r.verified, JSON.stringify(r)).toBe(true)
+    expect(r.timestampsPath).toMatch(/zaman damgaları\.txt$/)
+    const lines = readFileSync(r.timestampsPath, 'utf8').trim().split('\n')
+    expect(lines[0]).toBe('00:00 Giriş')
+    expect(lines.length).toBeGreaterThanOrEqual(2)
+    // kesimden sonra zamanlar videonun süresini aşmaz ve artar
+    const secs = lines.map((l) => { const m = /^(\d\d):(\d\d)/.exec(l)!; return Number(m[1]) * 60 + Number(m[2]) })
+    for (let i = 1; i < secs.length; i++) expect(secs[i]).toBeGreaterThan(secs[i - 1])
+    expect(secs[secs.length - 1]).toBeLessThanOrEqual(r.durationAfterSec)
+    const c = cli('chapters', r.projectPath, '--from-list', join(tmp, 'liste.txt'))
+    expect(c.text.split('\n')[0]).toBe('00:00 Giriş')
+  }, 300_000)
+
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')
     writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))

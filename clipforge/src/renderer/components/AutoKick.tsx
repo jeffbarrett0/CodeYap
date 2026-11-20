@@ -173,6 +173,7 @@ export function AutoKickDialog() {
   const [minGap, setMinGap] = useState(settings.silenceMinGapSec)
   const [fillers, setFillers] = useState(settings.cutFillers)
   const [err, setErr] = useState('')
+  const [chapterList, setChapterList] = useState('')
   const jobs = Object.values(autoKick).sort((a, b) => b.startedAt - a.startedAt)
 
   /** Kayıt seçilir seçilmez iş BAŞLAR: içe aktarma → transkripsiyon → sessizleri kes → boşlukları kapat → tam video. Başka bir tuşa basmak gerekmez. */
@@ -186,7 +187,7 @@ export function AutoKickDialog() {
     setVideo(v)
     setErr('')
     try {
-      await api.invoke('autokick:start', { videoPath: v, outDir: outDir.trim() || undefined, language, quality, silence: { minGapSec: minGap, keepSec: settings.silenceKeepSec, cutFillers: fillers } })
+      await api.invoke('autokick:start', { videoPath: v, outDir: outDir.trim() || undefined, language, quality, silence: { minGapSec: minGap, keepSec: settings.silenceKeepSec, cutFillers: fillers }, chapterList: chapterList.trim() || undefined })
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     }
@@ -200,6 +201,10 @@ export function AutoKickDialog() {
           İş arka planda sürer; bu pencereyi kapatabilirsiniz ama uygulamayı kapatmayın. Orijinal kayda dokunulmaz.
         </div>
         <Readiness />
+        <Field label="Hazır zaman damgası listesi (isteğe bağlı) — kaydı seçmeden ÖNCE yapıştırın">
+          <textarea rows={4} value={chapterList} onChange={(e) => setChapterList(e.target.value)} placeholder={'00:00:00 - Giriş\n01:10:06 - Osimhen'} aria-label="Zaman damgası listesi" data-testid="autokick-chapter-list" style={{ width: '100%' }} />
+        </Field>
+        {chapterList.trim() && <div className="hint" data-testid="autokick-chapter-hint">Zamanlar <b>orijinal kayıta</b> göre yazılmalı: Auto Kick sessizleri ve yayın başını kesince bunları kesimli videonun zamanına kendisi çevirir. Liste verilirse otomatik konu bölümleri çıkarılmaz.</div>}
         <button className="btn primary" style={{ padding: '14px 16px', fontSize: 15 }} onClick={() => void pick()} data-testid="autokick-pick">Yayın kaydını seç ve başlat…</button>
         {video && <div className="hint" data-testid="autokick-path" style={{ wordBreak: 'break-all' }}>Seçilen: {video}</div>}
         {err && <div className="warnbox" role="alert">{err}</div>}

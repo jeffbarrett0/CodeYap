@@ -38,7 +38,7 @@ import { parseClock, type TrailerMode, type TrailerSegment } from '../shared/tra
 import { ctaRect, ctaSequence, parseCtaManifest, type CtaPos } from '../shared/cta'
 import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
-import { chapterTimestamp, chapterWarnings, formatChapters } from '../shared/chapters'
+import { chapterTimestamp, chapterWarnings, formatChapters, mapChapterList, parseChapterList } from '../shared/chapters'
 import { makeTopicClip, makeTopicCompilation, resolveProjectPath, topicCandidates } from '../main/autokick/clips'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { audioCarriersOf, clipsAt, makeTextClip, timelineToSource } from '../shared/timeline/ops'
@@ -102,7 +102,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   face-clips <proje|AutoKick klasörü> --topic "Osimhen" [--shape vertical|square|horizontal] [--max-sec 45] [--captions] [--pick 1,3 | --all] [--export]   yalnızca yüz klibi (Sport diyor Plus)
   topic-clips <proje|AutoKick klasörü> --topic "Osimhen" [--max-sec 60] [--min-sec 8] [--gap 25] [--pick 1,3 | --all]
                                          Auto Kick transkriptinde konuyu arar, aday klipleri ÖNERİR; --pick/--all ile bağımsız klip projesi üretir
-  auto-kick <video> [--out klasör] [--clips [--max 10] [--no-export] [--no-horizontal]] [--quality fast|high] [--lang tr] [--model small] [--min-gap 0.55]
+  auto-kick <video> [--out klasör] [--clips [--max 10] [--no-export] [--no-horizontal]] [--quality fast|high] [--chapters liste.txt] [--lang tr] [--model small] [--min-gap 0.55]
                                          yayın kaydı → transkript → sessizleri kırp → tam video (<out>/<ad> - full.mp4 + proje); biten aşamalar yeniden çalıştırmada atlanır
   story data list|show <id>|search <ad>|add <dosya.json>   bilgi paketi: kaynaklı veri (gol krallığı, puan durumu…); sıralama/takım kartı sahneleri bunu kullanır
   story teams [ad]                       takım forma/renk veritabanı (Bayern → kırmızı, Galatasaray → sarı-kırmızı parçalı…); sahnelerde home/away.team ve content.team bunu kullanır
@@ -132,7 +132,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
                                          hareketli 2D harita / 3D küre / başlık / grafik üretir ve çizelgeye koyar (--no-place: yalnızca üret, --out dosya.mp4)
   graphic <proje> --scene '{"type":"stats",...}'|sahne.json [--at sn] [--dur 5] [--layer V1]   herhangi bir hikâye sahnesini (rakam kartı stats, list, timeline, quote, person, teamcard, leaderboard, compare, football…) vlog çizelgesine koyar; biçim: story schema
   ideas <proje> [--asset a] [--max 8] [--ai] [--auto | --write oneriler.json | --clear]   transkriptten ayrı video olabilecek konu bölümlerini bulur (anahtar kelimeler, süre, taslak başlık); --ai: ayarlı yapay zekâyla başlık yazdırır
-  chapters <proje> [--ai | --titles basliklar.json] [--density topic|low|medium|high] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
+  chapters <proje> [--ai | --titles basliklar.json] [--density topic|low|medium|high] [--from-list liste.txt] [--out zaman-damgalari.txt]   düzenlenmiş çizelgenin YouTube zaman damgaları (bölümler + başlıklar)
   cut-intro <proje> [--ref ekran.png] [--duration 164] [--dry]   yayın başı videosunu (referans ekran görüntüsüyle eşleşen ilk bölüm, ör. telifli şarkılı geri sayım) keser
   silence <proje> [--min-gap 0.55] [--keep 0.15] [--no-fillers]   sessizlik ve ııı/eee kesimi
   cut <proje> --from sn --to sn [--no-ripple]                      çizelge aralığını keser
@@ -366,7 +366,7 @@ async function main(argv: string[]): Promise<unknown> {
   if (command === 'auto-kick') {
     if (!projectArg) throw new Error('Yayın kaydı yolunu verin: auto-kick <video> [--out klasör]')
     const r = await runAutoKick(
-      { videoPath: projectArg, outDir: str(a.opt.out), language: str(a.opt.lang), model: str(a.opt.model) as never, track: num(a.opt.track, 'track'), quality: a.opt.quality === 'high' ? 'high' : 'fast', silence: a.opt['min-gap'] || a.opt.keep || a.opt['no-fillers'] ? { minGapSec: num(a.opt['min-gap'], 'min-gap') ?? 0.55, keepSec: num(a.opt.keep, 'keep') ?? 0.15, cutFillers: !a.opt['no-fillers'] } : undefined },
+      { videoPath: projectArg, outDir: str(a.opt.out), chapterList: str(a.opt.chapters) ? await readFile(resolve(str(a.opt.chapters)!), 'utf8') : undefined, language: str(a.opt.lang), model: str(a.opt.model) as never, track: num(a.opt.track, 'track'), quality: a.opt.quality === 'high' ? 'high' : 'fast', silence: a.opt['min-gap'] || a.opt.keep || a.opt['no-fillers'] ? { minGapSec: num(a.opt['min-gap'], 'min-gap') ?? 0.55, keepSec: num(a.opt.keep, 'keep') ?? 0.15, cutFillers: !a.opt['no-fillers'] } : undefined },
       {},
       { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }
     )
@@ -836,6 +836,20 @@ async function main(argv: string[]): Promise<unknown> {
       })
     }
     case 'chapters': {
+      // Hazır liste (orijinal kayıt zamanı) → bu projenin (kesimli) zamanına çevir: --from-list liste.txt [--asset id]
+      if (str(a.opt['from-list'])) {
+        const mainId = s.asset(str(a.opt.asset)).id
+        const kept = s.timeline.tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips).filter((c) => c.assetId === mainId).map((c) => ({ srcIn: c.srcIn, srcOut: c.srcOut, start: c.start }))
+        const total = timelineDuration(s.timeline)
+        const mapped = mapChapterList(parseChapterList(await readFile(resolve(str(a.opt['from-list'])!), 'utf8')), kept, total)
+        const text = formatChapters(mapped.chapters, total)
+        const outFileL = str(a.opt.out)
+        if (outFileL) {
+          await mkdir(dirname(resolve(outFileL)), { recursive: true })
+          await writeFile(resolve(outFileL), text + '\n', 'utf8')
+        }
+        return out({ ok: mapped.chapters.length > 0, text, chapters: mapped.chapters.length, warnings: [...mapped.warnings, ...chapterWarnings(mapped.chapters.map((c, i) => ({ start: c.start, end: mapped.chapters[i + 1]?.start ?? total })))], written: outFileL ? resolve(outFileL) : undefined })
+      }
       // Claude Code transkripti okuyup kendi başlıklarını yazdıysa: --titles dosya.json = [{ "start": sn ya da "00:12:42", "title": "…" }]
       if (str(a.opt.titles)) {
         const raw = JSON.parse(await readFile(resolve(str(a.opt.titles)!), 'utf8')) as { start: number | string; title: string }[]
