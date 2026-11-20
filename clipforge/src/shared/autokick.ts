@@ -45,6 +45,8 @@ export interface AutoKickResult {
   timestampsPath?: string
   /** Çıkış kontrolü raporu (.txt): ilk kare, siyah ekran, sessizlik, ses seviyesi */
   qaPath?: string
+  /** Hazır liste verildiyse: çizelge zamanına çevrilmiş bölüm aralıkları (Giriş hariç) — yatay klipler bunlardan çıkar */
+  chapterRanges?: { start: number; end: number; title: string }[]
   durationBeforeSec: number
   durationAfterSec: number
   removedSec: number

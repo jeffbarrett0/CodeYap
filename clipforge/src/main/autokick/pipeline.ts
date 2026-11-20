@@ -284,6 +284,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
 
   // YouTube zaman damgaları (tam videonun yanına .txt); hata olursa iş yine başarılıdır
   let timestampsPath: string | undefined
+  let chapterRanges: { start: number; end: number; title: string }[] | undefined
   try {
     if (req.chapterList?.trim()) {
       // kullanıcının hazır listesi (orijinal kayıt zamanı) → kesimli videonun zamanına çevrilir
@@ -292,6 +293,10 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
       const total = timelineDuration(s.timeline)
       const mapped = mapChapterList(parseChapterList(req.chapterList), kept, total)
       if (mapped.chapters.length > 0) {
+        // yatay klip aralıkları: her bölüm bir sonrakinin başına kadar; "Giriş" ve 10 sn'den kısa olanlar klip olmaz
+        chapterRanges = mapped.chapters
+          .map((c, i) => ({ start: c.start, end: mapped.chapters[i + 1]?.start ?? total, title: c.title }))
+          .filter((r) => r.end - r.start >= 10 && !/^giri[sş]$/i.test(r.title.trim()))
         timestampsPath = p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
         await writeFile(timestampsPath, formatChapters(mapped.chapters, total) + '\n', 'utf8')
         // YouTube'a yapıştırılacak dosya temiz kalsın: uyarılar (kesilen yere denk gelen bölümler) ayrı dosyaya
@@ -326,6 +331,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     fullVideoPath: p.full,
     timestampsPath,
     qaPath,
+    chapterRanges,
     durationBeforeSec: st.before,
     durationAfterSec: st.after,
     removedSec: st.removedSec,

@@ -4,6 +4,7 @@ import { initialAutoClipsStages, type AutoClipResultItem, type AutoClipsRequest,
 import { optionsFromPreset } from '../../shared/export/presets'
 import { timelineDuration } from '../../shared/timeline/model'
 import { autoClipCandidates, makeAutoClip } from './pipeline'
+import { resolveProjectPath } from '../autokick/clips'
 
 type Env = { userDataDir?: string; resourcesDir?: string }
 
@@ -48,7 +49,13 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   const stage = hooks.onStage
   check()
   stage('find', { status: 'running', progress: 0 })
-  const found = await autoClipCandidates(req.projectPath, { minSec: req.minSec, maxSec: req.maxSec, max: req.max, ...(req.horizontal ? { horizontal: true } : {}) }, env)
+  // hazır liste: konu aranmaz, her aralık bir klip olur (adlar kullanıcıdan); yoksa konular otomatik bulunur
+  const found = req.ranges?.length
+    ? {
+        projectPath: await resolveProjectPath(req.projectPath),
+        candidates: req.ranges.map((r, i) => ({ id: `r${i + 1}`, start: r.start, end: r.end, durationSec: r.end - r.start, subject: r.title, headline: r.title, summary: '', score: 1 }))
+      }
+    : await autoClipCandidates(req.projectPath, { minSec: req.minSec, maxSec: req.maxSec, max: req.max, ...(req.horizontal ? { horizontal: true } : {}) }, env)
   if (found.candidates.length === 0) {
     stage('find', { status: 'done', progress: 1, detail: 'Klip olabilecek net bir konu bulunamadı' })
     stage('make', { status: 'skipped' })
@@ -152,7 +159,7 @@ export class AutoClipsManager {
  * (emit her güncellemede çağrılır). Ayar kapalıysa başlatmaz. Başlatılan işin kimliğini döndürür.
  */
 export function chainAutoClips(
-  s: { id: string; status: string; result?: { projectPath: string } },
+  s: { id: string; status: string; result?: { projectPath: string; chapterRanges?: { start: number; end: number; title: string }[] } },
   handled: Set<string>,
   settings: { autoClipsAfterKick: boolean; autoClipsMax: number; autoClipsMaxHorizontal?: number; autoClipsCaptions?: boolean; autoClipsExport: boolean; autoClipsHorizontal?: boolean },
   manager: { start(req: AutoClipsRequest): string }
@@ -162,6 +169,8 @@ export function chainAutoClips(
   if (!settings.autoClipsAfterKick) return null
   const id = manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport, captions: settings.autoClipsCaptions })
   // yatay (YouTube) klipler de: dikey işten sonra sırayla çalışır (iş kuyruğu tek tek)
-  if (settings.autoClipsHorizontal) manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMaxHorizontal ?? 15, exportVideos: settings.autoClipsExport, horizontal: true })
+  // kullanıcı hazır bölüm listesi verdiyse yatay klipler YALNIZCA o alanlardan çıkar (ayardan bağımsız); yoksa otomatik konular
+  if (s.result.chapterRanges?.length) manager.start({ projectPath: s.result.projectPath, exportVideos: settings.autoClipsExport, horizontal: true, ranges: s.result.chapterRanges })
+  else if (settings.autoClipsHorizontal) manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMaxHorizontal ?? 15, exportVideos: settings.autoClipsExport, horizontal: true })
   return id
 }

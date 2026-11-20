@@ -709,6 +709,14 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(secs[secs.length - 1]).toBeLessThanOrEqual(r.durationAfterSec)
     const c = cli('chapters', r.projectPath, '--from-list', join(tmp, 'liste.txt'))
     expect(c.text.split('\n')[0]).toBe('00:00 Giriş')
+    // yalnızca listedeki alanlardan YATAY klip projeleri (Giriş klip olmaz): 13 sn'lik "Hatırlama" ve son konu
+    writeFileSync(join(tmp, 'liste2.txt'), '00:00:00 - Giriş\n00:00:02 - Tek konu\n')
+    const h = cli('auto-clips', r.projectPath, '--from-list', join(tmp, 'liste2.txt'), '--min-sec', '2')
+    expect(h.ok, JSON.stringify(h)).toBe(true)
+    expect(h.clips.map((x: any) => x.subject)).not.toContain('Giriş')
+    expect(h.clips.length).toBeGreaterThanOrEqual(1)
+    const hp = cli('show', h.clips[0].project)
+    expect(hp.aspect).toBe('16:9')
   }, 300_000)
 
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {

@@ -297,6 +297,8 @@ export interface AutoClipsRequest {
   captions?: boolean
   /** YATAY (16:9, YouTube) klipler: 2 dk 58 sn sınırı yok, yüz/şerit eklenmez, "youtube" ön ayarıyla dışa aktarılır */
   horizontal?: boolean
+  /** Kullanıcının hazır bölüm listesi (ÇİZELGE zamanı): verilirse konu bulunmaz; her aralık bir (yatay) klip olur */
+  ranges?: { start: number; end: number; title: string }[]
 }
 export interface AutoClipsStageState {
   id: AutoClipsStage

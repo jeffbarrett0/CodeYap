@@ -496,3 +496,6 @@ Kullanıcı bir YouTuber'ın repo listesinden en yararlı bulduğumu (Brag, Bart
 
 ## 77. Hazır zaman damgası listesi (orijinal zaman → kesimli video)
 Kullanıcı kendi listesini ("00:00:00 - Giriş", "01:10:06 - Osimhen") veriyor; Auto Kick kesimleri zamanları kaydırdığı için liste ÖNCE verilir, iş sonunda çizelgedeki korunan aralıklardan (srcIn/srcOut→start) çevrilir (`mapChapterList`). Ayrı kesim kaydı gerekmedi: çizelge zaten haritadır. Kesilen yere denk gelen bölüm sonraki korunan ana taşınır; aynı ana düşenler tek kalır; ilk bölüm 0'a çekilir.
+
+## 78. Hazır listeden yatay klipler
+Kullanıcı: "verdiğim alanlardan yatay video; dikey mantık aynı kalsın". `AutoClipsRequest.ranges` + `AutoKickResult.chapterRanges`: liste varsa yatay iş konu aramaz, her bölüm aralığı klip olur (Giriş ve <10 sn hariç); dikey iş değişmedi. Klip uzunluğu bölüm kadar (10+ dk olabilir).
