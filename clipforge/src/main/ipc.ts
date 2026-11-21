@@ -1,15 +1,17 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { IpcChannel, IpcInvoke, IpcResult } from '../shared/ipc'
 import type { AppService } from './app'
 import { userMessage } from './tasks'
 import { setCpuMode } from './ffmpeg'
-import { AutoKickManager } from './autokick/pipeline'
+import { AutoKickManager, autoKickPaths } from './autokick/pipeline'
 import { StoryManager } from './story/pipeline'
 import { autoClipCandidates, autoClipEnsureTranscript, autoClipFixWord, autoClipSearch, autoClipTranscript, makeAutoClip } from './autoclips/pipeline'
 import { AutoClipsManager, chainAutoClips, exportClipProject } from './autoclips/run'
 import { chainAutoHorizontal } from './autokick/horizontal'
+import { createAutoRetry } from './autokick/retry'
+import { createKeepAwake } from './keepawake'
 import { parseAliases, parseVocabulary } from '../shared/transcript/vocabulary'
 import { FACE_ONLY_SHAPES } from '../shared/autoclips'
 import { appendRunLog } from './runlog'
@@ -36,11 +38,16 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
   // ZİNCİR: Auto Kick bitince (tam video dışa aktarıldıktan sonra) Auto Clips kendiliğinden başlar — arayüz açık olmasa da
   const chained = new Set<string>()
   const chainedH = new Set<string>()
+  // gözetimsiz çalışma: Auto Kick hata verirse kendiliğinden yeniden dene; uzun işler sürerken bilgisayar uykuya geçmesin
+  const retry = createAutoRetry((r) => autoKick.start(r), (r, m) => void appendRunLog(autoKickPaths(r.videoPath, r.outDir).dir, m))
   const autoKick = new AutoKickManager(envDirs, (s) => {
     getWindow()?.webContents.send('autokick:update', s)
+    retry.onStatus(s)
     chainAutoClips(s, chained, app.settings.value, autoClips, (m) => { if (s.result) void appendRunLog(s.result.outDir, m) })
     void chainAutoHorizontal(s, chainedH, app.settings.value, (r) => app.ytCutStart(r), (m) => { if (s.result) void appendRunLog(s.result.outDir, m) }, envDirs).catch((e) => { if (s.result) void appendRunLog(s.result.outDir, `Auto yatay video HATA: ${e instanceof Error ? e.message : String(e)}`) })
   })
+  const keepAwake = createKeepAwake(powerSaveBlocker, () => retry.pending() > 0 || autoKick.list().some((j) => j.status === 'running') || autoClips.list().some((j) => j.status === 'running') || app.queue.list().some((t) => t.status === 'running' || t.status === 'queued'))
+  setInterval(() => keepAwake.tick(), 15_000).unref()
   const handlers: Handlers = {
     'autoclips:start': (r) => autoClips.start(r),
     'autoclips:cancel': (id) => autoClips.cancel(id),

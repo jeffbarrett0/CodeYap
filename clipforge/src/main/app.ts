@@ -28,6 +28,7 @@ import { downloadModel, modelInstalled } from './transcribe/models'
 import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pipeline'
 import { builtinAliases, builtinGlossary } from './transcribe/glossary'
 import { TEAMS } from '../shared/story/teams'
+import { appendRunLog } from './runlog'
 import { applyVocabulary, buildPrompt, fixWord, parseAliases, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
 import { findVideoIdeas, type IdeasResult } from '../shared/ideas'
@@ -478,7 +479,15 @@ export class AppService {
       kind: 'ytcut',
       title: `${req.auto ? 'Auto yatay video' : 'YouTube yatay video'}: ${basename(req.videoPath)}`,
       run: async (ctx) => {
-        const result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
+        const logDir = req.auto && req.outDir ? dirname(req.outDir) : null
+        let result
+        try {
+          result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
+        } catch (e) {
+          if (logDir) void appendRunLog(logDir, `Auto yatay video HATA: ${e instanceof Error ? e.message : String(e)}`)
+          throw e
+        }
+        if (logDir) void appendRunLog(logDir, `Auto yatay video TAMAMLANDI: ${result.items.filter((i) => i.path).length}/${result.items.length} kesit${result.items.some((i) => i.error) ? ' · HATALAR: ' + result.items.filter((i) => i.error).map((i) => `${i.title}: ${i.error}`).join(' | ') : ''} → ${result.dir}`)
         this.deps.emit('ytcut:done', { taskId: ctx.id, result })
       }
     }).id
