@@ -40,6 +40,8 @@ export interface MentionSuggestion {
   count: number
   /** ilk anıldığı an (sn) */
   firstAt: number
+  /** bu ismin konuşulduğu yaklaşık toplam süre (sn): yakın (≤25 sn) anışlar tek konuşma sayılır */
+  talkSec: number
 }
 
 /** "Şu oyuncu hakkında konuştun" önerileri: konuşmada anılan adlar, kaç cümlede anıldığı ve ilk anıldığı yer */
@@ -51,7 +53,16 @@ export function mentionSuggestions(words: TranscriptWord[], limit = 60): Mention
     if (!m) continue
     const hits = segs.filter((g) => m(g.text))
     if (hits.length === 0) continue
-    out.push({ name, count: hits.length, firstAt: hits[0].start })
+    // yakın anışları bir konuşmada topla: toplam konuşma süresi
+    let talk = 0
+    let a = hits[0]
+    let b = hits[0]
+    for (const h of hits.slice(1)) {
+      if (h.start - b.end <= 25) b = h
+      else (talk += b.end - a.start, (a = h), (b = h))
+    }
+    talk += b.end - a.start
+    out.push({ name, count: hits.length, firstAt: hits[0].start, talkSec: Math.round(talk) })
   }
   return out.sort((a, b) => b.count - a.count).slice(0, limit)
 }

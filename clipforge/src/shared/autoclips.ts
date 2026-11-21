@@ -351,6 +351,8 @@ export interface AutoClipsRequest {
   horizontal?: boolean
   /** Kullanıcının hazır bölüm listesi (ÇİZELGE zamanı): verilirse konu bulunmaz; her aralık bir (yatay) klip olur */
   ranges?: { start: number; end: number; title: string }[]
+  /** `ranges` KULLANICININ seçtiği tam aralıklardır: olduğu gibi klip olur (aralık içinde yeniden en güçlü parça aranmaz) */
+  exact?: boolean
 }
 export interface AutoClipsStageState {
   id: AutoClipsStage

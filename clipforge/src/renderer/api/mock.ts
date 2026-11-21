@@ -175,7 +175,8 @@ export function createMockApi(): ClipforgeApi {
         status.status = 'done'
         status.finishedAt = Date.now()
         const base = '/yayin/AutoKick/kayit/kayit-klipler'
-        status.result = { dir: base, clips: [['Lemina', 120, 168], ['Zaha', 600, 660], ['Osimhen', 1200, 1245]].map(([s, a, b], i) => ({ id: `ac${i + 1}`, subject: String(s), headline: `${s} hakkında konuşmuşsun`, start: Number(a), end: Number(b), durationSec: Number(b) - Number(a), projectPath: `${base}/${s} · ${Number(b) - Number(a)} sn.clipforge`, ...(req.exportVideos === false ? {} : { videoPath: `${base}/${s} · ${Number(b) - Number(a)} sn.mp4` }) })) }
+        const defaults: [string, number, number][] = req.ranges?.length ? req.ranges.map((r) => [r.title, r.start, r.end] as [string, number, number]) : [['Lemina', 120, 168], ['Zaha', 600, 660], ['Osimhen', 1200, 1245]]
+        status.result = { dir: base, clips: defaults.map(([s, a, b], i) => ({ id: `ac${i + 1}`, subject: String(s), headline: `${s} hakkında konuşmuşsun`, start: Number(a), end: Number(b), durationSec: Number(b) - Number(a), projectPath: `${base}/${s} · ${Number(b) - Number(a)} sn.clipforge`, ...(req.exportVideos === false ? {} : { videoPath: `${base}/${s} · ${Number(b) - Number(a)} sn.mp4` }) })) }
         push()
       })()
       return id
@@ -211,8 +212,8 @@ export function createMockApi(): ClipforgeApi {
           { start: 1300, end: 1320, text: 'Osman çok iyi bitirdi.' }
         ].map((l) => ({ ...l, text: mockFixes.reduce((t, f) => t.replace(new RegExp(f.from, 'g'), f.to), l.text) })),
         suggestions: [
-          { name: 'Osimhen', count: 12, firstAt: 1200 },
-          { name: 'Lemina', count: 7, firstAt: 120 }
+          { name: 'Osimhen', count: 12, firstAt: 1200, talkSec: 410 },
+          { name: 'Lemina', count: 7, firstAt: 120, talkSec: 95 }
         ]
       }
     },

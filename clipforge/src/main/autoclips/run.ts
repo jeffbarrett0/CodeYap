@@ -61,7 +61,12 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   }
   check()
   // hazır liste: konu aranmaz, her aralık bir klip olur (adlar kullanıcıdan); yoksa konular otomatik bulunur
-  const found = req.ranges?.length && !req.horizontal
+  const found = req.ranges?.length && req.exact
+    ? {
+        projectPath: await resolveProjectPath(req.projectPath),
+        candidates: req.ranges.map((r, i) => ({ id: `r${i + 1}`, start: r.start, end: r.end, durationSec: r.end - r.start, subject: r.title, headline: r.title, summary: '', score: 1 }))
+      }
+    : req.ranges?.length && !req.horizontal
     ? await autoClipCandidatesForRanges(req.projectPath, req.ranges, { minSec: req.minSec, maxSec: req.maxSec }, env)
     : req.ranges?.length
     ? {

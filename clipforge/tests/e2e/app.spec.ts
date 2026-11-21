@@ -1313,6 +1313,32 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-transcript')).toContainText('Osimhen çok iyi bitirdi')
   })
 
+  test('YouTube dikey video: seçim alanı (isim · kaç kez · kaç dk) + Otomatik klip öner; seçilenlerin HEPSİ dikey MP4 olarak kaydedilir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('ytdikey-btn').click()
+    await page.getByTestId('ytdikey-pick').click()
+    await page.getByTestId('ytdikey-start').click()
+    await expect(page.getByTestId('autoclips-transcript')).toBeVisible({ timeout: 20000 })
+    // seçim alanı: isim önerileri konuşma süresiyle
+    await expect(page.getByTestId('autoclips-suggestion').first()).toContainText('Osimhen · 12× · ~7 dk')
+    // otomatik klip önerisi
+    await page.getByTestId('autoclips-find').click()
+    await expect(page.getByTestId('autoclips-cand')).toHaveCount(3)
+    await expect(page.getByTestId('autoclips-count')).toContainText('3 seçili')
+    await page.getByTestId('autoclips-select-none').click()
+    await expect(page.getByTestId('autoclips-export-picked')).toBeDisabled()
+    await page.getByTestId('autoclips-check').nth(0).check()
+    await page.getByTestId('autoclips-check').nth(2).check()
+    await expect(page.getByTestId('autoclips-export-picked')).toContainText('(2)')
+    await page.getByTestId('autoclips-export-picked').click()
+    await expect(page.getByTestId('autoclips-export-note')).toContainText('2 klip MP4 olarak kaydediliyor')
+    await expect(page.getByTestId('autoclips-job').first()).toHaveAttribute('data-status', 'done', { timeout: 15000 })
+    await expect(page.getByTestId('autoclips-result')).toHaveCount(2)
+    await expect(page.getByTestId('autoclips-reveal')).toHaveCount(2) // her biri MP4
+    await page.getByTestId('autoclips-select-all').click()
+    await expect(page.getByTestId('autoclips-export-picked')).toContainText('(3)')
+  })
+
   test('"Claude ile edit yap" düğmesi artık yok (araç çubuğunda ve Auto Kick sonucunda)', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByTestId('claude-edit')).toHaveCount(0)

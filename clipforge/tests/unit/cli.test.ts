@@ -491,6 +491,30 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
       expect(se.candidates.length).toBeGreaterThanOrEqual(1)
       expect(se.candidates[0].subject).toBe(nm)
       await expect(autoClipSearch(proj4, '  ', {}, { userDataDir: ud })).rejects.toThrow(/isim/)
+      // KULLANICININ seçtiği aralıklar OLDUĞU GİBİ dikey MP4 olur (yeniden "en güçlü parça" aranmaz): yüz üstte/şerit/ekran altta düzeni 9:16
+      {
+        const { AutoClipsManager } = await import('../../src/main/autoclips/run')
+        const mgr0 = new AutoClipsManager({ userDataDir: ud }, () => undefined)
+        const a = 0.5
+        const b = Math.min(5.5, tr.totalSec - 0.5)
+        mgr0.start({ projectPath: proj4, ranges: [{ start: a, end: b, title: 'Seçim Bir' }], exact: true, exportVideos: true })
+        const tt = Date.now()
+        while (!['done', 'failed'].includes(mgr0.list()[0]?.status ?? '')) {
+          if (Date.now() - tt > 180_000) throw new Error('zaman aşımı')
+          await new Promise((r) => setTimeout(r, 200))
+        }
+        const job = mgr0.list()[0]
+        expect(job.status, job.error).toBe('done')
+        const c0 = job.result!.clips[0]
+        expect(c0.error).toBeUndefined()
+        expect(c0.start).toBe(a)
+        expect(c0.end).toBe(b)
+        expect(c0.subject).toBe('Seçim Bir')
+        const pr = JSON.parse(execFileSync(require('@ffprobe-installer/ffprobe').path as string, ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'json', c0.videoPath!]).toString())
+        expect(pr.streams[0].width).toBe(1080)
+        expect(pr.streams[0].height).toBe(1920)
+        expect(md5(proj4)).toBe(before)
+      }
       // transkript yan klasörü kaybolmuşsa: neden yazılır; "şimdi çıkar" yeniden yazıya döker
       const lost = join(tmp, 'kayip-transkript', 'kayip.clipforge')
       mkdirSync(join(tmp, 'kayip-transkript'), { recursive: true })

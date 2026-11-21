@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AutoClipCandidate } from '@shared/autoclips'
 import { DEFAULT_AUTOCLIP_LAYOUT, MAX_CLIP_SEC } from '@shared/autoclips'
 import { mentionMatcher } from '@shared/clipsearch'
@@ -20,7 +20,7 @@ const mm = (s: number) => `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600
  */
 function TranscriptPanel({ path, maxSec, onFound, autoLoad }: { path: string; maxSec: number; onFound: (c: AutoClipCandidate[]) => void; autoLoad?: boolean }) {
   const api = requireApi()
-  const [data, setData] = useState<{ lines: { start: number; end: number; text: string }[]; suggestions: { name: string; count: number; firstAt: number }[] } | null>(null)
+  const [data, setData] = useState<{ lines: { start: number; end: number; text: string }[]; suggestions: { name: string; count: number; firstAt: number; talkSec: number }[] } | null>(null)
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -112,7 +112,7 @@ function TranscriptPanel({ path, maxSec, onFound, autoLoad }: { path: string; ma
               <span className="hint">Konuşmada anılan isimler (tıklayınca ara):</span>
               <div className="row wrap" style={{ gap: 6 }} data-testid="autoclips-suggestions">
                 {data.suggestions.map((s) => (
-                  <button key={s.name} className="btn sm" title={`İlk anış: ${mm(s.firstAt)}`} onClick={() => { setQuery(s.name); void search(s.name) }} data-testid="autoclips-suggestion">{s.name} · {s.count}</button>
+                  <button key={s.name} className="btn sm" title={`${s.name}: yaklaşık ${Math.max(1, Math.round(s.talkSec / 60))} dk konuşulmuş, ${s.count} cümlede anılmış. İlk anış: ${mm(s.firstAt)}. Tıklayınca bu isimden klip önerir.`} onClick={() => { setQuery(s.name); void search(s.name) }} data-testid="autoclips-suggestion">{s.name} · {s.count}× · ~{Math.max(1, Math.round(s.talkSec / 60))} dk</button>
                 ))}
               </div>
             </div>
@@ -214,13 +214,29 @@ export function AutoClipsDialog() {
       setBusy(false)
     }
   }
+  const jobsRef = useRef<HTMLDivElement>(null)
+  const [exportNote, setExportNote] = useState('')
+  /** Seçilen aralıkların HEPSİNİ dikey MP4 olarak kaydet: klip projesi + MP4 (yüz üstte, ortada şerit, altta ekran); ilerleme üstteki iş panelinde */
+  const exportPicked = async () => {
+    if (!cands) return
+    setError('')
+    setExportNote('')
+    try {
+      const ranges = cands.filter((c) => picked.has(c.id)).map((c) => ({ start: c.start, end: c.end, title: c.subject }))
+      await api.invoke('autoclips:start', { projectPath: path, ranges, exact: true, exportVideos: true, face, facePos, faceShare: share / 100, faceZoom: faceZoom / 100, faceFocus: { x: focus.x / 100, y: focus.y / 100 }, screenZoom: zoom / 100, ...(settings.autoClipsCaptions ? { captions: true } : {}) })
+      setExportNote(`${ranges.length} klip MP4 olarak kaydediliyor. İlerleme ve dosyalar yukarıdaki “Otomatik zincir” bölümünde görünür.`)
+      jobsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
   const setF = (k: keyof NormRect, v: number) => setFace((f) => ({ ...f, [k]: Math.min(1, Math.max(0, v / 100)) }))
 
   return (
     <Modal title="Auto Clips — konuştuğunuz konulardan klipler" onClose={() => openDialog(null)} wide>
       <div className="col" data-testid="autoclips-dialog" style={{ gap: 10 }}>
         <div className="infobox">Auto Kick bitince tam video <b>buraya otomatik devredilir, bu pencere kendiliğinden açılır ve klipler kendiliğinden üretilir</b> (ayarlardan kapatılabilir). Transkripti okur, <b>kimin/neyin hakkında konuştuğunuzu</b> bulur ve “şu aralıkta şunu konuşmuşsun, klip olarak paylaşabilirsin” diye önerir. Seçtiklerinizden <b>9:16 klip projesi</b> yapar: yüzünüz üstte (kaynak karedeki yüz bölgesi), konuşulan görüntü altta.</div>
-        <div className="col" data-testid="autoclips-auto" style={{ gap: 6, padding: 8, border: '1px solid var(--border, #2a3a30)', borderRadius: 8 }}>
+        <div className="col" ref={jobsRef} data-testid="autoclips-auto" style={{ gap: 6, padding: 8, border: '1px solid var(--border, #2a3a30)', borderRadius: 8 }}>
           <b>Otomatik zincir (bilgisayar başında olmasanız da)</b>
           {path && <button className="btn sm" style={{ alignSelf: 'flex-start' }} onClick={() => void api.invoke('shell:reveal', `${path.replace(/[\\/][^\\/]*$/, '')}${path.includes('\\') ? '\\' : '/'}Auto Kick günlüğü.txt`)} data-testid="autoclips-log" title="Auto Kick ve Auto Clips'in ne yaptığını/nerede takıldığını yazan dosya">Günlüğü göster</button>}
           <label className="check"><input type="checkbox" checked={settings.autoClipsAfterKick} onChange={(e) => void updateSettings({ autoClipsAfterKick: e.target.checked })} data-testid="autoclips-after" /> Auto Kick bitince klipleri kendiliğinden üret</label>
@@ -268,15 +284,19 @@ export function AutoClipsDialog() {
         <div className="hint" data-testid="autoclips-pick-hint">Seçilecek dosya <b>Auto Kick'in çıkardığı “.clipforge” projesidir</b> (videonun yanındaki <b>AutoKick</b> klasöründe: <i>…\AutoKick\&lt;video adı&gt;\&lt;video adı&gt;.clipforge</i>). Ham kayıt videosunu (.mkv/.mp4) seçersen yanındaki Auto Kick çıktısı aranır; yoksa önce videoyu Auto Kick'ten geçirmelisin.</div>
         <div className="row wrap" style={{ gap: 10, alignItems: 'center' }}>
           <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={10} min={30} max={MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
-          <button className="btn primary" disabled={!path || busy} onClick={() => void find()} data-testid="autoclips-find">{busy && !cands ? 'Konular bulunuyor…' : cands ? 'Yeniden bul' : 'Klip önerilerini bul'}</button>
+          <button className="btn primary" disabled={!path || busy} onClick={() => void find()} data-testid="autoclips-find" title="Transkriptten paylaşılabilecek klipleri kendisi bulur (kaç tane çıkarsa; sayı sınırı yok). Sonra istediklerinizi işaretlersiniz.">{busy && !cands ? 'Klipler aranıyor…' : cands ? 'Otomatik klip öner (yeniden)' : 'Otomatik klip öner'}</button>
         </div>
         {path && <TranscriptPanel path={path} maxSec={maxSec} autoLoad={autoClipsManual && path === autoClipsProject} onFound={(c) => { setCands(c); setPicked(new Set(c.map((x) => x.id))); setMade([]) }} />}
         {error && <div className="warnbox" role="alert" data-testid="autoclips-error">{error}</div>}
         {cands && cands.length === 0 && <div className="warnbox" data-testid="autoclips-empty">Klip olabilecek net bir konu bulunamadı (konuşmada kişi/takım adı az olabilir). “En uzun klip” süresini artırıp yeniden deneyin.</div>}
         {cands && cands.length > 0 && (
           <>
-            <div className="hint">{cands.length} öneri · işaretlediklerinizden klip yapılır. Bunlar ÖNERİDİR; hangisini kullanacağınıza siz karar verirsiniz.</div>
-            <div className="col" style={{ gap: 6, maxHeight: 300, overflow: 'auto' }}>
+            <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+              <div className="hint" style={{ flex: 1 }} data-testid="autoclips-count">{cands.length} öneri · {picked.size} seçili · işaretlediklerinizden klip yapılır. Bunlar ÖNERİDİR; hangisini kullanacağınıza siz karar verirsiniz.</div>
+              <button className="btn sm" onClick={() => setPicked(new Set(cands.map((c) => c.id)))} data-testid="autoclips-select-all">Tümünü seç</button>
+              <button className="btn sm" onClick={() => setPicked(new Set())} data-testid="autoclips-select-none">Hiçbirini seçme</button>
+            </div>
+            <div className="col" style={{ gap: 6, maxHeight: 420, overflow: 'auto' }}>
               {cands.map((c) => (
                 <label key={c.id} className="col" data-testid="autoclips-cand" style={{ gap: 2, padding: 8, border: '1px solid var(--border, #2a3a30)', borderRadius: 8, cursor: 'pointer' }}>
                   <span className="row" style={{ gap: 8, alignItems: 'center' }}>
@@ -319,8 +339,10 @@ export function AutoClipsDialog() {
             </details>
             <div className="row wrap" style={{ gap: 8 }}>
               <span style={{ flex: 1 }} />
-              <button className="btn primary" disabled={busy || picked.size === 0} onClick={() => void make()} data-testid="autoclips-make">{busy ? 'Üretiliyor…' : `Seçilenlerden klip projesi üret (${picked.size})`}</button>
+              <button className="btn" disabled={busy || picked.size === 0} onClick={() => void make()} data-testid="autoclips-make" title="Yalnızca uygulamada açıp düzenleyebileceğiniz klip projeleri (MP4 yok)">{busy ? 'Üretiliyor…' : `Yalnızca klip projesi üret (${picked.size})`}</button>
+              <button className="btn primary" disabled={busy || picked.size === 0} onClick={() => void exportPicked()} data-testid="autoclips-export-picked" title="Seçilenlerin hepsi dikey (9:16) MP4 olarak kaydedilir: yüzünüz üstte, ortada sosyal medya şeridi, altta ekran">{`Seçilenleri MP4 olarak kaydet (${picked.size})`}</button>
             </div>
+            {exportNote && <div className="hint" data-testid="autoclips-export-note"><b>✓ {exportNote}</b></div>}
           </>
         )}
         {made.length > 0 && (
