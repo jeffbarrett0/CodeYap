@@ -15,6 +15,7 @@ export function YtCutDialog() {
   const [list, setList] = useState('')
   const [outDir, setOutDir] = useState('')
   const [quality, setQuality] = useState<'fast' | 'high'>('fast')
+  const [cta, setCta] = useState(true)
   const [taskId, setTaskId] = useState('')
   const [err, setErr] = useState('')
   const task = taskId ? tasks[taskId] : undefined
@@ -31,7 +32,7 @@ export function YtCutDialog() {
     if (parsed.length === 0) return setErr('Zaman damgası listesi boş ya da okunamadı. Örnek: 00:34:00 - Leo')
     setErr('')
     try {
-      setTaskId(await api.invoke('ytcut:start', { videoPath: video, list, outDir: outDir.trim() || undefined, quality }))
+      setTaskId(await api.invoke('ytcut:start', { videoPath: video, list, outDir: outDir.trim() || undefined, quality, cta }))
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     }
@@ -62,6 +63,9 @@ export function YtCutDialog() {
             <input type="text" value={outDir} onChange={(e) => setOutDir(e.target.value)} aria-label="Çıkış klasörü" placeholder="Varsayılan" disabled={running} />
           </Field>
         </div>
+        <label className="check" title="3 dk'lık kesitte 1. ve 2. dakikada; 8 dk'lıkta 2-4-6-7. dakikalarda (çok olmasın diye sınırlı). 90 sn'den kısada da 1 tane; 20 sn'den kısada eklenmez.">
+          <input type="checkbox" checked={cta} onChange={(e) => setCta(e.target.checked)} disabled={running} data-testid="ytcut-cta" /> Her kesite YouTube abone butonunu ekle (yaklaşık 2 dakikada bir; 3 dk → 2 kez, 8 dk → 4 kez; kısa kesitte 1)
+        </label>
         {err && <div className="warnbox" role="alert" data-testid="ytcut-error">{err}</div>}
         {task?.status === 'failed' && <div className="warnbox" role="alert" data-testid="ytcut-failed">{task.error}</div>}
         <button className="btn primary" disabled={running} onClick={() => void start()} data-testid="ytcut-start">{running ? 'Kesiliyor…' : 'Videoları kes ve kaydet'}</button>
@@ -77,7 +81,7 @@ export function YtCutDialog() {
             <div className="section-title">Çıktı</div>
             {result.items.map((i) => (
               <div key={i.index} className="row" style={{ justifyContent: 'space-between' }} data-testid="ytcut-item">
-                <span>{i.path ? '✓' : '✕'} {i.index}. {i.title} · {fmt(i.durationSec)}{i.error ? ` — ${i.error}` : ''}</span>
+                <span>{i.path ? '✓' : '✕'} {i.index}. {i.title} · {fmt(i.durationSec)}{i.ctaAt?.length ? ` · buton: ${i.ctaAt.map((t) => fmt(t)).join(', ')}` : ''}{i.error ? ` — ${i.error}` : ''}</span>
               </div>
             ))}
             {result.warnings.map((w, i) => <div key={i} className="hint">⚠ {w}</div>)}

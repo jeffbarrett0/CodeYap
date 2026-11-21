@@ -62,13 +62,13 @@ export function parseCtaManifest(raw: unknown): CtaManifest | null {
 
 /**
  * YouTube yatay video kesitlerinde abone butonunun yerleri (kesit başından saniye). Kural (kullanıcı: "çok fazla olmasın; 3 dk ise 2 kere, 8 dk ise 2-4-6-7. dakikalar"):
- *  - 90 sn'den kısa: yok · 90–150 sn: ortada 1 · 150–240 sn (3 dk): üçte biri + üçte ikisi (1. ve 2. dakika)
+ *  - 20 sn'den kısa: yok · 20–150 sn (90 sn'in altı dahil): ortada 1 · 150–240 sn (3 dk): üçte biri + üçte ikisi (1. ve 2. dakika)
  *  - 4 dk ve üstü: her ~2 dakikada bir (2., 4., 6. …) + sondan 1 dk önce bir tane (8 dk: 2-4-6-7)
  *  - çok uzun kesitlerde en çok 8 (aralık uzar). Hiçbir buton son 60 sn'ye taşmaz (buton 5 sn sürer).
  */
 export function ctaTimes(durationSec: number): number[] {
   const D = durationSec
-  if (D < 90) return []
+  if (D < 20) return [] // buton 5 sn sürer: bundan kısada sığmaz
   if (D < 150) return [Math.round(D / 2)]
   if (D < 240) return [Math.round(D / 3), Math.round((2 * D) / 3)]
   const step = Math.max(120, D / 8)

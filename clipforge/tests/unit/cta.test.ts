@@ -45,14 +45,16 @@ describe('çağrı butonları: manifest ve yerleşim', () => {
   })
 
   it('YouTube yatay kesit: buton yerleri (kullanıcının örnekleri: 3 dk → 1. ve 2. dk; 8 dk → 2-4-6-7. dk; çok olmasın)', () => {
-    expect(ctaTimes(60)).toEqual([]) // çok kısa
+    expect(ctaTimes(15)).toEqual([]) // buton sığmaz
+    expect(ctaTimes(60)).toEqual([30]) // 90 sn'den kısa: yine ortada 1
+    expect(ctaTimes(90)).toEqual([45])
     expect(ctaTimes(120)).toEqual([60]) // ortada tek
     expect(ctaTimes(180)).toEqual([60, 120]) // 3 dk
     expect(ctaTimes(480)).toEqual([120, 240, 360, 420]) // 8 dk
     expect(ctaTimes(300)).toEqual([120, 240]) // 5 dk: 2., 4. (son 1 dk'ya taşmaz; 240 = 300-60)
     const long = ctaTimes(3600)
     expect(long.length).toBeLessThanOrEqual(9) // 1 saatlik kesit bile en çok ~8-9
-    for (const D of [95, 150, 200, 241, 480, 900, 3600]) {
+    for (const D of [20, 60, 95, 150, 200, 241, 480, 900, 3600]) {
       const t = ctaTimes(D)
       for (let i = 0; i < t.length; i++) {
         expect(t[i] + 5).toBeLessThanOrEqual(D - 5) // buton kesitin sonuna taşmaz

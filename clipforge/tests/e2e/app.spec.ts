@@ -1134,6 +1134,8 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('ytcut-parsed')).toContainText('3 satır okundu')
     await page.getByTestId('ytcut-start').click()
     await expect(page.getByTestId('ytcut-item')).toHaveCount(3)
+    await expect(page.getByTestId('ytcut-cta')).toBeChecked() // abone butonu varsayılan açık
+    await expect(page.getByTestId('ytcut-result')).toContainText('buton:')
     await expect(page.getByTestId('ytcut-result')).toContainText('Leo')
     await expect(page.getByTestId('ytcut-result')).toContainText('Deniz Gül')
   })

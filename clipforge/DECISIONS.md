@@ -508,3 +508,6 @@ Kullanıcı 2,5 saatlik kayıtla denedi, çıktı almadığını söyledi; ayrı
 
 ## 81. Otomatik +5 kontrast / +5 keskinlik
 Kullanıcı her videoya otomatik uygulanmasını istedi. Tek noktada (dışa aktarılan çizelge + fastcut + yt-cut) uygulanır, projeye yazılmaz → ayar kapatılınca ya da değiştirilince eski projeler de etkilenir; klip düzeyindeki elle ayar önceliklidir. Görsel (PNG şerit) katmanlarına uygulanmaz: saydamlık bozulmasın.
+
+## 82. YouTube yatay video: abone butonu
+Kullanıcı: her kesite YouTube butonu, ~2 dk'da bir ama çok olmasın (3 dk→2, 8 dk→2-4-6-7; 90 sn'den kısada da 1). `ctaTimes` bu örnekleri üretir. ffmpeg tek geçişte: chromakey+despill+crop+scale+overlay (`ctaGraph`), buton sesi `adelay`+`amix(normalize=0)`. Hata olursa butonsuz yeniden kes (iş yarım kalmaz). Not: arayüz kutusu ilk commit'te eksik kalmıştı (düzenleme betiği yarıda hata vermişti), sonradan tamamlandı.
