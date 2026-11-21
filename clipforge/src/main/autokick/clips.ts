@@ -1,9 +1,10 @@
-import { readdir, stat } from 'node:fs/promises'
+import { readdir, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { Session, makeService } from '../../cli/session'
 import { timelineDuration } from '../../shared/timeline/model'
 import { cutRange } from '../../shared/timeline/ops'
 import { timelineWords } from '../../shared/timeline/transcript'
+import { formatChapters, mapChapterList, parseChapterList } from '../../shared/chapters'
 import { findTopicCandidates, type TopicCandidate, type TopicOptions } from '../../shared/topic'
 
 type Env = { userDataDir?: string; resourcesDir?: string }
@@ -88,4 +89,24 @@ export async function makeTopicCompilation(projectPath: string, topic: string, r
   c.project = { ...c.project, timeline: tl }
   await c.save()
   return { projectPath: created.path, durationSec: dur, parts: merged.length }
+}
+
+/**
+ * Biten Auto Kick projesi için hazır liste (ORİJİNAL kayıt zamanı) → kesimli videonun zamanı; proje dosyasının yanına `<ad> - zaman damgaları.txt` yazar.
+ * Auto Kick listesi başta verilmemişse ya da sonradan değiştirilecekse kullanılır (videoyu yeniden işlemeden).
+ */
+export async function convertTimestampsForProject(projectPath: string, list: string, env: Env = {}): Promise<{ text: string; warnings: string[]; path: string }> {
+  const path = await resolveProjectPath(projectPath)
+  const s = await Session.open(path, await makeService(env))
+  const mainId = s.project.assets[0]?.id
+  const kept = s.timeline.tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips).filter((c) => c.assetId === mainId).map((c) => ({ srcIn: c.srcIn, srcOut: c.srcOut, start: c.start }))
+  const total = timelineDuration(s.timeline)
+  const parsed = parseChapterList(list)
+  if (parsed.length === 0) throw new Error('Liste boş ya da okunamadı. Her satırda bir zaman olmalı: "Leo - 00:34:00" ya da "00:34:00 - Leo".')
+  const mapped = mapChapterList(parsed, kept, total)
+  if (mapped.chapters.length === 0) throw new Error('Listedeki zamanların hiçbiri videonun süresine denk gelmedi.')
+  const text = formatChapters(mapped.chapters, total)
+  const out = path.replace(/\.clipforge$/i, '') + ' - zaman damgaları.txt'
+  await writeFile(out, text + '\n', 'utf8')
+  return { text, warnings: mapped.warnings, path: out }
 }

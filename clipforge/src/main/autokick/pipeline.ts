@@ -286,6 +286,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
 
   // YouTube zaman damgaları (tam videonun yanına .txt); hata olursa iş yine başarılıdır
   let timestampsPath: string | undefined
+  let timestampsText: string | undefined
   let chapterRanges: { start: number; end: number; title: string }[] | undefined
   try {
     if (req.chapterList?.trim()) {
@@ -298,7 +299,8 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
         // yatay klip aralıkları: her bölüm bir sonrakinin başına kadar; "Giriş" ve 10 sn'den kısa olanlar klip olmaz
         chapterRanges = chapterClipRanges(mapped.chapters, total, req.chapterMinSec ?? 10)
         timestampsPath = p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
-        await writeFile(timestampsPath, formatChapters(mapped.chapters, total) + '\n', 'utf8')
+        timestampsText = formatChapters(mapped.chapters, total)
+        await writeFile(timestampsPath, timestampsText + '\n', 'utf8')
         // YouTube'a yapıştırılacak dosya temiz kalsın: uyarılar (kesilen yere denk gelen bölümler) ayrı dosyaya
         if (mapped.warnings.length) await writeFile(p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları uyarılar.txt', mapped.warnings.join('\n') + '\n', 'utf8')
       }
@@ -306,6 +308,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
       const ch = await service.chaptersGenerate({ timeline: s.timeline, useAi: llmConfigured(settings) === null })
       if (ch.chapters.length >= 3) {
         timestampsPath = p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
+        timestampsText = ch.text
         await writeFile(timestampsPath, ch.text + '\n', 'utf8')
       }
     }
@@ -330,6 +333,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     projectPath: p.project,
     fullVideoPath: p.full,
     timestampsPath,
+    timestampsText,
     qaPath,
     chapterRanges,
     durationBeforeSec: st.before,

@@ -975,6 +975,13 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autokick-result')).toContainText('doğrulandı')
     await expect(page.getByTestId('autokick-result')).toContainText('412 kesim')
     await expect(page.getByTestId('autokick-elapsed')).toContainText('Toplam süre')
+    // zaman damgaları doğrudan sonuçta: metin + kopyala; listeyi sonradan yapıştırıp çevirme
+    await expect(page.getByTestId('autokick-ts-text')).toHaveValue('00:00:00 Giriş\n00:12:30 Osimhen')
+    await expect(page.getByTestId('autokick-ts-copy')).toBeVisible()
+    await page.getByTestId('autokick-ts-box').locator('summary').click()
+    await page.getByTestId('autokick-ts-list').fill('Giriş - 00:00:00\nLeo - 00:34:00')
+    await page.getByTestId('autokick-ts-convert').click()
+    await expect(page.getByTestId('autokick-ts-text')).toHaveValue(/Giriş.*\n.*Leo/)
     // ikinci kayıt: seçer seçmez başlar, iptal edilir
     await page.getByTestId('autokick-pick').click()
     await page.getByTestId('autokick-cancel').first().click()

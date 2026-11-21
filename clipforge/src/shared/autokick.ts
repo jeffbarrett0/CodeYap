@@ -45,6 +45,8 @@ export interface AutoKickResult {
   fullVideoPath: string
   /** YouTube zaman damgaları (.txt), bulunabildiyse */
   timestampsPath?: string
+  /** Zaman damgası metni (dosyadakiyle aynı): arayüzde doğrudan gösterilir/kopyalanır */
+  timestampsText?: string
   /** Çıkış kontrolü raporu (.txt): ilk kare, siyah ekran, sessizlik, ses seviyesi */
   qaPath?: string
   /** Hazır liste verildiyse: çizelge zamanına çevrilmiş bölüm aralıkları (Giriş hariç) — yatay klipler bunlardan çıkar */

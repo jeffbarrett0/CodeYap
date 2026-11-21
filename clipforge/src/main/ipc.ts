@@ -15,7 +15,7 @@ import { buildTrailer } from './trailer/build'
 import { addReference, listReferences, referenceSheets, removeReference, updateReference } from './reference'
 import { parseCtaManifest } from '../shared/cta'
 import { transcriptionReadiness } from '../shared/autokick'
-import { makeTopicClip, topicCandidates } from './autokick/clips'
+import { convertTimestampsForProject, makeTopicClip, topicCandidates } from './autokick/clips'
 
 type Handlers = { [C in IpcChannel]: (...args: IpcInvoke[C][0]) => Promise<IpcInvoke[C][1]> | IpcInvoke[C][1] }
 
@@ -71,6 +71,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       }
     },
     'ytcut:start': (req) => app.ytCutStart(req),
+    'autokick:timestamps': (r) => convertTimestampsForProject(r.projectPath, r.list, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autokick:start': (req) => autoKick.start(req),
     'autokick:cancel': (id) => autoKick.cancel(id),
     'autokick:list': () => autoKick.list(),

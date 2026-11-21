@@ -13,6 +13,57 @@ const fmtMin = (s: number) => `${Math.floor(s / 3600) ? `${Math.floor(s / 3600)}
 const WEIGHT: Record<string, number> = { import: 0.05, transcribe: 0.55, silence: 0.05, gaps: 0.02, full: 0.33 }
 export const overallProgress = (job: AutoKickStatus) => job.stages.reduce((n, s) => n + (WEIGHT[s.id] ?? 0) * (s.status === 'done' || s.status === 'skipped' ? 1 : s.progress), 0)
 
+/** Biten işin YouTube zaman damgaları: metin doğrudan görünür (kopyala); liste başta verilmediyse/değişecekse şimdi yapıştırılıp çevrilir */
+function TimestampsBox({ result }: { result: NonNullable<AutoKickStatus['result']> }) {
+  const api = requireApi()
+  const toast = useStore((s) => s.toast)
+  const [text, setText] = useState(result.timestampsText ?? '')
+  const [path, setPath] = useState(result.timestampsPath ?? '')
+  const [list, setList] = useState('')
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const convert = async () => {
+    setErr('')
+    setBusy(true)
+    try {
+      const r = await api.invoke('autokick:timestamps', { projectPath: result.projectPath, list })
+      setText(r.text)
+      setPath(r.path)
+      setWarnings(r.warnings)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="col" data-testid="autokick-ts-box">
+      <div className="section-title">YouTube zaman damgaları</div>
+      {text ? (
+        <>
+          <textarea readOnly rows={Math.min(14, text.split('\n').length + 1)} value={text} aria-label="Zaman damgaları" data-testid="autokick-ts-text" style={{ width: '100%' }} />
+          <div className="row wrap">
+            <button className="btn sm primary" onClick={() => { void navigator.clipboard?.writeText(text).catch(() => undefined); toast('success', 'Zaman damgaları kopyalandı: YouTube açıklamasına yapıştırın.') }} data-testid="autokick-ts-copy">Kopyala</button>
+            {path && <button className="btn sm" onClick={() => void api.invoke('shell:reveal', path)}>Dosyayı aç</button>}
+          </div>
+        </>
+      ) : (
+        <div className="hint" data-testid="autokick-ts-none">Zaman damgası yazılmadı (liste verilmediyse ve otomatik bölümler çıkmadıysa). Aşağıdan listenizi yapıştırın.</div>
+      )}
+      {warnings.map((w, i) => <div key={i} className="hint">⚠ {w}</div>)}
+      <details open={!text}>
+        <summary>{text ? 'Listeyi değiştir / yeniden çevir' : 'Listeyi şimdi yapıştır'}</summary>
+        <div className="col" style={{ marginTop: 6 }}>
+          <textarea rows={5} value={list} onChange={(e) => setList(e.target.value)} placeholder={'Giriş - 00:00:00\nLeo - 00:34:00 (orijinal kayıt zamanı)'} aria-label="Zaman damgası listesi (sonradan)" data-testid="autokick-ts-list" style={{ width: '100%' }} />
+          <button className="btn sm" disabled={busy || !list.trim()} onClick={() => void convert()} data-testid="autokick-ts-convert">{busy ? 'Çevriliyor…' : 'Kesimli videoya göre çevir'}</button>
+          {err && <div className="warnbox" role="alert" data-testid="autokick-ts-error">{err}</div>}
+        </div>
+      </details>
+    </div>
+  )
+}
+
 function Job({ job }: { job: AutoKickStatus }) {
   const api = requireApi()
   const openProject = useStore((s) => s.openProject)
@@ -58,6 +109,7 @@ function Job({ job }: { job: AutoKickStatus }) {
             <button className="btn sm" onClick={() => void api.invoke('shell:reveal', r.fullVideoPath)} data-testid="autokick-reveal">Klasörü aç</button>
             <button className="btn sm" onClick={() => void openProject(r.projectPath).then((ok) => ok && closeDialog(null))} data-testid="autokick-open">Projeyi uygulamada aç</button>
           </div>
+          <TimestampsBox result={r} />
         </div>
       )}
     </div>

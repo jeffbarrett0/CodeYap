@@ -149,6 +149,8 @@ export interface IpcInvoke {
   /** Auto Kick: yayın kaydından otomatik tam video (+ ileride klipler); iş arka planda sürer */
   /** YouTube yatay video: bütün yayından zaman damgalarının her birini ayrı MP4 olarak keser (görev kuyruğu; bitince 'ytcut:done') */
   'ytcut:start': [[YtCutRequest], string]
+  /** Biten Auto Kick işi için hazır zaman damgası listesini (orijinal kayıt zamanı) kesimli videonun zamanına çevirir; `… - zaman damgaları.txt` yazar */
+  'autokick:timestamps': [[{ projectPath: string; list: string }], { text: string; warnings: string[]; path: string }]
   'autokick:start': [[AutoKickRequest], string]
   'autokick:cancel': [[string], void]
   'autokick:list': [[], AutoKickStatus[]]

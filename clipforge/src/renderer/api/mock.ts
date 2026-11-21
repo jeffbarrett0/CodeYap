@@ -263,7 +263,7 @@ export function createMockApi(): ClipforgeApi {
         }
         status.status = 'done'
         status.finishedAt = Date.now()
-        status.result = { verified: true, outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
+        status.result = { timestampsText: '00:00:00 Giriş\n00:12:30 Osimhen', timestampsPath: '/yayin/AutoKick/kayit/kayit - zaman damgaları.txt', verified: true, outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
         push()
         // zincir: Auto Kick bitince Auto Clips kendiliğinden başlar (ayar açıksa)
         if (settings.autoClipsAfterKick) handlers['autoclips:start']({ projectPath: status.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport })
@@ -399,6 +399,11 @@ export function createMockApi(): ClipforgeApi {
           emit('export:done', { taskId: ctx.id, outputPath: req.outputPath })
         }
       }).id,
+    'autokick:timestamps': (r) => {
+      const lines = r.list.split(/\n/).map((l: string) => l.trim()).filter(Boolean)
+      if (lines.length === 0) throw new Error('Liste boş ya da okunamadı.')
+      return { text: lines.map((l: string, i: number) => `00:0${i}:00 ${l.replace(/[\d:]+\s*-?\s*/g, '').trim()}`).join('\n'), warnings: [], path: '/yayin/AutoKick/kayit/kayit - zaman damgaları.txt' }
+    },
     'ytcut:start': (req) =>
       queue.add({
         kind: 'ytcut',
