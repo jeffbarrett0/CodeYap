@@ -503,6 +503,20 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
       const again = await autoClipTranscript(lost, { userDataDir: ud })
       expect(again.lines.length).toBeGreaterThanOrEqual(1)
       expect((await autoClipEnsureTranscript(lost, { userDataDir: ud })).already).toBe(true)
+      // zincir: transkript yan klasörü yoksa Auto Clips sessizce ölmez; önce transkripti hazırlar
+      const lost2 = join(tmp, 'kayip-transkript2', 'kayip2.clipforge')
+      mkdirSync(join(tmp, 'kayip-transkript2'), { recursive: true })
+      copyFileSync(proj4, lost2)
+      const { AutoClipsManager } = await import('../../src/main/autoclips/run')
+      const seen: any[] = []
+      const mgr = new AutoClipsManager({ userDataDir: ud }, (st) => seen.push(st))
+      mgr.start({ projectPath: lost2, exportVideos: false })
+      const t0 = Date.now()
+      while (!['done', 'failed'].includes(mgr.list()[0]?.status ?? '')) {
+        if (Date.now() - t0 > 120_000) throw new Error('zaman aşımı')
+        await new Promise((r) => setTimeout(r, 200))
+      }
+      expect(mgr.list()[0].status, mgr.list()[0].error).toBe('done')
       expect(md5(proj4)).toBe(before)
     }
     // otomatik altyazı (2–4 kelime, iri beyaz): --captions ile; varsayılanda altyazı yok

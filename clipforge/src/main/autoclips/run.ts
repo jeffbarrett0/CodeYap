@@ -4,7 +4,7 @@ import { Session, makeService, waitTask } from '../../cli/session'
 import { clipReportText, initialAutoClipsStages, type AutoClipResultItem, type AutoClipsRequest, type AutoClipsResult, type AutoClipsStage, type AutoClipsStageState, type AutoClipsStatus } from '../../shared/autoclips'
 import { optionsFromPreset } from '../../shared/export/presets'
 import { timelineDuration } from '../../shared/timeline/model'
-import { autoClipCandidates, autoClipCandidatesForRanges, makeAutoClip } from './pipeline'
+import { autoClipCandidates, autoClipCandidatesForRanges, autoClipEnsureTranscript, makeAutoClip } from './pipeline'
 import { resolveProjectPath } from '../autokick/clips'
 import { appendRunLog } from '../runlog'
 
@@ -51,6 +51,15 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   const stage = hooks.onStage
   check()
   stage('find', { status: 'running', progress: 0 })
+  // transkript projeye bağlı değilse/bulunamıyorsa (Auto Kick bitti ama yan dosya yok) sessizce başarısız olma: önce hazırla
+  try {
+    const t = await autoClipEnsureTranscript(req.projectPath, env)
+    if (!t.already) stage('find', { detail: `Transkript bulunamadı, yeniden çıkarıldı (${t.words} kelime)` })
+  } catch (e) {
+    check()
+    throw new Error(`Transkript hazırlanamadı: ${e instanceof Error ? e.message : String(e)}`)
+  }
+  check()
   // hazır liste: konu aranmaz, her aralık bir klip olur (adlar kullanıcıdan); yoksa konular otomatik bulunur
   const found = req.ranges?.length && !req.horizontal
     ? await autoClipCandidatesForRanges(req.projectPath, req.ranges, { minSec: req.minSec, maxSec: req.maxSec }, env)

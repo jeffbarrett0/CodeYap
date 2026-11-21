@@ -385,7 +385,6 @@ export const useStore = create<State>()((set, get) => {
       const [settings, appInfo, tasks] = await Promise.all([a.invoke('settings:get'), a.invoke('app:info'), a.invoke('task:list')])
       set({ settings, appInfo, tasks: Object.fromEntries(tasks.map((t) => [t.id, t])), ready: true })
       void get().loadTemplates()
-      void a.invoke('autokick:list').then((l) => set({ autoKick: Object.fromEntries(l.map((j) => [j.id, j])) }))
       void a.invoke('autoclips:list').then((l) => set({ autoClipsJobs: Object.fromEntries(l.map((j) => [j.id, j])) }))
       a.on('autoclips:update', (j) => {
         const prev = get().autoClipsJobs[j.id]
@@ -399,15 +398,24 @@ export const useStore = create<State>()((set, get) => {
         set((s) => ({ story: { ...s.story, [j.id]: j } }))
         if (prev?.status === 'running' && j.status === 'failed') get().toast('error', `Anlatım işi hata verdi: ${j.error ?? ''}`)
       })
+      // Auto Kick → Auto Clips devri DURUMA bağlıdır (geçişi görmeye değil): iş "done" ise ve bu iş için devir yapılmadıysa yapılır.
+      // Böylece arayüz yeniden yüklense / olay kaçsa da pencere açılır ve proje devredilir.
+      const handedOff = new Set<string>()
+      const handOff = (j: AutoKickStatus, openWindow: boolean) => {
+        if (j.status !== 'done' || handedOff.has(j.id)) return
+        handedOff.add(j.id)
+        get().toast('success', `Auto Kick tamamlandı: ${j.videoName}. Video Auto Clips'e devredildi.`)
+        if (j.result?.projectPath) set({ autoClipsProject: j.result.projectPath })
+        if (openWindow) set({ dialog: 'autoclips' })
+      }
+      void a.invoke('autokick:list').then((l) => {
+        set({ autoKick: Object.fromEntries(l.map((j) => [j.id, j])) })
+        for (const j of l) handOff(j, false)
+      })
       a.on('autokick:update', (j) => {
         const prev = get().autoKick[j.id]
         set((s) => ({ autoKick: { ...s.autoKick, [j.id]: j } }))
-        if (prev?.status === 'running' && j.status === 'done') {
-          get().toast('success', `Auto Kick tamamlandı: ${j.videoName}. Video Auto Clips'e devredildi (üst çubuk → Auto Clips).`)
-          if (j.result?.projectPath) set({ autoClipsProject: j.result.projectPath })
-          // Auto Clips penceresi KENDİLİĞİNDEN açılır (zincir: Auto Kick → Auto Clips)
-          set({ dialog: 'autoclips' })
-        }
+        handOff(j, true)
         if (prev?.status === 'running' && j.status === 'failed') get().toast('error', `Auto Kick hata verdi: ${j.error ?? ''}`)
       })
       a.on('task:update', (t) => {
