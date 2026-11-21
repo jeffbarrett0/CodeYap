@@ -529,3 +529,6 @@ Kullanıcı Auto Kick projesini seçince "Projede transkript yok" aldı (gerçek
 
 ## 88. Auto Kick → Auto Clips devri sağlamlaştırıldı
 Kullanıcı: Auto Kick bitince pencere açılmadı, klip üretilmedi. Kök neden uzaktan görülemedi; iki kırılgan nokta kapatıldı: (1) arayüz devri "running→done" GEÇİŞİNE bağlıydı (yeniden yükleme/kaçan olayda hiçbir şey olmuyordu) → artık DURUMA bağlı: iş "done" ise ve devir yapılmadıysa (olayda ya da açılışta iş listesinde) proje devredilir, pencere açılır; (2) klip zinciri transkript yan dosyasını bulamazsa sessizce ölüyordu → `runAutoClips` önce `autoClipEnsureTranscript` ile transkripti hazırlar (yoksa yeniden çıkarır). Pencerede **Günlüğü göster** (`Auto Kick günlüğü.txt`): zincir başladı mı/neden durdu orada yazar.
+
+## 89. Auto Clips'te ham video seçilirse
+Kullanıcı Auto Clips'e "Auto Kick projesi" yerine ham kayıt videosunu (.mkv) seçti → "Proje dosyası okunamadı". `resolveProjectPath` artık video verilirse `<video klasörü>/AutoKick/<ad>/<ad>.clipforge` arar; yoksa "bu bir video, .clipforge seç / önce Auto Kick'ten geçir" der; .clipforge olmayan dosyayı açıkça reddeder. Pencerede hangi dosyanın seçileceğini anlatan ipucu var.

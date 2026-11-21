@@ -439,3 +439,20 @@ describe('isimle klip arama (kullanıcı ismi yazar)', () => {
     expect(lines[0].start).toBeLessThan(lines[1].start)
   })
 })
+
+describe('proje yolu çözümü: video seçilirse', () => {
+  it('ham video verilirse yanındaki Auto Kick projesi bulunur; yoksa açık Türkçe hata; proje olmayan dosya reddedilir', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { tmpdir } = await import('node:os')
+    const { resolveProjectPath } = await import('../../src/main/autokick/clips')
+    const d = mkdtempSync(join(tmpdir(), 'cf-resolve-'))
+    writeFileSync(join(d, 'kayit 1.mkv'), 'x')
+    await expect(resolveProjectPath(join(d, 'kayit 1.mkv'))).rejects.toThrow(/VİDEO dosyası.*Auto Kick/)
+    mkdirSync(join(d, 'AutoKick', 'kayit 1'), { recursive: true })
+    writeFileSync(join(d, 'AutoKick', 'kayit 1', 'kayit 1.clipforge'), '{}')
+    expect(await resolveProjectPath(join(d, 'kayit 1.mkv'))).toBe(join(d, 'AutoKick', 'kayit 1', 'kayit 1.clipforge'))
+    writeFileSync(join(d, 'not.txt'), 'x')
+    await expect(resolveProjectPath(join(d, 'not.txt'))).rejects.toThrow(/ClipForge projesi değil/)
+  })
+})

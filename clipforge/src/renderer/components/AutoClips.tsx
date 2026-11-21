@@ -228,6 +228,7 @@ export function AutoClipsDialog() {
           <button className="btn" onClick={() => void pick()} data-testid="autoclips-pick">Auto Kick projesini seç…</button>
           <span className="hint" style={{ wordBreak: 'break-all' }} data-testid="autoclips-path">{path || 'Henüz seçilmedi (Auto Kick bitince otomatik gelir)'}</span>
         </div>
+        <div className="hint" data-testid="autoclips-pick-hint">Seçilecek dosya <b>Auto Kick'in çıkardığı “.clipforge” projesidir</b> (videonun yanındaki <b>AutoKick</b> klasöründe: <i>…\AutoKick\&lt;video adı&gt;\&lt;video adı&gt;.clipforge</i>). Ham kayıt videosunu (.mkv/.mp4) seçersen yanındaki Auto Kick çıktısı aranır; yoksa önce videoyu Auto Kick'ten geçirmelisin.</div>
         <div className="row wrap" style={{ gap: 10, alignItems: 'center' }}>
           <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={10} min={30} max={MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
           <button className="btn primary" disabled={!path || busy} onClick={() => void find()} data-testid="autoclips-find">{busy && !cands ? 'Konular bulunuyor…' : cands ? 'Yeniden bul' : 'Klip önerilerini bul'}</button>

@@ -1,5 +1,5 @@
 import { readdir, stat, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { Session, makeService } from '../../cli/session'
 import { timelineDuration } from '../../shared/timeline/model'
 import { cutRange } from '../../shared/timeline/ops'
@@ -9,12 +9,24 @@ import { findTopicCandidates, type TopicCandidate, type TopicOptions } from '../
 
 type Env = { userDataDir?: string; resourcesDir?: string }
 
-/** Proje dosyası ya da AutoKick klasörü verilebilir (klasörde tek .clipforge aranır) */
+/**
+ * Proje dosyası, AutoKick klasörü ya da HAM VİDEO verilebilir. Video verilirse Auto Kick'in varsayılan çıktısı aranır
+ * (`<videonun klasörü>/AutoKick/<ad>/<ad>.clipforge`); yoksa ne yapılacağı açıkça yazılır (kullanıcı kayıt videosunu seçmiş olabilir).
+ */
 export async function resolveProjectPath(p: string): Promise<string> {
   const abs = resolve(p)
   const st = await stat(abs).catch(() => null)
   if (!st) throw new Error(`Bulunamadı: ${abs}`)
-  if (st.isFile()) return abs
+  if (st.isFile()) {
+    if (/\.(mkv|mp4|mov|flv|m4v|webm|avi)$/i.test(abs)) {
+      const name = basename(abs).replace(/\.[^.]+$/, '')
+      const guess = join(dirname(abs), 'AutoKick', name, `${name}.clipforge`)
+      if (await stat(guess).then((x) => x.isFile()).catch(() => false)) return guess
+      throw new Error(`Bu bir VİDEO dosyası (${basename(abs)}), proje değil. Auto Kick'in çıkardığı “${name}.clipforge” dosyasını seçin (genelde videonun yanındaki AutoKick\\${name} klasöründe). Bu videoyu henüz Auto Kick ile işlemediyseniz önce Auto Kick'ten geçirin.`)
+    }
+    if (!/\.clipforge$/i.test(abs)) throw new Error(`Bu bir ClipForge projesi değil (${basename(abs)}). “.clipforge” uzantılı Auto Kick projesini seçin.`)
+    return abs
+  }
   const found = (await readdir(abs)).filter((f) => f.endsWith('.clipforge'))
   if (found.length !== 1) throw new Error(found.length ? `Klasörde birden çok proje var: ${found.join(', ')}` : `Klasörde .clipforge projesi yok: ${abs}`)
   return join(abs, found[0])
