@@ -503,6 +503,24 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
       const again = await autoClipTranscript(lost, { userDataDir: ud })
       expect(again.lines.length).toBeGreaterThanOrEqual(1)
       expect((await autoClipEnsureTranscript(lost, { userDataDir: ud })).already).toBe(true)
+      // aralık önizleme kopyası (klip projeleri): yalnızca kullanılan aralık kodlanır, başlangıç ofseti kaydedilir; yeniden bulunabilir
+      {
+        const { makeProxy, findExistingProxy } = await import('../../src/main/media/proxy')
+        const { Session, makeService } = await import('../../src/cli/session')
+        const svc = await makeService({ userDataDir: ud })
+        const ps = await Session.open(proj4, svc)
+        const asset = ps.project.assets[0]
+        const dd = join(tmp, 'proxy-test-data')
+        const next = await makeProxy(asset, svc.tools, dd, 240, { range: { start: 2, end: 6 } })
+        expect(next.proxyStartSec).toBe(2)
+        expect(existsSync(join(dd, next.proxyPath!))).toBe(true)
+        const found = await findExistingProxy(asset, dd)
+        expect(found?.proxyPath).toBe(next.proxyPath)
+        expect(found?.proxyStartSec).toBe(2)
+        const full = await makeProxy(asset, svc.tools, join(tmp, 'proxy-test-data2'), 240)
+        expect(full.proxyStartSec).toBeUndefined()
+        expect(statSync(join(dd, next.proxyPath!)).size).toBeLessThan(statSync(join(tmp, 'proxy-test-data2', full.proxyPath!)).size)
+      }
       // zincir: transkript yan klasörü yoksa Auto Clips sessizce ölmez; önce transkripti hazırlar
       const lost2 = join(tmp, 'kayip-transkript2', 'kayip2.clipforge')
       mkdirSync(join(tmp, 'kayip-transkript2'), { recursive: true })

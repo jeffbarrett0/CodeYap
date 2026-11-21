@@ -55,6 +55,8 @@ function SourcePlayer() {
   const selfSet = useRef(0)
   const isVideo = asset?.kind === 'video'
   const isImage = asset?.kind === 'image'
+  /** Aralık önizleme kopyası (klip projeleri): kopya zamanı = kaynak zamanı − off */
+  const off = asset?.proxyPath ? asset.proxyStartSec ?? 0 : 0
   // Kaynak adresleri OYNATMA SIRASINDA sabit tutulur: önizleme kopyası (proxy) arka planda bitince
   // adres değişir ve öğe kaynağı yeniden yükleyip oynatmayı bozardı (ilk saniyeler normal, sonra takılma/cızırtı).
   const swapped = useRef(false)
@@ -88,10 +90,10 @@ function SourcePlayer() {
   useEffect(() => {
     const m = master()
     if (!m) return
-    if (Math.abs(m.currentTime - sourceTime) > 0.25 && Math.abs(selfSet.current - sourceTime) > 0.01) {
-      m.currentTime = sourceTime
+    if (Math.abs(m.currentTime + off - sourceTime) > 0.25 && Math.abs(selfSet.current - sourceTime) > 0.01) {
+      m.currentTime = Math.max(0, sourceTime - off)
       const f = follower()
-      if (f) f.currentTime = sourceTime
+      if (f) f.currentTime = Math.max(0, sourceTime - off)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceTime])
@@ -102,19 +104,19 @@ function SourcePlayer() {
     const tick = () => {
       const m = master()
       if (m && !m.paused) {
-        selfSet.current = m.currentTime
+        selfSet.current = m.currentTime + off
         // her karede değil ~15 Hz güncelle (60 Hz store/React güncellemesi ağır videoyu daha da yavaşlatıyordu)
         const nowMs = performance.now()
         if (nowMs - lastPush.current.at >= 66) {
-          lastPush.current = { t: m.currentTime, at: nowMs }
-          setSourceTime(m.currentTime)
+          lastPush.current = { t: m.currentTime + off, at: nowMs }
+          setSourceTime(m.currentTime + off)
         }
         const f = follower()
         if (f && !f.seeking && Math.abs(f.currentTime - m.currentTime) > 0.4 && nowMs - lastFix.current > 1500) {
           lastFix.current = nowMs
           f.currentTime = m.currentTime
         }
-        if (clipDraft && m.currentTime >= clipDraft.end) {
+        if (clipDraft && m.currentTime + off >= clipDraft.end) {
           m.pause()
           follower()?.pause()
           setPlaying(false)
@@ -130,7 +132,7 @@ function SourcePlayer() {
   const play = useCallback(() => {
     const m = master()
     if (!m) return
-    if (clipDraft && (m.currentTime >= clipDraft.end - 0.05 || m.currentTime < clipDraft.start)) m.currentTime = clipDraft.start
+    if (clipDraft && (m.currentTime + off >= clipDraft.end - 0.05 || m.currentTime + off < clipDraft.start)) m.currentTime = Math.max(0, clipDraft.start - off)
     void m.play().catch(() => undefined)
     const f = follower()
     if (f) {
@@ -187,7 +189,7 @@ function SourcePlayer() {
   /** Kaynak değişince (ör. duraklatılmışken proxy'ye geçiş) kaldığımız yerden devam et */
   const restoreTime = (e: SyntheticEvent<HTMLMediaElement>) => {
     const el = e.currentTarget
-    if (swapped.current && sourceTime > 0.25 && Math.abs(el.currentTime - sourceTime) > 0.25) el.currentTime = sourceTime
+    if (swapped.current && sourceTime > 0.25 && Math.abs(el.currentTime + off - sourceTime) > 0.25) el.currentTime = Math.max(0, sourceTime - off)
   }
   const dur = asset?.durationSec ?? 0
   return (

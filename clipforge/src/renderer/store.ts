@@ -427,7 +427,7 @@ export const useStore = create<State>()((set, get) => {
         // Otomatik seçme/oynatma YOK: orta alan, kullanıcı kütüphanede bir dosyaya tıklayana kadar boş kalır
         void a.invoke('media:markers', asset.id).then((m) => mutateProject((p) => ({ ...p, markers: { ...p.markers, [asset.id]: m } })))
       })
-      a.on('asset:updated', (asset) => mutateProject((p) => ({ ...p, assets: p.assets.map((x) => (x.id === asset.id ? { ...x, proxyPath: asset.proxyPath, proxyHeight: asset.proxyHeight, audioStreams: asset.audioStreams } : x)) })))
+      a.on('asset:updated', (asset) => mutateProject((p) => ({ ...p, assets: p.assets.map((x) => (x.id === asset.id ? { ...x, proxyPath: asset.proxyPath, proxyHeight: asset.proxyHeight, proxyStartSec: asset.proxyStartSec, audioStreams: asset.audioStreams } : x)) })))
       a.on('transcript:ready', ({ assetId, transcript, reused }) => {
         set((s) => ({ transcripts: { ...s.transcripts, [assetId]: transcript } }))
         get().toast('success', reused ? 'Kayıtlı transkript yüklendi (yeniden işlenmedi).' : `Transkripsiyon tamamlandı: ${transcript.words.length} kelime.`)

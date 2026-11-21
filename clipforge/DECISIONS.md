@@ -532,3 +532,6 @@ Kullanıcı: Auto Kick bitince pencere açılmadı, klip üretilmedi. Kök neden
 
 ## 89. Auto Clips'te ham video seçilirse
 Kullanıcı Auto Clips'e "Auto Kick projesi" yerine ham kayıt videosunu (.mkv) seçti → "Proje dosyası okunamadı". `resolveProjectPath` artık video verilirse `<video klasörü>/AutoKick/<ad>/<ad>.clipforge` arar; yoksa "bu bir video, .clipforge seç / önce Auto Kick'ten geçir" der; .clipforge olmayan dosyayı açıkça reddeder. Pencerede hangi dosyanın seçileceğini anlatan ipucu var.
+
+## 90. Klip projelerinde önizleme: aralık önizleme kopyası
+Kullanıcı: klibi uygulamada açınca önizleme siyah. Neden: Auto Kick/CLI (headless) önizleme kopyası (proxy) üretmez; kopyasız .mkv önizlemede oynamaz. 2,5 saatlik kaydın tamamını her klip için kodlamak makul değil → `MediaAsset.proxyStartSec`: kopya yalnızca kullanılan ARALIĞI içerir (kopya 0. sn = kaynak `proxyStartSec`). Arayüzde proje açılınca (`queueMissingProxies`) kopyası olmayan video için arka planda üretilir (klip projesi = birkaç sn; kullanımı kaynağın %90'ından fazlaysa tam kopya). Önizleme motoru ve kaynak oynatıcı ofseti çıkarır; yan dosya `proxy/<id>/info.json` ile kaydedilmeden kapanan proje yeniden kodlanmadan bağlanır. Dışa aktarma orijinal dosyayı kullanır (değişmedi).

@@ -51,6 +51,14 @@ export class PreviewEngine {
     return this.api.mediaUrl(a, kind, index, dn)
   }
 
+  /** Aralık önizleme kopyası (klip projeleri) kullanılıyorsa kopya zamanı = kaynak zamanı − bu değer; tam kopya/orijinal dosyada 0 */
+  private proxyOffset(assets: MediaAsset[], clip: Clip, kind: 'video' | 'audio', index = 0): number {
+    const a = assets.find((x) => x.id === clip.assetId)
+    if (!a || !a.proxyStartSec) return 0
+    const hasProxy = kind === 'video' ? !!a.proxyPath : !!a.audioStreams[index]?.proxyPath
+    return hasProxy ? a.proxyStartSec : 0
+  }
+
   private denoiseVariant(clip: Clip, index: number): string | undefined {
     const lv = clip.fx?.denoise
     return lv && denoiseReady.has(denoiseKey(clip.assetId, index, lv)) ? lv : undefined
@@ -90,7 +98,7 @@ export class PreviewEngine {
           v.setAttribute('data-src', src)
           v.src = src
         }
-        this.align(v, target, playing, rate, c.id)
+        this.align(v, target - this.proxyOffset(assets, c, 'video'), playing, rate, c.id)
       } else if (track.kind === 'audio') {
         const ak = `${this.key(c)}|${c.audioStream ?? 0}|${this.denoiseVariant(c, c.audioStream ?? 0) ?? ''}`
         want.add(ak)
@@ -106,7 +114,7 @@ export class PreviewEngine {
           a.src = src
         }
         a.volume = c.muted ? 0 : Math.min(1, Math.max(0, track.volume * c.volume))
-        this.align(a, target, playing, rate, c.id)
+        this.align(a, target - (this.denoiseVariant(c, c.audioStream ?? 0) ? 0 : this.proxyOffset(assets, c, 'audio', c.audioStream ?? 0)), playing, rate, c.id)
       }
     }
     // Artık etkin olmayan öğeleri bırak

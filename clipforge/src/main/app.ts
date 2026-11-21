@@ -17,7 +17,7 @@ import { cpuThreads, resolveFfmpegPath, resolveFfprobePath, runTool, setCpuMode,
 import { denoiseChain } from '../shared/export/plan'
 import { audioLevelSeries, detectScenes, extractWavChunk } from './media/audio'
 import { importMedia, loadMarkers, type MediaTools } from './media/import'
-import { makeProxy } from './media/proxy'
+import { findExistingProxy, makeProxy } from './media/proxy'
 import { access } from 'node:fs/promises'
 import { copyDataDir, dataDirFor, openProject, saveProject, seedDataDir } from './project/io'
 import { assetsNeededFor, buildClipProject, safeFileName } from '../shared/project/clipProject'
@@ -123,18 +123,47 @@ export class AppService {
     })
   }
 
-  private queueProxy(asset: MediaAsset): void {
+  private proxying = new Set<string>()
+
+  private queueProxy(asset: MediaAsset, range?: { start: number; end: number }): void {
+    this.proxying.add(asset.id)
     this.queue.add({
       kind: 'proxy',
       title: `Önizleme kopyası: ${asset.name}`,
       run: async (ctx) => {
-        const next = await makeProxy(asset, this.tools, this.dataDir, this.settings.value.proxyHeight, { signal: ctx.signal, progress: (f) => ctx.progress(f, `%${Math.round(f * 100)}`) })
+        const next = await makeProxy(asset, this.tools, this.dataDir, this.settings.value.proxyHeight, { signal: ctx.signal, range, progress: (f) => ctx.progress(f, `%${Math.round(f * 100)}`) })
         const cur = this.assets.get(asset.id) ?? asset
-        const merged = { ...cur, proxyPath: next.proxyPath, proxyHeight: next.proxyHeight, audioStreams: cur.audioStreams.map((a, i) => ({ ...a, proxyPath: next.audioStreams[i]?.proxyPath })) }
+        const merged = { ...cur, proxyPath: next.proxyPath, proxyHeight: next.proxyHeight, proxyStartSec: next.proxyStartSec, audioStreams: cur.audioStreams.map((a, i) => ({ ...a, proxyPath: next.audioStreams[i]?.proxyPath })) }
         this.assets.set(asset.id, merged)
         this.deps.emit('asset:updated', merged)
       }
     })
+  }
+
+  /**
+   * Arayüzde açılan projede önizleme kopyası (proxy) olmayan video varsa arka planda üretir: Auto Kick/CLI (headless) kopya üretmez,
+   * kopyasız .mkv önizlemede siyah kalır. Kaynağın yalnızca küçük bir bölümü kullanılıyorsa (klip projeleri) yalnızca o ARALIK kopyalanır
+   * (2,5 saatlik kayıttan 42 sn'lik klip = birkaç saniye); aksi halde tamamı.
+   */
+  private queueMissingProxies(project: Project): void {
+    if (this.deps.headless) return
+    for (const a of project.assets) {
+      if (a.kind !== 'video' || a.missing || a.proxyPath || this.proxying.has(a.id)) continue
+      this.proxying.add(a.id)
+      const clips = project.timeline.tracks.filter((t) => t.kind === 'video' || t.kind === 'audio').flatMap((t) => t.clips).filter((c) => c.assetId === a.id)
+      let range: { start: number; end: number } | undefined
+      if (clips.length > 0 && a.durationSec > 0) {
+        const start = Math.max(0, Math.min(...clips.map((c) => c.srcIn)) - 1)
+        const end = Math.min(a.durationSec, Math.max(...clips.map((c) => c.srcOut)) + 1)
+        if (end - start < a.durationSec * 0.9) range = { start, end }
+      }
+      void findExistingProxy(a, this.dataDir).then((found) => {
+        if (found) {
+          this.assets.set(a.id, found)
+          this.deps.emit('asset:updated', found)
+        } else this.queueProxy(a, range)
+      })
+    }
   }
 
   async markers(assetId: string): Promise<Marker[]> {
@@ -539,6 +568,7 @@ export class AppService {
     for (const a of project.assets) this.assets.set(a.id, a)
     // Transkriptleri yan dosyalardan yükle: yeniden transkripsiyon gerekmez
     for (const a of project.assets) await this.transcriptGet(a.id)
+    this.queueMissingProxies(project)
     return { project, path }
   }
 

@@ -66,6 +66,8 @@ export interface MediaAsset {
   thumbnailPath?: string
   proxyPath?: string
   proxyHeight?: number
+  /** Önizleme kopyası yalnızca kaynağın bir ARALIĞINI içeriyorsa (klip projeleri): kopyanın 0. saniyesi = kaynağın bu saniyesi. Yoksa 0 (tam kopya). */
+  proxyStartSec?: number
   /** Ayrı webcam dosyası ise ve senkron ofseti biliniyorsa: webcam_zamanı = ekran_zamanı + syncOffsetSec */
   syncOffsetSec?: number
   /** Kayıtta ekran ve kamera tek dosyada ise kamera bölgesi (0..1 normalize) */
