@@ -38,7 +38,7 @@ import { parseClock, type TrailerMode, type TrailerSegment } from '../shared/tra
 import { ctaRect, ctaSequence, parseCtaManifest, type CtaPos } from '../shared/cta'
 import type { StoryPlan } from '../shared/story/types'
 import { runAutoKick } from '../main/autokick/pipeline'
-import { chapterTimestamp, chapterWarnings, formatChapters, mapChapterList, parseChapterList } from '../shared/chapters'
+import { chapterClipRanges, chapterTimestamp, chapterWarnings, formatChapters, mapChapterList, parseChapterList } from '../shared/chapters'
 import { makeTopicClip, makeTopicCompilation, resolveProjectPath, topicCandidates } from '../main/autokick/clips'
 import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/timeline/model'
 import { audioCarriersOf, clipsAt, makeTextClip, timelineToSource } from '../shared/timeline/ops'
@@ -347,7 +347,7 @@ async function main(argv: string[]): Promise<unknown> {
       const kept = ps.timeline.tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips).filter((c) => c.assetId === mainId).map((c) => ({ srcIn: c.srcIn, srcOut: c.srcOut, start: c.start }))
       const total = timelineDuration(ps.timeline)
       const mapped = mapChapterList(parseChapterList(await readFile(resolve(str(a.opt['from-list'])!), 'utf8')), kept, total)
-      const ranges = mapped.chapters.map((c, i) => ({ start: c.start, end: mapped.chapters[i + 1]?.start ?? total, title: c.title })).filter((x) => x.end - x.start >= (num(a.opt['min-sec'], 'min-sec') ?? 10) && !/^giri[sş]$/i.test(x.title.trim()))
+      const ranges = chapterClipRanges(mapped.chapters, total, num(a.opt['min-sec'], 'min-sec') ?? 10)
       if (ranges.length === 0) throw new Error('Listeden klip çıkaracak alan bulunamadı (Giriş ve 10 sn\'den kısa bölümler klip olmaz).')
       const res = await runAutoClips({ projectPath: projectArg, exportVideos: !!a.opt.export, horizontal: true, ranges }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips-liste:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
       return out({ ok: true, dir: res.dir, count: res.clips.length, warnings: mapped.warnings, clips: res.clips.map((x) => ({ subject: x.subject, start: r1(x.start), end: r1(x.end), durationSec: r1(x.durationSec), project: x.projectPath, video: x.videoPath, error: x.error })) })

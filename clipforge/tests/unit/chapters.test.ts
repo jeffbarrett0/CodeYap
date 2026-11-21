@@ -122,4 +122,25 @@ describe('YouTube bölüm zamanları', () => {
     expect(r.warnings.some((w) => w.includes('Veda'))).toBe(true)
     expect(formatChapters(r.chapters, 4436).split('\n')[0]).toBe('00:00:00 Giriş') // 1 saati aşan video: SS:DD:ss
   })
+
+  it('bitişli liste ("03:00 - 09:00 Noah Lang"): bitiş de çevrilir; ilk konu 0\'da değilse başa Giriş eklenir; klip aralıkları bitişe uyar', async () => {
+    const { chapterClipRanges } = await import('../../src/shared/chapters')
+    const list = parseChapterList('00:03:00 - 00:09:00 Noah Lang\n00:34:00 - 00:41:00 Leo\n00:41:00 - 00:45:00 Deniz Gül')
+    expect(list[0]).toEqual({ start: 180, end: 540, title: 'Noah Lang' })
+    // kesim: ilk 100 sn yok; 200–230 arası sessizlik kesildi (30 sn); 3000–3100 arası kesildi
+    const kept = [
+      { srcIn: 100, srcOut: 200, start: 0 },
+      { srcIn: 230, srcOut: 3000, start: 100 },
+      { srcIn: 3100, srcOut: 6000, start: 2870 }
+    ]
+    const r = mapChapterList(list, kept, 5770)
+    expect(r.chapters[0]).toEqual({ start: 0, title: 'Giriş' })
+    expect(r.chapters[1].title).toBe('Noah Lang')
+    expect(r.chapters[1].start).toBe(80) // 180. sn: ilk 100 sn kesildi → 80
+    expect(r.chapters[1].end).toBe(410) // 540. sn: 100 sn başlangıç + 30 sn sessizlik kesilmiş → 410
+    const clips = chapterClipRanges(r.chapters, 5770)
+    expect(clips.map((c) => c.title)).toEqual(['Noah Lang', 'Leo', 'Deniz Gül'])
+    expect(clips[0].end - clips[0].start).toBeLessThan(360) // 6 dk'dan kısa: sessizlik kesimi
+    expect(clips[1].end - clips[1].start).toBeGreaterThan(380) // ~7 dk (34:00–41:00; kesim yok)
+  })
 })

@@ -371,16 +371,26 @@ export function findChapters(words: TranscriptWord[], options: Partial<ChapterOp
 }
 
 /** ───── Hazır zaman damgası listesi (orijinal kayıt zamanı) → kesimli videonun zamanı ───── */
-export interface ListedChapter { start: number; title: string }
+export interface ListedChapter { start: number; title: string; /** isteğe bağlı bitiş ("03:00 - 09:00 Noah Lang" yazımı); yoksa bir sonraki bölümün başı */ end?: number }
 
-/** "00:00:00 - Giriş", "01:10:06 - Osimhen", "6:41 Fenerbahçe" (tire isteğe bağlı); başlık/boş satırlar ("Saniyeler:") yok sayılır */
+/** "00:00:00 - Giriş", "01:10:06 - Osimhen", "6:41 Fenerbahçe" (tire isteğe bağlı); bitişli: "03:00 - 09:00 Noah Lang"; başlık/boş satırlar ("Saniyeler:") yok sayılır */
 export function parseChapterList(text: string): ListedChapter[] {
   const out: ListedChapter[] = []
   for (const raw of text.split(/\r?\n/)) {
     const m = /^\s*(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s*(?:[-–—:|.)]\s*)?(.+?)\s*$/.exec(raw)
     if (!m) continue
     const h = m[1] ? Number(m[1]) : 0
-    out.push({ start: h * 3600 + Number(m[2]) * 60 + Number(m[3]), title: m[4] })
+    const start = h * 3600 + Number(m[2]) * 60 + Number(m[3])
+    // "03:00 - 09:00 Noah Lang": ikinci zaman bitiştir
+    const r = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s*(?:[-–—:|.)]\s*)?(.+?)\s*$/.exec(m[4])
+    if (r) {
+      const end = (r[1] ? Number(r[1]) : 0) * 3600 + Number(r[2]) * 60 + Number(r[3])
+      if (end > start) {
+        out.push({ start, end, title: r[4] })
+        continue
+      }
+    }
+    out.push({ start, title: m[4] })
   }
   return out.sort((a, b) => a.start - b.start)
 }
@@ -390,7 +400,7 @@ export interface KeptRange { srcIn: number; srcOut: number; start: number }
 /**
  * Listedeki ORİJİNAL kayıt zamanlarını çizelge (kesimli/boşlukları kapatılmış video) zamanına çevirir.
  * Kesilen bir yere denk gelen bölüm, kesimden sonraki ilk korunan ana taşınır; aynı ana düşen bölümler tek kalır (sonuncusu).
- * İlk bölüm daima 0'dan başlar (YouTube kuralı). Çizelge süresini aşan bölümler atılır.
+ * İlk bölüm 0'dan başlar (liste ilk konuyla başlıyorsa başa "Giriş" eklenir). Çizelge süresini aşan bölümler atılır.
  */
 export function mapChapterList(list: ListedChapter[], kept: KeptRange[], totalSec: number): { chapters: ListedChapter[]; warnings: string[] } {
   const warnings: string[] = []
@@ -407,10 +417,31 @@ export function mapChapterList(list: ListedChapter[], kept: KeptRange[], totalSe
       warnings.push(`"${c.title}" (${chapterTimestamp(c.start)}) kesilen bir yere denk geldi; kesimden sonraki ilk ana taşındı.`)
     }
     if (t >= totalSec - 1) { warnings.push(`"${c.title}" çizelge süresini aştığı için atlandı.`); continue }
+    // bitiş (varsa): korunan aralıkta ise doğrudan; kesilen yerdeyse ondan önceki son korunan ana
+    let tEnd: number | undefined
+    if (c.end !== undefined) {
+      const eh = ranges.find((r) => c.end! > r.srcIn && c.end! <= r.srcOut)
+      if (eh) tEnd = eh.start + (c.end - eh.srcIn)
+      else {
+        const prev = [...ranges].reverse().find((r) => r.srcOut <= c.end!)
+        if (prev) tEnd = prev.start + (prev.srcOut - prev.srcIn)
+      }
+      if (tEnd !== undefined) tEnd = Math.min(tEnd, totalSec)
+      if (tEnd !== undefined && tEnd <= t) tEnd = undefined
+    }
     const last = mapped[mapped.length - 1]
-    if (last && Math.abs(last.start - t) < 1) { warnings.push(`"${last.title}" bölümü tamamen kesildiği için "${c.title}" ile birleşti.`); mapped[mapped.length - 1] = { start: last.start, title: c.title }; continue }
-    mapped.push({ start: t, title: c.title })
+    if (last && Math.abs(last.start - t) < 1) { warnings.push(`"${last.title}" bölümü tamamen kesildiği için "${c.title}" ile birleşti.`); mapped[mapped.length - 1] = { start: last.start, title: c.title, ...(tEnd !== undefined ? { end: tEnd } : {}) }; continue }
+    mapped.push({ start: t, title: c.title, ...(tEnd !== undefined ? { end: tEnd } : {}) })
   }
-  if (mapped.length > 0) mapped[0] = { ...mapped[0], start: 0 }
+  // YouTube kuralı: ilk bölüm 0:00'da. Liste ilk konuyla başlıyorsa (ör. 03:00 Noah Lang) başa "Giriş" eklenir, konunun kendi başlangıcı bozulmaz
+  if (mapped.length > 0 && mapped[0].start > 1) mapped.unshift({ start: 0, title: 'Giriş' })
+  else if (mapped.length > 0) mapped[0] = { ...mapped[0], start: 0 }
   return { chapters: mapped, warnings }
+}
+
+/** Klip aralıkları: bitiş verilmişse o, yoksa sonraki bölümün başı (son bölüm: video sonu). "Giriş" ve `minSec`'ten kısa olanlar klip olmaz. */
+export function chapterClipRanges(chapters: ListedChapter[], totalSec: number, minSec = 10): { start: number; end: number; title: string }[] {
+  return chapters
+    .map((c, i) => ({ start: c.start, end: c.end ?? chapters[i + 1]?.start ?? totalSec, title: c.title }))
+    .filter((r) => r.end - r.start >= minSec && !/^giri[sş]$/i.test(r.title.trim()))
 }

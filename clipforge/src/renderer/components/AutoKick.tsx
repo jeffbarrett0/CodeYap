@@ -202,9 +202,9 @@ export function AutoKickDialog() {
         </div>
         <Readiness />
         <Field label="Hazır zaman damgası listesi (isteğe bağlı) — kaydı seçmeden ÖNCE yapıştırın">
-          <textarea rows={4} value={chapterList} onChange={(e) => setChapterList(e.target.value)} placeholder={'00:00:00 - Giriş\n01:10:06 - Osimhen'} aria-label="Zaman damgası listesi" data-testid="autokick-chapter-list" style={{ width: '100%' }} />
+          <textarea rows={4} value={chapterList} onChange={(e) => setChapterList(e.target.value)} placeholder={'00:00:00 - Giriş\n00:03:00 - 00:09:00 Noah Lang\n00:34:00 - 00:41:00 Leo'} aria-label="Zaman damgası listesi" data-testid="autokick-chapter-list" style={{ width: '100%' }} />
         </Field>
-        {chapterList.trim() && <div className="hint" data-testid="autokick-chapter-hint">Zamanlar <b>orijinal kayıta</b> göre yazılmalı: Auto Kick sessizleri ve yayın başını kesince bunları kesimli videonun zamanına kendisi çevirir. Liste verilirse otomatik konu bölümleri çıkarılmaz ve <b>yatay (16:9) klipler yalnızca bu listedeki alanlardan</b> çıkar ("Giriş" klip olmaz); dikey klipler eskisi gibi otomatik konulardan üretilir.</div>}
+        {chapterList.trim() && <div className="hint" data-testid="autokick-chapter-hint">Zamanlar <b>orijinal kayıta</b> göre yazılmalı (tek zaman: bölüm bir sonrakinin başına kadar sürer; "03:00 - 09:00 Ad" yazarsanız o aralık): Auto Kick sessizleri ve yayın başını kesince bunları kesimli videonun zamanına kendisi çevirir. Liste verilirse otomatik konu bölümleri çıkarılmaz ve <b>yatay (16:9) klipler yalnızca bu listedeki alanlardan</b> çıkar ("Giriş" klip olmaz); dikey klipler eskisi gibi otomatik konulardan üretilir.</div>}
         <button className="btn primary" style={{ padding: '14px 16px', fontSize: 15 }} onClick={() => void pick()} data-testid="autokick-pick">Yayın kaydını seç ve başlat…</button>
         {video && <div className="hint" data-testid="autokick-path" style={{ wordBreak: 'break-all' }}>Seçilen: {video}</div>}
         {err && <div className="warnbox" role="alert">{err}</div>}

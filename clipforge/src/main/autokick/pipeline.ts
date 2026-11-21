@@ -13,7 +13,7 @@ import type { Settings } from '../../shared/types'
 import { mergeRanges, renderFastCut, snapToFrame, type Range } from './fastcut'
 import { planSilenceCuts } from '../../shared/timeline/silence'
 import { timelineWords } from '../../shared/timeline/transcript'
-import { formatChapters, mapChapterList, parseChapterList } from '../../shared/chapters'
+import { chapterClipRanges, formatChapters, mapChapterList, parseChapterList } from '../../shared/chapters'
 import { qaText } from '../../shared/qa'
 import { qaVideo } from '../qa'
 
@@ -294,9 +294,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
       const mapped = mapChapterList(parseChapterList(req.chapterList), kept, total)
       if (mapped.chapters.length > 0) {
         // yatay klip aralıkları: her bölüm bir sonrakinin başına kadar; "Giriş" ve 10 sn'den kısa olanlar klip olmaz
-        chapterRanges = mapped.chapters
-          .map((c, i) => ({ start: c.start, end: mapped.chapters[i + 1]?.start ?? total, title: c.title }))
-          .filter((r) => r.end - r.start >= 10 && !/^giri[sş]$/i.test(r.title.trim()))
+        chapterRanges = chapterClipRanges(mapped.chapters, total)
         timestampsPath = p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
         await writeFile(timestampsPath, formatChapters(mapped.chapters, total) + '\n', 'utf8')
         // YouTube'a yapıştırılacak dosya temiz kalsın: uyarılar (kesilen yere denk gelen bölümler) ayrı dosyaya
