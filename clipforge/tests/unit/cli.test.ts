@@ -424,7 +424,7 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(JSON.stringify(miss)).toMatch(/Veri kümesi bulunamadı/)
   }, 240_000)
 
-  it('auto-clips: transkriptte konuşulan kişiye göre aday (zaman + ne konuşulmuş); --pick ile 9:16 klip projesi: yüz üstte (kırpma), görüntü altta; ana proje değişmez', () => {
+  it('auto-clips: transkriptte konuşulan kişiye göre aday (zaman + ne konuşulmuş); --pick ile 9:16 klip projesi: yüz üstte (kırpma), görüntü altta; ana proje değişmez', async () => {
     const proj4 = join(tmp, 'autoclips.clipforge')
     const ffm = require('ffmpeg-static') as string
     execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=5:duration=330', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=330', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(tmp, 'uzun.mp4')])
@@ -480,6 +480,19 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(statSync(chain.clips[0].video).size).toBeGreaterThan(20_000)
     expect(chain.clips[0].project).toMatch(/\.clipforge$/)
     expect(md5(proj4)).toBe(before)
+    // transkript + isimle arama (ana süreç fonksiyonları, gerçek proje): öneri listesi, isimden klip, proje değişmez
+    {
+      const { autoClipTranscript, autoClipSearch } = await import('../../src/main/autoclips/pipeline')
+      const tr = await autoClipTranscript(proj4, { userDataDir: ud })
+      expect(tr.lines.length).toBeGreaterThan(3)
+      expect(tr.totalSec).toBeGreaterThan(30)
+      const nm = tr.suggestions[0]?.name ?? 'Lemina'
+      const se = await autoClipSearch(proj4, nm, {}, { userDataDir: ud })
+      expect(se.candidates.length).toBeGreaterThanOrEqual(1)
+      expect(se.candidates[0].subject).toBe(nm)
+      await expect(autoClipSearch(proj4, '  ', {}, { userDataDir: ud })).rejects.toThrow(/isim/)
+      expect(md5(proj4)).toBe(before)
+    }
     // otomatik altyazı (2–4 kelime, iri beyaz): --captions ile; varsayılanda altyazı yok
     expect(cp.captions).toBe(0)
     const mkc = cli('auto-clips', proj4, '--pick', String(lem.pick), '--face', '0.7,0.64,0.29,0.34', '--captions')
@@ -743,7 +756,7 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(cli('yt-cut', src, '--list', join(tmp, 'yok.txt')).ok).toBe(false)
   }, 180_000)
 
-  it('UYGULAMA ZİNCİRİ (ana süreç): Auto Kick + hazır liste → bitince Auto Clips kendiliğinden dikey ve yatay klipleri listedeki alanlardan üretir; günlük yazılır', async () => {
+  it('UYGULAMA ZİNCİRİ (ana süreç): Auto Kick + hazır liste → bitince Auto Clips kendiliğinden YALNIZCA dikey klipleri listedeki alanlardan üretir; günlük yazılır', async () => {
     const { AutoKickManager } = await import('../../src/main/autokick/pipeline')
     const { AutoClipsManager, chainAutoClips } = await import('../../src/main/autoclips/run')
     const { appendRunLog } = await import('../../src/main/runlog')
@@ -764,10 +777,10 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(kickDone.status, kickDone.error).toBe('done')
     expect(kickDone.result.chapterRanges.map((r: any) => r.title)).toEqual(['Tek konu'])
     expect(logs[0]).toMatch(/BAŞLATILIYOR/)
-    await until(() => ac.list().length === 2 && ac.list().every((j) => j.status === 'done' || j.status === 'failed'))
+    await until(() => ac.list().length === 1 && ac.list().every((j) => j.status === 'done' || j.status === 'failed'))
     const jobs = ac.list()
-    expect(jobs.map((j) => j.status)).toEqual(['done', 'done'])
-    expect(jobs.map((j) => !!j.request.horizontal)).toEqual([false, true])
+    expect(jobs.map((j) => j.status)).toEqual(['done'])
+    expect(jobs.map((j) => !!j.request.horizontal)).toEqual([false])
     for (const j of jobs) {
       expect(j.result!.clips.length).toBe(1)
       expect(j.result!.clips[0].subject).toBe('Tek konu')
@@ -777,7 +790,6 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     const rep = readFileSync(join(jobs[0].result!.dir, 'Klip raporu (dikey).txt'), 'utf8')
     expect(rep).toMatch(/KLİP RAPORU/)
     expect(rep).toMatch(/Tek konu/)
-    expect(readFileSync(join(jobs[1].result!.dir, 'Klip raporu (yatay).txt'), 'utf8')).toMatch(/yatay 16:9, senin zaman damgası listenden/)
     // zaman damgası metni sonuçta + sonradan liste çevirme (arayüzdeki "Listeyi şimdi yapıştır")
     const { convertTimestampsForProject } = await import('../../src/main/autokick/clips')
     expect(kickDone.result.timestampsText).toMatch(/^00:00 /)

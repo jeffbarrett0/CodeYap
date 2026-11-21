@@ -192,6 +192,28 @@ export function createMockApi(): ClipforgeApi {
         ]
       }
     },
+    'autoclips:transcript': (r) => {
+      if (/yok/i.test(r.projectPath)) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
+      return {
+        projectPath: r.projectPath,
+        totalSec: 1800,
+        lines: [
+          { start: 0, end: 6, text: 'Selam arkadaşlar bugün çok konu var.' },
+          { start: 120, end: 150, text: 'Lemina orta sahada çok iyi oynuyor.' },
+          { start: 600, end: 640, text: 'Zaha kanatta fark yaratıyor ama bitiriciliği eksik.' },
+          { start: 1200, end: 1240, text: 'Osimhen gol krallığında hâlâ en önde.' }
+        ],
+        suggestions: [
+          { name: 'Osimhen', count: 12, firstAt: 1200 },
+          { name: 'Lemina', count: 7, firstAt: 120 }
+        ]
+      }
+    },
+    'autoclips:search': (r) => {
+      if (!r.query.trim()) throw new Error('Aranacak bir isim yazın (ör. Osimhen).')
+      if (/yokisim/i.test(r.query)) return { projectPath: r.projectPath, candidates: [] }
+      return { projectPath: r.projectPath, candidates: [{ id: 'm1', start: 1190, end: 1250, durationSec: 60, subject: r.query.trim(), headline: `${r.query.trim()} hakkında konuşmuşsun · 3 anış`, summary: 'Osimhen gol krallığında hâlâ en önde.', score: 6.5 }] }
+    },
     'autoclips:make': (r) => r.picks.map((p) => ({ projectPath: `/yayin/AutoKick/kayit/kayit-klipler/${p.subject} · ${Math.round(p.end - p.start)} sn.clipforge`, durationSec: p.end - p.start, name: `${p.subject} · ${Math.round(p.end - p.start)} sn` })),
     'story:start': (req) => {
       const id = `story-${storyJobs.size + 1}`

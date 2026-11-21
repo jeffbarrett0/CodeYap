@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_AUTOCLIP_LAYOUT, MAX_CLIP_SEC, MIN_CLIP_SEC, autoClipTemplate, faceCrop, findAutoClips, hotWindows, overlayRect, parseRect, screenCrop, sentenceEnergy, clipReportText } from '@shared/autoclips'
 import type { TranscriptWord } from '@shared/types'
 import { chainAutoClips } from '../../src/main/autoclips/run'
+import { findMentionClips, mentionMatcher, mentionSuggestions, transcriptLines } from '@shared/clipsearch'
 
 /** Her blok: dakika, kelime dağarcığı, isteğe bağlı büyük harfli ad (cümle ortasında) */
 function stream(blocks: { secs: number; vocab: string[]; name?: string }[]): TranscriptWord[] {
@@ -300,25 +301,21 @@ describe('Auto Clips: yatay (YouTube) klipler', () => {
   })
 })
 
-describe('zincir: yatay klipler', () => {
-  it('ayar açıksa dikeyden sonra yatay iş de başlatılır; kapalıysa yalnızca dikey', () => {
+describe('zincir: yalnızca dikey', () => {
+  it('ayar ne olursa olsun yatay iş başlatılmaz (Auto Clips yalnızca dikey)', () => {
     const started: { horizontal?: boolean }[] = []
     const mgr = { start: (r: { horizontal?: boolean }) => (started.push(r), `j${started.length}`) }
     const st = (id: string) => ({ id, status: 'done', result: { projectPath: '/x/p.clipforge' } })
     chainAutoClips(st('a1'), new Set(), { autoClipsAfterKick: true, autoClipsMax: 5, autoClipsExport: true, autoClipsHorizontal: true }, mgr)
-    expect(started.map((r) => !!r.horizontal)).toEqual([false, true])
-    started.length = 0
-    chainAutoClips(st('a2'), new Set(), { autoClipsAfterKick: true, autoClipsMax: 5, autoClipsExport: true, autoClipsHorizontal: false }, mgr)
     expect(started.map((r) => !!r.horizontal)).toEqual([false])
   })
-  it('hazır bölüm listesi varsa hem dikey hem yatay klipler YALNIZCA o alanlardan (ayardan bağımsız)', () => {
+  it('hazır bölüm listesi varsa dikey klipler YALNIZCA o alanlardan; yatay iş yok', () => {
     const started: { horizontal?: boolean; ranges?: { title: string }[] }[] = []
     const mgr = { start: (r: { horizontal?: boolean; ranges?: { title: string }[] }) => (started.push(r), `j${started.length}`) }
     const ranges = [{ start: 120, end: 500, title: 'Lemina' }, { start: 500, end: 900, title: 'Galatasaray gündemi' }]
-    chainAutoClips({ id: 'b1', status: 'done', result: { projectPath: '/x/p.clipforge', chapterRanges: ranges } }, new Set(), { autoClipsAfterKick: true, autoClipsMax: 5, autoClipsExport: true, autoClipsHorizontal: false }, mgr)
-    expect(started.map((r) => !!r.horizontal)).toEqual([false, true])
+    chainAutoClips({ id: 'b1', status: 'done', result: { projectPath: '/x/p.clipforge', chapterRanges: ranges } }, new Set(), { autoClipsAfterKick: true, autoClipsMax: 5, autoClipsExport: true, autoClipsHorizontal: true }, mgr)
+    expect(started.map((r) => !!r.horizontal)).toEqual([false])
     expect(started[0].ranges).toEqual(ranges) // dikey de listedeki alanlardan
-    expect(started[1].ranges).toEqual(ranges)
     const logs: string[] = []
     chainAutoClips({ id: 'b2', status: 'done', result: { projectPath: '/x/p.clipforge', chapterRanges: ranges } }, new Set(), { autoClipsAfterKick: false, autoClipsMax: 5, autoClipsExport: true }, mgr, (m) => logs.push(m))
     expect(logs[0]).toMatch(/BAŞLATILMADI/)
@@ -394,4 +391,51 @@ describe('Auto Clips: en etkili an seçimi ve çeşitlilik', () => {
     expect(t).toMatch(/1\/2 MP4 hazır/)
   })
 })
+})
+
+describe('isimle klip arama (kullanıcı ismi yazar)', () => {
+  const words = stream([
+    { secs: 60, vocab: FOOD },
+    { secs: 80, vocab: FOOT, name: 'Osimhen' },
+    { secs: 200, vocab: FOOD },
+    { secs: 40, vocab: FOOT, name: 'Osimhen' },
+    { secs: 60, vocab: FOOD }
+  ])
+  it('eşleştirici: ek alan yazımı (Osimhen\'in / osimhenin), büyük-küçük harf ve Türkçe karakter farkı; birden çok isim', () => {
+    const m = mentionMatcher('Osimhen')!
+    expect(m("Osimhen'in golü")).toBe(true)
+    expect(m('osimhenin golu')).toBe(true)
+    expect(m('Zaha geldi')).toBe(false)
+    const two = mentionMatcher('Osimhen, Zaha')!
+    expect(two('Zaha geldi')).toBe(true)
+    expect(mentionMatcher('Victor Osimhen')!('Osimhen çok iyi')).toBe(true) // soyadı yeter
+    expect(mentionMatcher('  ')).toBeNull()
+  })
+  it('ismin geçtiği YERLERDEN klip çıkar: her klipte isim var, süre sınırı içinde, çakışmasız, zaman sıralı', () => {
+    const c = findMentionClips(words, 'Osimhen')
+    expect(c.length).toBeGreaterThanOrEqual(2) // 200 sn'lik boşluk iki ayrı konu
+    for (const x of c) {
+      expect(x.durationSec).toBeLessThanOrEqual(MAX_CLIP_SEC + 0.01)
+      expect(x.subject).toBe('Osimhen')
+      expect(x.headline).toMatch(/Osimhen/)
+      expect(x.summary).toMatch(/Osimhen/)
+    }
+    for (let i = 1; i < c.length; i++) expect(c[i].start).toBeGreaterThanOrEqual(c[i - 1].end - 1e-6)
+    // ikinci anış kümesi (260 sn sonrası) ayrı klipte
+    expect(c.some((x) => x.start > 300)).toBe(true)
+    expect(c.some((x) => x.start < 160)).toBe(true)
+  })
+  it('olmayan isim → boş; boş sorgu → boş', () => {
+    expect(findMentionClips(words, 'Mbappe')).toEqual([])
+    expect(findMentionClips(words, '')).toEqual([])
+  })
+  it('anılan adlar önerilir (sayı ve ilk anış); transkript satırları cümlelerdir', () => {
+    const sug = mentionSuggestions(words)
+    expect(sug[0].name).toBe('Osimhen')
+    expect(sug[0].count).toBeGreaterThan(3)
+    expect(sug[0].firstAt).toBeGreaterThan(55)
+    const lines = transcriptLines(words)
+    expect(lines.length).toBeGreaterThan(20)
+    expect(lines[0].start).toBeLessThan(lines[1].start)
+  })
 })

@@ -1227,6 +1227,29 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-job')).toHaveCount(0)
   })
 
+  test('Auto Clips: yatay seçenek yok; transkript + önerilen isimler; isim yazınca o yerlerden klip önerisi; bulunamazsa açıklama', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('autoclips-btn').click()
+    await expect(page.getByTestId('autoclips-horizontal')).toHaveCount(0)
+    await expect(page.getByTestId('autoclips-horizontal-manual')).toHaveCount(0)
+    await expect(page.getByTestId('autoclips-transcript-panel')).toHaveCount(0) // proje seçilmeden yok
+    await page.keyboard.press('Escape')
+    await page.getByTestId('autokick-btn').click()
+    await page.getByTestId('autokick-pick').click()
+    await expect(page.getByTestId('autoclips-dialog')).toBeVisible({ timeout: 20000 })
+    await page.getByTestId('autoclips-transcript-load').click()
+    await expect(page.getByTestId('autoclips-transcript')).toContainText('Osimhen gol krallığında')
+    await expect(page.getByTestId('autoclips-suggestion')).toHaveCount(2)
+    await page.getByTestId('autoclips-suggestion').first().click() // Osimhen
+    await expect(page.getByTestId('autoclips-query')).toHaveValue('Osimhen')
+    await expect(page.getByTestId('autoclips-search-note')).toContainText('1 yer bulundu')
+    await expect(page.getByTestId('autoclips-cand')).toHaveCount(1)
+    await expect(page.getByTestId('autoclips-headline')).toContainText('Osimhen hakkında')
+    await page.getByTestId('autoclips-query').fill('yokisim')
+    await page.getByTestId('autoclips-search').click()
+    await expect(page.getByTestId('autoclips-search-note')).toContainText('bulunamadı')
+  })
+
   test('"Claude ile edit yap" düğmesi artık yok (araç çubuğunda ve Auto Kick sonucunda)', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByTestId('claude-edit')).toHaveCount(0)

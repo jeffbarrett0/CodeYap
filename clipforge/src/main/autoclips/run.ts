@@ -186,11 +186,8 @@ export function chainAutoClips(
   log?.(`Zincir: Auto Kick bitti; Auto Clips ${settings.autoClipsAfterKick ? 'BAŞLATILIYOR' : 'BAŞLATILMADI (Ayarlar → autoClipsAfterKick kapalı)'}${s.result.chapterRanges?.length ? ` · listeden ${s.result.chapterRanges.length} alan` : ''}`)
   if (!settings.autoClipsAfterKick) return null
   const listed = s.result.chapterRanges?.length ? s.result.chapterRanges : undefined
-  // kullanıcı hazır bölüm listesi verdiyse HEM dikey HEM yatay klipler YALNIZCA o alanlardan çıkar; yoksa konular otomatik bulunur
+  // kullanıcı hazır bölüm listesi verdiyse dikey klipler YALNIZCA o alanlardan çıkar; yoksa konular otomatik bulunur
   const id = manager.start({ projectPath: s.result.projectPath, ...(settings.autoClipsMax > 0 ? { max: settings.autoClipsMax } : {}), exportVideos: settings.autoClipsExport, captions: settings.autoClipsCaptions, ...(listed ? { ranges: listed } : {}) })
-  // yatay (YouTube) klipler de: dikey işten sonra sırayla çalışır (iş kuyruğu tek tek)
-  // kullanıcı hazır bölüm listesi verdiyse yatay klipler YALNIZCA o alanlardan çıkar (ayardan bağımsız); yoksa otomatik konular
-  if (s.result.chapterRanges?.length) manager.start({ projectPath: s.result.projectPath, exportVideos: settings.autoClipsExport, horizontal: true, ranges: s.result.chapterRanges })
-  else if (settings.autoClipsHorizontal) manager.start({ projectPath: s.result.projectPath, ...((settings.autoClipsMaxHorizontal ?? 0) > 0 ? { max: settings.autoClipsMaxHorizontal } : {}), exportVideos: settings.autoClipsExport, horizontal: true })
+  // Auto Clips YALNIZCA DİKEY klip üretir (kullanıcının kararı); yatay kesim için "YouTube yatay video" düğmesi / CLI vardır
   return id
 }

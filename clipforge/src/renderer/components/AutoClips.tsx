@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AutoClipCandidate } from '@shared/autoclips'
 import { DEFAULT_AUTOCLIP_LAYOUT, MAX_CLIP_SEC } from '@shared/autoclips'
+import { mentionMatcher } from '@shared/clipsearch'
 import { fmtElapsed } from '@shared/autokick'
 import type { NormRect } from '@shared/types'
 import { requireApi } from '../api'
@@ -13,6 +14,85 @@ const mm = (s: number) => `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600
  * Auto Clips: Auto Kick'ten çıkan (sessizleri kesilmiş) videonun transkriptinden "şu aralıkta şunu konuşmuşsun, klip yapabilirsin"
  * önerileri; seçilenlerden 9:16 klip projeleri (yüz üstte, konuşulan görüntü altta). Auto Kick bitince video buraya otomatik devredilir.
  */
+/**
+ * Transkript + isimle klip: kullanıcı transkripti okur, bir isim yazar (ya da önerilen adlara tıklar); o ismin geçtiği yerlerden klip adayları çıkar.
+ * Konuya program karar vermez: ne konuşulduğunu kullanıcı seçer.
+ */
+function TranscriptPanel({ path, maxSec, onFound }: { path: string; maxSec: number; onFound: (c: AutoClipCandidate[]) => void }) {
+  const api = requireApi()
+  const [data, setData] = useState<{ lines: { start: number; end: number; text: string }[]; suggestions: { name: string; count: number; firstAt: number }[] } | null>(null)
+  const [query, setQuery] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+  useEffect(() => {
+    setData(null)
+    setNote('')
+  }, [path])
+  const load = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const r = await api.invoke('autoclips:transcript', { projectPath: path })
+      setData({ lines: r.lines, suggestions: r.suggestions })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const search = async (q = query) => {
+    setBusy(true)
+    setError('')
+    setNote('')
+    try {
+      const r = await api.invoke('autoclips:search', { projectPath: path, query: q, maxSec })
+      onFound(r.candidates)
+      setNote(r.candidates.length ? `“${q}” için ${r.candidates.length} yer bulundu (aşağıda işaretleyip klip üretebilirsiniz).` : `“${q}” transkriptte bulunamadı. Yazımı farklı olabilir (ör. Whisper “Osimen” yazmış olabilir); transkriptte arayıp doğru yazımı deneyin.`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const match = mentionMatcher(query)
+  return (
+    <div className="col" data-testid="autoclips-transcript-panel" style={{ gap: 6, padding: 8, border: '1px solid var(--border, #2a3a30)', borderRadius: 8 }}>
+      <b>Transkript ve isimle klip</b>
+      <div className="hint">Transkripti okuyun, bir oyuncu/takım ismi yazın (birden çok isim için virgül kullanın): o ismin konuşulduğu yerlerden dikey klip önerilir. Hangisini klip yapacağınıza siz karar verirsiniz.</div>
+      {!data && <button className="btn" disabled={!path || busy} onClick={() => void load()} data-testid="autoclips-transcript-load">{busy ? 'Yükleniyor…' : 'Transkripti ve önerileri göster'}</button>}
+      {error && <div className="warnbox" role="alert" data-testid="autoclips-transcript-error">{error}</div>}
+      {data && (
+        <>
+          {data.suggestions.length > 0 && (
+            <div className="col" style={{ gap: 4 }}>
+              <span className="hint">Konuşmada anılan isimler (tıklayınca ara):</span>
+              <div className="row wrap" style={{ gap: 6 }} data-testid="autoclips-suggestions">
+                {data.suggestions.map((s) => (
+                  <button key={s.name} className="btn sm" title={`İlk anış: ${mm(s.firstAt)}`} onClick={() => { setQuery(s.name); void search(s.name) }} data-testid="autoclips-suggestion">{s.name} · {s.count}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="row wrap" style={{ gap: 6, alignItems: 'center' }}>
+            <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && query.trim()) void search() }} placeholder="İsim yazın (ör. Osimhen, Lemina)" aria-label="Aranacak isim" style={{ minWidth: 240 }} data-testid="autoclips-query" />
+            <button className="btn primary" disabled={!query.trim() || busy} onClick={() => void search()} data-testid="autoclips-search">{busy ? 'Aranıyor…' : 'Bu isimden klip bul'}</button>
+          </div>
+          {note && <div className="hint" data-testid="autoclips-search-note">{note}</div>}
+          <div className="col" style={{ gap: 2, maxHeight: 240, overflow: 'auto', fontSize: 13 }} data-testid="autoclips-transcript">
+            {data.lines.map((l, i) => (
+              <div key={i} className="row" style={{ gap: 8, alignItems: 'baseline', background: match && match(l.text) ? 'rgba(255, 200, 0, 0.18)' : undefined }} data-hit={match && match(l.text) ? '1' : undefined}>
+                <span className="hint" style={{ minWidth: 62, fontVariantNumeric: 'tabular-nums' }}>{mm(l.start)}</span>
+                <span>{l.text}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function AutoClipsDialog() {
   const api = requireApi()
   const { autoClipsProject, setAutoClipsProject, openDialog, openProject, autoClipsJobs, settings, updateSettings } = useStore()
@@ -29,7 +109,6 @@ export function AutoClipsDialog() {
   const [face, setFace] = useState<NormRect>(DEFAULT_AUTOCLIP_LAYOUT.face)
   const [facePos, setFacePos] = useState<'top' | 'bottom'>('top')
   const [maxSec, setMaxSec] = useState(MAX_CLIP_SEC)
-  const [horizontal, setHorizontal] = useState(false)
   const [faceZoom, setFaceZoom] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceZoom * 100))
   const [focus, setFocus] = useState({ x: Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceFocus.x * 100), y: Math.round(DEFAULT_AUTOCLIP_LAYOUT.faceFocus.y * 100) })
   const [zoom, setZoom] = useState(Math.round(DEFAULT_AUTOCLIP_LAYOUT.screenZoom * 100))
@@ -42,7 +121,7 @@ export function AutoClipsDialog() {
     setCands(null)
     setMade([])
     try {
-      const r = await api.invoke('autoclips:find', { projectPath: p, maxSec, ...(horizontal ? { horizontal: true } : {}) })
+      const r = await api.invoke('autoclips:find', { projectPath: p, maxSec })
       setCands(r.candidates)
       setPicked(new Set(r.candidates.map((c) => c.id)))
       if (r.faceRegion) setFace(r.faceRegion)
@@ -72,7 +151,7 @@ export function AutoClipsDialog() {
     setError('')
     try {
       const picks = cands.filter((c) => picked.has(c.id)).map((c) => ({ start: c.start, end: c.end, subject: c.subject }))
-      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100, faceZoom: faceZoom / 100, faceFocus: { x: focus.x / 100, y: focus.y / 100 }, screenZoom: zoom / 100, ...(horizontal ? { horizontal: true } : {}), ...(settings.autoClipsCaptions && !horizontal ? { captions: true } : {}) }))
+      setMade(await api.invoke('autoclips:make', { projectPath: path, picks, face, facePos, faceShare: share / 100, faceZoom: faceZoom / 100, faceFocus: { x: focus.x / 100, y: focus.y / 100 }, screenZoom: zoom / 100, ...(settings.autoClipsCaptions ? { captions: true } : {}) }))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -90,9 +169,7 @@ export function AutoClipsDialog() {
           <label className="check"><input type="checkbox" checked={settings.autoClipsAfterKick} onChange={(e) => void updateSettings({ autoClipsAfterKick: e.target.checked })} data-testid="autoclips-after" /> Auto Kick bitince klipleri kendiliğinden üret</label>
           <label className="check"><input type="checkbox" checked={settings.autoClipsExport} onChange={(e) => void updateSettings({ autoClipsExport: e.target.checked })} data-testid="autoclips-export" /> Klipleri MP4 olarak da dışa aktar (9:16)</label>
           <label className="check"><input type="checkbox" checked={settings.autoClipsCaptions} onChange={(e) => void updateSettings({ autoClipsCaptions: e.target.checked })} data-testid="autoclips-captions" /> Dikey kliplere otomatik altyazı ekle (iri beyaz, 2–4 kelime, yüzün hemen altında)</label>
-          <label className="check"><input type="checkbox" checked={settings.autoClipsHorizontal} onChange={(e) => void updateSettings({ autoClipsHorizontal: e.target.checked })} data-testid="autoclips-horizontal" /> YATAY (16:9, YouTube) klipleri de üret: süre sınırı yok, konunun doğal uzunluğu</label>
-          <label className="row" style={{ gap: 6 }}>En çok yatay klip (0 = sınırsız) <Num value={settings.autoClipsMaxHorizontal} step={1} min={0} max={500} label="En çok yatay klip" onChange={(v) => void updateSettings({ autoClipsMaxHorizontal: Math.round(v) })} /></label>
-          <label className="row" style={{ gap: 6 }}>En çok klip, dikey (0 = sınırsız) <Num value={settings.autoClipsMax} step={1} min={0} max={500} label="En çok klip" onChange={(v) => void updateSettings({ autoClipsMax: Math.round(v) })} /></label>
+          <label className="row" style={{ gap: 6 }}>En çok klip (0 = sınırsız) <Num value={settings.autoClipsMax} step={1} min={0} max={500} label="En çok klip" onChange={(v) => void updateSettings({ autoClipsMax: Math.round(v) })} /></label>
           {jobs.filter((j) => !autoClipsProject || j.request.projectPath === autoClipsProject).slice(0, 2).map((job) => (
             <div key={job.id} className="col" data-testid="autoclips-job" data-status={job.status} style={{ gap: 4 }}>
               <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -132,10 +209,10 @@ export function AutoClipsDialog() {
           <span className="hint" style={{ wordBreak: 'break-all' }} data-testid="autoclips-path">{path || 'Henüz seçilmedi (Auto Kick bitince otomatik gelir)'}</span>
         </div>
         <div className="row wrap" style={{ gap: 10, alignItems: 'center' }}>
-          <label className="check"><input type="checkbox" checked={horizontal} onChange={(e) => { setHorizontal(e.target.checked); setMaxSec(e.target.checked ? 900 : MAX_CLIP_SEC); setCands(null) }} data-testid="autoclips-horizontal-manual" /> Yatay (16:9, YouTube) klip: süre sınırı yok</label>
-          <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={horizontal ? 60 : 10} min={30} max={horizontal ? 3600 : MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
+          <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={10} min={30} max={MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
           <button className="btn primary" disabled={!path || busy} onClick={() => void find()} data-testid="autoclips-find">{busy && !cands ? 'Konular bulunuyor…' : cands ? 'Yeniden bul' : 'Klip önerilerini bul'}</button>
         </div>
+        {path && <TranscriptPanel path={path} maxSec={maxSec} onFound={(c) => { setCands(c); setPicked(new Set(c.map((x) => x.id))); setMade([]) }} />}
         {error && <div className="warnbox" role="alert" data-testid="autoclips-error">{error}</div>}
         {cands && cands.length === 0 && <div className="warnbox" data-testid="autoclips-empty">Klip olabilecek net bir konu bulunamadı (konuşmada kişi/takım adı az olabilir). “En uzun klip” süresini artırıp yeniden deneyin.</div>}
         {cands && cands.length > 0 && (

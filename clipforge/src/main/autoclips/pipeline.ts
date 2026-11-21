@@ -12,6 +12,7 @@ import { applyTemplate } from '../../shared/timeline/templates'
 import { timelineWords } from '../../shared/timeline/transcript'
 import type { Clip } from '../../shared/types'
 import { resolveProjectPath } from '../autokick/clips'
+import { findMentionClips, mentionSuggestions, transcriptLines, type MentionSuggestion, type TranscriptLine } from '../../shared/clipsearch'
 
 type Env = { userDataDir?: string; resourcesDir?: string }
 
@@ -25,6 +26,25 @@ export async function autoClipCandidates(projectPath: string, opts: Partial<Auto
   const words = timelineWords(s.timeline, s.transcripts)
   if (words.length === 0) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
   return { candidates: findAutoClips(words, opts), totalSec: timelineDuration(s.timeline), projectPath: path, faceRegion: s.project.assets[0]?.webcamRegion }
+}
+
+/** Auto Kick projesinin transkripti (cümleler, ÇİZELGE zamanı) + konuşmada anılan adlar (öneriler). Projeyi değiştirmez. */
+export async function autoClipTranscript(projectPath: string, env: Env = {}): Promise<{ lines: TranscriptLine[]; suggestions: MentionSuggestion[]; totalSec: number; projectPath: string }> {
+  const path = await resolveProjectPath(projectPath)
+  const s = await Session.open(path, await makeService(env))
+  const words = timelineWords(s.timeline, s.transcripts)
+  if (words.length === 0) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
+  return { lines: transcriptLines(words), suggestions: mentionSuggestions(words), totalSec: timelineDuration(s.timeline), projectPath: path }
+}
+
+/** Kullanıcının yazdığı isim(ler)in geçtiği yerlerden DİKEY klip adayları (konu tahmini yok). */
+export async function autoClipSearch(projectPath: string, query: string, opts: { minSec?: number; maxSec?: number } = {}, env: Env = {}): Promise<{ candidates: AutoClipCandidate[]; projectPath: string }> {
+  const path = await resolveProjectPath(projectPath)
+  const s = await Session.open(path, await makeService(env))
+  const words = timelineWords(s.timeline, s.transcripts)
+  if (words.length === 0) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
+  if (!query.trim()) throw new Error('Aranacak bir isim yazın (ör. Osimhen).')
+  return { candidates: findMentionClips(words, query, opts), projectPath: path }
 }
 
 /**

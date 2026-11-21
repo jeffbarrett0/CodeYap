@@ -173,6 +173,14 @@ function namesIn(words: TranscriptWord[], toks: (NameTok | null)[], from: number
   return out.sort((x, y) => y.n - x.n)
 }
 
+/** Tüm konuşmada anılan özel adlar (oyuncu/takım), en çok anılan önce; "Papa Gueye" gibi yan yana adlar birleşik. Auto Clips arama önerileri için. */
+export function mentionedNames(words: TranscriptWord[]): { name: string; n: number }[] {
+  if (words.length === 0) return []
+  const segs = buildSegments(words)
+  const toks = nameTokens(words, new Set(segs.map((g) => g.firstWord)))
+  return namesIn(words, toks, 0, words.length - 1)
+}
+
 /** Düzenlenmiş videonun kelimelerinden (çizelge zamanı) ardışık YouTube bölümleri; konu = konuşulan kişi/takım adı */
 export function findChapters(words: TranscriptWord[], options: Partial<ChapterOptions> = {}): Chapter[] {
   const o = { ...DEFAULT_CHAPTER_OPTIONS, ...options }
