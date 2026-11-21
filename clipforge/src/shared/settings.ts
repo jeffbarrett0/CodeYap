@@ -41,9 +41,9 @@ export const DEFAULT_SETTINGS: Settings = {
   autoClipsAfterKick: true,
   autoClipsExport: true,
   autoClipsHorizontal: true,
-  autoClipsMax: 10,
+  autoClipsMax: 0, // 0 = sınırsız (bulabildiği kadar klip)
   autoClipsCaptions: false,
-  autoClipsMaxHorizontal: 15,
+  autoClipsMaxHorizontal: 0, // 0 = sınırsız
   autoAdjustEnabled: true,
   autoAdjustContrast: 5,
   autoAdjustSharpen: 5,

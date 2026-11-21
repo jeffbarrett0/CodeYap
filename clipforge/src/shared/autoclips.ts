@@ -34,9 +34,11 @@ export interface AutoClipOptions {
 /** Klip süresi sınırları (kullanıcı kuralı): en az 20 sn, en çok 2 dk 58 sn (178 sn). Bir konu bu aralığa sığıyorsa BÖLÜNMEZ (70 sn'de kesilmez). */
 export const MIN_CLIP_SEC = 20
 export const MAX_CLIP_SEC = 178
-export const DEFAULT_AUTOCLIP_OPTIONS: AutoClipOptions = { minSec: MIN_CLIP_SEC, maxSec: MAX_CLIP_SEC, max: 12, targetSec: 90 }
+/** Klip sayısı SINIRSIZ (kullanıcının kararı: "en çok şu kadar diye bir şey yok; 5, 30, 50 — ne kadar yapabiliyorsan"): `max` yalnızca elle verilirse sınırlar */
+export const NO_CLIP_LIMIT = 100000
+export const DEFAULT_AUTOCLIP_OPTIONS: AutoClipOptions = { minSec: MIN_CLIP_SEC, maxSec: MAX_CLIP_SEC, max: NO_CLIP_LIMIT, targetSec: 90 }
 /** Yatay klip varsayılanları: süre sınırı yok denecek kadar geniş (en az 3 dk, en çok 25 dk; tercih ~6-7 dk; az sayıda, uzun ve kaliteli klip) */
-export const HORIZONTAL_CLIP_OPTIONS: AutoClipOptions = { minSec: 180, maxSec: 1500, max: 15, targetSec: 400, horizontal: true }
+export const HORIZONTAL_CLIP_OPTIONS: AutoClipOptions = { minSec: 180, maxSec: 1500, max: NO_CLIP_LIMIT, targetSec: 400, horizontal: true }
 export const HORIZONTAL_MAX_SEC = 3600
 
 const END_PUNCT = /[.!?…]+["'”’)\]]*$/u
@@ -99,8 +101,8 @@ export function sentenceEnergy(text: string): number {
 }
 
 /**
- * Konu maxSec'ten uzunsa EŞİT PARÇALARA bölmek yerine en etkili (konu adı + enerji yoğun) pencere(ler) seçilir: en çok 2, üst üste binmeyen,
- * ikincisi ilkinin %60'ından zayıfsa alınmaz. Pencere cümle sınırlarındadır ve [minSec, maxSec] içindedir.
+ * Konu maxSec'ten uzunsa EŞİT PARÇALARA bölmek yerine en etkili (konu adı + enerji yoğun) pencere(ler) seçilir: konunun uzunluğuna göre en çok 2–6, üst üste binmeyen,
+ * ilkinin %50'sinden zayıf pencere alınmaz. Pencere cümle sınırlarındadır ve [minSec, maxSec] içindedir.
  */
 export function hotWindows(inside: Segment[], hit: (g: Segment) => boolean, minSec: number, maxSec: number, maxWindows = 2): Segment[][] {
   const val = inside.map((g) => 1 + sentenceEnergy(g.text) + (hit(g) ? 1 : 0))
@@ -119,7 +121,7 @@ export function hotWindows(inside: Segment[], hit: (g: Segment) => boolean, minS
   for (const c of cands) {
     if (out.length >= maxWindows) break
     if (out.some((o) => !(c.b < o.a - 1 || c.a > o.b + 1))) continue // örtüşen/bitişik pencere yok
-    if (c.score >= 0.6 * out[0].score) out.push(c)
+    if (c.score >= 0.5 * out[0].score) out.push(c)
   }
   return out.sort((x, y) => x.a - y.a).map((w) => inside.slice(w.a, w.b + 1))
 }
@@ -173,7 +175,7 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
     const isHit = (g: Segment) => keysAll.some((k) => foldTr(g.text).includes(k))
     let pieces: Segment[][]
     if (!horizontal && total > o.maxSec) {
-      pieces = hotWindows(inside, isHit, o.minSec, o.maxSec)
+      pieces = hotWindows(inside, isHit, o.minSec, o.maxSec, Math.min(6, Math.max(2, Math.ceil(total / o.maxSec))))
       if (pieces.length === 0) pieces = [inside.slice(0, 1)]
     } else {
       const parts = total > o.maxSec ? Math.ceil(total / o.maxSec) : 1
@@ -215,15 +217,8 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
   // yatayda adsız ama konuşmada yoğun geçen konular da (ör. "webinar") alınır; yalnızca zayıf anahtar kelime başlıkları elenir
   const pool = horizontal ? cands.filter((c) => c.score >= 8) : cands.some((c) => c.score >= 10) ? cands.filter((c) => c.score >= 10) : cands
   // en iyi N'i seç, zaman sırasına diz, kimlik ver
-  // çeşitlilik: aynı konudan (dikeyde en çok 2, yatayda 3) fazlası alınmaz — 10 klibin hepsi aynı kişi olmasın
-  const perSubject = new Map<string, number>()
-  const capped = [...pool].sort((a, b) => b.score - a.score).filter((c) => {
-    const k = foldTr(c.subject)
-    const n = perSubject.get(k) ?? 0
-    if (n >= (horizontal ? 3 : 2)) return false
-    perSubject.set(k, n + 1)
-    return true
-  })
+  // klip sayısı sınırsız: tüm adaylar (yalnızca `max` elle verilmişse en iyi N)
+  const capped = [...pool].sort((a, b) => b.score - a.score)
   const best = capped.slice(0, o.max).sort((a, b) => a.start - b.start)
   return best.map((c, i) => ({ ...c, id: `ac${i + 1}` }))
 }

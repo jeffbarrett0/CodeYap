@@ -17,6 +17,9 @@ export class SettingsStore {
       const raw = JSON.parse(await readFile(this.file, 'utf8'))
       // eski varsayılan (0,7 sn) kayıtlıysa yeni, biraz daha duyarlı varsayılana (0,55 sn) alınır
       if (raw && raw.silenceMinGapSec === 0.7) raw.silenceMinGapSec = DEFAULT_SETTINGS.silenceMinGapSec
+      // eski varsayılan klip sınırları (dikey 10, yatay 15) kayıtlıysa SINIRSIZ'a (0) alınır: kullanıcı "en çok şu kadar diye bir şey yok" dedi
+      if (raw && raw.autoClipsMax === 10) raw.autoClipsMax = 0
+      if (raw && raw.autoClipsMaxHorizontal === 15) raw.autoClipsMaxHorizontal = 0
       this.cur = normalizeSettings(raw)
     } catch {
       this.cur = { ...DEFAULT_SETTINGS }

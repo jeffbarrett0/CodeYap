@@ -187,10 +187,10 @@ export function chainAutoClips(
   if (!settings.autoClipsAfterKick) return null
   const listed = s.result.chapterRanges?.length ? s.result.chapterRanges : undefined
   // kullanıcı hazır bölüm listesi verdiyse HEM dikey HEM yatay klipler YALNIZCA o alanlardan çıkar; yoksa konular otomatik bulunur
-  const id = manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport, captions: settings.autoClipsCaptions, ...(listed ? { ranges: listed } : {}) })
+  const id = manager.start({ projectPath: s.result.projectPath, ...(settings.autoClipsMax > 0 ? { max: settings.autoClipsMax } : {}), exportVideos: settings.autoClipsExport, captions: settings.autoClipsCaptions, ...(listed ? { ranges: listed } : {}) })
   // yatay (YouTube) klipler de: dikey işten sonra sırayla çalışır (iş kuyruğu tek tek)
   // kullanıcı hazır bölüm listesi verdiyse yatay klipler YALNIZCA o alanlardan çıkar (ayardan bağımsız); yoksa otomatik konular
   if (s.result.chapterRanges?.length) manager.start({ projectPath: s.result.projectPath, exportVideos: settings.autoClipsExport, horizontal: true, ranges: s.result.chapterRanges })
-  else if (settings.autoClipsHorizontal) manager.start({ projectPath: s.result.projectPath, max: settings.autoClipsMaxHorizontal ?? 15, exportVideos: settings.autoClipsExport, horizontal: true })
+  else if (settings.autoClipsHorizontal) manager.start({ projectPath: s.result.projectPath, ...((settings.autoClipsMaxHorizontal ?? 0) > 0 ? { max: settings.autoClipsMaxHorizontal } : {}), exportVideos: settings.autoClipsExport, horizontal: true })
   return id
 }

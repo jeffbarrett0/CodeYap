@@ -514,3 +514,6 @@ Kullanıcı: her kesite YouTube butonu, ~2 dk'da bir ama çok olmasın (3 dk→2
 
 ## 83. Auto Clips iyileştirmeleri
 Kullanıcı "çıktılar tam istediğim gibi değil, düşün ve iyileştir" dedi, somut örnek vermedi → bilinen yapısal zayıflıklar giderildi: uzun konuda eşit bölme (sıkıcı "3. kısım" klipleri) yerine en etkili pencere; aynı kişiden çok klip; neyin çıktığını gösteren rapor. Bunlar tahmine dayalı iyileştirmedir; kullanıcının asıl şikayeti belirlenince (altyazı, süre, konu seçimi, yerleşim…) hedefli düzeltme yapılacak.
+
+## 84. Klip sayısı sınırı kaldırıldı
+Kullanıcı: "en çok 10 dikey diye bir şey olmamalı; bazen 5, bazen 30, bazen 50". Varsayılan max artık NO_CLIP_LIMIT; ayarlar 0 = sınırsız; eski kayıtlı 10/15 değerleri yüklemede 0'a çevrilir. Konu başına çeşitlilik sınırı (2) da kaldırıldı. Kalite filtresi (skor eşiği, süre sınırları) duruyor: "sınırsız" = bulabildiği kadar iyi aday, zayıf konular elenir.

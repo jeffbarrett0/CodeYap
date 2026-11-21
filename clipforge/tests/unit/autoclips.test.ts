@@ -44,7 +44,7 @@ describe('Auto Clips: konu bölümleri', () => {
       expect(c.headline).toMatch(/konuşmuşsun/)
       expect(c.summary.length).toBeGreaterThan(10)
     }
-    for (let i = 1; i < clips.length; i++) expect(clips[i].start).toBeGreaterThanOrEqual(clips[i - 1].end - 0.01)
+    for (let i = 1; i < clips.length; i++) expect(clips[i].start).toBeGreaterThanOrEqual(clips[i - 1].end - 1) // en çok başlangıç/bitiş payı kadar (<1 sn) örtüşebilir
     expect(clips.some((c) => c.subject.includes('Lemina'))).toBe(true)
     expect(clips.some((c) => c.subject.includes('Zaha'))).toBe(true)
   })
@@ -367,15 +367,21 @@ describe('Auto Clips: en etkili an seçimi ve çeşitlilik', () => {
     expect(best[best.length - 1].end - best[0].start).toBeLessThanOrEqual(100)
     if (w.length === 2) expect(w[1][0].start).toBeGreaterThan(w[0][w[0].length - 1].end)
   })
-  it('aynı kişiden dikeyde en çok 2 klip çıkar (10 klibin hepsi aynı konu olmasın)', () => {
-    // tek kişi uzun süre konuşulur (ör. 10 dk) → klip sayısı 2 ile sınırlı
-    const words = stream([{ secs: 60, vocab: FOOD }, { secs: 600, vocab: FOOT, name: 'Lemina' }, { secs: 60, vocab: FOOD }])
-    const clips = findAutoClips(words, { max: 10 })
-    expect(clips.filter((c) => /Lemina/i.test(c.subject)).length).toBeLessThanOrEqual(2)
-    for (const c of clips) expect(c.durationSec).toBeLessThanOrEqual(MAX_CLIP_SEC + 0.5)
+  it('klip sayısı SINIRSIZ: çok konu varsa hepsi çıkar (varsayılanda üst sınır yok); max elle verilirse sınırlar', () => {
+    const names = ['Lemina', 'Zaha', 'Osimhen', 'Icardi', 'Mertens', 'Torreira', 'Barış', 'Nelsen', 'Kerem', 'Hakan', 'Mauro', 'Derrick', 'Davinson', 'Sallai']
+    const words = stream(names.flatMap((n) => [{ secs: 60, vocab: FOOT, name: n }, { secs: 60, vocab: FOOD }]))
+    const all = findAutoClips(words)
+    expect(all.length).toBeGreaterThan(12) // eskiden en çok 12 ile sınırlıydı
+    expect(findAutoClips(words, { max: 5 }).length).toBe(5)
+    for (const c of all) expect(c.durationSec).toBeLessThanOrEqual(MAX_CLIP_SEC + 0.5)
   })
-})
-
+  it('çok uzun tek konu: konunun uzunluğuna göre birden çok etkili pencere (en çok 6), hepsi süre sınırı içinde', () => {
+    const words = stream([{ secs: 60, vocab: FOOD }, { secs: 900, vocab: FOOT, name: 'Lemina' }, { secs: 60, vocab: FOOD }])
+    const clips = findAutoClips(words)
+    expect(clips.length).toBeGreaterThanOrEqual(2)
+    for (const c of clips) expect(c.durationSec).toBeLessThanOrEqual(MAX_CLIP_SEC + 0.5)
+    for (let i = 1; i < clips.length; i++) expect(clips[i].start).toBeGreaterThanOrEqual(clips[i - 1].end - 1) // en çok başlangıç/bitiş payı kadar (<1 sn) örtüşebilir
+  })
   it('klip raporu: konu, tam videodaki zaman, süre, söylenen, dosya ve hatalar yazılır', () => {
     const t = clipReportText({ name: 'kayit', horizontal: false, fromList: true, totalSec: 7200, clips: [
       { id: 'a', subject: 'Leo', headline: 'Leo', summary: 'Leo çok iyi oynadı.', start: 3725, end: 3850, durationSec: 125, videoPath: '/k/Leo.mp4' },
@@ -387,4 +393,5 @@ describe('Auto Clips: en etkili an seçimi ve çeşitlilik', () => {
     expect(t).toMatch(/HATA: MP4 dışa aktarılamadı/)
     expect(t).toMatch(/1\/2 MP4 hazır/)
   })
+})
 })
