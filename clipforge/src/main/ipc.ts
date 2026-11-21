@@ -7,7 +7,7 @@ import { userMessage } from './tasks'
 import { setCpuMode } from './ffmpeg'
 import { AutoKickManager } from './autokick/pipeline'
 import { StoryManager } from './story/pipeline'
-import { autoClipCandidates, autoClipSearch, autoClipTranscript, makeAutoClip } from './autoclips/pipeline'
+import { autoClipCandidates, autoClipEnsureTranscript, autoClipSearch, autoClipTranscript, makeAutoClip } from './autoclips/pipeline'
 import { AutoClipsManager, chainAutoClips, exportClipProject } from './autoclips/run'
 import { FACE_ONLY_SHAPES } from '../shared/autoclips'
 import { appendRunLog } from './runlog'
@@ -43,6 +43,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     'autoclips:list': () => autoClips.list(),
     'autoclips:find': (r) => autoClipCandidates(r.projectPath, { ...(r.minSec ? { minSec: r.minSec } : {}), ...(r.maxSec ? { maxSec: r.maxSec } : {}), ...(r.max ? { max: r.max } : {}), ...(r.horizontal ? { horizontal: true } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:transcript': (r) => autoClipTranscript(r.projectPath, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
+    'autoclips:transcribe': (r) => autoClipEnsureTranscript(r.projectPath, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:search': (r) => autoClipSearch(r.projectPath, r.query, { ...(r.maxSec ? { maxSec: r.maxSec } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:make': async (r) => {
       const out = []

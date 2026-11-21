@@ -24,8 +24,44 @@ export async function autoClipCandidates(projectPath: string, opts: Partial<Auto
   const path = await resolveProjectPath(projectPath)
   const s = await Session.open(path, await makeService(env))
   const words = timelineWords(s.timeline, s.transcripts)
-  if (words.length === 0) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
+  if (words.length === 0) throw await noTranscriptError(s)
   return { candidates: findAutoClips(words, opts), totalSec: timelineDuration(s.timeline), projectPath: path, faceRegion: s.project.assets[0]?.webcamRegion }
+}
+
+/** Transkript yoksa NEDENİ görünür olsun: hangi medya, transkript hangi klasörde aranmış, o klasör var mı */
+async function noTranscriptError(s: Session): Promise<Error> {
+  let dataExists = false
+  try {
+    await access(s.service.dataDir)
+    dataExists = true
+  } catch {
+    /* yok */
+  }
+  const media = s.project.assets[0]?.name ?? '(medya yok)'
+  return new Error(`Projede transkript yok (medya: ${media}; transkript klasörü ${dataExists ? 'var ama içinde bu medyanın transkripti yok' : 'BULUNAMADI'}: ${s.service.dataDir}). Altta “Transkripti şimdi çıkar” ile kaydı yeniden yazıya dökebilirsiniz.`)
+}
+
+/**
+ * Projenin medyası için transkript yoksa Whisper ile çıkarır (Auto Kick transkripti kaybolmuşsa/projeye bağlanmamışsa). Kesim haritası aynı kalır:
+ * transkript KAYNAK kayıt zamanıyla yazılır, çizelgeye kesim haritasıyla yansır. Projeyi (kesimleri) değiştirmez; yalnızca transkript yan dosyası + proje kaydı.
+ */
+export async function autoClipEnsureTranscript(projectPath: string, env: Env = {}): Promise<{ words: number; sentences: number; already: boolean }> {
+  const path = await resolveProjectPath(projectPath)
+  const s = await Session.open(path, await makeService(env))
+  const asset = s.project.assets[0]
+  if (!asset) throw new Error('Projede medya yok.')
+  const have = s.transcripts[asset.id]
+  if (have && have.words.length > 0) return { words: have.words.length, sentences: have.segments.length, already: true }
+  const lang = s.service.settings.value.language
+  let track = asset.transcriptionTrack
+  if (track === undefined && asset.audioStreams.length > 1) track = (await s.service.detectSpeechTrack(asset.id, lang)).track
+  const id = await s.service.transcriptStart({ assetId: asset.id, track: track ?? 0, language: lang, force: true })
+  await waitTask(s.service, id, 'Transkripsiyon')
+  const t = await s.service.transcriptGet(asset.id)
+  if (!t || t.words.length === 0) throw new Error('Transkripsiyon bitti ama konuşma bulunamadı (dil/ses track ayarlarını kontrol edin).')
+  s.transcripts[asset.id] = t
+  await s.save()
+  return { words: t.words.length, sentences: t.segments.length, already: false }
 }
 
 /** Auto Kick projesinin transkripti (cümleler, ÇİZELGE zamanı) + konuşmada anılan adlar (öneriler). Projeyi değiştirmez. */
@@ -33,7 +69,7 @@ export async function autoClipTranscript(projectPath: string, env: Env = {}): Pr
   const path = await resolveProjectPath(projectPath)
   const s = await Session.open(path, await makeService(env))
   const words = timelineWords(s.timeline, s.transcripts)
-  if (words.length === 0) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
+  if (words.length === 0) throw await noTranscriptError(s)
   return { lines: transcriptLines(words), suggestions: mentionSuggestions(words), totalSec: timelineDuration(s.timeline), projectPath: path }
 }
 
@@ -42,7 +78,7 @@ export async function autoClipSearch(projectPath: string, query: string, opts: {
   const path = await resolveProjectPath(projectPath)
   const s = await Session.open(path, await makeService(env))
   const words = timelineWords(s.timeline, s.transcripts)
-  if (words.length === 0) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
+  if (words.length === 0) throw await noTranscriptError(s)
   if (!query.trim()) throw new Error('Aranacak bir isim yazın (ör. Osimhen).')
   return { candidates: findMentionClips(words, query, opts), projectPath: path }
 }

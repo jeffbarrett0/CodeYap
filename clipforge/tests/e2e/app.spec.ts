@@ -1250,6 +1250,18 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-search-note')).toContainText('bulunamadı')
   })
 
+  test('Auto Clips: projede transkript yoksa hata görünür; "Transkripti şimdi çıkar" ile transkript gelir', async ({ page }) => {
+    await page.addInitScript(() => ((window as unknown as { __mock: { openFile: string } }).__mock = { openFile: '/k/transkript-yok.clipforge' }))
+    await boot(page)
+    await page.getByTestId('autoclips-btn').click()
+    await page.getByTestId('autoclips-pick').click()
+    await page.getByTestId('autoclips-transcript-load').click()
+    await expect(page.getByTestId('autoclips-transcript-error')).toContainText('transkript yok')
+    await page.getByTestId('autoclips-transcribe').click()
+    await expect(page.getByTestId('autoclips-transcript')).toContainText('Osimhen gol krallığında')
+    await expect(page.getByTestId('autoclips-transcribe')).toHaveCount(0)
+  })
+
   test('"Claude ile edit yap" düğmesi artık yok (araç çubuğunda ve Auto Kick sonucunda)', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByTestId('claude-edit')).toHaveCount(0)

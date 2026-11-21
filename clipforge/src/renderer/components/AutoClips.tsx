@@ -41,6 +41,19 @@ function TranscriptPanel({ path, maxSec, onFound }: { path: string; maxSec: numb
       setBusy(false)
     }
   }
+  const transcribe = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await api.invoke('autoclips:transcribe', { projectPath: path })
+      const r = await api.invoke('autoclips:transcript', { projectPath: path })
+      setData({ lines: r.lines, suggestions: r.suggestions })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
   const search = async (q = query) => {
     setBusy(true)
     setError('')
@@ -62,6 +75,12 @@ function TranscriptPanel({ path, maxSec, onFound }: { path: string; maxSec: numb
       <div className="hint">Transkripti okuyun, bir oyuncu/takım ismi yazın (birden çok isim için virgül kullanın): o ismin konuşulduğu yerlerden dikey klip önerilir. Hangisini klip yapacağınıza siz karar verirsiniz.</div>
       {!data && <button className="btn" disabled={!path || busy} onClick={() => void load()} data-testid="autoclips-transcript-load">{busy ? 'Yükleniyor…' : 'Transkripti ve önerileri göster'}</button>}
       {error && <div className="warnbox" role="alert" data-testid="autoclips-transcript-error">{error}</div>}
+      {error && /transkript yok/i.test(error) && (
+        <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+          <button className="btn primary" disabled={busy} onClick={() => void transcribe()} data-testid="autoclips-transcribe">{busy ? 'Transkript çıkarılıyor… (uzun kayıtta birkaç dakika sürebilir)' : 'Transkripti şimdi çıkar'}</button>
+          <span className="hint">Kayıt yeniden yazıya dökülür; kesimler aynı kalır.</span>
+        </div>
+      )}
       {data && (
         <>
           {data.suggestions.length > 0 && (

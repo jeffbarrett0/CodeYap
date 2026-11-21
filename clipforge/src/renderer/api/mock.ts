@@ -96,6 +96,7 @@ export function createMockApi(): ClipforgeApi {
   const akCancel = new Set<string>()
   const storyJobs = new Map<string, StoryStatus>()
   const acJobs = new Map<string, AutoClipsStatus>()
+  const transcribed = new Set<string>()
   const MOCK_PLAN: StoryPlan = {
     totalSec: 120,
     theme: DEFAULT_STORY_THEME,
@@ -192,8 +193,12 @@ export function createMockApi(): ClipforgeApi {
         ]
       }
     },
+    'autoclips:transcribe': (r) => {
+      transcribed.add(r.projectPath)
+      return { words: 5400, sentences: 410, already: false }
+    },
     'autoclips:transcript': (r) => {
-      if (/yok/i.test(r.projectPath)) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
+      if (/yok/i.test(r.projectPath) && !transcribed.has(r.projectPath)) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
       return {
         projectPath: r.projectPath,
         totalSec: 1800,

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -491,6 +491,18 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
       expect(se.candidates.length).toBeGreaterThanOrEqual(1)
       expect(se.candidates[0].subject).toBe(nm)
       await expect(autoClipSearch(proj4, '  ', {}, { userDataDir: ud })).rejects.toThrow(/isim/)
+      // transkript yan klasörü kaybolmuşsa: neden yazılır; "şimdi çıkar" yeniden yazıya döker
+      const lost = join(tmp, 'kayip-transkript', 'kayip.clipforge')
+      mkdirSync(join(tmp, 'kayip-transkript'), { recursive: true })
+      copyFileSync(proj4, lost)
+      const { autoClipEnsureTranscript } = await import('../../src/main/autoclips/pipeline')
+      await expect(autoClipTranscript(lost, { userDataDir: ud })).rejects.toThrow(/Projede transkript yok.*BULUNAMADI/)
+      const ens = await autoClipEnsureTranscript(lost, { userDataDir: ud })
+      expect(ens.already).toBe(false)
+      expect(ens.words).toBeGreaterThan(5)
+      const again = await autoClipTranscript(lost, { userDataDir: ud })
+      expect(again.lines.length).toBeGreaterThanOrEqual(1)
+      expect((await autoClipEnsureTranscript(lost, { userDataDir: ud })).already).toBe(true)
       expect(md5(proj4)).toBe(before)
     }
     // otomatik altyazı (2–4 kelime, iri beyaz): --captions ile; varsayılanda altyazı yok
