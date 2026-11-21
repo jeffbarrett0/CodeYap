@@ -25,6 +25,9 @@ function TranscriptPanel({ path, maxSec, onFound, autoLoad }: { path: string; ma
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
+  const [fixFrom, setFixFrom] = useState('')
+  const [fixTo, setFixTo] = useState('')
+  const [fixNote, setFixNote] = useState('')
   useEffect(() => {
     setData(null)
     setNote('')
@@ -58,6 +61,23 @@ function TranscriptPanel({ path, maxSec, onFound, autoLoad }: { path: string; ma
     if (autoLoad) void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, autoLoad])
+  const fix = async () => {
+    setBusy(true)
+    setError('')
+    setFixNote('')
+    try {
+      const r = await api.invoke('autoclips:fix', { projectPath: path, from: fixFrom, to: fixTo })
+      const t = await api.invoke('autoclips:transcript', { projectPath: path })
+      setData({ lines: t.lines, suggestions: t.suggestions })
+      setFixNote(`“${fixFrom.trim()}” → “${fixTo.trim()}”: ${r.replaced} yer düzeltildi. Bundan sonraki transkriptlerde de otomatik düzelecek.`)
+      setFixFrom('')
+      setFixTo('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
   const search = async (q = query) => {
     setBusy(true)
     setError('')
@@ -102,6 +122,19 @@ function TranscriptPanel({ path, maxSec, onFound, autoLoad }: { path: string; ma
             <button className="btn primary" disabled={!query.trim() || busy} onClick={() => void search()} data-testid="autoclips-search">{busy ? 'Aranıyor…' : 'Bu isimden klip bul'}</button>
           </div>
           {note && <div className="hint" data-testid="autoclips-search-note">{note}</div>}
+          <details data-testid="autoclips-fix-box">
+            <summary className="hint" style={{ cursor: 'pointer' }}>Yanlış yazılan ismi düzelt (ör. Osman → Osimhen)</summary>
+            <div className="col" style={{ gap: 6, marginTop: 6 }}>
+              <div className="hint">Transkriptte yanlış yazılmış bir ismi doğrusuyla <b>tüm geçtiği yerlerde</b> değiştirir (çekim eki korunur: Osman'ın → Osimhen'in). Bundan sonraki transkriptlerde de kendiliğinden düzelir.</div>
+              <div className="row wrap" style={{ gap: 6, alignItems: 'center' }}>
+                <input value={fixFrom} onChange={(e) => setFixFrom(e.target.value)} placeholder="Yanlış yazılan (Osman)" aria-label="Yanlış yazılan" data-testid="autoclips-fix-from" />
+                <span>→</span>
+                <input value={fixTo} onChange={(e) => setFixTo(e.target.value)} placeholder="Doğrusu (Osimhen)" aria-label="Doğrusu" data-testid="autoclips-fix-to" />
+                <button className="btn" disabled={busy || !fixFrom.trim() || !fixTo.trim()} onClick={() => void fix()} data-testid="autoclips-fix">Tümünü düzelt</button>
+              </div>
+              {fixNote && <div className="hint" data-testid="autoclips-fix-note">{fixNote}</div>}
+            </div>
+          </details>
           <div className="col" style={{ gap: 2, maxHeight: 240, overflow: 'auto', fontSize: 13 }} data-testid="autoclips-transcript">
             {data.lines.map((l, i) => (
               <div key={i} className="row" style={{ gap: 8, alignItems: 'baseline', background: match && match(l.text) ? 'rgba(255, 200, 0, 0.18)' : undefined }} data-hit={match && match(l.text) ? '1' : undefined}>

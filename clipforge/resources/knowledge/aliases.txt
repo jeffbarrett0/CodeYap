@@ -1,0 +1,5 @@
+# Konuşma tanımanın SIK yaptığı yanlışlar (yanlış => doğru). Gerçek bir kelimeye benzedikleri için bulanık düzeltme yakalayamaz.
+# Bu futbol yayınlarında bu adların doğru karşılığı bellidir. Kendi düzeltmelerinizi Ayarlar → Özel sözlük'e aynı biçimde yazın
+# (ya da Auto Clips penceresinde "Yanlış yazılan ismi düzelt" ile ekleyin). Çekim eki korunur: Osman'ın → Osimhen'in.
+Osman | Osmen | Osmin | Ozimen | Osimin => Osimhen
+İkardi | Ikardi | Ikardı | İkardı => Icardi

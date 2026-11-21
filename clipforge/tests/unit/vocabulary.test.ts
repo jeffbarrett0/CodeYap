@@ -105,3 +105,41 @@ describe('sözlük düzeltme hızı', () => {
     expect(Date.now() - t0).toBeLessThan(5000) // önceden dakikalar sürüyordu
   })
 })
+
+describe('açık düzeltme listesi (Osman => Osimhen) ve ünlü uyumu', () => {
+  const w = (text: string, i: number) => ({ text, start: i, end: i + 0.4, confidence: 0.9 })
+  it('parseAliases: "a | b => c" biçimi; parseVocabulary bu satırları terim saymaz', async () => {
+    const { parseAliases, parseVocabulary } = await import('@shared/transcript/vocabulary')
+    const txt = '# yorum\nOsman | Osmen => Osimhen\nKavukçu\nİkardi => Icardi'
+    expect(parseAliases(txt)).toEqual([{ from: 'Osman', to: 'Osimhen' }, { from: 'Osmen', to: 'Osimhen' }, { from: 'İkardi', to: 'Icardi' }])
+    expect(parseVocabulary(txt)).toContain('Kavukçu')
+    expect(parseVocabulary(txt)).not.toContain('Osman | Osmen => Osimhen')
+  })
+  it('Osman → Osimhen: çekim eki korunur, ünlü uyumu düzelir; Osmanlı/Osmaniye gibi başka kelimeler değişmez', async () => {
+    const { applyVocabulary } = await import('@shared/transcript/vocabulary')
+    const words = ['Osman', "Osman'ın", 'Osmana', 'Osmandan', 'Osmanlı', 'Osmaniye', 'osman'].map(w)
+    const r = applyVocabulary(words, [], [], [{ from: 'Osman', to: 'Osimhen' }])
+    expect(r.words.map((x) => x.text)).toEqual(['Osimhen', "Osimhen'in", 'Osimhene', 'Osimhenden', 'Osmanlı', 'Osmaniye', 'Osimhen'])
+    expect(r.words[0].corrected).toBe('Osman')
+  })
+  it('elle düzeltilmiş kelimeye dokunmaz; liste boşsa hiçbir şey değişmez', async () => {
+    const { applyVocabulary } = await import('@shared/transcript/vocabulary')
+    const words = [{ ...w('Osman', 0), corrected: 'Osman' }]
+    expect(applyVocabulary(words, [], [], [{ from: 'Osman', to: 'Osimhen' }]).words[0].text).toBe('Osman')
+    expect(applyVocabulary([w('Osman', 0)], [], [], []).words[0].text).toBe('Osman')
+  })
+  it('Whisper ipucu: kullanıcı terimleri önce, yerleşik adlar sığdığı kadar; soyadı tekrar etmez; sınır aşılmaz', async () => {
+    const { buildPrompt } = await import('@shared/transcript/vocabulary')
+    const p = buildPrompt('Kavukçu', false, 120, ['Mauro Icardi', 'Icardi', 'Victor Osimhen', 'Lucas Torreira', 'Mario Lemina', 'Barış Alper Yılmaz', 'Abdülkerim Bardakcı'])
+    expect(p.startsWith('Kavukçu, Mauro Icardi')).toBe(true)
+    expect(p).not.toMatch(/Icardi, Icardi/)
+    expect(p.length).toBeLessThanOrEqual(120)
+  })
+  it('fixWord (tümünü düzelt): ünlü uyumu; "Osmanlı" aynı kökten sayılmaz', async () => {
+    const { fixWord } = await import('@shared/transcript/vocabulary')
+    const t = { id: 't', assetId: 'a', language: 'tr', model: 'tiny', audioTrack: 0, provider: 'x', words: ['Osman', "Osman'ın", 'Osmanlı', 'Osmandan'].map(w), segments: [] } as never
+    const r = fixWord(t, 0, 'Osimhen', true)
+    expect(r.transcript.words.map((x: { text: string }) => x.text)).toEqual(['Osimhen', "Osimhen'in", 'Osmanlı', 'Osimhenden'])
+    expect(r.replaced).toBe(3)
+  })
+})

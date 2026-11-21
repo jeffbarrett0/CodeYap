@@ -177,6 +177,7 @@ export interface IpcInvoke {
   /** Seçilen adaylardan bağımsız klip projeleri (9:16: yüz üstte, konuşulan görüntü altta) */
   'autoclips:transcript': [[{ projectPath: string }], { lines: { start: number; end: number; text: string }[]; suggestions: { name: string; count: number; firstAt: number }[]; totalSec: number; projectPath: string }]
   'autoclips:transcribe': [[{ projectPath: string }], { words: number; sentences: number; already: boolean }]
+  'autoclips:fix': [[{ projectPath: string; from: string; to: string }], { replaced: number }]
   'autoclips:search': [[{ projectPath: string; query: string; maxSec?: number }], { candidates: AutoClipCandidate[]; projectPath: string }]
   'autoclips:make': [[{ projectPath: string; picks: { start: number; end: number; subject: string }[]; face?: NormRect; facePos?: 'top' | 'bottom'; faceShare?: number; faceZoom?: number; faceFocus?: { x: number; y: number }; screenZoom?: number; horizontal?: boolean; captions?: boolean }], { projectPath: string; durationSec: number; name: string }[]]
   'dev:openDevTools': [[], void]

@@ -25,6 +25,8 @@ export interface TranscribeParams {
   vocabulary?: string[]
   /** Yerleşik (futbol) sözlüğü: temkinli düzeltme */
   softVocabulary?: string[]
+  /** Açık düzeltme listesi ("Osman => Osimhen") */
+  aliases?: { from: string; to: string }[]
 }
 
 export interface PipelineDeps {
@@ -146,7 +148,7 @@ export async function transcribeAsset(asset: MediaAsset, p: TranscribeParams, d:
   }
 
   // Özel sözlükle bulanık düzeltme (ör. kabukçu → Kavukçu); düzeltilen kelimelerde özgün yazım saklanır
-  const words = applyVocabulary(mergeChunkResults(results), p.vocabulary ?? [], p.softVocabulary ?? []).words
+  const words = applyVocabulary(mergeChunkResults(results), p.vocabulary ?? [], p.softVocabulary ?? [], p.aliases ?? []).words
   const transcript: Transcript = {
     id: `tr_${asset.id}_${Date.now().toString(36)}`,
     assetId: asset.id,

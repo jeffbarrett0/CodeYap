@@ -1295,6 +1295,24 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoyatay-reveal')).toBeVisible()
   })
 
+  test('Transkript: yanlış yazılan ismi (Osman → Osimhen) tümünde düzelt; bulunamazsa açıklama; eksik alan engellenir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('ytdikey-btn').click()
+    await page.getByTestId('ytdikey-pick').click()
+    await page.getByTestId('ytdikey-start').click()
+    await expect(page.getByTestId('autoclips-transcript')).toContainText('Osman çok iyi bitirdi', { timeout: 20000 })
+    await page.getByTestId('autoclips-fix-box').locator('summary').click()
+    await expect(page.getByTestId('autoclips-fix')).toBeDisabled()
+    await page.getByTestId('autoclips-fix-from').fill('yokisim')
+    await page.getByTestId('autoclips-fix-to').fill('Osimhen')
+    await page.getByTestId('autoclips-fix').click()
+    await expect(page.getByTestId('autoclips-transcript-error')).toContainText('bulunamadı')
+    await page.getByTestId('autoclips-fix-from').fill('Osman')
+    await page.getByTestId('autoclips-fix').click()
+    await expect(page.getByTestId('autoclips-fix-note')).toContainText('3 yer düzeltildi')
+    await expect(page.getByTestId('autoclips-transcript')).toContainText('Osimhen çok iyi bitirdi')
+  })
+
   test('"Claude ile edit yap" düğmesi artık yok (araç çubuğunda ve Auto Kick sonucunda)', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByTestId('claude-edit')).toHaveCount(0)

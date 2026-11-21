@@ -7,9 +7,10 @@ import { userMessage } from './tasks'
 import { setCpuMode } from './ffmpeg'
 import { AutoKickManager } from './autokick/pipeline'
 import { StoryManager } from './story/pipeline'
-import { autoClipCandidates, autoClipEnsureTranscript, autoClipSearch, autoClipTranscript, makeAutoClip } from './autoclips/pipeline'
+import { autoClipCandidates, autoClipEnsureTranscript, autoClipFixWord, autoClipSearch, autoClipTranscript, makeAutoClip } from './autoclips/pipeline'
 import { AutoClipsManager, chainAutoClips, exportClipProject } from './autoclips/run'
 import { chainAutoHorizontal } from './autokick/horizontal'
+import { parseAliases, parseVocabulary } from '../shared/transcript/vocabulary'
 import { FACE_ONLY_SHAPES } from '../shared/autoclips'
 import { appendRunLog } from './runlog'
 import { buildTrailer } from './trailer/build'
@@ -47,6 +48,15 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
     'autoclips:find': (r) => autoClipCandidates(r.projectPath, { ...(r.minSec ? { minSec: r.minSec } : {}), ...(r.maxSec ? { maxSec: r.maxSec } : {}), ...(r.max ? { max: r.max } : {}), ...(r.horizontal ? { horizontal: true } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:transcript': (r) => autoClipTranscript(r.projectPath, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:transcribe': (r) => autoClipEnsureTranscript(r.projectPath, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
+    'autoclips:fix': async (r) => {
+      const out = await autoClipFixWord(r.projectPath, r.from, r.to, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir })
+      // sonraki transkriptlerde de otomatik düzelsin: "yanlış => doğru" satırı + doğru yazım sözlüğe (Whisper ipucu)
+      const cur = app.settings.value.vocabulary
+      const line = `${r.from.trim()} => ${r.to.trim()}`
+      const lines = [...(parseAliases(cur).some((a) => a.from.toLocaleLowerCase('tr-TR') === r.from.trim().toLocaleLowerCase('tr-TR')) ? [] : [line]), ...(parseVocabulary(cur).some((t) => t.toLocaleLowerCase('tr-TR') === r.to.trim().toLocaleLowerCase('tr-TR')) ? [] : [r.to.trim()])]
+      if (lines.length) await app.settings.update({ vocabulary: [cur.trim(), ...lines].filter(Boolean).join('\n') })
+      return out
+    },
     'autoclips:search': (r) => autoClipSearch(r.projectPath, r.query, { ...(r.maxSec ? { maxSec: r.maxSec } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:make': async (r) => {
       const out = []

@@ -5,6 +5,7 @@ import { cmd } from '../../shared/timeline/commands'
 import { clipForTrack } from '../../shared/timeline/create'
 import { MAX_CLIP_SEC, DEFAULT_AUTOCLIP_LAYOUT, FACE_ONLY_SHAPES, autoClipTemplate, faceCrop, faceOnlyCrop, faceOnlyTemplate, type FaceOnlyShape, findAutoClips, overlayRect, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
 import { newId, timelineDuration } from '../../shared/timeline/model'
+import { foldTr } from '../../shared/text'
 import { cutRange, setCaptions } from '../../shared/timeline/ops'
 import { captionsForTimeline } from '../../shared/timeline/captions'
 import { presetById } from '../../shared/timeline/captionStyles'
@@ -71,6 +72,25 @@ export async function autoClipTranscript(projectPath: string, env: Env = {}): Pr
   const words = timelineWords(s.timeline, s.transcripts)
   if (words.length === 0) throw await noTranscriptError(s)
   return { lines: transcriptLines(words), suggestions: mentionSuggestions(words), totalSec: timelineDuration(s.timeline), projectPath: path }
+}
+
+/**
+ * Transkriptte yanlış yazılmış bir ismi (ör. "Osman") doğrusuyla ("Osimhen") TÜM geçtiği yerlerde düzeltir (çekim eki korunur, ünlü uyumuyla);
+ * düzeltilmiş transkript projeye kaydedilir. Yeniden transkripsiyon gerekmez.
+ */
+export async function autoClipFixWord(projectPath: string, from: string, to: string, env: Env = {}): Promise<{ replaced: number }> {
+  if (!from.trim() || !to.trim()) throw new Error('Yanlış yazımı ve doğrusunu doldurun (ör. Osman → Osimhen).')
+  const path = await resolveProjectPath(projectPath)
+  const s = await Session.open(path, await makeService(env))
+  const asset = s.project.assets[0]
+  const t = asset ? s.transcripts[asset.id] : undefined
+  if (!asset || !t) throw await noTranscriptError(s)
+  const key = (x: string) => (foldTr(x.split(/['’]/)[0]).match(/[\p{L}\p{N}]+/gu) ?? []).join('')
+  const f = key(from)
+  const index = t.words.findIndex((w) => key(w.text) === f)
+  if (index < 0) throw new Error(`“${from.trim()}” transkriptte bulunamadı (yazımı farklı olabilir; transkriptte arayıp tam yazımı girin).`)
+  const r = await s.service.transcriptFix({ assetId: asset.id, index, text: to.trim(), all: true, remember: false })
+  return { replaced: r.replaced }
 }
 
 /** Kullanıcının yazdığı isim(ler)in geçtiği yerlerden DİKEY klip adayları (konu tahmini yok). */

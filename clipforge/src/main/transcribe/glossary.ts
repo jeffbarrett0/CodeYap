@@ -1,12 +1,22 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { TEAMS } from '../../shared/story/teams'
+import { parseAliases } from '../../shared/transcript/vocabulary'
 import { loadKnowledge } from '../story/knowledge'
 
 /**
  * Yerleşik futbol sözlüğü (konuşma tanıma düzeltmesi): resources/knowledge/glossary.txt (oyuncu/teknik direktör/takım adları)
  * + takım veritabanı adları + bilgi paketindeki oyuncu/takım adları. Yalnızca YAZIMI düzeltir; temkinli eşikle uygulanır.
  */
+/** Yerleşik düzeltme listesi: resources/knowledge/aliases.txt ("yanlış => doğru") */
+export async function builtinAliases(env: { resourcesDir: string }): Promise<{ from: string; to: string }[]> {
+  try {
+    return parseAliases(await readFile(join(env.resourcesDir, 'knowledge', 'aliases.txt'), 'utf8'))
+  } catch {
+    return []
+  }
+}
+
 export async function builtinGlossary(env: { resourcesDir: string; userDataDir: string }): Promise<string[]> {
   const terms = new Set<string>()
   try {

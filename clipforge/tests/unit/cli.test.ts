@@ -503,6 +503,18 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
       const again = await autoClipTranscript(lost, { userDataDir: ud })
       expect(again.lines.length).toBeGreaterThanOrEqual(1)
       expect((await autoClipEnsureTranscript(lost, { userDataDir: ud })).already).toBe(true)
+      // "tümünü düzelt": yanlış yazılan kelime transkriptte tüm geçtiği yerlerde değişir ve KALICI olur
+      {
+        const { autoClipFixWord } = await import('../../src/main/autoclips/pipeline')
+        const first = again.lines[0].text.split(/\s+/)[0].replace(/[^\p{L}]/gu, '')
+        expect(first.length).toBeGreaterThan(0)
+        const fx = await autoClipFixWord(lost, first, 'Düzeltilmiş', { userDataDir: ud })
+        expect(fx.replaced).toBeGreaterThanOrEqual(1)
+        const after = await autoClipTranscript(lost, { userDataDir: ud })
+        expect(after.lines.map((l) => l.text).join(' ')).toContain('Düzeltilmiş')
+        await expect(autoClipFixWord(lost, 'olmayankelimexyz', 'Bir', { userDataDir: ud })).rejects.toThrow(/bulunamadı/)
+        await expect(autoClipFixWord(lost, '', 'Bir', { userDataDir: ud })).rejects.toThrow(/doldurun/)
+      }
       // aralık önizleme kopyası (klip projeleri): yalnızca kullanılan aralık kodlanır, başlangıç ofseti kaydedilir; yeniden bulunabilir
       {
         const { makeProxy, findExistingProxy } = await import('../../src/main/media/proxy')

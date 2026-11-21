@@ -26,8 +26,9 @@ import { TaskQueue, userMessage } from './tasks'
 import { createEmbeddingProvider } from './embeddings'
 import { downloadModel, modelInstalled } from './transcribe/models'
 import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pipeline'
-import { builtinGlossary } from './transcribe/glossary'
-import { applyVocabulary, buildPrompt, fixWord, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
+import { builtinAliases, builtinGlossary } from './transcribe/glossary'
+import { TEAMS } from '../shared/story/teams'
+import { applyVocabulary, buildPrompt, fixWord, parseAliases, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
 import { findVideoIdeas, type IdeasResult } from '../shared/ideas'
 import { chapterWarnings, findChapters, formatChapters, optionsForMode, type ChapterMode, type ChaptersResult } from '../shared/chapters'
@@ -332,11 +333,15 @@ export class AppService {
     const conc = s.provider === 'whisper-cpp' && totalThreads >= 8 ? 2 : 1
     const provider = createProvider(s, this.modelDir, join(this.deps.resourcesDir, 'faster_whisper_cli.py'), this.whisperBin, { threads: Math.max(2, Math.floor(totalThreads / conc)) })
     const soft = await builtinGlossary(this.deps)
+    const aliases = [...(await builtinAliases(this.deps)), ...parseAliases(s.vocabulary)]
+    // Whisper ipucu: kullanıcı sözlüğü + yerleşik futbol adları (oyuncu adları önce; takım adları Whisper'ın zaten iyi bildiği adlardır)
+    const teamNames = new Set(TEAMS.map((t) => t.name))
+    const promptNames = [...soft.filter((t) => !teamNames.has(t)), ...soft.filter((t) => teamNames.has(t))]
     const task = this.queue.add({
       kind: 'transcribe',
       title: `Transkripsiyon: ${asset.name} (Track ${req.track + 1}, ${req.language})`,
       run: async (ctx) => {
-        const { transcript, reused } = await transcribeAsset(asset, { track: req.track, language: req.language, model, force: req.force, prompt: buildPrompt(s.vocabulary, s.transcribeFillers), vocabulary: parseVocabulary(s.vocabulary), softVocabulary: soft }, { tools: this.tools, provider, dataDir: this.dataDir, signal: ctx.signal, progress: ctx.progress, concurrency: conc })
+        const { transcript, reused } = await transcribeAsset(asset, { track: req.track, language: req.language, model, force: req.force, prompt: buildPrompt(s.vocabulary, s.transcribeFillers, 650, promptNames), vocabulary: parseVocabulary(s.vocabulary), softVocabulary: soft, aliases }, { tools: this.tools, provider, dataDir: this.dataDir, signal: ctx.signal, progress: ctx.progress, concurrency: conc })
         this.search.load(asset.id, transcript)
         this.deps.emit('transcript:ready', { assetId: asset.id, transcript, reused })
       }
@@ -373,7 +378,7 @@ export class AppService {
   async transcriptApplyVocabulary(assetId: string): Promise<{ transcript: Transcript; corrections: number }> {
     const t = await this.transcriptGet(assetId)
     if (!t) throw new ToolError('Transkript bulunamadı.')
-    const r = applyVocabulary(t.words, parseVocabulary(this.settings.value.vocabulary), await builtinGlossary(this.deps))
+    const r = applyVocabulary(t.words, parseVocabulary(this.settings.value.vocabulary), await builtinGlossary(this.deps), [...(await builtinAliases(this.deps)), ...parseAliases(this.settings.value.vocabulary)])
     const next = r.corrections.length ? withWords(t, r.words) : t
     if (r.corrections.length) {
       await saveTranscript(this.dataDir, next)

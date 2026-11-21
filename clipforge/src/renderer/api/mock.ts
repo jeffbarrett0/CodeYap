@@ -97,6 +97,7 @@ export function createMockApi(): ClipforgeApi {
   const storyJobs = new Map<string, StoryStatus>()
   const acJobs = new Map<string, AutoClipsStatus>()
   const transcribed = new Set<string>()
+  const mockFixes: { from: string; to: string }[] = []
   const MOCK_PLAN: StoryPlan = {
     totalSec: 120,
     theme: DEFAULT_STORY_THEME,
@@ -206,13 +207,20 @@ export function createMockApi(): ClipforgeApi {
           { start: 0, end: 6, text: 'Selam arkadaşlar bugün çok konu var.' },
           { start: 120, end: 150, text: 'Lemina orta sahada çok iyi oynuyor.' },
           { start: 600, end: 640, text: 'Zaha kanatta fark yaratıyor ama bitiriciliği eksik.' },
-          { start: 1200, end: 1240, text: 'Osimhen gol krallığında hâlâ en önde.' }
-        ],
+          { start: 1200, end: 1240, text: 'Osimhen gol krallığında hâlâ en önde.' },
+          { start: 1300, end: 1320, text: 'Osman çok iyi bitirdi.' }
+        ].map((l) => ({ ...l, text: mockFixes.reduce((t, f) => t.replace(new RegExp(f.from, 'g'), f.to), l.text) })),
         suggestions: [
           { name: 'Osimhen', count: 12, firstAt: 1200 },
           { name: 'Lemina', count: 7, firstAt: 120 }
         ]
       }
+    },
+    'autoclips:fix': (r) => {
+      if (!r.from.trim() || !r.to.trim()) throw new Error('Yanlış yazımı ve doğrusunu doldurun (ör. Osman → Osimhen).')
+      if (/yokisim/i.test(r.from)) throw new Error(`“${r.from.trim()}” transkriptte bulunamadı.`)
+      mockFixes.push({ from: r.from.trim(), to: r.to.trim() })
+      return { replaced: 3 }
     },
     'autoclips:search': (r) => {
       if (!r.query.trim()) throw new Error('Aranacak bir isim yazın (ör. Osimhen).')
