@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_AUTOCLIP_LAYOUT, MAX_CLIP_SEC, MIN_CLIP_SEC, autoClipTemplate, faceCrop, findAutoClips, overlayRect, parseRect, screenCrop } from '@shared/autoclips'
+import { DEFAULT_AUTOCLIP_LAYOUT, MAX_CLIP_SEC, MIN_CLIP_SEC, autoClipTemplate, faceCrop, findAutoClips, hotWindows, overlayRect, parseRect, screenCrop, sentenceEnergy, clipReportText } from '@shared/autoclips'
 import type { TranscriptWord } from '@shared/types'
 import { chainAutoClips } from '../../src/main/autoclips/run'
 
@@ -344,5 +344,47 @@ describe('kısa video altyazısı (2–4 kelime)', () => {
       expect(n).toBeLessThanOrEqual(5) // tek kelime komşuya katılınca en fazla 5
     }
     expect(caps.map((c) => c.text).join(' ')).toBe(txt.join(' '))
+  })
+
+describe('Auto Clips: en etkili an seçimi ve çeşitlilik', () => {
+  it('cümle enerjisi: soru, ünlem, rakam ve vurgulu sözcükler puanlanır; düz cümle 0', () => {
+    expect(sentenceEnergy('Bugün hava güzel')).toBe(0)
+    expect(sentenceEnergy('Bu nasıl karar?')).toBeGreaterThan(1)
+    expect(sentenceEnergy('İnanılmaz bir gol attı!')).toBeGreaterThan(2)
+    expect(sentenceEnergy('3 puan aldılar')).toBeGreaterThan(0)
+    expect(sentenceEnergy('Rezalet! Skandal! İnanılmaz! Felaket! Utanç!')).toBeLessThanOrEqual(3)
+  })
+  it('uzun konuda eşit parça yerine en yoğun pencere seçilir (ortadaki sıcak bölge); en çok 2; üst üste binmez', () => {
+    // 20 cümle × 10 sn = 200 sn: yalnızca 8–12. cümleler "sıcak" (ünlem + konu adı)
+    const mk = (i: number, hot: boolean) => ({ text: hot ? `Lemina inanılmaz bir karar verdi ${i}!` : `Sıradan bir cümle ${i}.`, start: i * 10, end: i * 10 + 9, firstWord: 0, lastWord: 0 }) as never
+    const inside = Array.from({ length: 20 }, (_, i) => mk(i, i >= 8 && i <= 12))
+    const w = hotWindows(inside, (g: any) => /Lemina/.test(g.text), 40, 100)
+    expect(w.length).toBeGreaterThanOrEqual(1)
+    expect(w.length).toBeLessThanOrEqual(2)
+    const best = w[0]
+    const idx = best.map((g: any) => Number(/(\d+)[.!]$/.exec(g.text)![1]))
+    expect(idx.filter((n) => n >= 8 && n <= 12).length).toBe(5) // sıcak bölgenin tamamı penceredeyse
+    expect(best[best.length - 1].end - best[0].start).toBeLessThanOrEqual(100)
+    if (w.length === 2) expect(w[1][0].start).toBeGreaterThan(w[0][w[0].length - 1].end)
+  })
+  it('aynı kişiden dikeyde en çok 2 klip çıkar (10 klibin hepsi aynı konu olmasın)', () => {
+    // tek kişi uzun süre konuşulur (ör. 10 dk) → klip sayısı 2 ile sınırlı
+    const words = stream([{ secs: 60, vocab: FOOD }, { secs: 600, vocab: FOOT, name: 'Lemina' }, { secs: 60, vocab: FOOD }])
+    const clips = findAutoClips(words, { max: 10 })
+    expect(clips.filter((c) => /Lemina/i.test(c.subject)).length).toBeLessThanOrEqual(2)
+    for (const c of clips) expect(c.durationSec).toBeLessThanOrEqual(MAX_CLIP_SEC + 0.5)
+  })
+})
+
+  it('klip raporu: konu, tam videodaki zaman, süre, söylenen, dosya ve hatalar yazılır', () => {
+    const t = clipReportText({ name: 'kayit', horizontal: false, fromList: true, totalSec: 7200, clips: [
+      { id: 'a', subject: 'Leo', headline: 'Leo', summary: 'Leo çok iyi oynadı.', start: 3725, end: 3850, durationSec: 125, videoPath: '/k/Leo.mp4' },
+      { id: 'b', subject: 'Deniz Gül', headline: 'x', start: 100, end: 160, durationSec: 60, error: 'MP4 dışa aktarılamadı' }
+    ] })
+    expect(t).toMatch(/dikey 9:16, senin zaman damgası listenden/)
+    expect(t).toMatch(/1\. Leo — 1:02:05–1:04:10 \(125 sn\)/)
+    expect(t).toMatch(/Söylenen: Leo çok iyi oynadı\./)
+    expect(t).toMatch(/HATA: MP4 dışa aktarılamadı/)
+    expect(t).toMatch(/1\/2 MP4 hazır/)
   })
 })

@@ -511,3 +511,6 @@ Kullanıcı her videoya otomatik uygulanmasını istedi. Tek noktada (dışa akt
 
 ## 82. YouTube yatay video: abone butonu
 Kullanıcı: her kesite YouTube butonu, ~2 dk'da bir ama çok olmasın (3 dk→2, 8 dk→2-4-6-7; 90 sn'den kısada da 1). `ctaTimes` bu örnekleri üretir. ffmpeg tek geçişte: chromakey+despill+crop+scale+overlay (`ctaGraph`), buton sesi `adelay`+`amix(normalize=0)`. Hata olursa butonsuz yeniden kes (iş yarım kalmaz). Not: arayüz kutusu ilk commit'te eksik kalmıştı (düzenleme betiği yarıda hata vermişti), sonradan tamamlandı.
+
+## 83. Auto Clips iyileştirmeleri
+Kullanıcı "çıktılar tam istediğim gibi değil, düşün ve iyileştir" dedi, somut örnek vermedi → bilinen yapısal zayıflıklar giderildi: uzun konuda eşit bölme (sıkıcı "3. kısım" klipleri) yerine en etkili pencere; aynı kişiden çok klip; neyin çıktığını gösteren rapor. Bunlar tahmine dayalı iyileştirmedir; kullanıcının asıl şikayeti belirlenince (altyazı, süre, konu seçimi, yerleşim…) hedefli düzeltme yapılacak.

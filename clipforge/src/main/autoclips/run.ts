@@ -1,6 +1,7 @@
+import { writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
-import { initialAutoClipsStages, type AutoClipResultItem, type AutoClipsRequest, type AutoClipsResult, type AutoClipsStage, type AutoClipsStageState, type AutoClipsStatus } from '../../shared/autoclips'
+import { clipReportText, initialAutoClipsStages, type AutoClipResultItem, type AutoClipsRequest, type AutoClipsResult, type AutoClipsStage, type AutoClipsStageState, type AutoClipsStatus } from '../../shared/autoclips'
 import { optionsFromPreset } from '../../shared/export/presets'
 import { timelineDuration } from '../../shared/timeline/model'
 import { autoClipCandidates, autoClipCandidatesForRanges, makeAutoClip } from './pipeline'
@@ -67,7 +68,7 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   }
   stage('find', { status: 'done', progress: 1, detail: `${found.candidates.length} konu bulundu` })
 
-  const clips: AutoClipResultItem[] = found.candidates.map((c) => ({ id: c.id, subject: c.subject, headline: c.headline, start: c.start, end: c.end, durationSec: c.durationSec }))
+  const clips: AutoClipResultItem[] = found.candidates.map((c) => ({ id: c.id, subject: c.subject, headline: c.headline, summary: c.summary || undefined, start: c.start, end: c.end, durationSec: c.durationSec }))
   stage('make', { status: 'running', progress: 0 })
   for (const [i, c] of found.candidates.entries()) {
     check()
@@ -98,7 +99,16 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
     stage('export', { status: 'done', progress: 1, detail: `${clips.filter((c) => c.videoPath).length} MP4` })
   }
   const first = clips.find((c) => c.projectPath)
-  return { dir: first?.projectPath ? dirname(first.projectPath) : '', clips }
+  const dir = first?.projectPath ? dirname(first.projectPath) : ''
+  if (dir) {
+    // klip raporu: neyin çıktığı tek dosyada (hata olursa iş yine başarılı)
+    try {
+      await writeFile(join(dir, `Klip raporu (${req.horizontal ? 'yatay' : 'dikey'}).txt`), clipReportText({ name: basename(found.projectPath, '.clipforge'), horizontal: !!req.horizontal, fromList: !!req.ranges?.length, clips, totalSec: undefined }), 'utf8')
+    } catch {
+      /* rapor yazılamadı */
+    }
+  }
+  return { dir, clips }
 }
 
 /** Auto Clips işlerini sırayla çalıştırır (CPU'yu tek iş kullanır; Auto Kick/Anlatım işleriyle aynı ilke) */

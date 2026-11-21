@@ -773,6 +773,11 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
       expect(j.result!.clips[0].subject).toBe('Tek konu')
       expect(j.result!.clips[0].projectPath).toBeTruthy()
     }
+    // klip raporu: neyin çıktığı klasörde
+    const rep = readFileSync(join(jobs[0].result!.dir, 'Klip raporu (dikey).txt'), 'utf8')
+    expect(rep).toMatch(/KLİP RAPORU/)
+    expect(rep).toMatch(/Tek konu/)
+    expect(readFileSync(join(jobs[1].result!.dir, 'Klip raporu (yatay).txt'), 'utf8')).toMatch(/yatay 16:9, senin zaman damgası listenden/)
     await appendRunLog(dir, 'test')
     expect(readFileSync(join(dir, 'Auto Kick günlüğü.txt'), 'utf8')).toMatch(/Auto Kick TAMAMLANDI/)
     expect(readFileSync(join(dir, 'Auto Kick günlüğü.txt'), 'utf8')).toMatch(/Auto Clips \(dikey\) \[listeden 1 alan\]: 1 klip/)

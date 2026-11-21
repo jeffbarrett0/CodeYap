@@ -85,6 +85,45 @@ export function refineClipBounds(piece: Segment[], segs: Segment[], words: Trans
 
 const clip = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n).replace(/\s+\S*$/, '')}…`)
 
+/** Vurgu taşıyan genel sözcükler (kişi/takım adı değil): heyecan, tepki, karar anları */
+const STRONG = new Set(['inanilmaz', 'rezalet', 'skandal', 'sok', 'bomba', 'resmen', 'kesinlikle', 'asla', 'tarihi', 'korkunc', 'muhtesem', 'mukemmel', 'berbat', 'utanc', 'fiyasko', 'cilgin', 'felaket', 'harika', 'gercekten', 'ihanet', 'efsane', 'sasirtici', 'dehset', 'yazik', 'hata', 'karar', 'penalti', 'gol'])
+
+/** Cümlenin "enerjisi" (0–3): soru, ünlem, rakam ve vurgulu sözcükler. Uzun konularda en etkili anı seçmek için kullanılır. */
+export function sentenceEnergy(text: string): number {
+  let e = 0
+  if (/\?/.test(text)) e += 1
+  if (/!/.test(text)) e += 1.2
+  if (/\d/.test(text)) e += 0.4
+  for (const w of text.split(/\s+/)) if (STRONG.has(foldTr(w).replace(/[^a-z0-9]/g, ''))) e += 0.8
+  return Math.min(3, e)
+}
+
+/**
+ * Konu maxSec'ten uzunsa EŞİT PARÇALARA bölmek yerine en etkili (konu adı + enerji yoğun) pencere(ler) seçilir: en çok 2, üst üste binmeyen,
+ * ikincisi ilkinin %60'ından zayıfsa alınmaz. Pencere cümle sınırlarındadır ve [minSec, maxSec] içindedir.
+ */
+export function hotWindows(inside: Segment[], hit: (g: Segment) => boolean, minSec: number, maxSec: number, maxWindows = 2): Segment[][] {
+  const val = inside.map((g) => 1 + sentenceEnergy(g.text) + (hit(g) ? 1 : 0))
+  const cands: { a: number; b: number; score: number }[] = []
+  for (let a = 0; a < inside.length; a++) {
+    let sum = 0
+    for (let b = a; b < inside.length; b++) {
+      if (inside[b].end - inside[a].start > maxSec) break
+      sum += val[b]
+      if (inside[b].end - inside[a].start >= minSec) cands.push({ a, b, score: sum })
+    }
+  }
+  if (cands.length === 0) return []
+  cands.sort((x, y) => y.score - x.score)
+  const out: { a: number; b: number; score: number }[] = [cands[0]]
+  for (const c of cands) {
+    if (out.length >= maxWindows) break
+    if (out.some((o) => !(c.b < o.a - 1 || c.a > o.b + 1))) continue // örtüşen/bitişik pencere yok
+    if (c.score >= 0.6 * out[0].score) out.push(c)
+  }
+  return out.sort((x, y) => x.a - y.a).map((w) => inside.slice(w.a, w.b + 1))
+}
+
 export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClipOptions> = {}): AutoClipCandidate[] {
   // tanımsız (undefined) alanlar varsayılanı ezmesin
   const horizontal = options.horizontal === true
@@ -128,13 +167,21 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
         if (tight[tight.length - 1].end - tight[0].start >= o.minSec) inside = tight
       }
     }
-    // çok uzunsa cümle sınırlarından eşit parçalara böl
+    // çok uzunsa: DİKEYDE en etkili pencere(ler) (en çok 2); yatayda eşit parçalara böl
     const total = inside[inside.length - 1].end - inside[0].start
-    // yalnızca en uzun süreyi aşan konu bölünür (eşit parçalara); sığan konu tek klip kalır
-    const parts = total > o.maxSec ? Math.ceil(total / o.maxSec) : 1
-    const per = Math.ceil(inside.length / parts)
-    for (let p = 0; p < parts; p++) {
-      let piece = inside.slice(p * per, (p + 1) * per)
+    const keysAll = ch.title.split(',').map((x) => foldTr((x.trim().split(' ').pop() ?? x).replace(/\s+/g, ''))).filter((k) => k.length >= 3)
+    const isHit = (g: Segment) => keysAll.some((k) => foldTr(g.text).includes(k))
+    let pieces: Segment[][]
+    if (!horizontal && total > o.maxSec) {
+      pieces = hotWindows(inside, isHit, o.minSec, o.maxSec)
+      if (pieces.length === 0) pieces = [inside.slice(0, 1)]
+    } else {
+      const parts = total > o.maxSec ? Math.ceil(total / o.maxSec) : 1
+      const per = Math.ceil(inside.length / parts)
+      pieces = Array.from({ length: parts }, (_, p) => inside.slice(p * per, (p + 1) * per))
+    }
+    for (let p = 0; p < pieces.length; p++) {
+      let piece = pieces[p]
       // en uzun süreyi aşıyorsa sondaki cümleler atılır (cümle sınırında kalır)
       while (piece.length > 1 && piece[piece.length - 1].end - piece[0].start > o.maxSec) piece = piece.slice(0, -1)
       if (piece.length === 0) continue
@@ -150,7 +197,8 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
       const hits = piece.filter((g) => key.some((k) => k.length >= 3 && foldTr(g.text).includes(k)))
       const pick = (hits.length >= 2 ? hits : piece).slice(0, 2)
       const mentions = hits.length
-      const score = (named ? 10 : 2) + Math.min(mentions, 6) * 1.5 - Math.abs(dur - o.targetSec) / Math.max(90, o.targetSec)
+      const energy = piece.reduce((n, g) => n + sentenceEnergy(g.text), 0) / Math.max(1, piece.length)
+      const score = (named ? 10 : 2) + Math.min(mentions, 6) * 1.5 + Math.min(energy * 2, 3) - Math.abs(dur - o.targetSec) / Math.max(90, o.targetSec)
       cands.push({
         id: '',
         start,
@@ -167,7 +215,16 @@ export function findAutoClips(words: TranscriptWord[], options: Partial<AutoClip
   // yatayda adsız ama konuşmada yoğun geçen konular da (ör. "webinar") alınır; yalnızca zayıf anahtar kelime başlıkları elenir
   const pool = horizontal ? cands.filter((c) => c.score >= 8) : cands.some((c) => c.score >= 10) ? cands.filter((c) => c.score >= 10) : cands
   // en iyi N'i seç, zaman sırasına diz, kimlik ver
-  const best = [...pool].sort((a, b) => b.score - a.score).slice(0, o.max).sort((a, b) => a.start - b.start)
+  // çeşitlilik: aynı konudan (dikeyde en çok 2, yatayda 3) fazlası alınmaz — 10 klibin hepsi aynı kişi olmasın
+  const perSubject = new Map<string, number>()
+  const capped = [...pool].sort((a, b) => b.score - a.score).filter((c) => {
+    const k = foldTr(c.subject)
+    const n = perSubject.get(k) ?? 0
+    if (n >= (horizontal ? 3 : 2)) return false
+    perSubject.set(k, n + 1)
+    return true
+  })
+  const best = capped.slice(0, o.max).sort((a, b) => a.start - b.start)
   return best.map((c, i) => ({ ...c, id: `ac${i + 1}` }))
 }
 
@@ -311,6 +368,8 @@ export interface AutoClipResultItem {
   id: string
   subject: string
   headline: string
+  /** O bölümde söylenenlerden 1-2 cümle */
+  summary?: string
   start: number
   end: number
   durationSec: number
@@ -396,4 +455,24 @@ export function faceOnlyTemplate(shape: FaceOnlyShape): LayoutTemplate {
       { id: 'V1', name: 'Video 1', kind: 'video', role: 'screen', placement: { ...full, visible: false } }
     ]
   }
+}
+
+const rt = (s: number, hours: boolean) => {
+  const t = Math.max(0, Math.floor(s))
+  const h = Math.floor(t / 3600)
+  const m = Math.floor((t % 3600) / 60)
+  const r = t % 60
+  return hours ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}` : `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
+}
+
+/** Klip raporu (.txt): hangi konular, hangi zamanda (tam videoda), kaç saniye, ne söylenmiş, hangi dosya; hatalar. Kullanıcı neyin çıktığını görsün. */
+export function clipReportText(o: { name: string; horizontal: boolean; fromList: boolean; clips: AutoClipResultItem[]; totalSec?: number }): string {
+  const hours = (o.totalSec ?? Math.max(0, ...o.clips.map((c) => c.end))) >= 3600
+  const lines = [`KLİP RAPORU — ${o.name} (${o.horizontal ? 'yatay 16:9' : 'dikey 9:16'}${o.fromList ? ', senin zaman damgası listenden' : ', konulardan otomatik'})`, `Zamanlar kesilmiş TAM VİDEOya göredir. ${o.clips.filter((c) => c.videoPath).length}/${o.clips.length} MP4 hazır.`, '']
+  o.clips.forEach((c, i) => {
+    lines.push(`${i + 1}. ${c.subject} — ${rt(c.start, hours)}–${rt(c.end, hours)} (${Math.round(c.durationSec)} sn)`)
+    if (c.summary) lines.push(`   Söylenen: ${c.summary}`)
+    lines.push(`   Dosya: ${c.videoPath ?? c.projectPath ?? '(üretilemedi)'}${c.error ? `\n   HATA: ${c.error}` : ''}`)
+  })
+  return lines.join('\n') + '\n'
 }
