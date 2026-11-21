@@ -518,6 +518,10 @@ export interface Settings {
   autoClipsCaptions: boolean
   /** yatay klipler için en çok klip (süre sınırı geniş, çıkarabildiği kadar) */
   autoClipsMaxHorizontal: number
+  /** Her videoya otomatik görüntü ayarı (dışa aktarma, Auto Kick tam video/klipler, YouTube yatay video): kontrast ve keskinlik (Ayarla ölçeği, 0 = kapalı değer) */
+  autoAdjustEnabled: boolean
+  autoAdjustContrast: number
+  autoAdjustSharpen: number
   llmProvider: 'off' | 'openai' | 'anthropic'
   /** boşsa sağlayıcının varsayılanı (OpenAI: gpt-4o-mini, Anthropic: claude-haiku-5-5) */
   llmModel: string

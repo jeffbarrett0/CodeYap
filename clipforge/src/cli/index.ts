@@ -49,6 +49,7 @@ import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/exp
 import type { Clip, MediaAsset, TextSpec } from '../shared/types'
 import { qaText } from '../shared/qa'
 import { runYtCut } from '../main/ytcut'
+import { autoAdjustFrom } from '../shared/adjust'
 import { qaVideo } from '../main/qa'
 import { findRetakes, verifyNumbers } from '../shared/qa'
 import { addReference, listReferences, referenceDir, removeReference, updateReference } from '../main/reference'
@@ -405,7 +406,7 @@ async function main(argv: string[]): Promise<unknown> {
     const listFile = str(a.opt.list)
     if (!listFile) throw new Error('--list <liste.txt> verin (örn. "00:34:00 - Leo" / "00:03:00 - 00:09:00 Noah Lang").')
     const svc = await makeService()
-    const r = await runYtCut({ videoPath: resolve(projectArg), list: await readFile(resolve(listFile), 'utf8'), outDir: str(a.opt.out) ? resolve(str(a.opt.out)!) : undefined, quality: a.opt.quality === 'high' ? 'high' : 'fast' }, svc.tools, { progress: (f, msg) => log(`[yt-cut] %${Math.round(f * 100)}${msg ? ` — ${msg}` : ''}`) })
+    const r = await runYtCut({ adjust: autoAdjustFrom(svc.settings.value), videoPath: resolve(projectArg), list: await readFile(resolve(listFile), 'utf8'), outDir: str(a.opt.out) ? resolve(str(a.opt.out)!) : undefined, quality: a.opt.quality === 'high' ? 'high' : 'fast' }, svc.tools, { progress: (f, msg) => log(`[yt-cut] %${Math.round(f * 100)}${msg ? ` — ${msg}` : ''}`) })
     return out({ ok: r.items.some((i) => i.path), dir: r.dir, count: r.items.filter((i) => i.path).length, items: r.items.map((i) => ({ index: i.index, title: i.title, start: r1(i.start), end: r1(i.end), durationSec: r1(i.durationSec), file: i.path, error: i.error })), warnings: r.warnings })
   }
   if (command === 'qa') {

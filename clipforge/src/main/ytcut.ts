@@ -1,5 +1,6 @@
 import { mkdir, access } from 'node:fs/promises'
 import { basename, dirname, extname, join } from 'node:path'
+import { adjustFilter } from '../shared/adjust'
 import { parseChapterList } from '../shared/chapters'
 import { safeFileTitle, ytCutFileName, ytCutRanges, type YtCutRequest, type YtCutResult } from '../shared/ytcut'
 import { ffprobeJson, limitThreads, runTool } from './ffmpeg'
@@ -33,12 +34,13 @@ export async function runYtCut(req: YtCutRequest, tools: MediaTools, hooks: { si
   await mkdir(dir, { recursive: true })
   const totalSec = items.reduce((n, i) => n + i.durationSec, 0)
   let doneSec = 0
+  const vf = adjustFilter(req.adjust).replace(/^,/, '')
   const crf = req.quality === 'high' ? '17' : '19'
   const preset = req.quality === 'high' ? 'slow' : 'veryfast'
   for (const it of items) {
     if (hooks.signal?.aborted) throw new Error('İptal edildi.')
     const out = join(dir, ytCutFileName(it.index, it.title, items.length))
-    const args = ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, '-map', '0:v:0', ...(hasAudio ? ['-map', '0:a:0'] : []), '-c:v', 'libx264', '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p', ...(hasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []), '-movflags', '+faststart', '-progress', 'pipe:1', out]
+    const args = ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, '-map', '0:v:0', ...(hasAudio ? ['-map', '0:a:0'] : []), ...(vf ? ['-vf', vf] : []), '-c:v', 'libx264', '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p', ...(hasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []), '-movflags', '+faststart', '-progress', 'pipe:1', out]
     try {
       await runTool(tools.ffmpeg, limitThreads(args), {
         signal: hooks.signal,

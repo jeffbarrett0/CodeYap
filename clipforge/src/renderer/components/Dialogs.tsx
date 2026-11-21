@@ -147,6 +147,16 @@ export function SettingsDialog() {
             </Field>
           </div>
           <Field label="Varsayılan dil"><select value={s.language} onChange={(e) => set({ language: e.target.value })} aria-label="Dil">{LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}</select></Field>
+          <Field label="Otomatik görüntü ayarı (her videoya)">
+            <div className="col" style={{ gap: 6 }}>
+              <label className="check"><input type="checkbox" checked={s.autoAdjustEnabled} onChange={(e) => set({ autoAdjustEnabled: e.target.checked })} data-testid="auto-adjust-enabled" /> Dışa aktarılan her videoya kontrast ve keskinlik ekle (Auto Kick tam video + klipler, YouTube yatay video, normal dışa aktarma)</label>
+              <div className="row wrap" style={{ gap: 12 }}>
+                <label className="row" style={{ gap: 6 }}>Kontrast <Num value={s.autoAdjustContrast} step={1} min={0} max={100} label="Otomatik kontrast" onChange={(v) => set({ autoAdjustContrast: Math.round(v) })} /></label>
+                <label className="row" style={{ gap: 6 }}>Keskinlik <Num value={s.autoAdjustSharpen} step={1} min={0} max={100} label="Otomatik keskinlik" onChange={(v) => set({ autoAdjustSharpen: Math.round(v) })} /></label>
+              </div>
+              <div className="hint">Varsayılan +5 / +5 (hafif). Orijinal kayıt değişmez; yalnızca çıkan videoya uygulanır. Klibe elle "Ayarla" sekmesinden kendi değerinizi verdiyseniz o klip için sizinki geçerli olur.</div>
+            </div>
+          </Field>
           <Field label="Yayın başı videosu (telifli şarkı): Auto Kick'te otomatik kes">
             <div className="col" style={{ gap: 6 }}>
               <label className="check"><input type="checkbox" checked={s.introCutEnabled} onChange={(e) => set({ introCutEnabled: e.target.checked })} data-testid="intro-enabled" /> Yayın başındaki "Yayın başlıyor" videosunu kes</label>

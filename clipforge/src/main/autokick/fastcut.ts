@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname } from 'node:path'
+import { adjustFilter, type Adjust } from '../../shared/adjust'
 import type { MediaAsset } from '../../shared/types'
 
 /**
@@ -55,6 +56,8 @@ export interface FastCutOptions {
   encoderPreset: string
   maxrateKbps: number
   audioKbps: number
+  /** CapCut tarzı görüntü ayarı (Ayarlar: otomatik kontrast/keskinlik) */
+  adjust?: Adjust
 }
 
 export function planFastCut(asset: Pick<MediaAsset, 'path' | 'fps' | 'audioStreams' | 'audioMap'>, ranges: Range[], o: FastCutOptions, outputPath: string): { args: string[]; filters: string; durationSec: number } {
@@ -66,7 +69,7 @@ export function planFastCut(asset: Pick<MediaAsset, 'path' | 'fps' | 'audioStrea
   const a = Math.min(asset.audioMap.mix ?? 0, asset.audioStreams.length - 1)
   const filters = [
     // kare hızı açıkça verilir (FRAME_RATE seçimden sonra bilinmez → 25 fps'e düşüp kareleri atardı)
-    `[0:v:0]select='${expr}',setpts=N/((${fn}/${fd})*TB),fps=${fn}/${fd}[v]`,
+    `[0:v:0]select='${expr}',setpts=N/((${fn}/${fd})*TB),fps=${fn}/${fd}${adjustFilter(o.adjust)}[v]`,
     // ses çerçevesi, kare süresine tam bölünür: her kesimde ses tam kare kadar uzunlukta kalır (kayma olmaz)
     `[0:a:${a}]aformat=sample_rates=48000:channel_layouts=stereo,asetnsamples=n=${frameSamples}:p=0,aselect='${expr}',asetpts=N/SR/TB[a]`
   ].join(';\n')

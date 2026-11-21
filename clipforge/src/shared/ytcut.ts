@@ -9,6 +9,8 @@ export interface YtCutRequest {
   outDir?: string
   /** fast: hızlı kodlama (varsayılan); high: daha yavaş, daha küçük/iyi sıkıştırma */
   quality?: 'fast' | 'high'
+  /** Görüntü ayarı (Ayarlar'daki otomatik kontrast/keskinlik); ana süreç ekler */
+  adjust?: import('./adjust').Adjust
 }
 
 export interface YtCutItem {

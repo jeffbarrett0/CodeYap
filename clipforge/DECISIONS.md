@@ -505,3 +505,6 @@ Kullanıcı: bütün yayın + zaman damgaları ver, her damga ayrı video olsun.
 
 ## 80. Hazır liste: dikey de listeden + günlük
 Kullanıcı 2,5 saatlik kayıtla denedi, çıktı almadığını söyledi; ayrıca dikeyin de listeden çıkmasını istedi (önceki sürümde yalnızca yatay listedendi — "büyük ölçüde vardı" demem yanlıştı). Dikey: `autoClipCandidatesForRanges` (aralık içinde en güçlü ≤178 sn parça; bölüm başına 1). Kök neden uzaktan belirlenemedi; ana süreç zinciri (AutoKickManager→chainAutoClips→AutoClipsManager) testte uçtan uca doğrulandı. Tanı için `Auto Kick günlüğü.txt` eklendi (aşamalar, zincir kararı, klip sayıları/hataları).
+
+## 81. Otomatik +5 kontrast / +5 keskinlik
+Kullanıcı her videoya otomatik uygulanmasını istedi. Tek noktada (dışa aktarılan çizelge + fastcut + yt-cut) uygulanır, projeye yazılmaz → ayar kapatılınca ya da değiştirilince eski projeler de etkilenir; klip düzeyindeki elle ayar önceliklidir. Görsel (PNG şerit) katmanlarına uygulanmaz: saydamlık bozulmasın.

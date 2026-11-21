@@ -89,3 +89,21 @@ export function previewFilter(a: Adjust | undefined): string {
   if (v('saturation') !== 0) f.push(`saturate(${f3(Math.max(0, 1 + v('saturation')))})`)
   return f.length ? f.join(' ') : 'none'
 }
+
+/** Ayarlardan otomatik görüntü ayarı (kapalıysa ya da hepsi 0 ise undefined) */
+export function autoAdjustFrom(s: { autoAdjustEnabled?: boolean; autoAdjustContrast?: number; autoAdjustSharpen?: number }): Adjust | undefined {
+  if (s.autoAdjustEnabled === false) return undefined
+  return cleanAdjust({ contrast: s.autoAdjustContrast ?? 0, sharpen: s.autoAdjustSharpen ?? 0 })
+}
+
+/**
+ * Zaman çizelgesindeki VİDEO kliplerine varsayılan ayarı ekler: kendi ayarı (fx.adjust) olan klibe, yeşil perdeli (çağrı butonu)
+ * kliplere, görsel (şerit/PNG, saydamlık bozulmasın) ve metin kliplerine DOKUNMAZ. Proje dosyası değişmez; yalnızca dışa aktarılan çizelgeye uygulanır.
+ */
+export function withDefaultAdjust<T extends { tracks: { kind: string; clips: { assetId?: string; fx?: { adjust?: Adjust; chroma?: unknown } }[] }[] }>(tl: T, adjust: Adjust | undefined): T {
+  if (!adjust) return tl
+  return {
+    ...tl,
+    tracks: tl.tracks.map((t) => (t.kind !== 'video' ? t : { ...t, clips: t.clips.map((c) => (!c.assetId || c.fx?.adjust || c.fx?.chroma ? c : { ...c, fx: { ...c.fx, adjust: { ...adjust } } })) }))
+  }
+}

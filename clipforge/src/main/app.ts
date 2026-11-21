@@ -10,6 +10,7 @@ import { scoreCandidates, snapCandidate, DEFAULT_KEYWORDS } from '../shared/sugg
 import type { AppInfo, ChatImportRequest, ExportRequest, IpcEventName, IpcEvents, OpenedProject, SearchRequest, SuggestRequest, ToolStatus, TranscribeRequest } from '../shared/ipc'
 import type { ChatLog, MediaAsset, Marker, Project, SearchResult, Timeline, Transcript, WhisperModelSize } from '../shared/types'
 import { runExport } from './export'
+import { autoAdjustFrom, withDefaultAdjust } from '../shared/adjust'
 import { runYtCut } from './ytcut'
 import type { YtCutRequest } from '../shared/ytcut'
 import { cpuThreads, resolveFfmpegPath, resolveFfprobePath, runTool, setCpuMode, ToolError, toolVersion } from './ffmpeg'
@@ -415,6 +416,9 @@ export class AppService {
       kind: 'export',
       title: `Dışa aktarma: ${req.name}`,
       run: async (ctx) => {
+        // her videoya otomatik görüntü ayarı (kontrast/keskinlik; Ayarlar'dan kapatılır): yalnızca dışa aktarılan çizelgeye uygulanır
+        const auto = autoAdjustFrom(this.settings.value)
+        if (auto) req = { ...req, timeline: withDefaultAdjust(req.timeline, auto) }
         const { outputPath, warnings } = await runExport(req, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
         // YouTube bölüm zamanları: dışa aktarılan videonun yanına .txt (yalnızca tam video; hata dışa aktarmayı bozmaz)
         let timestampsPath: string | undefined
@@ -440,7 +444,7 @@ export class AppService {
       kind: 'ytcut',
       title: `YouTube yatay video: ${basename(req.videoPath)}`,
       run: async (ctx) => {
-        const result = await runYtCut(req, this.tools, { signal: ctx.signal, progress: ctx.progress })
+        const result = await runYtCut({ ...req, adjust: autoAdjustFrom(this.settings.value) }, this.tools, { signal: ctx.signal, progress: ctx.progress })
         this.deps.emit('ytcut:done', { taskId: ctx.id, result })
       }
     }).id
