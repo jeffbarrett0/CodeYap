@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ctaRect, ctaSequence, defaultCtaSize, parseCtaManifest } from '@shared/cta'
+import { ctaRect, ctaSequence, ctaTimes, defaultCtaSize, parseCtaManifest } from '@shared/cta'
 import { chromaFilter } from '@shared/export/plan'
 
 const dir = join(__dirname, '..', '..', 'resources', 'cta')
@@ -42,5 +42,22 @@ describe('çağrı butonları: manifest ve yerleşim', () => {
     expect(f).toContain('chromakey=color=0x00FD00')
     expect(f).toContain('despill=type=green')
     expect(f.endsWith(',')).toBe(true)
+  })
+
+  it('YouTube yatay kesit: buton yerleri (kullanıcının örnekleri: 3 dk → 1. ve 2. dk; 8 dk → 2-4-6-7. dk; çok olmasın)', () => {
+    expect(ctaTimes(60)).toEqual([]) // çok kısa
+    expect(ctaTimes(120)).toEqual([60]) // ortada tek
+    expect(ctaTimes(180)).toEqual([60, 120]) // 3 dk
+    expect(ctaTimes(480)).toEqual([120, 240, 360, 420]) // 8 dk
+    expect(ctaTimes(300)).toEqual([120, 240]) // 5 dk: 2., 4. (son 1 dk'ya taşmaz; 240 = 300-60)
+    const long = ctaTimes(3600)
+    expect(long.length).toBeLessThanOrEqual(9) // 1 saatlik kesit bile en çok ~8-9
+    for (const D of [95, 150, 200, 241, 480, 900, 3600]) {
+      const t = ctaTimes(D)
+      for (let i = 0; i < t.length; i++) {
+        expect(t[i] + 5).toBeLessThanOrEqual(D - 5) // buton kesitin sonuna taşmaz
+        if (i) expect(t[i] - t[i - 1]).toBeGreaterThanOrEqual(45) // butonlar üst üste binmez
+      }
+    }
   })
 })

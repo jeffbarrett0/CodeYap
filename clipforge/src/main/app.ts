@@ -444,7 +444,7 @@ export class AppService {
       kind: 'ytcut',
       title: `YouTube yatay video: ${basename(req.videoPath)}`,
       run: async (ctx) => {
-        const result = await runYtCut({ ...req, adjust: autoAdjustFrom(this.settings.value) }, this.tools, { signal: ctx.signal, progress: ctx.progress })
+        const result = await runYtCut({ ...req, adjust: autoAdjustFrom(this.settings.value) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
         this.deps.emit('ytcut:done', { taskId: ctx.id, result })
       }
     }).id

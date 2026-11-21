@@ -778,6 +778,24 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(readFileSync(join(dir, 'Auto Kick günlüğü.txt'), 'utf8')).toMatch(/Auto Clips \(dikey\) \[listeden 1 alan\]: 1 klip/)
   }, 300_000)
 
+  it('yt-cut + abone butonu: 3 dk\'lık kesitte 1. ve 2. dakikada YouTube butonu eklenir (süre aynı kalır); --no-cta butonsuz; kısa kesitte buton yok', () => {
+    const ffm = require('ffmpeg-static') as string
+    const src = join(tmp, 'uzun-test.mp4')
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=10:duration=200', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=200', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', src])
+    writeFileSync(join(tmp, 'cta-liste.txt'), 'Uzun konu - 00:00:00 - 00:03:00\nKisa konu - 00:03:05 - 00:03:20\n')
+    const r = cli('yt-cut', src, '--list', join(tmp, 'cta-liste.txt'), '--out', join(tmp, 'CTA Çıktı'))
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.warnings.join(' ')).not.toMatch(/eklenemedi/)
+    expect(r.items[0].ctaAt).toEqual([60, 120])
+    expect(r.items[1].ctaAt).toBeUndefined() // 15 sn: buton yok
+    const probe = (f: string) => JSON.parse(execFileSync(require('@ffprobe-installer/ffprobe').path as string, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', f]).toString())
+    expect(Number(probe(r.items[0].file).format.duration)).toBeGreaterThan(179)
+    expect(Number(probe(r.items[0].file).format.duration)).toBeLessThan(181)
+    const plain = cli('yt-cut', src, '--list', join(tmp, 'cta-liste.txt'), '--out', join(tmp, 'CTA Butonsuz'), '--no-cta')
+    expect(plain.items[0].ctaAt).toBeUndefined()
+    expect(md5(plain.items[0].file)).not.toBe(md5(r.items[0].file))
+  }, 300_000)
+
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')
     writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))

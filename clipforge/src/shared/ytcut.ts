@@ -11,6 +11,8 @@ export interface YtCutRequest {
   quality?: 'fast' | 'high'
   /** Görüntü ayarı (Ayarlar'daki otomatik kontrast/keskinlik); ana süreç ekler */
   adjust?: import('./adjust').Adjust
+  /** YouTube abone butonu (resources/cta): kesite ~2 dakikada bir eklenir; false = ekleme. Varsayılan: ekle */
+  cta?: boolean
 }
 
 export interface YtCutItem {
@@ -22,6 +24,8 @@ export interface YtCutItem {
   /** üretilen dosya (hata olduysa yok) */
   path?: string
   error?: string
+  /** Abone butonunun eklendiği saniyeler (kesit başından) */
+  ctaAt?: number[]
 }
 
 export interface YtCutResult {
