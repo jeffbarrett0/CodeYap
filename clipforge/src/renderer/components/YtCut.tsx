@@ -48,9 +48,9 @@ export function YtCutDialog() {
           </div>
         </Field>
         <Field label="2) Zaman damgaları (orijinal kayıt zamanı)">
-          <textarea rows={7} value={list} onChange={(e) => setList(e.target.value)} placeholder={'00:03:00 - Noah Lang\n00:34:00 - 00:41:00 Leo\n00:41:00 - 00:45:00 Deniz Gül'} aria-label="Zaman damgaları" data-testid="ytcut-list" style={{ width: '100%' }} disabled={running} />
+          <textarea rows={7} value={list} onChange={(e) => setList(e.target.value)} placeholder={'Giriş - 00:00:00\nNoah Lang - 00:03:00\nLeo - 00:34:00\n(ya da önce zaman: 00:34:00 - Leo)'} aria-label="Zaman damgaları" data-testid="ytcut-list" style={{ width: '100%' }} disabled={running} />
         </Field>
-        <div className="hint" data-testid="ytcut-parsed">{parsed.length ? `${parsed.length} satır okundu. Tek zaman yazarsanız bölüm bir sonraki satırın başına kadar sürer (son satır: kaydın sonuna); "34:00 - 41:00 Ad" yazarsanız tam o aralık kesilir.` : 'Henüz okunan satır yok.'}</div>
+        <div className="hint" data-testid="ytcut-parsed">{parsed.length ? `${parsed.length} satır okundu (başlık önce, zaman sonda ya da zaman önce: ikisi de olur). Tek zaman yazarsanız bölüm bir sonraki satırın başına kadar sürer (son satır: kaydın sonuna); "34:00 - 41:00 Ad" yazarsanız tam o aralık kesilir.` : 'Henüz okunan satır yok. Her satırda bir zaman olmalı: "Leo - 00:34:00" ya da "00:34:00 - Leo".'}</div>
         <div className="grid2">
           <Field label="Kalite">
             <select value={quality} onChange={(e) => setQuality(e.target.value as 'fast' | 'high')} aria-label="Kalite" data-testid="ytcut-quality" disabled={running}>

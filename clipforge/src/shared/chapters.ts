@@ -373,24 +373,51 @@ export function findChapters(words: TranscriptWord[], options: Partial<ChapterOp
 /** ───── Hazır zaman damgası listesi (orijinal kayıt zamanı) → kesimli videonun zamanı ───── */
 export interface ListedChapter { start: number; title: string; /** isteğe bağlı bitiş ("03:00 - 09:00 Noah Lang" yazımı); yoksa bir sonraki bölümün başı */ end?: number }
 
-/** "00:00:00 - Giriş", "01:10:06 - Osimhen", "6:41 Fenerbahçe" (tire isteğe bağlı); bitişli: "03:00 - 09:00 Noah Lang"; başlık/boş satırlar ("Saniyeler:") yok sayılır */
+const TIME = '(?:(\\d{1,3}):)?(\\d{1,2}):(\\d{2})'
+const toSec = (h: string | undefined, m: string, s: string) => (h ? Number(h) : 0) * 3600 + Number(m) * 60 + Number(s)
+
+/**
+ * Zaman damgası satırları — İKİ YAZIM de okunur:
+ *  zaman önce: "00:00:00 - Giriş", "01:10:06 - Osimhen", "6:41 Fenerbahçe", bitişli "03:00 - 09:00 Noah Lang"
+ *  başlık önce: "Giriş - 00:00:00", "Lesley Galatsaray'dan ayrılıyor! - 00:41:00" (zaman SONDA), bitişli "Noah Lang - 00:03:00 - 00:09:00"
+ * Tire isteğe bağlı; "Saniyeler:" gibi başlık/boş satırlar yok sayılır.
+ */
 export function parseChapterList(text: string): ListedChapter[] {
   const out: ListedChapter[] = []
+  const front = new RegExp(`^\\s*${TIME}\\s*(?:[-–—:|.)]\\s*)?(.+?)\\s*$`)
+  const frontRange = new RegExp(`^${TIME}\\s*(?:[-–—:|.)]\\s*)?(.+?)\\s*$`)
+  const backRange = new RegExp(`^(.*?\\S)\\s*[-–—:|]\\s*${TIME}\\s*[-–—]\\s*${TIME}\\s*$`)
+  const back = new RegExp(`^(.*?\\S)\\s*[-–—:|]?\\s*${TIME}\\s*$`)
   for (const raw of text.split(/\r?\n/)) {
-    const m = /^\s*(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s*(?:[-–—:|.)]\s*)?(.+?)\s*$/.exec(raw)
-    if (!m) continue
-    const h = m[1] ? Number(m[1]) : 0
-    const start = h * 3600 + Number(m[2]) * 60 + Number(m[3])
-    // "03:00 - 09:00 Noah Lang": ikinci zaman bitiştir
-    const r = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\s*(?:[-–—:|.)]\s*)?(.+?)\s*$/.exec(m[4])
-    if (r) {
-      const end = (r[1] ? Number(r[1]) : 0) * 3600 + Number(r[2]) * 60 + Number(r[3])
-      if (end > start) {
-        out.push({ start, end, title: r[4] })
-        continue
-      }
+    const line = raw.trim()
+    if (!line) continue
+    // başlık önce + bitişli ("Ad - 00:03:00 - 00:09:00")
+    let m = backRange.exec(line)
+    if (m) {
+      const start = toSec(m[2], m[3], m[4])
+      const end = toSec(m[5], m[6], m[7])
+      out.push(end > start ? { start, end, title: m[1] } : { start, title: m[1] })
+      continue
     }
-    out.push({ start, title: m[4] })
+    // zaman önce
+    m = front.exec(raw)
+    if (m) {
+      const start = toSec(m[1], m[2], m[3])
+      // "03:00 - 09:00 Noah Lang": ikinci zaman bitiştir
+      const r = frontRange.exec(m[4])
+      if (r) {
+        const end = toSec(r[1], r[2], r[3])
+        if (end > start) {
+          out.push({ start, end, title: r[4] })
+          continue
+        }
+      }
+      out.push({ start, title: m[4] })
+      continue
+    }
+    // başlık önce, zaman sonda
+    m = back.exec(line)
+    if (m) out.push({ start: toSec(m[2], m[3], m[4]), title: m[1] })
   }
   return out.sort((a, b) => a.start - b.start)
 }

@@ -143,4 +143,27 @@ describe('YouTube bölüm zamanları', () => {
     expect(clips[0].end - clips[0].start).toBeLessThan(360) // 6 dk'dan kısa: sessizlik kesimi
     expect(clips[1].end - clips[1].start).toBeGreaterThan(380) // ~7 dk (34:00–41:00; kesim yok)
   })
+
+  it('başlık önce, zaman sonda yazımı da okunur (kullanıcının gerçek listesi); iki yazım karışık olabilir', () => {
+    const real = [
+      'Saniyeler:',
+      '',
+      'Giriş - 00:00:00',
+      'Olmadığım Dönemde Neler Yaptım - 00:06:00',
+      "Deniz Ertaş Trabzonspor yolunda! Jankat Yılmaz Galatasaray'dan Ayrılıyor mu? - 00:27:00",
+      "Abdülkerim Bardakçı'nın devri bitti mi?  - 00:34:20",
+      'Lesley Galatasaray’dan ayrılıyor! Peki o zaman neden transfer edildi?  - 00:41:00',
+      'Noah Lang - 01:03:00 - 01:09:30',
+      '00:50:00 - Karışık yazım',
+      '1:10:06 Tek haneli saat'
+    ].join('\n')
+    const l = parseChapterList(real)
+    expect(l.map((x) => x.title)).toEqual([
+      'Giriş', 'Olmadığım Dönemde Neler Yaptım', "Deniz Ertaş Trabzonspor yolunda! Jankat Yılmaz Galatasaray'dan Ayrılıyor mu?", "Abdülkerim Bardakçı'nın devri bitti mi?",
+      'Lesley Galatasaray’dan ayrılıyor! Peki o zaman neden transfer edildi?', 'Karışık yazım', 'Noah Lang', 'Tek haneli saat'
+    ])
+    expect(l.map((x) => x.start)).toEqual([0, 360, 1620, 2060, 2460, 3000, 3780, 4206])
+    expect(l.find((x) => x.title === 'Noah Lang')!.end).toBe(4170)
+    expect(parseChapterList('Saniyeler:\n\nSadece başlık satırı').length).toBe(0)
+  })
 })
