@@ -510,6 +510,8 @@ export interface Settings {
   autoClipsExport: boolean
   /** Auto Kick sonrası YATAY (16:9, YouTube) klipler de üretilsin */
   autoClipsHorizontal: boolean
+  autoHorizontalAfterKick: boolean
+  autoHorizontalCta: boolean
   /** Auto Clips klibine sosyal medya şeridini (yüz ile görüntünün kesiştiği çizgiye) ekle */
   autoClipsOverlay: boolean
   /** Şerit görüntüsü (şeffaf PNG); boşsa uygulamayla gelen varsayılan */

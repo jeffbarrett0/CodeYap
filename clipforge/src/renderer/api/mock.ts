@@ -293,6 +293,8 @@ export function createMockApi(): ClipforgeApi {
         status.result = { timestampsText: '00:00:00 Giriş\n00:12:30 Osimhen', timestampsPath: '/yayin/AutoKick/kayit/kayit - zaman damgaları.txt', verified: true, outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
         push()
         // zincir: Auto Kick bitince Auto Clips kendiliğinden başlar (ayar açıksa)
+        if (req.manual) return
+        if (settings.autoHorizontalAfterKick && req.chapterList?.trim()) handlers['ytcut:start']({ videoPath: status.result.fullVideoPath, list: req.chapterList, auto: true, noAdjust: true, cta: settings.autoHorizontalCta })
         if (settings.autoClipsAfterKick) handlers['autoclips:start']({ projectPath: status.result.projectPath, max: settings.autoClipsMax, exportVideos: settings.autoClipsExport })
       })()
       return id
@@ -434,7 +436,7 @@ export function createMockApi(): ClipforgeApi {
     'ytcut:start': (req) =>
       queue.add({
         kind: 'ytcut',
-        title: `YouTube yatay video: ${String(req.videoPath).split(/[\\/]/).pop()}`,
+        title: `${req.auto ? 'Auto yatay video' : 'YouTube yatay video'}: ${String(req.videoPath).split(/[\\/]/).pop()}`,
         run: async (ctx) => {
           if (w.__mock?.fail?.ytcut) throw new Error(w.__mock.fail.ytcut)
           if (!req.list.trim()) throw new Error('Zaman damgası listesi boş ya da okunamadı.')

@@ -27,6 +27,8 @@ export interface AutoKickRequest {
   chapterList?: string
   /** Listeden klip çıkarırken en kısa alan (sn); varsayılan 10 (test/özel durum için) */
   chapterMinSec?: number
+  /** "YouTube dikey video": yalnızca transkript + sessiz kesim (tam video, zaman damgası, kalite raporu ve otomatik klip/yatay zinciri YOK); sonra transkriptten elle klip */
+  manual?: boolean
 }
 
 export interface AutoKickStageState {

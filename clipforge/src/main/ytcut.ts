@@ -1,10 +1,10 @@
-import { mkdir, access, readFile } from 'node:fs/promises'
+import { mkdir, access, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join } from 'node:path'
 import { adjustFilter } from '../shared/adjust'
 import { parseChapterList } from '../shared/chapters'
 import { ctaRect, ctaTimes, parseCtaManifest, type CtaEntry } from '../shared/cta'
 import { chromaFilter } from '../shared/export/plan'
-import { safeFileTitle, ytCutFileName, ytCutRanges, type YtCutRequest, type YtCutResult } from '../shared/ytcut'
+import { clipTranscriptText, safeFileTitle, ytCutFileName, ytCutRanges, type YtCutRequest, type YtCutResult } from '../shared/ytcut'
 import { ffprobeJson, limitThreads, runTool } from './ffmpeg'
 import type { MediaTools } from './media/import'
 
@@ -121,6 +121,10 @@ export async function runYtCut(req: YtCutRequest, tools: MediaTools, hooks: { si
         }
       } else await run(plain)
       it.path = out
+      if (req.transcriptLines?.length) {
+        // kesitin yanına konuşma metni (hata olursa kesit yine başarılı)
+        await writeFile(out.replace(/\.mp4$/i, '') + ' - transkript.txt', clipTranscriptText(req.transcriptLines, it.start, it.end) + '\n', 'utf8').catch(() => undefined)
+      }
     } catch (e) {
       if (hooks.signal?.aborted) throw e
       it.error = e instanceof Error ? e.message : String(e)

@@ -1262,6 +1262,39 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-transcribe')).toHaveCount(0)
   })
 
+  test('YouTube dikey video: video seç → sessizleri kes + transkript → Auto Clips transkriptle açılır, klipler OTOMATİK üretilmez', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('ytdikey-btn').click()
+    await expect(page.getByTestId('ytdikey-start')).toBeDisabled()
+    await page.getByTestId('ytdikey-pick').click()
+    await expect(page.getByTestId('ytdikey-video')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
+    await page.getByTestId('ytdikey-start').click()
+    await expect(page.getByTestId('autoclips-dialog')).toBeVisible({ timeout: 20000 })
+    await expect(page.getByTestId('autoclips-transcript')).toContainText('Osimhen gol krallığında') // transkript kendiliğinden yüklendi
+    await expect(page.getByTestId('autoclips-suggestion')).toHaveCount(2)
+    await expect(page.getByTestId('autoclips-job')).toHaveCount(0) // otomatik klip işi yok
+    await expect(page.getByTestId('autoclips-cand')).toHaveCount(0) // otomatik aday listesi de yok: seçim kullanıcıda
+  })
+
+  test('Auto yatay video: Auto Kick listeyle bitince yatay kesitler kendiliğinden; liste yoksa iş yok; ayarlar kapatılabilir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('autoyatay-btn').click()
+    await expect(page.getByTestId('autoyatay-after')).toBeChecked()
+    await expect(page.getByTestId('autoyatay-cta')).toBeChecked()
+    await expect(page.getByTestId('autoyatay-none')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await page.getByTestId('autokick-btn').click()
+    await page.getByTestId('autokick-chapter-list').fill('Giriş - 00:00:00\nLeo - 00:34:00\nNoah Lang - 01:10:00')
+    await page.getByTestId('autokick-pick').click()
+    await expect(page.getByTestId('autoclips-dialog')).toBeVisible({ timeout: 20000 })
+    await page.keyboard.press('Escape')
+    await page.getByTestId('autoyatay-btn').click()
+    await expect(page.getByTestId('autoyatay-job')).toHaveCount(1)
+    await expect(page.getByTestId('autoyatay-job')).toHaveAttribute('data-status', 'done', { timeout: 15000 })
+    await expect(page.getByTestId('autoyatay-item')).toHaveCount(3)
+    await expect(page.getByTestId('autoyatay-reveal')).toBeVisible()
+  })
+
   test('"Claude ile edit yap" düğmesi artık yok (araç çubuğunda ve Auto Kick sonucunda)', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByTestId('claude-edit')).toHaveCount(0)

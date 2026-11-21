@@ -41,6 +41,9 @@ export const DEFAULT_SETTINGS: Settings = {
   autoClipsAfterKick: true,
   autoClipsExport: true,
   autoClipsHorizontal: true,
+  /** Auto yatay video: Auto Kick bitince (hazır liste verildiyse) listeye göre yatay kesitler kendiliğinden */
+  autoHorizontalAfterKick: true,
+  autoHorizontalCta: true,
   autoClipsMax: 0, // 0 = sınırsız (bulabildiği kadar klip)
   autoClipsCaptions: false,
   autoClipsMaxHorizontal: 0, // 0 = sınırsız

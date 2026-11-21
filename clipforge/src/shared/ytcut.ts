@@ -13,6 +13,12 @@ export interface YtCutRequest {
   adjust?: import('./adjust').Adjust
   /** YouTube abone butonu (resources/cta): kesite ~2 dakikada bir eklenir; false = ekleme. Varsayılan: ekle */
   cta?: boolean
+  /** Kaynak zaten +kontrast/keskinlik uygulanmış (Auto Kick'in full videosu): ana süreç ayarı yeniden eklemez */
+  noAdjust?: boolean
+  /** Auto yatay video (Auto Kick'e bağlı): görev başlığı "Auto yatay video" olur */
+  auto?: boolean
+  /** Kaynak videonun zamanında transkript cümleleri: verilirse her kesitin yanına `<dosya> - transkript.txt` yazılır (kesit zamanına göre) */
+  transcriptLines?: { start: number; end: number; text: string }[]
 }
 
 export interface YtCutItem {
@@ -52,6 +58,15 @@ export function ytCutRanges(list: ListedChapter[], videoSec: number): { items: Y
     items.push({ index: items.length + 1, title: c.title, start: c.start, end, durationSec: end - c.start })
   })
   return { items, warnings }
+}
+
+/** Kesitin konuşma metni: kaynak zamanındaki cümlelerden [start,end] içindekiler, zamanlar KESİT başına göre ("00:12 cümle") */
+export function clipTranscriptText(lines: { start: number; end: number; text: string }[], start: number, end: number): string {
+  const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+  return lines
+    .filter((l) => l.end > start && l.start < end)
+    .map((l) => `${mmss(Math.max(0, l.start - start))}  ${l.text.trim()}`)
+    .join('\n')
 }
 
 export const ytCutFileName = (index: number, title: string, total: number): string => `${String(index).padStart(Math.max(2, String(total).length), '0')} - ${safeFileTitle(title)}.mp4`

@@ -456,3 +456,40 @@ describe('proje yolu çözümü: video seçilirse', () => {
     await expect(resolveProjectPath(join(d, 'not.txt'))).rejects.toThrow(/ClipForge projesi değil/)
   })
 })
+
+describe('Auto yatay video / YouTube dikey video zinciri', () => {
+  it('manuel (YouTube dikey video) işte Auto Clips zinciri başlamaz', () => {
+    const started: unknown[] = []
+    const logs: string[] = []
+    const mgr = { start: (r: unknown) => (started.push(r), 'j1') }
+    chainAutoClips({ id: 'm1', status: 'done', request: { manual: true }, result: { projectPath: '/x/p.clipforge' } }, new Set(), { autoClipsAfterKick: true, autoClipsMax: 0, autoClipsExport: true }, mgr, (m) => logs.push(m))
+    expect(started).toEqual([])
+    expect(logs[0]).toMatch(/elle akış/)
+  })
+  it('chapterRangesToList: yatay kesicinin okuduğu bitişli biçim; clipTranscriptText kesit zamanına göre', async () => {
+    const { chapterRangesToList, parseChapterList } = await import('@shared/chapters')
+    const txt = chapterRangesToList([{ start: 180, end: 540, title: 'Noah Lang' }, { start: 4000, end: 4300, title: 'Leo' }])
+    expect(txt).toBe('00:03:00 - 00:09:00 Noah Lang\n01:06:40 - 01:11:40 Leo')
+    expect(parseChapterList(txt).map((c) => [c.start, c.end, c.title])).toEqual([[180, 540, 'Noah Lang'], [4000, 4300, 'Leo']])
+    const { clipTranscriptText } = await import('@shared/ytcut')
+    expect(clipTranscriptText([{ start: 10, end: 14, text: 'önce' }, { start: 185, end: 190, text: ' Noah geldi ' }, { start: 600, end: 604, text: 'sonra' }], 180, 540)).toBe('00:05  Noah geldi')
+  })
+  it('chainAutoHorizontal: liste varsa yatay kesici başlar; liste yoksa/ayar kapalıysa/manuelse başlamaz; her iş bir kez', async () => {
+    const { chainAutoHorizontal } = await import('../../src/main/autokick/horizontal')
+    const reqs: any[] = []
+    const logs: string[] = []
+    const yt = (r: unknown) => (reqs.push(r), `t${reqs.length}`)
+    const res = { outDir: '/x/AutoKick/k', projectPath: '/yok/yok.clipforge', fullVideoPath: '/x/AutoKick/k/k - full.mp4', chapterRanges: [{ start: 60, end: 300, title: 'Leo' }] }
+    const on = { autoHorizontalAfterKick: true, autoHorizontalCta: false }
+    expect(await chainAutoHorizontal({ id: 'a', status: 'done', result: res }, new Set(), on, yt, (m) => logs.push(m))).toBe('t1')
+    expect(reqs[0]).toMatchObject({ videoPath: res.fullVideoPath, list: '00:01:00 - 00:05:00 Leo', noAdjust: true, auto: true, cta: false })
+    expect(reqs[0].outDir.replace(/\\/g, '/')).toBe('/x/AutoKick/k/Yatay')
+    const seen = new Set<string>()
+    await chainAutoHorizontal({ id: 'b', status: 'done', result: res }, seen, on, yt, (m) => logs.push(m))
+    expect(await chainAutoHorizontal({ id: 'b', status: 'done', result: res }, seen, on, yt, (m) => logs.push(m))).toBeNull() // ikinci kez yok
+    expect(await chainAutoHorizontal({ id: 'c', status: 'done', result: { ...res, chapterRanges: undefined } }, new Set(), on, yt, (m) => logs.push(m))).toBeNull()
+    expect(logs.at(-1)).toMatch(/listesi verilmediği/)
+    expect(await chainAutoHorizontal({ id: 'd', status: 'done', result: res }, new Set(), { ...on, autoHorizontalAfterKick: false }, yt, (m) => logs.push(m))).toBeNull()
+    expect(await chainAutoHorizontal({ id: 'e', status: 'done', request: { manual: true }, result: res }, new Set(), on, yt, (m) => logs.push(m))).toBeNull()
+  })
+})

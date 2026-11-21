@@ -9,6 +9,7 @@ import { AutoKickManager } from './autokick/pipeline'
 import { StoryManager } from './story/pipeline'
 import { autoClipCandidates, autoClipEnsureTranscript, autoClipSearch, autoClipTranscript, makeAutoClip } from './autoclips/pipeline'
 import { AutoClipsManager, chainAutoClips, exportClipProject } from './autoclips/run'
+import { chainAutoHorizontal } from './autokick/horizontal'
 import { FACE_ONLY_SHAPES } from '../shared/autoclips'
 import { appendRunLog } from './runlog'
 import { buildTrailer } from './trailer/build'
@@ -33,9 +34,11 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
   const autoClips = new AutoClipsManager(envDirs, (s) => getWindow()?.webContents.send('autoclips:update', s))
   // ZİNCİR: Auto Kick bitince (tam video dışa aktarıldıktan sonra) Auto Clips kendiliğinden başlar — arayüz açık olmasa da
   const chained = new Set<string>()
+  const chainedH = new Set<string>()
   const autoKick = new AutoKickManager(envDirs, (s) => {
     getWindow()?.webContents.send('autokick:update', s)
     chainAutoClips(s, chained, app.settings.value, autoClips, (m) => { if (s.result) void appendRunLog(s.result.outDir, m) })
+    void chainAutoHorizontal(s, chainedH, app.settings.value, (r) => app.ytCutStart(r), (m) => { if (s.result) void appendRunLog(s.result.outDir, m) }, envDirs).catch((e) => { if (s.result) void appendRunLog(s.result.outDir, `Auto yatay video HATA: ${e instanceof Error ? e.message : String(e)}`) })
   })
   const handlers: Handlers = {
     'autoclips:start': (r) => autoClips.start(r),

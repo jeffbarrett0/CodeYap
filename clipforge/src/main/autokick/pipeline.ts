@@ -240,6 +240,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
   if (expected <= 0) throw new Error('Kesimden sonra video kalmadı (tüm kayıt sessiz algılandı).')
   if (Math.abs(expected - timelineDuration(s.timeline)) > 0.5) throw new Error('Çizelge süresi tutarsız (beklenen ve gerçek süre farklı); işlem durduruldu.')
   if (haveFull) stage('full', { status: 'done', progress: 1, detail: 'Önceki çalıştırmadan' })
+  else if (req.manual) stage('full', { status: 'skipped', progress: 1, detail: 'Bu iş için tam video gerekmez' })
   else {
     stage('full', { status: 'running', progress: 0 })
     // yer kontrolü: çıktı için en az kaynağın %80'i kadar boş alan
@@ -289,7 +290,9 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
   let timestampsText: string | undefined
   let chapterRanges: { start: number; end: number; title: string }[] | undefined
   try {
-    if (req.chapterList?.trim()) {
+    if (req.manual) {
+      // elle akış (YouTube dikey video): zaman damgası/kalite raporu yok
+    } else if (req.chapterList?.trim()) {
       // kullanıcının hazır listesi (orijinal kayıt zamanı) → kesimli videonun zamanına çevrilir
       const mainId = s.project.assets[0]?.id
       const kept = s.timeline.tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips).filter((c) => c.assetId === mainId).map((c) => ({ srcIn: c.srcIn, srcOut: c.srcOut, start: c.start }))
@@ -319,6 +322,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
   // çıkış kontrolü (ilk kare, siyah ekran, uzun sessizlik, ses şiddeti): tam videonun yanına rapor; hata olursa iş yine başarılıdır
   let qaPath: string | undefined
   try {
+    if (req.manual) throw new Error('elle akış: kalite raporu yok')
     const q = await qaVideo(p.full, service.tools)
     qaPath = p.full.replace(/\.mp4$/i, '') + ' - kalite raporu.txt'
     await writeFile(qaPath, qaText(q.items) + '\n', 'utf8')

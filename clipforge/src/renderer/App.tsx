@@ -12,6 +12,7 @@ import { useStore } from './store'
 import { ReferenceDialog } from './components/Reference'
 import { SportPlusDialog } from './components/SportPlus'
 import { YtCutDialog } from './components/YtCut'
+import { AutoYatayDialog, YtDikeyDialog } from './components/AutoYatayDikey'
 
 function useShortcuts() {
   useEffect(() => {
@@ -131,6 +132,8 @@ export function App() {
       {dialog === 'reference' && <ReferenceDialog />}
       {dialog === 'sportplus' && <SportPlusDialog />}
       {dialog === 'ytcut' && <YtCutDialog />}
+      {dialog === 'ytdikey' && <YtDikeyDialog />}
+      {dialog === 'autoyatay' && <AutoYatayDialog />}
       <Toasts />
     </div>
   )

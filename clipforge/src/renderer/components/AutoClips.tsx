@@ -18,7 +18,7 @@ const mm = (s: number) => `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600
  * Transkript + isimle klip: kullanıcı transkripti okur, bir isim yazar (ya da önerilen adlara tıklar); o ismin geçtiği yerlerden klip adayları çıkar.
  * Konuya program karar vermez: ne konuşulduğunu kullanıcı seçer.
  */
-function TranscriptPanel({ path, maxSec, onFound }: { path: string; maxSec: number; onFound: (c: AutoClipCandidate[]) => void }) {
+function TranscriptPanel({ path, maxSec, onFound, autoLoad }: { path: string; maxSec: number; onFound: (c: AutoClipCandidate[]) => void; autoLoad?: boolean }) {
   const api = requireApi()
   const [data, setData] = useState<{ lines: { start: number; end: number; text: string }[]; suggestions: { name: string; count: number; firstAt: number }[] } | null>(null)
   const [query, setQuery] = useState('')
@@ -54,6 +54,10 @@ function TranscriptPanel({ path, maxSec, onFound }: { path: string; maxSec: numb
       setBusy(false)
     }
   }
+  useEffect(() => {
+    if (autoLoad) void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path, autoLoad])
   const search = async (q = query) => {
     setBusy(true)
     setError('')
@@ -114,7 +118,7 @@ function TranscriptPanel({ path, maxSec, onFound }: { path: string; maxSec: numb
 
 export function AutoClipsDialog() {
   const api = requireApi()
-  const { autoClipsProject, setAutoClipsProject, openDialog, openProject, autoClipsJobs, settings, updateSettings } = useStore()
+  const { autoClipsProject, autoClipsManual, setAutoClipsProject, openDialog, openProject, autoClipsJobs, settings, updateSettings } = useStore()
   const jobs = Object.values(autoClipsJobs).sort((a, b) => b.startedAt - a.startedAt)
   const job = jobs[0]
   // otomatik zincir çalışıyorsa/çalıştıysa elle bulma beklenmez (aynı işi ikinci kez yapmayalım)
@@ -152,7 +156,7 @@ export function AutoClipsDialog() {
   }
   // Auto Kick'ten gelen proje varsa adaylar kendiliğinden bulunur
   useEffect(() => {
-    if (autoClipsProject && !autoRan) void find(autoClipsProject)
+    if (autoClipsProject && !autoRan && !autoClipsManual) void find(autoClipsProject)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -233,7 +237,7 @@ export function AutoClipsDialog() {
           <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={10} min={30} max={MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
           <button className="btn primary" disabled={!path || busy} onClick={() => void find()} data-testid="autoclips-find">{busy && !cands ? 'Konular bulunuyor…' : cands ? 'Yeniden bul' : 'Klip önerilerini bul'}</button>
         </div>
-        {path && <TranscriptPanel path={path} maxSec={maxSec} onFound={(c) => { setCands(c); setPicked(new Set(c.map((x) => x.id))); setMade([]) }} />}
+        {path && <TranscriptPanel path={path} maxSec={maxSec} autoLoad={autoClipsManual && path === autoClipsProject} onFound={(c) => { setCands(c); setPicked(new Set(c.map((x) => x.id))); setMade([]) }} />}
         {error && <div className="warnbox" role="alert" data-testid="autoclips-error">{error}</div>}
         {cands && cands.length === 0 && <div className="warnbox" data-testid="autoclips-empty">Klip olabilecek net bir konu bulunamadı (konuşmada kişi/takım adı az olabilir). “En uzun klip” süresini artırıp yeniden deneyin.</div>}
         {cands && cands.length > 0 && (

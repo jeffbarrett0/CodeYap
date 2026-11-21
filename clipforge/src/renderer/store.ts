@@ -29,7 +29,7 @@ import { denoiseKey, denoiseReady } from './preview/denoiseState'
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
 const waveRequested = new Set<string>()
 
-export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer' | 'reference' | 'sportplus' | 'ytcut'
+export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer' | 'reference' | 'sportplus' | 'ytcut' | 'ytdikey' | 'autoyatay'
 
 export interface Toast {
   id: string
@@ -167,6 +167,9 @@ interface State {
   story: Record<string, StoryStatus>
   /** Auto Kick'ten Auto Clips'e devredilen proje (Auto Kick bitince otomatik) */
   autoClipsProject: string
+  /** "YouTube dikey video": projeden klipler otomatik üretilmez; transkript açılır, kullanıcı seçer */
+  autoClipsManual: boolean
+  ytcutResults: Record<string, import('@shared/ytcut').YtCutResult>
   /** Otomatik zincirle (Auto Kick sonrası) çalışan/biten Auto Clips işleri */
   autoClipsJobs: Record<string, AutoClipsStatus>
   setAutoClipsProject(p: string): void
@@ -356,6 +359,8 @@ export const useStore = create<State>()((set, get) => {
     autoKick: {},
     story: {},
     autoClipsProject: '',
+    autoClipsManual: false,
+    ytcutResults: {},
     autoClipsJobs: {},
     setAutoClipsProject: (p) => set({ autoClipsProject: p }),
     ideas: {},
@@ -405,7 +410,7 @@ export const useStore = create<State>()((set, get) => {
         if (j.status !== 'done' || handedOff.has(j.id)) return
         handedOff.add(j.id)
         get().toast('success', `Auto Kick tamamlandı: ${j.videoName}. Video Auto Clips'e devredildi.`)
-        if (j.result?.projectPath) set({ autoClipsProject: j.result.projectPath })
+        if (j.result?.projectPath) set({ autoClipsProject: j.result.projectPath, autoClipsManual: !!j.request.manual })
         if (openWindow) set({ dialog: 'autoclips' })
       }
       void a.invoke('autokick:list').then((l) => {
@@ -438,7 +443,7 @@ export const useStore = create<State>()((set, get) => {
         get().toast('info', candidates.length ? `${candidates.length} aday bulundu.` : 'Belirgin bir tepki anı bulunamadı.')
       })
       a.on('ytcut:done', ({ taskId, result }) => {
-        set({ ytcutResult: { taskId, ...result } })
+        set((s) => ({ ytcutResult: { taskId, ...result }, ytcutResults: { ...s.ytcutResults, [taskId]: result } }))
         const ok = result.items.filter((i) => i.path).length
         get().toast(ok === result.items.length ? 'success' : 'info', `YouTube yatay video: ${ok}/${result.items.length} bölüm kaydedildi.`)
       })

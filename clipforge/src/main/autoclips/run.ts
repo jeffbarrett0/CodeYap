@@ -184,7 +184,7 @@ export class AutoClipsManager {
  * (emit her güncellemede çağrılır). Ayar kapalıysa başlatmaz. Başlatılan işin kimliğini döndürür.
  */
 export function chainAutoClips(
-  s: { id: string; status: string; result?: { projectPath: string; chapterRanges?: { start: number; end: number; title: string }[] } },
+  s: { id: string; status: string; request?: { manual?: boolean }; result?: { projectPath: string; chapterRanges?: { start: number; end: number; title: string }[] } },
   handled: Set<string>,
   settings: { autoClipsAfterKick: boolean; autoClipsMax: number; autoClipsMaxHorizontal?: number; autoClipsCaptions?: boolean; autoClipsExport: boolean; autoClipsHorizontal?: boolean },
   manager: { start(req: AutoClipsRequest): string },
@@ -192,6 +192,11 @@ export function chainAutoClips(
 ): string | null {
   if (s.status !== 'done' || !s.result || handled.has(s.id)) return null
   handled.add(s.id)
+  // "YouTube dikey video" (elle akış): otomatik klip üretilmez; kullanıcı transkriptten seçer
+  if (s.request?.manual) {
+    log?.('Zincir: elle akış (YouTube dikey video): otomatik klip üretilmedi; transkript kullanıcıya açıldı')
+    return null
+  }
   log?.(`Zincir: Auto Kick bitti; Auto Clips ${settings.autoClipsAfterKick ? 'BAŞLATILIYOR' : 'BAŞLATILMADI (Ayarlar → autoClipsAfterKick kapalı)'}${s.result.chapterRanges?.length ? ` · listeden ${s.result.chapterRanges.length} alan` : ''}`)
   if (!settings.autoClipsAfterKick) return null
   const listed = s.result.chapterRanges?.length ? s.result.chapterRanges : undefined

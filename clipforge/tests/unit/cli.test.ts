@@ -845,6 +845,46 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     await appendRunLog(dir, 'test')
     expect(readFileSync(join(dir, 'Auto Kick günlüğü.txt'), 'utf8')).toMatch(/Auto Kick TAMAMLANDI/)
     expect(readFileSync(join(dir, 'Auto Kick günlüğü.txt'), 'utf8')).toMatch(/Auto Clips \(dikey\) \[listeden 1 alan\]: 1 klip/)
+    // AUTO YATAY: liste verildi + Auto Kick bitti → yatay kesici kendiliğinden; kesit + konuşma metni yan yana
+    const { chainAutoHorizontal } = await import('../../src/main/autokick/horizontal')
+    const { runYtCut } = await import('../../src/main/ytcut')
+    const { makeService } = await import('../../src/cli/session')
+    let ytReq: any
+    const tid = await chainAutoHorizontal(kickDone, new Set(), { autoHorizontalAfterKick: true, autoHorizontalCta: false }, (r) => ((ytReq = r), 't1'), (m) => logs.push(m), env)
+    expect(tid).toBe('t1')
+    expect(ytReq.noAdjust).toBe(true)
+    expect(ytReq.transcriptLines.length).toBeGreaterThan(0)
+    const yt = await runYtCut(ytReq, (await makeService(env)).tools, {})
+    expect(yt.items.length).toBe(1)
+    expect(yt.items[0].error).toBeUndefined()
+    expect(existsSync(yt.items[0].path!)).toBe(true)
+    expect(statSync(yt.items[0].path!).size).toBeGreaterThan(5_000)
+    expect(existsSync(yt.items[0].path!.replace(/\.mp4$/i, '') + ' - transkript.txt')).toBe(true)
+    expect(yt.dir).toMatch(/Yatay$/)
+  }, 300_000)
+
+  it('YouTube dikey video (manuel Auto Kick): sessizler kesilir + transkript çıkar; tam video/zaman damgası/kalite raporu YOK; transkript ve isim araması çalışır', async () => {
+    const { AutoKickManager } = await import('../../src/main/autokick/pipeline')
+    const { autoClipTranscript } = await import('../../src/main/autoclips/pipeline')
+    const env = { userDataDir: ud }
+    let done: any
+    const kick = new AutoKickManager(env, (st) => {
+      if (st.status === 'done' || st.status === 'failed') done = st
+    })
+    const dir = join(tmp, 'Manuel Klasör')
+    kick.start({ videoPath: join(tmp, 'video örnek.mp4'), outDir: dir, silence: { minGapSec: 0.55, keepSec: 0.2, cutFillers: true }, manual: true })
+    const t0 = Date.now()
+    while (!done) {
+      if (Date.now() - t0 > 120_000) throw new Error('zaman aşımı')
+      await new Promise((r) => setTimeout(r, 200))
+    }
+    expect(done.status, done.error).toBe('done')
+    expect(done.stages.find((x: any) => x.id === 'full').status).toBe('skipped')
+    expect(existsSync(done.result.fullVideoPath)).toBe(false)
+    expect(done.result.timestampsText).toBeUndefined()
+    expect(done.result.qaPath).toBeUndefined()
+    const tr = await autoClipTranscript(done.result.projectPath, env)
+    expect(tr.lines.length).toBeGreaterThan(0)
   }, 300_000)
 
   it('yt-cut + abone butonu: 3 dk\'lık kesitte 1. ve 2. dakikada YouTube butonu eklenir (süre aynı kalır); --no-cta butonsuz; kısa kesitte buton yok', () => {
