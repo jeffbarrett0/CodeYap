@@ -713,10 +713,13 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     writeFileSync(join(tmp, 'liste2.txt'), '00:00:00 - Giriş\n00:00:02 - Tek konu\n')
     const h = cli('auto-clips', r.projectPath, '--from-list', join(tmp, 'liste2.txt'), '--min-sec', '2')
     expect(h.ok, JSON.stringify(h)).toBe(true)
-    expect(h.clips.map((x: any) => x.subject)).not.toContain('Giriş')
-    expect(h.clips.length).toBeGreaterThanOrEqual(1)
-    const hp = cli('show', h.clips[0].project)
-    expect(hp.aspect).toBe('16:9')
+    expect(h.horizontal.clips.map((x: any) => x.subject)).not.toContain('Giriş')
+    expect(h.horizontal.clips.length).toBeGreaterThanOrEqual(1)
+    expect(cli('show', h.horizontal.clips[0].project).aspect).toBe('16:9')
+    // dikey de aynı listeden: aday adı = listedeki başlık, 9:16
+    expect(h.vertical.clips.length).toBeGreaterThanOrEqual(1)
+    expect(h.vertical.clips[0].subject).toBe('Tek konu')
+    expect(cli('show', h.vertical.clips[0].project).aspect).toBe('9:16')
   }, 300_000)
 
   it('yt-cut: bütün yayından her zaman damgası ayrı yatay MP4 olarak kesilir (bitişli/tek zamanlı satırlar, güvenli dosya adı); orijinal değişmez', () => {
@@ -739,6 +742,41 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(md5(src)).toBe(before)
     expect(cli('yt-cut', src, '--list', join(tmp, 'yok.txt')).ok).toBe(false)
   }, 180_000)
+
+  it('UYGULAMA ZİNCİRİ (ana süreç): Auto Kick + hazır liste → bitince Auto Clips kendiliğinden dikey ve yatay klipleri listedeki alanlardan üretir; günlük yazılır', async () => {
+    const { AutoKickManager } = await import('../../src/main/autokick/pipeline')
+    const { AutoClipsManager, chainAutoClips } = await import('../../src/main/autoclips/run')
+    const { appendRunLog } = await import('../../src/main/runlog')
+    const env = { userDataDir: ud }
+    const clipsSeen: any[] = []
+    const ac = new AutoClipsManager(env, (st) => clipsSeen.push(st))
+    const handled = new Set<string>()
+    const logs: string[] = []
+    let kickDone: any
+    const kick = new AutoKickManager(env, (st) => {
+      chainAutoClips(st as any, handled, { autoClipsAfterKick: true, autoClipsMax: 5, autoClipsExport: false, autoClipsHorizontal: false }, ac, (m) => logs.push(m))
+      if (st.status === 'done' || st.status === 'failed') kickDone = st
+    })
+    const dir = join(tmp, 'Zincir Klasörü')
+    kick.start({ videoPath: join(tmp, 'video örnek.mp4'), outDir: dir, silence: { minGapSec: 0.55, keepSec: 0.2, cutFillers: true }, chapterList: '00:00:00 - Giriş\n00:00:02 - Tek konu\n', chapterMinSec: 2 })
+    const until = async (f: () => boolean, ms = 120_000) => { const t0 = Date.now(); while (!f()) { if (Date.now() - t0 > ms) throw new Error('zaman aşımı'); await new Promise((r) => setTimeout(r, 200)) } }
+    await until(() => !!kickDone)
+    expect(kickDone.status, kickDone.error).toBe('done')
+    expect(kickDone.result.chapterRanges.map((r: any) => r.title)).toEqual(['Tek konu'])
+    expect(logs[0]).toMatch(/BAŞLATILIYOR/)
+    await until(() => ac.list().length === 2 && ac.list().every((j) => j.status === 'done' || j.status === 'failed'))
+    const jobs = ac.list()
+    expect(jobs.map((j) => j.status)).toEqual(['done', 'done'])
+    expect(jobs.map((j) => !!j.request.horizontal)).toEqual([false, true])
+    for (const j of jobs) {
+      expect(j.result!.clips.length).toBe(1)
+      expect(j.result!.clips[0].subject).toBe('Tek konu')
+      expect(j.result!.clips[0].projectPath).toBeTruthy()
+    }
+    await appendRunLog(dir, 'test')
+    expect(readFileSync(join(dir, 'Auto Kick günlüğü.txt'), 'utf8')).toMatch(/Auto Kick TAMAMLANDI/)
+    expect(readFileSync(join(dir, 'Auto Kick günlüğü.txt'), 'utf8')).toMatch(/Auto Clips \(dikey\) \[listeden 1 alan\]: 1 klip/)
+  }, 300_000)
 
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')

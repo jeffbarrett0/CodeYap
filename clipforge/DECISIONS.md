@@ -502,3 +502,6 @@ Kullanıcı: "verdiğim alanlardan yatay video; dikey mantık aynı kalsın". `A
 
 ## 79. YouTube yatay video düğmesi
 Kullanıcı: bütün yayın + zaman damgaları ver, her damga ayrı video olsun. Auto Kick zincirinden bağımsız basit yol: orijinal kayıttan doğrudan ffmpeg kesimi (yeniden kodlama; `-ss` girişten önce → kare doğruluğu), görev kuyruğu (`ytcut`, tek iş), bitince `ytcut:done` olayı. Giriş dahil TÜM satırlar kesilir (kullanıcı istemezse satırı siler).
+
+## 80. Hazır liste: dikey de listeden + günlük
+Kullanıcı 2,5 saatlik kayıtla denedi, çıktı almadığını söyledi; ayrıca dikeyin de listeden çıkmasını istedi (önceki sürümde yalnızca yatay listedendi — "büyük ölçüde vardı" demem yanlıştı). Dikey: `autoClipCandidatesForRanges` (aralık içinde en güçlü ≤178 sn parça; bölüm başına 1). Kök neden uzaktan belirlenemedi; ana süreç zinciri (AutoKickManager→chainAutoClips→AutoClipsManager) testte uçtan uca doğrulandı. Tanı için `Auto Kick günlüğü.txt` eklendi (aşamalar, zincir kararı, klip sayıları/hataları).

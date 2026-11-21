@@ -311,14 +311,17 @@ describe('zincir: yatay klipler', () => {
     chainAutoClips(st('a2'), new Set(), { autoClipsAfterKick: true, autoClipsMax: 5, autoClipsExport: true, autoClipsHorizontal: false }, mgr)
     expect(started.map((r) => !!r.horizontal)).toEqual([false])
   })
-  it('hazır bölüm listesi varsa yatay klipler YALNIZCA o alanlardan (ayardan bağımsız); dikey eskisi gibi otomatik', () => {
+  it('hazır bölüm listesi varsa hem dikey hem yatay klipler YALNIZCA o alanlardan (ayardan bağımsız)', () => {
     const started: { horizontal?: boolean; ranges?: { title: string }[] }[] = []
     const mgr = { start: (r: { horizontal?: boolean; ranges?: { title: string }[] }) => (started.push(r), `j${started.length}`) }
     const ranges = [{ start: 120, end: 500, title: 'Lemina' }, { start: 500, end: 900, title: 'Galatasaray gündemi' }]
     chainAutoClips({ id: 'b1', status: 'done', result: { projectPath: '/x/p.clipforge', chapterRanges: ranges } }, new Set(), { autoClipsAfterKick: true, autoClipsMax: 5, autoClipsExport: true, autoClipsHorizontal: false }, mgr)
     expect(started.map((r) => !!r.horizontal)).toEqual([false, true])
-    expect(started[0].ranges).toBeUndefined() // dikey: otomatik konular
+    expect(started[0].ranges).toEqual(ranges) // dikey de listedeki alanlardan
     expect(started[1].ranges).toEqual(ranges)
+    const logs: string[] = []
+    chainAutoClips({ id: 'b2', status: 'done', result: { projectPath: '/x/p.clipforge', chapterRanges: ranges } }, new Set(), { autoClipsAfterKick: false, autoClipsMax: 5, autoClipsExport: true }, mgr, (m) => logs.push(m))
+    expect(logs[0]).toMatch(/BAŞLATILMADI/)
   })
 })
 

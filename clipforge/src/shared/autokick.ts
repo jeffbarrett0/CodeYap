@@ -25,6 +25,8 @@ export interface AutoKickRequest {
   quality?: 'fast' | 'high'
   /** Hazır zaman damgası listesi (ORİJİNAL kayıt zamanıyla: "00:00:00 - Giriş"). Verilirse kesimden sonra çizelge zamanına çevrilip yazılır; verilmezse otomatik konu bölümleri çıkar. */
   chapterList?: string
+  /** Listeden klip çıkarırken en kısa alan (sn); varsayılan 10 (test/özel durum için) */
+  chapterMinSec?: number
 }
 
 export interface AutoKickStageState {

@@ -96,7 +96,7 @@ const r1 = (n: number) => Math.round(n * 100) / 100
 const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON döndürür)
 
   info                                   ffmpeg/ffprobe/whisper durumu
-  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 178] [--max 12] [--horizontal (3–25 dk)] [--captions (2–4 kelimelik iri altyazı)] [--pick 1,3 | --all | --export] [--from-list liste.txt: yalnızca listedeki alanlardan YATAY klip (orijinal kayıt zamanı)] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.12] [--face-focus 0.495,0.58] [--screen-zoom 1.15] [--overlay serit.png | --no-overlay]
+  auto-clips <AutoKick klasörü|proje> [--min-sec 20] [--max-sec 178] [--max 12] [--horizontal (3–25 dk)] [--captions (2–4 kelimelik iri altyazı)] [--pick 1,3 | --all | --export] [--from-list liste.txt: yalnızca listedeki alanlardan hem DİKEY hem YATAY klip (orijinal kayıt zamanı; --horizontal / --vertical tek yön)] [--face x,y,w,h] [--face-pos top|bottom] [--face-share 0.415] [--face-zoom 1.12] [--face-focus 0.495,0.58] [--screen-zoom 1.15] [--overlay serit.png | --no-overlay]
                                          transkriptten klip adayları (zaman aralığı + ne konuşulmuş) ÖNERİR; --pick/--all ile 9:16 klip projesi üretir (yüz üstte, konuşulan görüntü altta)
   trailer <proje> (--clips "1:10-1:20,2:05-2:30" | --segments "30-55,120-150" | --auto) [--vertical] [--target 45] [--title "Paris Vlog"] [--sub "altyazı"] [--export]   FRAGMAN: --clips seçilen yerleri OLDUĞU GİBİ birleştirir; --segments 10–60 sn'lik parçalardan en güçlü anları bulur; --auto tüm vlogu tarar; --vertical 9:16; whoosh/boom/kapanış kartı; --export: MP4
   topic-video <proje|AutoKick klasörü> --topic "Lemina" [--gap 25] [--min-sec 8] [--export]   konunun konuşulduğu TÜM yerleri tek YATAY (16:9) videoda birleştirir
@@ -351,8 +351,12 @@ async function main(argv: string[]): Promise<unknown> {
       const mapped = mapChapterList(parseChapterList(await readFile(resolve(str(a.opt['from-list'])!), 'utf8')), kept, total)
       const ranges = chapterClipRanges(mapped.chapters, total, num(a.opt['min-sec'], 'min-sec') ?? 10)
       if (ranges.length === 0) throw new Error('Listeden klip çıkaracak alan bulunamadı (Giriş ve 10 sn\'den kısa bölümler klip olmaz).')
-      const res = await runAutoClips({ projectPath: projectArg, exportVideos: !!a.opt.export, horizontal: true, ranges }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips-liste:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
-      return out({ ok: true, dir: res.dir, count: res.clips.length, warnings: mapped.warnings, clips: res.clips.map((x) => ({ subject: x.subject, start: r1(x.start), end: r1(x.end), durationSec: r1(x.durationSec), project: x.projectPath, video: x.videoPath, error: x.error })) })
+      const hook = (tag: string) => ({ signal: new AbortController().signal, onStage: (id: string, p: { status?: string; detail?: string }) => p.status && log(`[auto-clips-liste-${tag}:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
+      const want = { v: !a.opt.horizontal, h: !a.opt.vertical }
+      const vres = want.v ? await runAutoClips({ projectPath: projectArg, exportVideos: !!a.opt.export, ranges, captions: a.opt.captions ? true : undefined }, {}, hook('dikey')) : undefined
+      const hres = want.h ? await runAutoClips({ projectPath: projectArg, exportVideos: !!a.opt.export, horizontal: true, ranges }, {}, hook('yatay')) : undefined
+      const items = (c: typeof hres) => c?.clips.map((x) => ({ subject: x.subject, start: r1(x.start), end: r1(x.end), durationSec: r1(x.durationSec), project: x.projectPath, video: x.videoPath, error: x.error }))
+      return out({ ok: true, warnings: mapped.warnings, vertical: vres ? { dir: vres.dir, count: vres.clips.length, clips: items(vres) } : undefined, horizontal: hres ? { dir: hres.dir, count: hres.clips.length, clips: items(hres) } : undefined })
     }
     // gözetimsiz tam zincir: --export → tüm adaylardan klip projesi + MP4 (Auto Kick sonrası otomatik çalışanla aynı iş)
     if (a.opt.export) {
@@ -386,7 +390,7 @@ async function main(argv: string[]): Promise<unknown> {
     )
     // gözetimsiz zincir: --clips ile tam video çıktıktan sonra Auto Clips da çalışır (klip projeleri + MP4)
     if (a.opt.clips) {
-      const clips = await runAutoClips({ projectPath: r.projectPath, max: num(a.opt.max, 'max') ?? 10, exportVideos: !a.opt['no-export'] }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
+      const clips = await runAutoClips({ projectPath: r.projectPath, max: num(a.opt.max, 'max') ?? 10, exportVideos: !a.opt['no-export'], ...(r.chapterRanges?.length ? { ranges: r.chapterRanges } : {}) }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) })
       // yatay (YouTube) klipler de (ayar açıksa ya da --no-horizontal verilmediyse)
       const wantH = a.opt['no-horizontal'] ? false : (r.chapterRanges?.length ? true : (await makeService()).settings.value.autoClipsHorizontal)
       const hclips = wantH ? await runAutoClips({ projectPath: r.projectPath, max: num(a.opt.max, 'max') ?? 15, exportVideos: !a.opt['no-export'], horizontal: true, ...(r.chapterRanges?.length ? { ranges: r.chapterRanges } : {}) }, {}, { signal: new AbortController().signal, onStage: (id, p) => p.status && log(`[auto-clips-yatay:${id}] ${p.status}${p.detail ? ` — ${p.detail}` : ''}`) }) : null

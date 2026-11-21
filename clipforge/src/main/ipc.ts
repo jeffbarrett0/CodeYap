@@ -10,6 +10,7 @@ import { StoryManager } from './story/pipeline'
 import { autoClipCandidates, makeAutoClip } from './autoclips/pipeline'
 import { AutoClipsManager, chainAutoClips, exportClipProject } from './autoclips/run'
 import { FACE_ONLY_SHAPES } from '../shared/autoclips'
+import { appendRunLog } from './runlog'
 import { buildTrailer } from './trailer/build'
 import { addReference, listReferences, referenceSheets, removeReference, updateReference } from './reference'
 import { parseCtaManifest } from '../shared/cta'
@@ -34,7 +35,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
   const chained = new Set<string>()
   const autoKick = new AutoKickManager(envDirs, (s) => {
     getWindow()?.webContents.send('autokick:update', s)
-    chainAutoClips(s, chained, app.settings.value, autoClips)
+    chainAutoClips(s, chained, app.settings.value, autoClips, (m) => { if (s.result) void appendRunLog(s.result.outDir, m) })
   })
   const handlers: Handlers = {
     'autoclips:start': (r) => autoClips.start(r),

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
 import { cmd } from '../../shared/timeline/commands'
 import { clipForTrack } from '../../shared/timeline/create'
-import { DEFAULT_AUTOCLIP_LAYOUT, FACE_ONLY_SHAPES, autoClipTemplate, faceCrop, faceOnlyCrop, faceOnlyTemplate, type FaceOnlyShape, findAutoClips, overlayRect, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
+import { MAX_CLIP_SEC, DEFAULT_AUTOCLIP_LAYOUT, FACE_ONLY_SHAPES, autoClipTemplate, faceCrop, faceOnlyCrop, faceOnlyTemplate, type FaceOnlyShape, findAutoClips, overlayRect, screenCrop, type AutoClipCandidate, type AutoClipLayout, type AutoClipOptions } from '../../shared/autoclips'
 import { newId, timelineDuration } from '../../shared/timeline/model'
 import { cutRange, setCaptions } from '../../shared/timeline/ops'
 import { captionsForTimeline } from '../../shared/timeline/captions'
@@ -25,6 +25,33 @@ export async function autoClipCandidates(projectPath: string, opts: Partial<Auto
   const words = timelineWords(s.timeline, s.transcripts)
   if (words.length === 0) throw new Error('Projede transkript yok: önce Auto Kick (ya da transkripsiyon) tamamlanmalı.')
   return { candidates: findAutoClips(words, opts), totalSec: timelineDuration(s.timeline), projectPath: path, faceRegion: s.project.assets[0]?.webcamRegion }
+}
+
+/**
+ * Kullanıcının hazır bölüm listesi için DİKEY klip adayları: her listelenen aralığın İÇİNDE en güçlü (konusu bütün) en çok 2 dk 58 sn'lik parça seçilir;
+ * aday adı = listedeki başlık. Aralık 20 sn'den kısaysa ya da konu bulunamazsa aralığın başından başlayan parça alınır. Zamanlar ÇİZELGE zamanıdır.
+ */
+export async function autoClipCandidatesForRanges(projectPath: string, ranges: { start: number; end: number; title: string }[], opts: Partial<AutoClipOptions> = {}, env: Env = {}): Promise<{ candidates: AutoClipCandidate[]; projectPath: string }> {
+  const path = await resolveProjectPath(projectPath)
+  const s = await Session.open(path, await makeService(env))
+  const words = timelineWords(s.timeline, s.transcripts)
+  const total = timelineDuration(s.timeline)
+  const maxSec = Math.min(MAX_CLIP_SEC, opts.maxSec ?? MAX_CLIP_SEC)
+  const out: AutoClipCandidate[] = []
+  for (const [i, r] of ranges.entries()) {
+    const end = Math.min(r.end, total)
+    const inside = words.filter((w) => w.start >= r.start - 0.01 && w.end <= end + 0.01)
+    let pick = inside.length >= 20 ? findAutoClips(inside, { ...opts, max: 8, maxSec })
+      .filter((c) => c.start >= r.start - 0.5 && c.end <= end + 0.5)
+      .sort((a, b) => b.score - a.score)[0] : undefined
+    if (!pick) {
+      const len = Math.min(maxSec, end - r.start)
+      if (len < 3) continue
+      pick = { id: `r${i + 1}`, start: r.start, end: r.start + len, durationSec: len, subject: r.title, headline: r.title, summary: '', score: 1 }
+    }
+    out.push({ ...pick, id: `r${i + 1}`, subject: r.title, headline: r.title })
+  }
+  return { candidates: out, projectPath: path }
 }
 
 /**

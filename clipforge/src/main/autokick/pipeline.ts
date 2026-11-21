@@ -14,6 +14,7 @@ import { mergeRanges, renderFastCut, snapToFrame, type Range } from './fastcut'
 import { planSilenceCuts } from '../../shared/timeline/silence'
 import { timelineWords } from '../../shared/timeline/transcript'
 import { chapterClipRanges, formatChapters, mapChapterList, parseChapterList } from '../../shared/chapters'
+import { appendRunLog } from '../runlog'
 import { qaText } from '../../shared/qa'
 import { qaVideo } from '../qa'
 
@@ -294,7 +295,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
       const mapped = mapChapterList(parseChapterList(req.chapterList), kept, total)
       if (mapped.chapters.length > 0) {
         // yatay klip aralıkları: her bölüm bir sonrakinin başına kadar; "Giriş" ve 10 sn'den kısa olanlar klip olmaz
-        chapterRanges = chapterClipRanges(mapped.chapters, total)
+        chapterRanges = chapterClipRanges(mapped.chapters, total, req.chapterMinSec ?? 10)
         timestampsPath = p.full.replace(/\.mp4$/i, '') + ' - zaman damgaları.txt'
         await writeFile(timestampsPath, formatChapters(mapped.chapters, total) + '\n', 'utf8')
         // YouTube'a yapıştırılacak dosya temiz kalsın: uyarılar (kesilen yere denk gelen bölümler) ayrı dosyaya
@@ -375,14 +376,17 @@ export class AutoKickManager {
           onStage: (sid, patch) => {
             const st = status.stages.find((x) => x.id === sid)
             if (st) Object.assign(st, patch)
+            if (patch.status) void appendRunLog(autoKickPaths(req.videoPath, req.outDir).dir, `[Auto Kick:${sid}] ${patch.status}${patch.detail ? ` — ${patch.detail}` : ''}`)
             push()
           }
         })
         status.status = 'done'
+        void appendRunLog(status.result.outDir, `Auto Kick TAMAMLANDI. Tam video: ${status.result.fullVideoPath}${status.result.chapterRanges ? ` · liste alanı: ${status.result.chapterRanges.length}` : req.chapterList?.trim() ? ' · liste verildi ama çevrilen bölüm yok' : ''}`)
       } catch (e) {
         const cancelled = e instanceof AutoKickCancelled || ctrl.signal.aborted
         status.status = cancelled ? 'cancelled' : 'failed'
         if (!cancelled) status.error = e instanceof Error ? e.message : String(e)
+        void appendRunLog(autoKickPaths(req.videoPath, req.outDir).dir, `Auto Kick ${cancelled ? 'İPTAL EDİLDİ' : 'HATA: ' + status.error}`)
         const running = status.stages.find((x) => x.status === 'running')
         if (running) running.status = cancelled ? 'pending' : 'failed'
       }
