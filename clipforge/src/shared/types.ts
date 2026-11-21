@@ -547,7 +547,7 @@ export interface Project {
 
 // ───────────────────────────── Görevler ─────────────────────────────
 
-export type TaskKind = 'import' | 'proxy' | 'transcribe' | 'analyze' | 'export' | 'model-download'
+export type TaskKind = 'import' | 'proxy' | 'transcribe' | 'analyze' | 'export' | 'ytcut' | 'model-download'
 export type TaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
 
 export interface TaskInfo {

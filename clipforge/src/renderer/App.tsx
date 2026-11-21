@@ -11,6 +11,7 @@ import { StatusBar, Toasts, TopBar } from './components/Chrome'
 import { useStore } from './store'
 import { ReferenceDialog } from './components/Reference'
 import { SportPlusDialog } from './components/SportPlus'
+import { YtCutDialog } from './components/YtCut'
 
 function useShortcuts() {
   useEffect(() => {
@@ -129,6 +130,7 @@ export function App() {
       {dialog === 'trailer' && <TrailerDialog />}
       {dialog === 'reference' && <ReferenceDialog />}
       {dialog === 'sportplus' && <SportPlusDialog />}
+      {dialog === 'ytcut' && <YtCutDialog />}
       <Toasts />
     </div>
   )

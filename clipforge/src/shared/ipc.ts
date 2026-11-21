@@ -13,6 +13,7 @@ import type { AutoClipCandidate, AutoClipsRequest, AutoClipsStatus } from './aut
 import type { StoryPlan, StoryRequest, StoryStatus } from './story/types'
 import type { AutoKickRequest, AutoKickStatus, TranscriptionReadiness } from './autokick'
 import type { TopicCandidate } from './topic'
+import type { YtCutRequest, YtCutResult } from './ytcut'
 import type { IdeasResult } from './ideas'
 import type { ChapterMode, ChaptersResult } from './chapters'
 import type {
@@ -146,6 +147,8 @@ export interface IpcInvoke {
   /** Video önerileri: transkriptten ayrı video olabilecek konu bölümleri + başlık önerileri */
   'ideas:generate': [[{ assetId: string; max?: number; useAi?: boolean; auto?: boolean }], IdeasResult]
   /** Auto Kick: yayın kaydından otomatik tam video (+ ileride klipler); iş arka planda sürer */
+  /** YouTube yatay video: bütün yayından zaman damgalarının her birini ayrı MP4 olarak keser (görev kuyruğu; bitince 'ytcut:done') */
+  'ytcut:start': [[YtCutRequest], string]
   'autokick:start': [[AutoKickRequest], string]
   'autokick:cancel': [[string], void]
   'autokick:list': [[], AutoKickStatus[]]
@@ -189,6 +192,7 @@ export interface IpcEvents {
   'asset:updated': MediaAsset
   'transcript:ready': { assetId: string; transcript: Transcript; reused: boolean }
   'suggest:ready': { assetId: string; candidates: ClipCandidate[] }
+  'ytcut:done': { taskId: string; result: YtCutResult }
   'export:done': { taskId: string; outputPath: string; warnings?: string[]; timestampsPath?: string }
   'menu:command': 'open' | 'save' | 'saveAs' | 'import' | 'export'
 }

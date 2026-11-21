@@ -48,6 +48,7 @@ import { timelineWords } from '../shared/timeline/transcript'
 import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/export/presets'
 import type { Clip, MediaAsset, TextSpec } from '../shared/types'
 import { qaText } from '../shared/qa'
+import { runYtCut } from '../main/ytcut'
 import { qaVideo } from '../main/qa'
 import { findRetakes, verifyNumbers } from '../shared/qa'
 import { addReference, listReferences, referenceDir, removeReference, updateReference } from '../main/reference'
@@ -124,6 +125,7 @@ const HELP = `ClipForge CLI — videoyu komutlarla editleyin (her komut JSON dö
   overlay <proje> --file dosya|--asset a --at sn [--dur 3.5] [--layer V2] [--src-in sn]   b-roll (video/foto) yerleştirir; konuşma sesi devam eder
   broll-plan <proje> --folder klasör [--asset a] [--dur 3.5] [--layer V2] [--apply]       dosya adlarındaki kelimeleri konuşmada arar, yerleşim ÖNERİR (--apply: uygular)
   reference list | scan | add <video> | show <id> | notes <id> "metin" | adapted <id> | remove <id>   beğenilen referans videolar: ölçüm + kare tabloları; Claude Code inceleyip uyarlar
+  yt-cut <video> --list liste.txt [--out klasör] [--quality fast|high]   bütün yayından zaman damgalarının her birini ayrı yatay MP4 olarak keser
   qa <video.mp4> [--out rapor.txt]   çıkış kontrolü: ilk kare siyah/düz mü, siyah ekran, uzun sessizlik, ses şiddeti/tepe (videoyu değiştirmez)
   verify-numbers <proje> [--plan story-plan.json] [--pad 12]   ekrandaki rakamlar konuşmada geçiyor mu
   retakes <proje> [--window 40] [--overlap 0.5]   aynı cümlenin tekrarı / yarım kalıp baştan alınan yerler (öneri; kesmez)
@@ -392,6 +394,15 @@ async function main(argv: string[]): Promise<unknown> {
       return out({ ok: true, ...r, clips: { dir: clips.dir, count: clips.clips.length, items: items(clips) }, ...(hclips ? { horizontalClips: { dir: hclips.dir, count: hclips.clips.length, items: items(hclips) } } : {}) })
     }
     return out({ ok: true, ...r, note: 'Klipler için: auto-clips <klasör> ya da auto-kick ... --clips (bitince klipleri de üretir).' })
+  }
+  if (command === 'yt-cut') {
+    // YouTube yatay video: bütün yayın + zaman damgaları → her satır ayrı yatay MP4 (orijinal kayıttan; sessiz kırpma yok)
+    if (!projectArg) throw new Error('Kayıt yolunu verin: yt-cut <video> --list liste.txt [--out klasör] [--quality fast|high]')
+    const listFile = str(a.opt.list)
+    if (!listFile) throw new Error('--list <liste.txt> verin (örn. "00:34:00 - Leo" / "00:03:00 - 00:09:00 Noah Lang").')
+    const svc = await makeService()
+    const r = await runYtCut({ videoPath: resolve(projectArg), list: await readFile(resolve(listFile), 'utf8'), outDir: str(a.opt.out) ? resolve(str(a.opt.out)!) : undefined, quality: a.opt.quality === 'high' ? 'high' : 'fast' }, svc.tools, { progress: (f, msg) => log(`[yt-cut] %${Math.round(f * 100)}${msg ? ` — ${msg}` : ''}`) })
+    return out({ ok: r.items.some((i) => i.path), dir: r.dir, count: r.items.filter((i) => i.path).length, items: r.items.map((i) => ({ index: i.index, title: i.title, start: r1(i.start), end: r1(i.end), durationSec: r1(i.durationSec), file: i.path, error: i.error })), warnings: r.warnings })
   }
   if (command === 'qa') {
     // Çıkış kontrolü: bitmiş video (mp4/mkv…) için ilk kare, siyah ekran, uzun sessizlik, ses şiddeti/tepe; videoyu DEĞİŞTİRMEZ

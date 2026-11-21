@@ -499,3 +499,6 @@ Kullanıcı kendi listesini ("00:00:00 - Giriş", "01:10:06 - Osimhen") veriyor;
 
 ## 78. Hazır listeden yatay klipler
 Kullanıcı: "verdiğim alanlardan yatay video; dikey mantık aynı kalsın". `AutoClipsRequest.ranges` + `AutoKickResult.chapterRanges`: liste varsa yatay iş konu aramaz, her bölüm aralığı klip olur (Giriş ve <10 sn hariç); dikey iş değişmedi. Klip uzunluğu bölüm kadar (10+ dk olabilir).
+
+## 79. YouTube yatay video düğmesi
+Kullanıcı: bütün yayın + zaman damgaları ver, her damga ayrı video olsun. Auto Kick zincirinden bağımsız basit yol: orijinal kayıttan doğrudan ffmpeg kesimi (yeniden kodlama; `-ss` girişten önce → kare doğruluğu), görev kuyruğu (`ytcut`, tek iş), bitince `ytcut:done` olayı. Giriş dahil TÜM satırlar kesilir (kullanıcı istemezse satırı siler).

@@ -719,6 +719,27 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(hp.aspect).toBe('16:9')
   }, 300_000)
 
+  it('yt-cut: bütün yayından her zaman damgası ayrı yatay MP4 olarak kesilir (bitişli/tek zamanlı satırlar, güvenli dosya adı); orijinal değişmez', () => {
+    const src = join(tmp, 'video örnek.mp4')
+    const before = md5(src)
+    writeFileSync(join(tmp, 'yt.txt'), '00:00:02 - 00:00:08 Ilk: Konu?\n00:00:10 - İkinci konu\n00:00:30 - Üçüncü konu\n00:09:00 - Süre dışı\n')
+    const dir = join(tmp, 'YT Çıktı')
+    const r = cli('yt-cut', src, '--list', join(tmp, 'yt.txt'), '--out', dir)
+    expect(r.ok, JSON.stringify(r)).toBe(true)
+    expect(r.count).toBe(3)
+    expect(r.warnings.join(' ')).toMatch(/Süre dışı/)
+    expect(r.items.map((i: any) => i.file.split(/[\\/]/).pop())).toEqual(['01 - Ilk Konu.mp4', '02 - İkinci konu.mp4', '03 - Üçüncü konu.mp4'])
+    const probe = (f: string) => JSON.parse(execFileSync((require('@ffprobe-installer/ffprobe').path as string), ['-v', 'error', '-show_entries', 'format=duration:stream=width,height', '-of', 'json', f]).toString())
+    const p1 = probe(r.items[0].file)
+    expect(Number(p1.format.duration)).toBeGreaterThan(5.5)
+    expect(Number(p1.format.duration)).toBeLessThan(6.6) // 2–8 sn = 6 sn
+    expect(p1.streams[0].width).toBe(1280) // yatay, boyut değişmez
+    const p3 = probe(r.items[2].file)
+    expect(Number(p3.format.duration)).toBeGreaterThan(9) // 30. sn → kayıt sonu (40 sn)
+    expect(md5(src)).toBe(before)
+    expect(cli('yt-cut', src, '--list', join(tmp, 'yok.txt')).ok).toBe(false)
+  }, 180_000)
+
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {
     const f = join(tmp, 'oneriler.json')
     writeFileSync(f, JSON.stringify([{ start: 3, end: 22, headline: 'Viktor Nelsen hakkında konuşmuşsun', summary: 'Geçen sene Nelsen\'dan bahsetmiştim.', title: 'Nelsen Neden Önemli?' }]))

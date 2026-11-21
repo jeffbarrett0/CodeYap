@@ -399,6 +399,18 @@ export function createMockApi(): ClipforgeApi {
           emit('export:done', { taskId: ctx.id, outputPath: req.outputPath })
         }
       }).id,
+    'ytcut:start': (req) =>
+      queue.add({
+        kind: 'ytcut',
+        title: `YouTube yatay video: ${String(req.videoPath).split(/[\\/]/).pop()}`,
+        run: async (ctx) => {
+          if (w.__mock?.fail?.ytcut) throw new Error(w.__mock.fail.ytcut)
+          if (!req.list.trim()) throw new Error('Zaman damgası listesi boş ya da okunamadı.')
+          const lines = req.list.split(/\n/).map((l) => l.replace(/^[\d:]+\s*(?:-\s*[\d:]+\s*)?-?\s*/, '').trim()).filter(Boolean)
+          for (let i = 1; i <= 4; i++) (ctx.progress(i / 4), await sleep(60))
+          emit('ytcut:done', { taskId: ctx.id, result: { dir: '/yayin/YouTube Yatay/kayit', warnings: [], items: lines.map((t, i) => ({ index: i + 1, title: t, start: i * 600, end: i * 600 + 420, durationSec: 420, path: `/yayin/YouTube Yatay/kayit/${String(i + 1).padStart(2, '0')} - ${t}.mp4` })) } })
+        }
+      }).id,
     'export:dialogOutput': (name) => `/tmp/${name}`,
     'task:cancel': (id) => queue.cancel(id),
     'task:list': () => queue.list(),

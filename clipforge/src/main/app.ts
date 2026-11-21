@@ -10,6 +10,8 @@ import { scoreCandidates, snapCandidate, DEFAULT_KEYWORDS } from '../shared/sugg
 import type { AppInfo, ChatImportRequest, ExportRequest, IpcEventName, IpcEvents, OpenedProject, SearchRequest, SuggestRequest, ToolStatus, TranscribeRequest } from '../shared/ipc'
 import type { ChatLog, MediaAsset, Marker, Project, SearchResult, Timeline, Transcript, WhisperModelSize } from '../shared/types'
 import { runExport } from './export'
+import { runYtCut } from './ytcut'
+import type { YtCutRequest } from '../shared/ytcut'
 import { cpuThreads, resolveFfmpegPath, resolveFfprobePath, runTool, setCpuMode, ToolError, toolVersion } from './ffmpeg'
 import { denoiseChain } from '../shared/export/plan'
 import { audioLevelSeries, detectScenes, extractWavChunk } from './media/audio'
@@ -428,6 +430,18 @@ export class AppService {
           }
         }
         this.deps.emit('export:done', { taskId: ctx.id, outputPath, warnings, timestampsPath })
+      }
+    }).id
+  }
+
+  /** YouTube yatay video: zaman damgalarının her birini orijinal kayıttan ayrı MP4 olarak keser */
+  ytCutStart(req: YtCutRequest): string {
+    return this.queue.add({
+      kind: 'ytcut',
+      title: `YouTube yatay video: ${basename(req.videoPath)}`,
+      run: async (ctx) => {
+        const result = await runYtCut(req, this.tools, { signal: ctx.signal, progress: ctx.progress })
+        this.deps.emit('ytcut:done', { taskId: ctx.id, result })
       }
     }).id
   }

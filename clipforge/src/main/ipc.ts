@@ -69,6 +69,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
         return null
       }
     },
+    'ytcut:start': (req) => app.ytCutStart(req),
     'autokick:start': (req) => autoKick.start(req),
     'autokick:cancel': (id) => autoKick.cancel(id),
     'autokick:list': () => autoKick.list(),

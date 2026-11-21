@@ -23,7 +23,7 @@ export interface TaskSpec {
 type Listener = (t: TaskInfo) => void
 
 /** Aynı türden eşzamanlı iş sayısı (ağır işler sırayla çalışır) */
-const DEFAULT_LIMITS: Record<TaskKind, number> = { import: 2, proxy: 1, transcribe: 1, analyze: 1, export: 1, 'model-download': 1 }
+const DEFAULT_LIMITS: Record<TaskKind, number> = { import: 2, proxy: 1, transcribe: 1, analyze: 1, export: 1, ytcut: 1, 'model-download': 1 }
 
 /**
  * İptal edilebilir, ilerlemesi raporlanan görev kuyruğu.

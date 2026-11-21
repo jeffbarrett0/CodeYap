@@ -1122,6 +1122,22 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autokick-job')).toBeVisible()
   })
 
+  test('YouTube yatay video: yayın + zaman damgaları → her satır ayrı video; liste/kayıt eksikse anlaşılır uyarı; hata görünür', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('ytcut-btn').click()
+    await page.getByTestId('ytcut-start').click()
+    await expect(page.getByTestId('ytcut-error')).toContainText('yayın kaydını seçin')
+    await page.getByTestId('ytcut-pick').click()
+    await page.getByTestId('ytcut-start').click()
+    await expect(page.getByTestId('ytcut-error')).toContainText('Zaman damgası listesi boş')
+    await page.getByTestId('ytcut-list').fill('00:03:00 - 00:09:00 Noah Lang\n00:34:00 - 00:41:00 Leo\n00:41:00 - 00:45:00 Deniz Gül')
+    await expect(page.getByTestId('ytcut-parsed')).toContainText('3 satır okundu')
+    await page.getByTestId('ytcut-start').click()
+    await expect(page.getByTestId('ytcut-item')).toHaveCount(3)
+    await expect(page.getByTestId('ytcut-result')).toContainText('Leo')
+    await expect(page.getByTestId('ytcut-result')).toContainText('Deniz Gül')
+  })
+
   test('Sport diyor Plus: konu → adaylar → yalnızca yüz kesiti üretilir (MP4 dahil); bulunamazsa anlaşılır mesaj', async ({ page }) => {
     await boot(page)
     await page.getByTestId('sportplus-btn').click()

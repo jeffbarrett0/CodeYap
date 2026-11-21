@@ -29,7 +29,7 @@ import { denoiseKey, denoiseReady } from './preview/denoiseState'
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
 const waveRequested = new Set<string>()
 
-export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer' | 'reference' | 'sportplus'
+export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer' | 'reference' | 'sportplus' | 'ytcut'
 
 export interface Toast {
   id: string
@@ -181,6 +181,8 @@ interface State {
   suggesting: boolean
   clipDraft: ClipDraft | null
   lastExport: string | null
+  /** YouTube yatay video işinin son sonucu */
+  ytcutResult: (import('@shared/ytcut').YtCutResult & { taskId: string }) | null
 
   // eylemler
   init(): Promise<void>
@@ -374,6 +376,7 @@ export const useStore = create<State>()((set, get) => {
     suggesting: false,
     clipDraft: null,
     lastExport: null,
+    ytcutResult: null,
 
     async init() {
       if (initialized) return
@@ -425,6 +428,11 @@ export const useStore = create<State>()((set, get) => {
         mutateProject((p) => ({ ...p, candidates: [...p.candidates.filter((c) => c.assetId !== assetId), ...candidates] }))
         set({ suggesting: false })
         get().toast('info', candidates.length ? `${candidates.length} aday bulundu.` : 'Belirgin bir tepki anı bulunamadı.')
+      })
+      a.on('ytcut:done', ({ taskId, result }) => {
+        set({ ytcutResult: { taskId, ...result } })
+        const ok = result.items.filter((i) => i.path).length
+        get().toast(ok === result.items.length ? 'success' : 'info', `YouTube yatay video: ${ok}/${result.items.length} bölüm kaydedildi.`)
       })
       a.on('export:done', ({ outputPath, warnings, timestampsPath }) => {
         set({ lastExport: outputPath })
