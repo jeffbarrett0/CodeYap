@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ctaRect, ctaSequence, ctaTimes, defaultCtaSize, parseCtaManifest } from '@shared/cta'
+import { ctaRect, ctaSequence, ctaTimes, ctaTimesEvery, defaultCtaSize, parseCtaManifest, youtubeCtaSize } from '@shared/cta'
 import { chromaFilter } from '@shared/export/plan'
 
 const dir = join(__dirname, '..', '..', 'resources', 'cta')
@@ -44,7 +44,33 @@ describe('çağrı butonları: manifest ve yerleşim', () => {
     expect(f.endsWith(',')).toBe(true)
   })
 
-  it('YouTube yatay kesit: buton yerleri (kullanıcının örnekleri: 3 dk → 1. ve 2. dk; 8 dk → 2-4-6-7. dk; çok olmasın)', () => {
+  it('HER 50 SN\'DE BİR YouTube butonu (kullanıcının kararı): her videoda en az bir; sona taşmaz; üst üste binmez; alt orta, küçük', () => {
+    expect(ctaTimesEvery(8)).toEqual([]) // buton (5,2 sn) sığmaz
+    expect(ctaTimesEvery(20)).toEqual([6]) // kısa video: %30'unda
+    expect(ctaTimesEvery(30)).toEqual([9])
+    expect(ctaTimesEvery(60)).toEqual([12])
+    expect(ctaTimesEvery(75)).toEqual([12, 62])
+    expect(ctaTimesEvery(180)).toEqual([12, 62, 112, 162])
+    expect(ctaTimesEvery(600).length).toBe(12) // 10 dk: 12, 62, … 562
+    for (const D of [11, 12, 20, 45, 60, 99, 100, 178, 300, 1500, 3600]) {
+      const t = ctaTimesEvery(D)
+      if (D >= 11) expect(t.length).toBeGreaterThanOrEqual(1)
+      for (let i = 0; i < t.length; i++) {
+        expect(t[i] + 5.2).toBeLessThanOrEqual(D - 1.5 + 1e-6)
+        if (i) expect(t[i] - t[i - 1]).toBeCloseTo(50, 5)
+      }
+    }
+    // yer: altta ortada (tam ortaya değil), küçük; dikeyde de alt orta
+    for (const asp of ['16:9', '9:16']) {
+      const r = ctaRect({ crop: { x: 0, y: 0, w: 1, h: 1 }, flushBottom: true }, 1280, 720, asp, { pos: 'bottom-center', size: youtubeCtaSize(asp) })
+      expect(r.x + r.w / 2).toBeCloseTo(0.5, 5)
+      expect(r.y + r.h).toBeCloseTo(1, 5) // alt kenara yapışık (alttan yükselir)
+      expect(r.y).toBeGreaterThan(0.6) // ekranın alt kısmında, ortada değil
+    }
+    expect(youtubeCtaSize('16:9')).toBeLessThan(0.34)
+  })
+
+  it('(ESKİ kural, artık yalnızca vlog cta komutunda) YouTube yatay kesit: buton yerleri (kullanıcının örnekleri: 3 dk → 1. ve 2. dk; 8 dk → 2-4-6-7. dk; çok olmasın)', () => {
     expect(ctaTimes(15)).toEqual([]) // buton sığmaz
     expect(ctaTimes(60)).toEqual([30]) // 90 sn'den kısa: yine ortada 1
     expect(ctaTimes(90)).toEqual([45])

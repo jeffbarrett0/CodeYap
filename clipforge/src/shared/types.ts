@@ -512,6 +512,7 @@ export interface Settings {
   autoClipsHorizontal: boolean
   autoHorizontalAfterKick: boolean
   autoHorizontalCta: boolean
+  autoClipsCta: boolean
   /** Auto Clips klibine sosyal medya şeridini (yüz ile görüntünün kesiştiği çizgiye) ekle */
   autoClipsOverlay: boolean
   /** Şerit görüntüsü (şeffaf PNG); boşsa uygulamayla gelen varsayılan */

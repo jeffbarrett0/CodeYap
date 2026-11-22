@@ -44,6 +44,8 @@ export const DEFAULT_SETTINGS: Settings = {
   /** Auto yatay video: Auto Kick bitince (hazır liste verildiyse) listeye göre yatay kesitler kendiliğinden */
   autoHorizontalAfterKick: true,
   autoHorizontalCta: true,
+  /** Dikey Auto Clips / YouTube dikey video klipleri: her 50 sn'de bir YouTube abone butonu (alt orta) */
+  autoClipsCta: true,
   autoClipsMax: 0, // 0 = sınırsız (bulabildiği kadar klip)
   autoClipsCaptions: false,
   autoClipsMaxHorizontal: 0, // 0 = sınırsız

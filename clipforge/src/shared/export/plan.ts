@@ -193,7 +193,9 @@ export function buildExportPlan(
           lines.push(`[bfg${L}][bff${L}]overlay=x=(${r.w}-overlay_w)/2:y=(${r.h}-overlay_h)/2[bfo${L}]`)
           lines.push(`[bfo${L}]setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
         } else {
-        lines.push(`[${idx}:v]${ck}${alpha}setpts=PTS-STARTPTS,fps=${fps},${crop}${fit}${fade}${videoFx(c, p.dur, fx.w, fx.h, fps, alpha !== '' || ck !== '')},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
+        // yeşil perde: ÖNCE kırp+küçült, SONRA anahtarla (çağrı butonu videosu 4K/60 fps: tam çözünürlükte anahtarlamak dışa aktarmayı ikiye katlıyordu); sonuç aynı
+        if (ck) lines.push(`[${idx}:v]setpts=PTS-STARTPTS,fps=${fps},${crop}${fit},${ck}${alpha}null${fade}${videoFx(c, p.dur, fx.w, fx.h, fps, true)},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
+        else lines.push(`[${idx}:v]${alpha}setpts=PTS-STARTPTS,fps=${fps},${crop}${fit}${fade}${videoFx(c, p.dur, fx.w, fx.h, fps, alpha !== '')},setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
         }
         const next = `L${++layer}`
         const pos = t.placement.fit === 'cover' || blurFill ? `${r.x}:${r.y}` : `x=${r.x}+(${r.w}-overlay_w)/2:y=${r.y}+(${r.h}-overlay_h)/2`

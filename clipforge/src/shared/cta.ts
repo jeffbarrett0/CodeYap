@@ -60,8 +60,27 @@ export function parseCtaManifest(raw: unknown): CtaManifest | null {
   return { version: 1, chroma: typeof o.chroma === 'string' ? o.chroma : '#00FF00', rotation: Array.isArray(o.rotation) ? o.rotation.filter((x) => typeof x === 'string') : [], buttons }
 }
 
+/** Buton animasyonunun süresi (sn): `youtube-abone.mp4` ~5 sn */
+export const CTA_CLIP_SEC = 5.2
+
 /**
- * YouTube yatay video kesitlerinde abone butonunun yerleri (kesit başından saniye). Kural (kullanıcı: "çok fazla olmasın; 3 dk ise 2 kere, 8 dk ise 2-4-6-7. dakikalar"):
+ * KULLANICININ KARARI: "her 50 saniyede bir YouTube butonu" (yatay kesitler) — dikey kliplerde de aynı aralık; her videoda en az bir buton.
+ * İlk buton videonun başından ~12 sn sonra (kısa videoda %30'unda), sonra her `everySec`'te; son 1,5 sn'ye taşmaz. 10 sn'den kısa videoda sığmaz.
+ */
+export function ctaTimesEvery(durationSec: number, everySec = 50, clipSec = CTA_CLIP_SEC): number[] {
+  const D = durationSec
+  if (!(D >= clipSec + 5)) return []
+  const first = Math.min(12, Math.max(3, D * 0.3))
+  const out: number[] = []
+  for (let t = first; t + clipSec <= D - 1.5 + 1e-6; t += everySec) out.push(Math.round(t * 10) / 10)
+  return out
+}
+
+/** Butonun varsayılan genişliği (kare genişliğinin oranı) ve yeri: ALTTA ORTA, göz almayacak küçüklükte (kullanıcı: "tam ortaya değil, çok göz almayacak") */
+export const youtubeCtaSize = (aspect: string): number => (aspect === '9:16' ? 0.55 : aspect === '1:1' ? 0.42 : 0.3)
+
+/**
+ * (ESKİ kural, vlog `cta` komutu dışında kullanılmaz) YouTube yatay video kesitlerinde abone butonunun yerleri (kesit başından saniye). Kural (kullanıcı: "çok fazla olmasın; 3 dk ise 2 kere, 8 dk ise 2-4-6-7. dakikalar"):
  *  - 20 sn'den kısa: yok · 20–150 sn (90 sn'in altı dahil): ortada 1 · 150–240 sn (3 dk): üçte biri + üçte ikisi (1. ve 2. dakika)
  *  - 4 dk ve üstü: her ~2 dakikada bir (2., 4., 6. …) + sondan 1 dk önce bir tane (8 dk: 2-4-6-7)
  *  - çok uzun kesitlerde en çok 8 (aralık uzar). Hiçbir buton son 60 sn'ye taşmaz (buton 5 sn sürer).

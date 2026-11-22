@@ -13,6 +13,7 @@ import { applyTemplate } from '../../shared/timeline/templates'
 import { timelineWords } from '../../shared/timeline/transcript'
 import type { Clip } from '../../shared/types'
 import { resolveProjectPath } from '../autokick/clips'
+import { addYoutubeCta } from './cta'
 import { findMentionClips, mentionSuggestions, transcriptLines, type MentionSuggestion, type TranscriptLine } from '../../shared/clipsearch'
 
 type Env = { userDataDir?: string; resourcesDir?: string }
@@ -156,6 +157,7 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
     const hcreated = await s.service.createClipProject(s.project, asset.id, hname)
     const hc = await Session.open(hcreated.path, await makeService(env))
     hc.project = { ...hc.project, timeline: tl }
+    await addYoutubeCta(hc, hdur)
     await hc.save()
     return { projectPath: hcreated.path, durationSec: hdur, name: hname }
   }
@@ -181,6 +183,7 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
     const fcreated = await s.service.createClipProject(s.project, asset.id, fname)
     const fc = await Session.open(fcreated.path, await makeService(env))
     fc.project = { ...fc.project, timeline: tl }
+    await addYoutubeCta(fc, fdur)
     await fc.save()
     return { projectPath: fcreated.path, durationSec: fdur, name: fname }
   }
@@ -214,6 +217,7 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
   const c = await Session.open(created.path, await makeService(env))
   c.project = { ...c.project, timeline: tl }
   await addOverlay(c, layout, dur)
+  await addYoutubeCta(c, dur)
   await c.save()
   return { projectPath: created.path, durationSec: dur, name }
 }

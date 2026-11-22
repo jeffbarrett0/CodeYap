@@ -2,7 +2,7 @@ import { mkdir, access, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join } from 'node:path'
 import { adjustFilter } from '../shared/adjust'
 import { parseChapterList } from '../shared/chapters'
-import { ctaRect, ctaTimes, parseCtaManifest, type CtaEntry } from '../shared/cta'
+import { ctaRect, ctaTimesEvery, parseCtaManifest, youtubeCtaSize, type CtaEntry } from '../shared/cta'
 import { chromaFilter } from '../shared/export/plan'
 import { clipTranscriptText, safeFileTitle, ytCutFileName, ytCutRanges, type YtCutRequest, type YtCutResult } from '../shared/ytcut'
 import { ffprobeJson, limitThreads, runTool } from './ffmpeg'
@@ -33,7 +33,7 @@ async function loadYoutubeCta(resourcesDir: string | undefined, tools: MediaTool
 
 /** Kesite abone butonları: yeşil perde şeffaflaşır, buton sol altta; butonun sesi kesit sesine karışır. Dönen: ek girişler + filter_complex + haritalar. */
 export function ctaGraph(o: { cta: CtaAsset; times: number[]; srcW: number; srcH: number; hasAudio: boolean; videoPre: string }): { inputs: string[]; filter: string; maps: string[] } {
-  const rect = ctaRect(o.cta.entry, o.cta.width, o.cta.height, '16:9', { pos: 'bottom-left' })
+  const rect = ctaRect(o.cta.entry, o.cta.width, o.cta.height, '16:9', { pos: 'bottom-center', size: youtubeCtaSize('16:9') })
   const pw = Math.max(2, Math.round((rect.w * o.srcW) / 2) * 2)
   const ph = Math.max(2, Math.round((rect.h * o.srcH) / 2) * 2)
   const px = Math.round(rect.x * o.srcW)
@@ -46,7 +46,8 @@ export function ctaGraph(o: { cta: CtaAsset; times: number[]; srcW: number; srcH
   o.times.forEach((t, i) => {
     const k = i + 1
     inputs.push('-i', o.cta.file)
-    lines.push(`[${k}:v]${chromaFilter({ color: o.cta.chroma })}${crop}scale=${pw}:${ph}:flags=lanczos,setpts=PTS-STARTPTS+${t.toFixed(3)}/TB[c${k}]`)
+    // önce kırp+küçült, sonra yeşili anahtarla (buton videosu 4K: tam çözünürlükte anahtarlamak çok yavaş)
+    lines.push(`[${k}:v]${crop}scale=${pw}:${ph}:flags=lanczos,${chromaFilter({ color: o.cta.chroma })}setpts=PTS-STARTPTS+${t.toFixed(3)}/TB[c${k}]`)
     lines.push(`[b${i}][c${k}]overlay=${px}:${py}:eof_action=pass:repeatlast=0[b${k}]`)
     if (o.hasAudio && o.cta.hasAudio) {
       const ms = Math.round(t * 1000)
@@ -102,7 +103,7 @@ export async function runYtCut(req: YtCutRequest, tools: MediaTools, hooks: { si
   for (const it of items) {
     if (hooks.signal?.aborted) throw new Error('İptal edildi.')
     const out = join(dir, ytCutFileName(it.index, it.title, items.length))
-    const times = cta ? ctaTimes(it.durationSec) : []
+    const times = cta ? ctaTimesEvery(it.durationSec) : []
     const enc = ['-c:v', 'libx264', '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p', ...(hasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []), '-movflags', '+faststart', '-progress', 'pipe:1', out]
     const plain = ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, '-map', '0:v:0', ...(hasAudio ? ['-map', '0:a:0'] : []), ...(vf ? ['-vf', vf] : []), ...enc]
     const run = (args: string[]) => runTool(tools.ffmpeg, limitThreads(args), { signal: hooks.signal, durationSec: it.durationSec, onProgress: (f) => hooks.progress?.(Math.min(1, (doneSec + f * it.durationSec) / totalSec), `${it.index}/${items.length}: ${it.title}`) })

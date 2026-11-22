@@ -1218,6 +1218,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('autoclips-btn').click()
     await expect(page.getByTestId('autoclips-after')).toBeChecked() // varsayılan: açık
     await expect(page.getByTestId('autoclips-export')).toBeChecked()
+    await expect(page.getByTestId('autoclips-cta')).toBeChecked() // YouTube butonu varsayılan açık
     await page.getByTestId('autoclips-after').uncheck()
     await page.keyboard.press('Escape')
     await page.getByTestId('autokick-btn').click()

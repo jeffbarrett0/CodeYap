@@ -515,6 +515,35 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
         expect(pr.streams[0].height).toBe(1920)
         expect(md5(proj4)).toBe(before)
       }
+      // YouTube butonu dikey klibe de eklenir (her 50 sn'de bir; yeşil perde dışa aktarmada şeffaflaşır → kare, butonsuz halden FARKLI)
+      {
+        const { makeAutoClip } = await import('../../src/main/autoclips/pipeline')
+        const { exportClipProject } = await import('../../src/main/autoclips/run')
+        const { Session, makeService } = await import('../../src/cli/session')
+        const { ctaTimesEvery } = await import('../../src/shared/cta')
+        const { cmd } = await import('../../src/shared/timeline/commands')
+        const mk = await makeAutoClip(proj4, { start: 1, end: 14, subject: 'Butonlu' }, {}, { userDataDir: ud })
+        const ps = await Session.open(mk.projectPath, await makeService({ userDataDir: ud }))
+        const times = ctaTimesEvery(mk.durationSec)
+        expect(times.length).toBeGreaterThanOrEqual(1)
+        const ctav = ps.timeline.tracks.find((t) => t.id === 'CTAV')!
+        expect(ctav.clips.length).toBe(times.length)
+        expect(ctav.clips.map((c) => Math.round(c.start * 10) / 10)).toEqual(times)
+        expect(ctav.clips[0].fx?.chroma?.color).toMatch(/^#/)
+        expect(ps.timeline.tracks.some((t) => t.id === 'CTAS')).toBe(true) // butonun sesi
+        expect(ps.timeline.tracks[0].id).toBe('CTAV') // en önde çizilir
+        const withBtn = await exportClipProject(mk.projectPath, { userDataDir: ud })
+        const keep = join(tmp, 'butonlu.mp4')
+        copyFileSync(withBtn, keep)
+        ps.apply(cmd.removeTrack('CTAV'), cmd.removeTrack('CTAS'))
+        await ps.save()
+        const without = await exportClipProject(mk.projectPath, { userDataDir: ud })
+        const at = String(times[0] + 2.5)
+        const png = (src: string, out: string) => execFileSync(require('ffmpeg-static') as string, ['-y', '-v', 'error', '-ss', at, '-i', src, '-frames:v', '1', out])
+        png(keep, join(tmp, 'f-with.png'))
+        png(without, join(tmp, 'f-without.png'))
+        expect(md5(join(tmp, 'f-with.png'))).not.toBe(md5(join(tmp, 'f-without.png'))) // buton görünüyor
+      }
       // transkript yan klasörü kaybolmuşsa: neden yazılır; "şimdi çıkar" yeniden yazıya döker
       const lost = join(tmp, 'kayip-transkript', 'kayip.clipforge')
       mkdirSync(join(tmp, 'kayip-transkript'), { recursive: true })
@@ -599,7 +628,7 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     const bad = cli('auto-clips', join(tmp, 'yok.clipforge'))
     expect(bad.ok).toBe(false)
     expect(cli('auto-clips', proj4, '--face', '0.9,0.9,0.5,0.5').ok).toBe(false)
-  }, 180_000)
+  }, 600_000)
 
   it('zoom / fade / sfx: yakınlaşma ve giriş-çıkış geçişi klibe işlenir, ses efekti SFX katmanına konur; hatalı girdi reddedilir', () => {
     const p = join(tmp, 'fx.clipforge')
@@ -923,7 +952,7 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     expect(tr.lines.length).toBeGreaterThan(0)
   }, 300_000)
 
-  it('yt-cut + abone butonu: 3 dk\'lık kesitte 1. ve 2. dakikada YouTube butonu eklenir (süre aynı kalır); --no-cta butonsuz; kısa kesitte buton yok', () => {
+  it('yt-cut + abone butonu: her 50 sn\'de bir YouTube butonu (3 dk → 12, 62, 112, 162. sn; süre aynı kalır); kısa kesitte de 1; --no-cta butonsuz', () => {
     const ffm = require('ffmpeg-static') as string
     const src = join(tmp, 'uzun-test.mp4')
     execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=10:duration=200', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=200', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', src])
@@ -931,8 +960,8 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     const r = cli('yt-cut', src, '--list', join(tmp, 'cta-liste.txt'), '--out', join(tmp, 'CTA Çıktı'))
     expect(r.ok, JSON.stringify(r)).toBe(true)
     expect(r.warnings.join(' ')).not.toMatch(/eklenemedi/)
-    expect(r.items[0].ctaAt).toEqual([60, 120])
-    expect(r.items[1].ctaAt).toBeUndefined() // 15 sn: buton yok
+    expect(r.items[0].ctaAt).toEqual([12, 62, 112, 162])
+    expect(r.items[1].ctaAt).toEqual([4.5]) // 15 sn'lik kesitte de 1 buton
     const probe = (f: string) => JSON.parse(execFileSync(require('@ffprobe-installer/ffprobe').path as string, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', f]).toString())
     expect(Number(probe(r.items[0].file).format.duration)).toBeGreaterThan(179)
     expect(Number(probe(r.items[0].file).format.duration)).toBeLessThan(181)
