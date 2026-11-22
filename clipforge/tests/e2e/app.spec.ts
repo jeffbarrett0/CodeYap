@@ -1382,6 +1382,24 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('klipcikar-reveal')).toHaveCount(2) // her biçimde TEK klip (MP4)
   })
 
+  test('YouTube outro: hem YouTube yatay video hem Auto yatay video penceresinde seçilir, kaldırılır; ayar ortaktır', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('ytcut-btn').click()
+    await expect(page.getByTestId('outro-path')).toHaveValue('')
+    await expect(page.getByTestId('outro-clear')).toHaveCount(0)
+    await expect(page.getByTestId('outro-enabled')).toBeChecked() // varsayılan: açık
+    await expect(page.getByTestId('outro-folder')).toBeVisible()
+    await page.getByTestId('outro-pick').click()
+    await expect(page.getByTestId('outro-path')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
+    await page.keyboard.press('Escape')
+    await page.getByTestId('autoyatay-btn').click()
+    await expect(page.getByTestId('outro-path')).toHaveValue(/2024-05-12 21-30-45\.mkv/) // aynı ayar
+    await page.getByTestId('outro-clear').click()
+    await expect(page.getByTestId('outro-path')).toHaveValue('')
+    await page.getByTestId('outro-enabled').uncheck()
+    await expect(page.getByTestId('outro-enabled')).not.toBeChecked()
+  })
+
   test('"Claude ile edit yap" düğmesi artık yok (araç çubuğunda ve Auto Kick sonucunda)', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByTestId('claude-edit')).toHaveCount(0)

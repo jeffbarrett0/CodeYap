@@ -7,6 +7,7 @@ import { timelineDuration } from '../../shared/timeline/model'
 import { autoClipCandidates, autoClipCandidatesForRanges, autoClipEnsureTranscript, makeAutoClip } from './pipeline'
 import { resolveProjectPath } from '../autokick/clips'
 import { appendRunLog } from '../runlog'
+import { appendOutro, resolveOutro } from '../outro'
 
 type Env = { userDataDir?: string; resourcesDir?: string }
 
@@ -37,6 +38,9 @@ export async function exportClipProject(projectPath: string, env: Env, signal?: 
   } finally {
     signal?.removeEventListener('abort', onAbort)
   }
+  // YATAY videonun sonuna kullanıcının YouTube outro (kapanış) videosu; olmazsa video outro'suz kalır (iş durmaz)
+  const outro = await resolveOutro(service.settings.value.outroPath, service.deps.userDataDir, service.deps.resourcesDir, service.settings.value.outroEnabled)
+  if (preset === 'youtube' && outro) await appendOutro(out, outro, service.tools, { signal })
   return out
 }
 

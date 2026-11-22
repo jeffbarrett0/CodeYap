@@ -1,5 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { IpcChannel, IpcInvoke, IpcResult } from '../shared/ipc'
 import type { AppService } from './app'
@@ -12,6 +12,7 @@ import { AutoClipsManager, chainAutoClips, exportClipProject } from './autoclips
 import { chainAutoHorizontal } from './autokick/horizontal'
 import { createAutoRetry } from './autokick/retry'
 import { createKeepAwake } from './keepawake'
+import { outroFolder } from './outro'
 import { parseAliases, parseVocabulary } from '../shared/transcript/vocabulary'
 import { FACE_ONLY_SHAPES } from '../shared/autoclips'
 import { appendRunLog } from './runlog'
@@ -63,6 +64,11 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       const lines = [...(parseAliases(cur).some((a) => a.from.toLocaleLowerCase('tr-TR') === r.from.trim().toLocaleLowerCase('tr-TR')) ? [] : [line]), ...(parseVocabulary(cur).some((t) => t.toLocaleLowerCase('tr-TR') === r.to.trim().toLocaleLowerCase('tr-TR')) ? [] : [r.to.trim()])]
       if (lines.length) await app.settings.update({ vocabulary: [cur.trim(), ...lines].filter(Boolean).join('\n') })
       return out
+    },
+    'outro:folder': async () => {
+      const d = outroFolder(app.deps.userDataDir)
+      await mkdir(d, { recursive: true })
+      return d
     },
     'clipfind:search': (r) => clipFindSearch(r.projectPath, r.query, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:search': (r) => autoClipSearch(r.projectPath, r.query, { ...(r.maxSec ? { maxSec: r.maxSec } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),

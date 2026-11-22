@@ -3,6 +3,7 @@ import { parseChapterList } from '@shared/chapters'
 import { requireApi } from '../api'
 import { useStore } from '../store'
 import { fmt, Field, Modal, Progress } from './ui'
+import { OutroPicker } from './AutoYatayDikey'
 
 /**
  * YouTube yatay video: BÜTÜN yayın + zaman damgaları → her zaman damgası ayrı bir yatay (16:9) MP4.
@@ -66,6 +67,7 @@ export function YtCutDialog() {
         <label className="check" title="İlk buton başlangıçtan ~12 sn sonra, sonra her 50 saniyede bir; altta ortada, küçük. Yeşil perde kesilir, yalnızca buton görünür. 10 sn'den kısa kesitte sığmaz.">
           <input type="checkbox" checked={cta} onChange={(e) => setCta(e.target.checked)} disabled={running} data-testid="ytcut-cta" /> Her kesite YouTube abone butonunu ekle (her 50 saniyede bir, altta ortada; kısa kesitte de en az 1)
         </label>
+        <OutroPicker disabled={running} />
         {err && <div className="warnbox" role="alert" data-testid="ytcut-error">{err}</div>}
         {task?.status === 'failed' && <div className="warnbox" role="alert" data-testid="ytcut-failed">{task.error}</div>}
         <button className="btn primary" disabled={running} onClick={() => void start()} data-testid="ytcut-start">{running ? 'Kesiliyor…' : 'Videoları kes ve kaydet'}</button>

@@ -6,6 +6,7 @@ import { ctaRect, ctaTimesEvery, parseCtaManifest, youtubeCtaSize, type CtaEntry
 import { chromaFilter } from '../shared/export/plan'
 import { clipTranscriptText, safeFileTitle, ytCutFileName, ytCutRanges, type YtCutRequest, type YtCutResult } from '../shared/ytcut'
 import { ffprobeJson, limitThreads, runTool } from './ffmpeg'
+import { appendOutro } from './outro'
 import type { MediaTools } from './media/import'
 
 const MEDIA_RE = /\.(mkv|mp4|mov|flv|m4v|webm|ts)$/i
@@ -122,6 +123,12 @@ export async function runYtCut(req: YtCutRequest, tools: MediaTools, hooks: { si
         }
       } else await run(plain)
       it.path = out
+      if (req.outroPath?.trim()) {
+        // kapanış (outro) videosu: kesitin sonuna; olmazsa kesit outro'suz kalır ve uyarı yazılır
+        const o = await appendOutro(out, req.outroPath.trim(), tools, { signal: hooks.signal, enc: ['-c:v', 'libx264', '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p'] })
+        if (o.ok) it.outroSec = o.outroSec
+        else warnings.push(`"${it.title}": ${o.error}`)
+      }
       if (req.transcriptLines?.length) {
         // kesitin yanına konuşma metni (hata olursa kesit yine başarılı)
         await writeFile(out.replace(/\.mp4$/i, '') + ' - transkript.txt', clipTranscriptText(req.transcriptLines, it.start, it.end) + '\n', 'utf8').catch(() => undefined)

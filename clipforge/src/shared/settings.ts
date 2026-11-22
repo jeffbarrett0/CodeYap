@@ -46,6 +46,10 @@ export const DEFAULT_SETTINGS: Settings = {
   autoHorizontalCta: true,
   /** Dikey Auto Clips / YouTube dikey video klipleri: her 50 sn'de bir YouTube abone butonu (alt orta) */
   autoClipsCta: true,
+  /** YouTube outro (kapanış) videosu: HER yatay videonun sonuna eklenir (YouTube yatay video, Auto yatay, yatay Klip çıkar). Boşsa eklenmez. */
+  outroPath: '',
+  /** Outro kutusu: kapatılırsa hiçbir yatay videoya outro eklenmez (dosya seçili olsa bile) */
+  outroEnabled: true,
   autoClipsMax: 0, // 0 = sınırsız (bulabildiği kadar klip)
   autoClipsCaptions: false,
   autoClipsMaxHorizontal: 0, // 0 = sınırsız

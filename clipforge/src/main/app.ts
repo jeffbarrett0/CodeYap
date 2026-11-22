@@ -29,6 +29,7 @@ import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pi
 import { builtinAliases, builtinGlossary } from './transcribe/glossary'
 import { TEAMS } from '../shared/story/teams'
 import { appendRunLog } from './runlog'
+import { resolveOutro } from './outro'
 import { applyVocabulary, buildPrompt, fixWord, parseAliases, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
 import { findVideoIdeas, type IdeasResult } from '../shared/ideas'
@@ -482,7 +483,7 @@ export class AppService {
         const logDir = req.auto && req.outDir ? dirname(req.outDir) : null
         let result
         try {
-          result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
+          result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value), outroPath: req.outroPath ?? (await resolveOutro(this.settings.value.outroPath, this.deps.userDataDir, this.deps.resourcesDir, this.settings.value.outroEnabled)) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
         } catch (e) {
           if (logDir) void appendRunLog(logDir, `Auto yatay video HATA: ${e instanceof Error ? e.message : String(e)}`)
           throw e

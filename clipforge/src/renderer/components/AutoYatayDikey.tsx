@@ -4,6 +4,32 @@ import { requireApi } from '../api'
 import { useStore } from '../store'
 import { fmt, Modal, Progress } from './ui'
 
+/**
+ * YouTube outro (kapanış) videosu: HER yatay videonun sonuna eklenir (YouTube yatay video, Auto yatay video, yatay Klip çıkar).
+ * Dosya senin bilgisayarında kalır (yol ayarlara kaydedilir); boşsa outro eklenmez.
+ */
+export function OutroPicker({ disabled }: { disabled?: boolean }) {
+  const api = requireApi()
+  const { settings, updateSettings } = useStore()
+  const pick = async () => {
+    const v = (await api.invoke('dialog:openMedia')).find((p) => /\.(mkv|mp4|mov|m4v|webm)$/i.test(p))
+    if (v) await updateSettings({ outroPath: v })
+  }
+  return (
+    <div className="col" style={{ gap: 4 }} data-testid="outro-picker">
+      <label className="check"><input type="checkbox" checked={settings.outroEnabled} onChange={(e) => void updateSettings({ outroEnabled: e.target.checked })} disabled={disabled} data-testid="outro-enabled" /> <b>Her yatay videonun sonuna YouTube outro (kapanış) videosunu ekle</b></label>
+      <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+        <span>Outro dosyası</span>
+        <input type="text" readOnly value={settings.outroPath} placeholder="Seçilmedi (uygulamayla gelen Berkalog outro kullanılır)" aria-label="Outro videosu" data-testid="outro-path" style={{ flex: 1, minWidth: 220 }} />
+        <button className="btn sm" onClick={() => void pick()} disabled={disabled} data-testid="outro-pick">Outro seç…</button>
+        <button className="btn sm" onClick={() => void api.invoke('outro:folder').then((d) => api.invoke('shell:reveal', d))} data-testid="outro-folder" title="Outro videonu bu klasöre bırakman yeterli (ayrıca seçmene gerek yok)">Kapanış klasörünü aç</button>
+        {settings.outroPath && <button className="btn sm" onClick={() => void updateSettings({ outroPath: '' })} disabled={disabled} data-testid="outro-clear">Kaldır</button>}
+      </div>
+      <div className="hint">Seçtiğin video, her yatay videonun SONUNA eklenir (ölçüsü ve sesi videoya uydurulur; ana video yeniden kodlanmaz). Seçmezsen, <b>kapanış klasörüne</b> bıraktığın ilk video kullanılır (klasörü yukarıdaki düğmeyle açarsın); o da yoksa uygulamayla gelen outro (Berkalog) kullanılır.</div>
+    </div>
+  )
+}
+
 const isMedia = (p: string) => /\.(mkv|mp4|mov|flv|m4v|webm|ts)$/i.test(p)
 
 /**
@@ -82,6 +108,7 @@ export function AutoYatayDialog() {
     <Modal title="Auto yatay video — Auto Kick bitince listene göre yatay kesitler" onClose={() => openDialog(null)} wide>
       <div className="col" data-testid="autoyatay-dialog" style={{ gap: 10 }}>
         <div className="infobox">Mantık <b>YouTube yatay video</b> ile aynı, ama <b>Auto Kick'e bağlı</b>: Auto Kick bitince <b>kesimli (sessizsiz) tam video buraya kendiliğinden gelir</b> ve <b>Auto Kick penceresine yapıştırdığınız zaman damgası listesine göre her satır ayrı bir yatay (16:9) MP4</b> olarak kesilir. Her kesitin yanına konuşma metni (<i>… - transkript.txt</i>) da yazılır. Liste yapıştırmadıysanız hiçbir şey kesilmez. Listeyi <b>kaydı seçmeden ÖNCE</b> Auto Kick penceresine yapıştırın. Çıktı: <i>AutoKick/&lt;kayıt&gt;/Yatay/</i>.</div>
+        <OutroPicker />
         <label className="check"><input type="checkbox" checked={settings.autoHorizontalAfterKick} onChange={(e) => void updateSettings({ autoHorizontalAfterKick: e.target.checked })} data-testid="autoyatay-after" /> Auto Kick bitince (liste verildiyse) yatay kesitleri kendiliğinden üret</label>
         <label className="check"><input type="checkbox" checked={settings.autoHorizontalCta} onChange={(e) => void updateSettings({ autoHorizontalCta: e.target.checked })} data-testid="autoyatay-cta" /> Her kesite YouTube abone butonunu ekle (her 50 saniyede bir, altta ortada)</label>
         {jobs.length === 0 && <div className="hint" data-testid="autoyatay-none">Henüz bir Auto yatay video işi yok. Auto Kick'i zaman damgası listesiyle başlatın; bitince burada görünür.</div>}

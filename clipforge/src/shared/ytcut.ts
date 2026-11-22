@@ -17,6 +17,8 @@ export interface YtCutRequest {
   cta?: boolean
   /** Kaynak zaten +kontrast/keskinlik uygulanmış (Auto Kick'in full videosu): ana süreç ayarı yeniden eklemez */
   noAdjust?: boolean
+  /** YouTube outro videosu: her kesitin sonuna eklenir (ana süreç ayardan doldurur); boş = eklenmez */
+  outroPath?: string
   /** Auto yatay video (Auto Kick'e bağlı): görev başlığı "Auto yatay video" olur */
   auto?: boolean
   /** Kaynak videonun zamanında transkript cümleleri: verilirse her kesitin yanına `<dosya> - transkript.txt` yazılır (kesit zamanına göre) */
@@ -34,6 +36,8 @@ export interface YtCutItem {
   error?: string
   /** Abone butonunun eklendiği saniyeler (kesit başından) */
   ctaAt?: number[]
+  /** Eklenen outro'nun süresi (sn); yoksa eklenmedi */
+  outroSec?: number
 }
 
 export interface YtCutResult {

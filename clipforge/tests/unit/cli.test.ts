@@ -40,7 +40,7 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
 `
   )
   chmodSync(fake, 0o755)
-  writeFileSync(join(ud, 'settings.json'), JSON.stringify({ whisperCppPath: fake, whisperModelDir: join(ud, 'models'), whisperModel: 'tiny', language: 'tr' }))
+  writeFileSync(join(ud, 'settings.json'), JSON.stringify({ whisperCppPath: fake, whisperModelDir: join(ud, 'models'), whisperModel: 'tiny', language: 'tr', outroEnabled: false }))
   const ffmpeg = require('ffmpeg-static') as string
   execFileSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=30:duration=40', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=40', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(tmp, 'video örnek.mp4')])
 }, 120_000)
@@ -968,6 +968,22 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     const plain = cli('yt-cut', src, '--list', join(tmp, 'cta-liste.txt'), '--out', join(tmp, 'CTA Butonsuz'), '--no-cta')
     expect(plain.items[0].ctaAt).toBeUndefined()
     expect(md5(plain.items[0].file)).not.toBe(md5(r.items[0].file))
+    // YouTube outro: her yatay kesitin SONUNA eklenir (kullanıcının kapanış videosu; ölçü/ses uydurulur)
+    const outro = join(tmp, 'outro-test.mp4')
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=25:duration=3', '-f', 'lavfi', '-i', 'sine=frequency=700:sample_rate=44100:duration=3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outro])
+    writeFileSync(join(tmp, 'cta-kisa.txt'), 'Kisa konu - 00:03:05 - 00:03:20\n')
+    const wo = cli('yt-cut', src, '--list', join(tmp, 'cta-kisa.txt'), '--out', join(tmp, 'Outro Çıktı'), '--no-cta', '--outro', outro)
+    expect(wo.ok, JSON.stringify(wo)).toBe(true)
+    expect(wo.warnings.join(' ')).not.toMatch(/outro/i)
+    const woDur = Number(probe(wo.items[0].file).format.duration)
+    expect(woDur).toBeGreaterThan(17.5) // 15 sn kesit + 3 sn outro
+    expect(woDur).toBeLessThan(18.8)
+    const so = cli('yt-cut', src, '--list', join(tmp, 'cta-kisa.txt'), '--out', join(tmp, 'Outrosuz Çıktı'), '--no-cta')
+    expect(Number(probe(so.items[0].file).format.duration)).toBeLessThan(15.6) // outro'suz: yalnızca kesit
+    // olmayan outro dosyası: kesit yine üretilir, uyarı yazılır
+    const miss = cli('yt-cut', src, '--list', join(tmp, 'cta-kisa.txt'), '--out', join(tmp, 'Outro Yok'), '--no-cta', '--outro', join(tmp, 'yok-outro.mp4'))
+    expect(miss.items[0].file).toBeTruthy()
+    expect(miss.warnings.join(' ')).toMatch(/Outro videosu bulunamadı/)
   }, 300_000)
 
   it('ideas --write: Claude Code\'un yazdığı klip önerileri kaydedilir, uygulamadaki Öneriler bunları gösterir; --auto kurallı bulucu; --clear siler; geçersiz öneri reddedilir', () => {

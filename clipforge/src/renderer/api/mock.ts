@@ -223,6 +223,7 @@ export function createMockApi(): ClipforgeApi {
       mockFixes.push({ from: r.from.trim(), to: r.to.trim() })
       return { replaced: 3 }
     },
+    'outro:folder': () => '/kullanici/ClipForge/kapanis',
     'clipfind:search': (r) => {
       if (!r.query.trim()) throw new Error('Ne aradığınızı yazın (ör. Okan Buruk kırmızı kart gördüğü yer).')
       if (/yokisim/i.test(r.query)) return { projectPath: r.projectPath, totalSec: 1800, candidates: [] }
