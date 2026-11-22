@@ -29,6 +29,8 @@ export interface AutoKickRequest {
   chapterMinSec?: number
   /** "YouTube dikey video": yalnızca transkript + sessiz kesim (tam video, zaman damgası, kalite raporu ve otomatik klip/yatay zinciri YOK); sonra transkriptten elle klip */
   manual?: boolean
+  /** `manual` işte bitince hangi pencere açılsın: Auto Clips (varsayılan) ya da "Klip çıkar" */
+  after?: 'autoclips' | 'clipfind'
 }
 
 export interface AutoKickStageState {

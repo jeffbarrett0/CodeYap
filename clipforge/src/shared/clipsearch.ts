@@ -1,7 +1,7 @@
 import { mentionedNames } from './chapters'
 import { hotWindows, refineClipBounds, sentenceEnergy, MAX_CLIP_SEC, MIN_CLIP_SEC, type AutoClipCandidate } from './autoclips'
 import { buildSegments } from './transcript/sentences'
-import { phoneticFold, tokenize } from './text'
+import { foldTr, phoneticFold, tokenize } from './text'
 import type { Segment, TranscriptWord } from './types'
 
 /**
@@ -120,4 +120,134 @@ export function findMentionClips(words: TranscriptWord[], query: string, opts: {
     }
   }
   return out.sort((x, y) => x.start - y.start).map((c, i) => ({ ...c, id: `m${i + 1}` }))
+}
+
+/* ───────────── "Klip çıkar": düz Türkçe açıklamadan an bulma ───────────── */
+
+/** Anlamsız/bağlaç sözcükler (arama açıklamasında yok sayılır) */
+const SCENE_STOP = new Set(['ve', 'ile', 'bir', 'bu', 'su', 'o', 'de', 'da', 'mi', 'mu', 'ki', 'icin', 'gibi', 'olan', 'yer', 'yeri', 'yerde', 'yerin', 'zaman', 'an', 'ani', 'kisim', 'kismi', 'bolum', 'bolumu', 'klip', 'klibi', 'cikar', 'bana', 'ben', 'sen', 'maci', 'macin', 'orada', 'surada', 'nokta', 'noktayi', 'bolge', 'sahne', 'sahneyi', 'ver'])
+
+/** Futbol olayları: tek kavram, birden çok söyleniş ("kırmızı kart" = atıldı = oyundan atıldı = ihraç …) */
+const SCENE_CONCEPTS: { re: RegExp; label: string; alts: string[] }[] = [
+  { re: /kirmizi\s*kart/, label: 'kırmızı kart', alts: ['kirmizi kart', 'kirmizi', 'atildi', 'atilmis', 'atilir', 'oyundan atil', 'oyundan at', 'ihrac'] },
+  { re: /sari\s*kart/, label: 'sarı kart', alts: ['sari kart', 'sari'] },
+  { re: /penalt/, label: 'penaltı', alts: ['penalt', '11 metre', 'on bir metre', 'beyaz nokta'] },
+  { re: /ofsayt/, label: 'ofsayt', alts: ['ofsayt', 'offside'] },
+  { re: /\bvar\b|video\s*yardimci/, label: 'VAR', alts: ['var ', ' var', 'video yardimci', 'var hakemi'] },
+  { re: /sakat/, label: 'sakatlık', alts: ['sakat', 'sakatlan', 'yerde kal'] },
+  { re: /degisiklik|oyuncu\s*degis/, label: 'oyuncu değişikliği', alts: ['degisiklik', 'oyuncu degis', 'oyundan cik', 'oyuna gir'] }
+]
+
+const foldPh = (s: string) => phoneticFold(foldTr(s))
+
+interface SceneGroup {
+  label: string
+  /** aranan kalıplar (katlanmış); kelime başı eşleşmesi, çok sözcüklüde alt dizi */
+  alts: string[]
+  /** 1 = zorunlu, 0.5 = yumuşak (fiil çekimi: "gördüğü") */
+  weight: number
+}
+
+/** Açıklamadan arama grupları: özel adlar (büyük harfli ardışık sözcükler) tek grup (herhangi biri yeter), olaylar tek kavram, kalan sözcükler ayrı grup */
+export function sceneGroups(query: string): SceneGroup[] {
+  const groups: SceneGroup[] = []
+  const folded = foldTr(query)
+  let rest = query
+  // 1) olay kavramları
+  for (const c of SCENE_CONCEPTS) {
+    if (c.re.test(folded)) {
+      groups.push({ label: c.label, alts: c.alts.map(foldPh), weight: 1 })
+      // kavramı oluşturan sözcükleri açıklamadan çıkar (aynı sözcük ikinci kez ayrı grup olmasın)
+      const m = c.re.exec(folded)
+      if (m) rest = (query.slice(0, m.index) + ' ' + query.slice(m.index + m[0].length)).trim()
+    }
+  }
+  // 2) kalan sözcükler: ardışık büyük harfliler = ad grubu
+  const words = rest.split(/[\s,;]+/).map((w) => w.replace(/['’].*$/, '').replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean)
+  let name: string[] = []
+  const flush = () => {
+    if (name.length) groups.push({ label: name.join(' '), alts: name.map((n) => foldPh(n).slice(0, Math.max(4, foldPh(n).length - 1))), weight: 1 })
+    name = []
+  }
+  words.forEach((w, i) => {
+    const f = foldTr(w)
+    const upper = w[0] !== w[0].toLocaleLowerCase('tr-TR') && (i > 0 || words.length === 1 || /^\p{Lu}/u.test(words[1] ?? ''))
+    if (SCENE_STOP.has(f) || f.length < 2) return flush()
+    if (upper) return void name.push(w)
+    flush()
+    const p = foldPh(w)
+    const soft = /(digi|dugu|tigi|tugu)$/.test(p)
+    groups.push({ label: w, alts: [p.slice(0, Math.max(4, Math.min(p.length, soft ? 4 : 5)))], weight: soft ? 0.5 : 1 })
+  })
+  flush()
+  return groups
+}
+
+export interface SceneCandidate {
+  start: number
+  end: number
+  /** 0..1: aranan kavramların ne kadarı bu pencerede geçiyor */
+  score: number
+  matched: string[]
+  missing: string[]
+  /** eşleşen cümlelerden kısa alıntı */
+  text: string
+}
+
+/**
+ * Açıklamadaki kavramların (kim + ne oldu) BİRLİKTE geçtiği yerler: kayan pencere (≤45 sn), zorunlu kavramların kapsamı + yoğunluk.
+ * Başlangıç ilk eşleşen cümlenin biraz öncesi, bitiş son eşleşen cümlenin biraz sonrası: kullanıcı zaten ince ayar yapar. Konuşma yoksa bulunamaz (görüntüye bakılmaz).
+ */
+export function findSceneClips(words: TranscriptWord[], query: string, opts: { windowSec?: number; max?: number } = {}): SceneCandidate[] {
+  const groups = sceneGroups(query)
+  if (groups.length === 0 || words.length === 0) return []
+  const segs = buildSegments(words)
+  const folded = segs.map((g) => ` ${foldPh(g.text)} `)
+  const hit = (gi: number, si: number): boolean => groups[gi].alts.some((a) => (a.includes(' ') ? folded[si].includes(a) : folded[si].includes(` ${a}`)))
+  const total = groups.reduce((n, g) => n + g.weight, 0)
+  const windowSec = opts.windowSec ?? 45
+  type Win = { a: number; b: number; cover: number; hits: number; matched: number[] }
+  const wins: Win[] = []
+  for (let a = 0; a < segs.length; a++) {
+    const got = new Set<number>()
+    let hits = 0
+    for (let b = a; b < segs.length && segs[b].end - segs[a].start <= windowSec; b++) {
+      let any = false
+      for (let gi = 0; gi < groups.length; gi++) if (hit(gi, b)) (got.add(gi), (hits += 1), (any = true))
+      if (!any) continue
+      const cover = [...got].reduce((n, gi) => n + groups[gi].weight, 0) / total
+      wins.push({ a, b, cover, hits, matched: [...got] })
+    }
+  }
+  const need = groups.length === 1 ? 1 : 0.6
+  const good = wins.filter((w) => w.cover >= need - 1e-9)
+  // en iyi: kapsam yüksek, sonra dar pencere, sonra çok isabet
+  good.sort((x, y) => y.cover - x.cover || segs[x.b].end - segs[x.a].start - (segs[y.b].end - segs[y.a].start) || y.hits - x.hits)
+  const out: SceneCandidate[] = []
+  const max = opts.max ?? 8
+  for (const w of good) {
+    if (out.length >= max) break
+    const start = segs[w.a].start
+    const end = segs[w.b].end
+    if (out.some((o) => !(end < o.start - 20 || start > o.end + 20))) continue // yakın/örtüşen aday yok
+    // pencereyi sıkılaştır: ilk ve son EŞLEŞEN cümle
+    let a = w.a
+    let b = w.b
+    while (a < b && !groups.some((_, gi) => hit(gi, a))) a++
+    while (b > a && !groups.some((_, gi) => hit(gi, b))) b--
+    const prev = segs[a - 1]?.end ?? 0
+    const next = segs[b + 1]?.start ?? segs[b].end + 6
+    const s0 = Math.max(prev + 0.1, segs[a].start - 3, 0)
+    const e0 = Math.min(next - 0.1, segs[b].end + 5)
+    const snippet = segs.slice(a, b + 1).filter((_, i) => groups.some((__, gi) => hit(gi, a + i))).map((g) => g.text).join(' ')
+    out.push({
+      start: Math.round(s0 * 10) / 10,
+      end: Math.round(Math.max(e0, s0 + 3) * 10) / 10,
+      score: Math.round(w.cover * 100) / 100,
+      matched: w.matched.map((gi) => groups[gi].label),
+      missing: groups.map((g, gi) => (w.matched.includes(gi) ? '' : g.label)).filter(Boolean),
+      text: clipText(snippet, 260)
+    })
+  }
+  return out.sort((x, y) => y.score - x.score || x.start - y.start)
 }

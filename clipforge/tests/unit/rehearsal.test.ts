@@ -123,6 +123,31 @@ describe('yayın senaryosu: Auto Kick → yatay videolar → dikey klipler', () 
       expect(Math.abs(c.start - r.chapterRanges[i].start)).toBeLessThan(0.01)
       expect(Math.abs(c.end - r.chapterRanges[i].end)).toBeLessThan(0.01)
     })
+    // 5) KLİP ÇIKAR: açıklamayla an bul → ince ayar (başı/sonu elle) → TEK klip, dikey + yatay
+    const { clipFindSearch } = await import('../../src/main/autoclips/pipeline')
+    const found = await clipFindSearch(r.projectPath, 'Lemina orta sahada oynadı', env)
+    expect(found.candidates.length).toBeGreaterThanOrEqual(1)
+    const best = found.candidates[0]
+    expect(best.matched.join(' ')).toMatch(/Lemina/i)
+    await expect(clipFindSearch(r.projectPath, 'Mourinho kırmızı kart', env)).resolves.toMatchObject({ candidates: [] }) // konuşulmayan: bulunmaz
+    const a = Math.max(0, Math.round((best.start - 0.5) * 10) / 10) // kullanıcı ince ayar: başı 0,5 sn öne
+    const b = Math.min(found.totalSec, Math.round((best.end + 0.5) * 10) / 10)
+    const ac2 = new AutoClipsManager(env, () => undefined)
+    ac2.start({ projectPath: r.projectPath, ranges: [{ start: a, end: b, title: 'Lemina anı' }], exact: true, exportVideos: true })
+    ac2.start({ projectPath: r.projectPath, ranges: [{ start: a, end: b, title: 'Lemina anı' }], exact: true, exportVideos: true, horizontal: true })
+    await until(() => ac2.list().length === 2 && ac2.list().every((j) => j.status === 'done' || j.status === 'failed'))
+    const [vj, hj] = ac2.list()
+    expect(vj.status, vj.error).toBe('done')
+    expect(hj.status, hj.error).toBe('done')
+    for (const j of [vj, hj]) {
+      expect(j.result!.clips.length).toBe(1) // TEK klip
+      expect(j.result!.clips[0].error).toBeUndefined()
+      expect(j.result!.clips[0].start).toBe(a)
+      expect(j.result!.clips[0].end).toBe(b)
+      expect(Math.abs(dur(j.result!.clips[0].videoPath!) - (b - a))).toBeLessThan(0.4)
+    }
+    expect(dims(vj.result!.clips[0].videoPath!)).toEqual({ width: 1080, height: 1920 })
+    expect(dims(hj.result!.clips[0].videoPath!)).toEqual({ width: 1920, height: 1080 }) // yatay: normal video
     expect(readFileSync(join(dir, 'Auto Kick günlüğü.txt'), 'utf8')).toMatch(/Auto Kick TAMAMLANDI/)
   }, 300_000)
 })

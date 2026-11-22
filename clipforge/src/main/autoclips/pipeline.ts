@@ -14,7 +14,7 @@ import { timelineWords } from '../../shared/timeline/transcript'
 import type { Clip } from '../../shared/types'
 import { resolveProjectPath } from '../autokick/clips'
 import { addYoutubeCta } from './cta'
-import { findMentionClips, mentionSuggestions, transcriptLines, type MentionSuggestion, type TranscriptLine } from '../../shared/clipsearch'
+import { findMentionClips, findSceneClips, mentionSuggestions, transcriptLines, type MentionSuggestion, type SceneCandidate, type TranscriptLine } from '../../shared/clipsearch'
 
 type Env = { userDataDir?: string; resourcesDir?: string }
 
@@ -92,6 +92,16 @@ export async function autoClipFixWord(projectPath: string, from: string, to: str
   if (index < 0) throw new Error(`“${from.trim()}” transkriptte bulunamadı (yazımı farklı olabilir; transkriptte arayıp tam yazımı girin).`)
   const r = await s.service.transcriptFix({ assetId: asset.id, index, text: to.trim(), all: true, remember: false })
   return { replaced: r.replaced }
+}
+
+/** "Klip çıkar": düz Türkçe açıklamadan (ör. "Okan Buruk'un kırmızı kart gördüğü yer") an adayları; konuşma yoksa bulunamaz. Projeyi değiştirmez. */
+export async function clipFindSearch(projectPath: string, query: string, env: Env = {}): Promise<{ candidates: SceneCandidate[]; projectPath: string; totalSec: number }> {
+  if (!query.trim()) throw new Error('Ne aradığınızı yazın (ör. Okan Buruk kırmızı kart gördüğü yer).')
+  const path = await resolveProjectPath(projectPath)
+  const s = await Session.open(path, await makeService(env))
+  const words = timelineWords(s.timeline, s.transcripts)
+  if (words.length === 0) throw await noTranscriptError(s)
+  return { candidates: findSceneClips(words, query), projectPath: path, totalSec: timelineDuration(s.timeline) }
 }
 
 /** Kullanıcının yazdığı isim(ler)in geçtiği yerlerden DİKEY klip adayları (konu tahmini yok). */

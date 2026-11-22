@@ -7,7 +7,7 @@ import { userMessage } from './tasks'
 import { setCpuMode } from './ffmpeg'
 import { AutoKickManager, autoKickPaths } from './autokick/pipeline'
 import { StoryManager } from './story/pipeline'
-import { autoClipCandidates, autoClipEnsureTranscript, autoClipFixWord, autoClipSearch, autoClipTranscript, makeAutoClip } from './autoclips/pipeline'
+import { autoClipCandidates, autoClipEnsureTranscript, clipFindSearch, autoClipFixWord, autoClipSearch, autoClipTranscript, makeAutoClip } from './autoclips/pipeline'
 import { AutoClipsManager, chainAutoClips, exportClipProject } from './autoclips/run'
 import { chainAutoHorizontal } from './autokick/horizontal'
 import { createAutoRetry } from './autokick/retry'
@@ -64,6 +64,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       if (lines.length) await app.settings.update({ vocabulary: [cur.trim(), ...lines].filter(Boolean).join('\n') })
       return out
     },
+    'clipfind:search': (r) => clipFindSearch(r.projectPath, r.query, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:search': (r) => autoClipSearch(r.projectPath, r.query, { ...(r.maxSec ? { maxSec: r.maxSec } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),
     'autoclips:make': async (r) => {
       const out = []

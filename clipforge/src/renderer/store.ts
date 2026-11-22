@@ -29,7 +29,7 @@ import { denoiseKey, denoiseReady } from './preview/denoiseState'
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
 const waveRequested = new Set<string>()
 
-export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer' | 'reference' | 'sportplus' | 'ytcut' | 'ytdikey' | 'autoyatay'
+export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer' | 'reference' | 'sportplus' | 'ytcut' | 'ytdikey' | 'autoyatay' | 'klipcikar'
 
 export interface Toast {
   id: string
@@ -169,6 +169,8 @@ interface State {
   autoClipsProject: string
   /** "YouTube dikey video": projeden klipler otomatik üretilmez; transkript açılır, kullanıcı seçer */
   autoClipsManual: boolean
+  /** "Klip çıkar" penceresinin projesi (Auto Kick manuel iş bitince) */
+  clipFindProject: string
   ytcutResults: Record<string, import('@shared/ytcut').YtCutResult>
   /** Otomatik zincirle (Auto Kick sonrası) çalışan/biten Auto Clips işleri */
   autoClipsJobs: Record<string, AutoClipsStatus>
@@ -360,6 +362,7 @@ export const useStore = create<State>()((set, get) => {
     story: {},
     autoClipsProject: '',
     autoClipsManual: false,
+    clipFindProject: '',
     ytcutResults: {},
     autoClipsJobs: {},
     setAutoClipsProject: (p) => set({ autoClipsProject: p }),
@@ -409,7 +412,12 @@ export const useStore = create<State>()((set, get) => {
       const handOff = (j: AutoKickStatus, openWindow: boolean) => {
         if (j.status !== 'done' || handedOff.has(j.id)) return
         handedOff.add(j.id)
-        get().toast('success', `Auto Kick tamamlandı: ${j.videoName}. Video Auto Clips'e devredildi.`)
+        get().toast('success', j.request.after === 'clipfind' ? `Hazır: ${j.videoName}. “Klip çıkar” penceresinde ne aradığını yazabilirsin.` : `Auto Kick tamamlandı: ${j.videoName}. Video Auto Clips'e devredildi.`)
+        if (j.request.after === 'clipfind') {
+          if (j.result?.projectPath) set({ clipFindProject: j.result.projectPath })
+          if (openWindow) set({ dialog: 'klipcikar' })
+          return
+        }
         if (j.result?.projectPath) set({ autoClipsProject: j.result.projectPath, autoClipsManual: !!j.request.manual })
         if (openWindow) set({ dialog: 'autoclips' })
       }

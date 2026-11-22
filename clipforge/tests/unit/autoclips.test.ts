@@ -493,3 +493,44 @@ describe('Auto yatay video / YouTube dikey video zinciri', () => {
     expect(await chainAutoHorizontal({ id: 'e', status: 'done', request: { manual: true }, result: res }, new Set(), on, yt, (m) => logs.push(m))).toBeNull()
   })
 })
+
+describe('Klip çıkar: açıklamadan an bulma (kim + ne oldu birlikte)', () => {
+  const T = (t: number, s: string): TranscriptWord[] => s.split(' ').map((w, i) => ({ text: w, start: t + i * 0.4, end: t + i * 0.4 + 0.35, confidence: 1 }))
+  const words: TranscriptWord[] = [
+    ...T(5, 'Maça başlarken Okan Buruk çok sakin görünüyordu.'),
+    ...T(40, 'Penaltı kararı verildi ve herkes itiraz etti.'),
+    ...T(300, 'Sonra Okan Buruk kenarda hakemle tartıştı ve arkasından kırmızı kart gördü.'),
+    ...T(306, 'Oyundan atıldı yani teknik direktör tribüne gönderildi.'),
+    ...T(500, 'Kırmızı kart pozisyonu Samsunspor oyuncusunda oldu.'),
+    ...T(800, 'Skor bu şekilde bitti ve herkes mutlu ayrıldı.')
+  ]
+  it('açıklamayı gruplara ayırır: ad tek grup, olay tek kavram, yumuşak fiil', async () => {
+    const { sceneGroups } = await import('@shared/clipsearch')
+    const g = sceneGroups("Okan Buruk'un kırmızı kart gördüğü yer")
+    expect(g.map((x) => x.label)).toEqual(['kırmızı kart', 'Okan Buruk', 'gördüğü'])
+    expect(g[2].weight).toBe(0.5)
+    expect(sceneGroups('Osimhen gol attı').some((x) => x.label === 'Osimhen')).toBe(true)
+  })
+  it('"Okan Buruk kırmızı kart" → ikisinin BİRLİKTE geçtiği an en üstte; yalnız biri geçen yerler altta ya da yok', async () => {
+    const { findSceneClips } = await import('@shared/clipsearch')
+    const c = findSceneClips(words, "Okan Buruk'un kırmızı kart gördüğü yer")
+    expect(c.length).toBeGreaterThanOrEqual(1)
+    expect(c[0].start).toBeGreaterThan(290)
+    expect(c[0].start).toBeLessThan(310)
+    expect(c[0].end).toBeGreaterThan(c[0].start + 5)
+    expect(c[0].score).toBeGreaterThan(0.9)
+    expect(c[0].matched).toEqual(expect.arrayContaining(['kırmızı kart', 'Okan Buruk']))
+    expect(c[0].text).toMatch(/kırmızı kart/i)
+    // 500. sn'de yalnızca "kırmızı kart" var (Okan Buruk yok): daha düşük puanlı ya da elenir
+    const alone = c.find((x) => x.start > 450 && x.start < 520)
+    if (alone) expect(alone.score).toBeLessThan(c[0].score)
+  })
+  it('eş anlamlı söyleniş: "atıldı" kırmızı kart sayılır; hiç geçmeyen konu → boş (konuşma yoksa bulunmaz)', async () => {
+    const { findSceneClips } = await import('@shared/clipsearch')
+    const w2 = [...T(10, 'Okan Buruk hakemle konuştu ve oyundan atıldı kenardan.'), ...T(100, 'Başka bir konuya geçelim.')]
+    expect(findSceneClips(w2, 'Okan Buruk kırmızı kart')[0]?.start).toBeLessThan(12)
+    expect(findSceneClips(words, 'Mourinho sakatlandı')).toEqual([])
+    expect(findSceneClips(words, '')).toEqual([])
+    expect(findSceneClips([], 'Okan Buruk')).toEqual([])
+  })
+})

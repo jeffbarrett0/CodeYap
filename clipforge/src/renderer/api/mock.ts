@@ -223,6 +223,18 @@ export function createMockApi(): ClipforgeApi {
       mockFixes.push({ from: r.from.trim(), to: r.to.trim() })
       return { replaced: 3 }
     },
+    'clipfind:search': (r) => {
+      if (!r.query.trim()) throw new Error('Ne aradığınızı yazın (ör. Okan Buruk kırmızı kart gördüğü yer).')
+      if (/yokisim/i.test(r.query)) return { projectPath: r.projectPath, totalSec: 1800, candidates: [] }
+      return {
+        projectPath: r.projectPath,
+        totalSec: 1800,
+        candidates: [
+          { start: 1196.5, end: 1243.5, score: 1, matched: ['Okan Buruk', 'kırmızı kart'], missing: [], text: 'Okan Buruk hakemle tartıştı ve arkasından kırmızı kart gördü.' },
+          { start: 1296, end: 1322, score: 0.67, matched: ['kırmızı kart'], missing: ['Okan Buruk'], text: 'Osman çok iyi bitirdi, kırmızı kart pozisyonu.' }
+        ]
+      }
+    },
     'autoclips:search': (r) => {
       if (!r.query.trim()) throw new Error('Aranacak bir isim yazın (ör. Osimhen).')
       if (/yokisim/i.test(r.query)) return { projectPath: r.projectPath, candidates: [] }
