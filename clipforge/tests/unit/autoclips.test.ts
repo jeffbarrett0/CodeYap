@@ -482,7 +482,7 @@ describe('Auto yatay video / YouTube dikey video zinciri', () => {
     const res = { outDir: '/x/AutoKick/k', projectPath: '/yok/yok.clipforge', fullVideoPath: '/x/AutoKick/k/k - full.mp4', chapterRanges: [{ start: 60, end: 300, title: 'Leo' }] }
     const on = { autoHorizontalAfterKick: true, autoHorizontalCta: false }
     expect(await chainAutoHorizontal({ id: 'a', status: 'done', result: res }, new Set(), on, yt, (m) => logs.push(m))).toBe('t1')
-    expect(reqs[0]).toMatchObject({ videoPath: res.fullVideoPath, list: '00:01:00 - 00:05:00 Leo', noAdjust: true, auto: true, cta: false })
+    expect(reqs[0]).toMatchObject({ videoPath: res.fullVideoPath, list: '00:01:00 - 00:05:00 Leo', ranges: res.chapterRanges, noAdjust: true, auto: true, cta: false })
     expect(reqs[0].outDir.replace(/\\/g, '/')).toBe('/x/AutoKick/k/Yatay')
     const seen = new Set<string>()
     await chainAutoHorizontal({ id: 'b', status: 'done', result: res }, seen, on, yt, (m) => logs.push(m))

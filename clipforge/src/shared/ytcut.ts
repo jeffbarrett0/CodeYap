@@ -5,6 +5,8 @@ export interface YtCutRequest {
   videoPath: string
   /** Zaman damgası listesi metni ("00:34:00 - Leo", "00:41:00 - 00:45:00 Deniz Gül") */
   list: string
+  /** TAM saniyeli aralıklar (Auto yatay video): verilirse `list` metni okunmaz; saniye yuvarlaması olmaz (metne çevirmek başı/sonu 1 sn oynatırdı) */
+  ranges?: { start: number; end: number; title: string }[]
   /** Çıkış klasörü; boşsa kaydın yanında `YouTube Yatay/<kayıt adı>/` */
   outDir?: string
   /** fast: hızlı kodlama (varsayılan); high: daha yavaş, daha küçük/iyi sıkıştırma */

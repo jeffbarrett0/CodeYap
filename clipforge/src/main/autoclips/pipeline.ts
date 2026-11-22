@@ -105,7 +105,7 @@ export async function autoClipSearch(projectPath: string, query: string, opts: {
 
 /**
  * Kullanıcının hazır bölüm listesi için DİKEY klip adayları: her listelenen aralığın İÇİNDE en güçlü (konusu bütün) en çok 2 dk 58 sn'lik parça seçilir;
- * aday adı = listedeki başlık. Aralık 20 sn'den kısaysa ya da konu bulunamazsa aralığın başından başlayan parça alınır. Zamanlar ÇİZELGE zamanıdır.
+ * aday adı = listedeki başlık. Aralık klip süresine (178 sn) sığıyorsa KULLANICININ zamanları aynen alınır; uzunsa içinden en güçlü parça seçilir; konu bulunamazsa aralığın başından başlayan parça alınır. Zamanlar ÇİZELGE zamanıdır.
  */
 export async function autoClipCandidatesForRanges(projectPath: string, ranges: { start: number; end: number; title: string }[], opts: Partial<AutoClipOptions> = {}, env: Env = {}): Promise<{ candidates: AutoClipCandidate[]; projectPath: string }> {
   const path = await resolveProjectPath(projectPath)
@@ -117,7 +117,9 @@ export async function autoClipCandidatesForRanges(projectPath: string, ranges: {
   for (const [i, r] of ranges.entries()) {
     const end = Math.min(r.end, total)
     const inside = words.filter((w) => w.start >= r.start - 0.01 && w.end <= end + 0.01)
-    let pick = inside.length >= 20 ? findAutoClips(inside, { ...opts, max: 8, maxSec })
+    const whole = end - r.start <= maxSec + 0.5 && end - r.start >= 3
+    // aralık klip süresine sığıyorsa KULLANICININ verdiği zamanlar aynen alınır (klip listedeki başlangıçtan başlar, bitişte biter); uzunsa içinden en güçlü parça
+    let pick = whole ? { id: `r${i + 1}`, start: r.start, end, durationSec: end - r.start, subject: r.title, headline: r.title, summary: '', score: 1 } as AutoClipCandidate : inside.length >= 20 ? findAutoClips(inside, { ...opts, max: 8, maxSec })
       .filter((c) => c.start >= r.start - 0.5 && c.end <= end + 0.5)
       .sort((a, b) => b.score - a.score)[0] : undefined
     if (!pick) {

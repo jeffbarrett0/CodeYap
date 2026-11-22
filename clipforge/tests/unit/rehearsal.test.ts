@@ -91,6 +91,13 @@ describe('yayın senaryosu: Auto Kick → yatay videolar → dikey klipler', () 
     expect(await chainAutoHorizontal(done, new Set(), { autoHorizontalAfterKick: true, autoHorizontalCta: false }, (q) => ((ytReq = q), 'y1'), (m) => logs.push(m), env)).toBe('y1')
     const yt = await runYtCut(ytReq, (await makeService(env)).tools, {})
     expect(yt.items.map((i) => i.title)).toEqual(['Osimhen', 'Lemina', 'Zaha'])
+    // ZAMAN DOĞRULUĞU: kesit süresi, çevrilen aralığın TAM süresi (saniyeye yuvarlanıp konuşma kırpılmaz)
+    yt.items.forEach((it, i) => {
+      const rg = r.chapterRanges[i]
+      expect(Math.abs(it.start - rg.start)).toBeLessThan(0.001)
+      expect(Math.abs(it.end - rg.end)).toBeLessThan(0.001)
+      expect(Math.abs(dur(it.path!) - (rg.end - rg.start))).toBeLessThan(0.3)
+    })
     for (const it of yt.items) {
       expect(it.error).toBeUndefined()
       expect(existsSync(it.path!)).toBe(true)
@@ -111,6 +118,11 @@ describe('yayın senaryosu: Auto Kick → yatay videolar → dikey klipler', () 
       expect(dims(c.videoPath!)).toEqual({ width: 1080, height: 1920 })
     }
     expect(job.result!.clips.map((c) => c.subject)).toEqual(['Osimhen', 'Lemina', 'Zaha'])
+    // dikey klip de VERİLEN zamanlarda başlar/biter (aralık klip süresine sığıyorsa içinden "en güçlü parça" seçilmez)
+    job.result!.clips.forEach((c, i) => {
+      expect(Math.abs(c.start - r.chapterRanges[i].start)).toBeLessThan(0.01)
+      expect(Math.abs(c.end - r.chapterRanges[i].end)).toBeLessThan(0.01)
+    })
     expect(readFileSync(join(dir, 'Auto Kick günlüğü.txt'), 'utf8')).toMatch(/Auto Kick TAMAMLANDI/)
   }, 300_000)
 })

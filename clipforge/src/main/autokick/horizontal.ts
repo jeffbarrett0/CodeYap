@@ -33,7 +33,7 @@ export async function chainAutoHorizontal(
   } catch (e) {
     log(`Auto yatay video: konuşma metni okunamadı (${e instanceof Error ? e.message : String(e)}); kesitler metinsiz üretilecek`)
   }
-  const id = ytStart({ videoPath: s.result.fullVideoPath, list: chapterRangesToList(ranges), outDir: join(s.result.outDir, 'Yatay'), cta: settings.autoHorizontalCta, noAdjust: true, auto: true, ...(lines?.length ? { transcriptLines: lines } : {}) })
+  const id = ytStart({ videoPath: s.result.fullVideoPath, list: chapterRangesToList(ranges), ranges, outDir: join(s.result.outDir, 'Yatay'), cta: settings.autoHorizontalCta, noAdjust: true, auto: true, ...(lines?.length ? { transcriptLines: lines } : {}) })
   log(`Auto yatay video: BAŞLATILDI · ${ranges.length} kesit`)
   return id
 }

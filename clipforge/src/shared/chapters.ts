@@ -477,7 +477,7 @@ export function mapChapterList(list: ListedChapter[], kept: KeptRange[], totalSe
 /** Klip aralıkları: bitiş verilmişse o, yoksa sonraki bölümün başı (son bölüm: video sonu). "Giriş" ve `minSec`'ten kısa olanlar klip olmaz. */
 /** Kesim sonrası aralıklar → "00:03:00 - 00:09:00 Başlık" satırları (YouTube yatay video kesicisinin okuduğu biçim) */
 export const chapterRangesToList = (r: { start: number; end: number; title: string }[]): string =>
-  r.map((x) => `${chapterTimestamp(Math.floor(x.start)).padStart(8, '0')} - ${chapterTimestamp(Math.floor(x.end)).padStart(8, '0')} ${x.title}`).join('\n')
+  r.map((x) => `${chapterTimestamp(Math.floor(x.start))} - ${chapterTimestamp(Math.ceil(x.end))} ${x.title}`).join('\n')
 
 export function chapterClipRanges(chapters: ListedChapter[], totalSec: number, minSec = 10): { start: number; end: number; title: string }[] {
   return chapters

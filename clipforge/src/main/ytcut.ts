@@ -79,7 +79,7 @@ export async function runYtCut(req: YtCutRequest, tools: MediaTools, hooks: { si
   } catch {
     throw new Error(`Dosya bulunamadı: ${req.videoPath}`)
   }
-  const list = parseChapterList(req.list)
+  const list = req.ranges?.length ? req.ranges.map((r) => ({ start: r.start, end: r.end, title: r.title })) : parseChapterList(req.list)
   if (list.length === 0) throw new Error('Zaman damgası listesi boş ya da okunamadı. Örnek: "00:34:00 - Leo" ya da "00:03:00 - 00:09:00 Noah Lang".')
   const probe = (await ffprobeJson(tools.ffprobe, req.videoPath, hooks.signal)) as { streams?: { codec_type: string }[]; format?: { duration?: string } }
   const videoSec = Number(probe.format?.duration) || 0
