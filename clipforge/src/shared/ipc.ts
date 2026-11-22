@@ -178,6 +178,10 @@ export interface IpcInvoke {
   'autoclips:transcript': [[{ projectPath: string }], { lines: { start: number; end: number; text: string }[]; suggestions: { name: string; count: number; firstAt: number; talkSec: number }[]; totalSec: number; projectPath: string }]
   'autoclips:transcribe': [[{ projectPath: string }], { words: number; sentences: number; already: boolean }]
   'autoclips:fix': [[{ projectPath: string; from: string; to: string }], { replaced: number }]
+  /** SportDeoPlus (yenilendi): MP4'ten yalnızca üst yüz alanı kalır (şerit + ekran silinir). Önizleme: orijinal kare (kesim çizgisi) + çıkacak görüntü */
+  'facetrim:preview': [[{ videoPath: string; faceShare: number; stripCut: boolean; shape: import('./facetrim').FaceTrimShape }], { original: string; result: string; srcW: number; srcH: number; outW: number; outH: number; durationSec: number; hasAudio: boolean }]
+  /** MP4 olarak kaydet (görev kuyruğu; bitince 'facetrim:done') */
+  'facetrim:start': [[{ videoPath: string; faceShare: number; stripCut: boolean; shape: import('./facetrim').FaceTrimShape }], string]
   /** Kapanış (outro) klasörünün yolu (yoksa oluşturur): kullanıcı outro videosunu buraya bırakır */
   'outro:folder': [[], string]
   'clipfind:search': [[{ projectPath: string; query: string }], { candidates: import('./clipsearch').SceneCandidate[]; projectPath: string; totalSec: number }]
@@ -202,6 +206,7 @@ export interface IpcEvents {
   'transcript:ready': { assetId: string; transcript: Transcript; reused: boolean }
   'suggest:ready': { assetId: string; candidates: ClipCandidate[] }
   'ytcut:done': { taskId: string; result: YtCutResult }
+  'facetrim:done': { taskId: string; outputPath: string; width: number; height: number; durationSec: number }
   'export:done': { taskId: string; outputPath: string; warnings?: string[]; timestampsPath?: string }
   'menu:command': 'open' | 'save' | 'saveAs' | 'import' | 'export'
 }

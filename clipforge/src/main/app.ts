@@ -30,6 +30,8 @@ import { builtinAliases, builtinGlossary } from './transcribe/glossary'
 import { TEAMS } from '../shared/story/teams'
 import { appendRunLog } from './runlog'
 import { resolveOutro } from './outro'
+import { previewFaceTrim, runFaceTrim } from './facetrim'
+import type { FaceTrimShape } from '../shared/facetrim'
 import { applyVocabulary, buildPrompt, fixWord, parseAliases, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
 import { createProvider, whisperModelFile } from './transcribe/providers'
 import { findVideoIdeas, type IdeasResult } from '../shared/ideas'
@@ -490,6 +492,24 @@ export class AppService {
         }
         if (logDir) void appendRunLog(logDir, `Auto yatay video TAMAMLANDI: ${result.items.filter((i) => i.path).length}/${result.items.length} kesit${result.items.some((i) => i.error) ? ' · HATALAR: ' + result.items.filter((i) => i.error).map((i) => `${i.title}: ${i.error}`).join(' | ') : ''} → ${result.dir}`)
         this.deps.emit('ytcut:done', { taskId: ctx.id, result })
+      }
+    }).id
+  }
+
+  /** SportDeoPlus: önizleme (dosyaya dokunmaz) */
+  async faceTrimPreview(req: { videoPath: string; faceShare: number; stripCut: boolean; shape: FaceTrimShape }) {
+    const r = await previewFaceTrim(req.videoPath, req, this.tools)
+    return { original: r.original, result: r.result, srcW: r.probe.width, srcH: r.probe.height, outW: r.geometry.outW, outH: r.geometry.outH, durationSec: r.probe.durationSec, hasAudio: r.probe.hasAudio }
+  }
+
+  /** SportDeoPlus: MP4'ten yalnızca yüz alanını kaydeder */
+  faceTrimStart(req: { videoPath: string; faceShare: number; stripCut: boolean; shape: FaceTrimShape }): string {
+    return this.queue.add({
+      kind: 'ytcut',
+      title: `SportDeoPlus: ${basename(req.videoPath)}`,
+      run: async (ctx) => {
+        const r = await runFaceTrim(req.videoPath, req, this.tools, { signal: ctx.signal, progress: ctx.progress })
+        this.deps.emit('facetrim:done', { taskId: ctx.id, ...r })
       }
     }).id
   }

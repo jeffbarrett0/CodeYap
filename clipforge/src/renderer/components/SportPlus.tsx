@@ -1,108 +1,119 @@
-import { useState } from 'react'
-import type { TopicCandidate } from '@shared/topic'
-import { FACE_ONLY_SHAPES, type FaceOnlyShape } from '@shared/autoclips'
+import { useEffect, useState } from 'react'
+import { FACE_TRIM_DEFAULT, FACE_TRIM_SHAPES, type FaceTrimShape } from '@shared/facetrim'
 import { requireApi } from '../api'
 import { useStore } from '../store'
-import { Field, Modal, Num } from './ui'
-
-const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+import { Modal, Num, Progress } from './ui'
 
 /**
- * Sport diyor Plus: yayından konuşulan konunun (ör. Osimhen) ~40 sn'lik kesiti; ekran YOK, yalnızca yüz tüm kareyi doldurur.
- * Auto Kick projesinden konu bulunur → aday seçilir → ayrı klip projesi (+ MP4) üretilir.
+ * SportDeoPlus (yenilendi): bir DİKEY MP4 ver (yukarıda yüzün, ortada sosyal medyaların, aşağıda ekran görüntüsü). Ortadaki şerit ve alttaki ekran
+ * silinir, yalnızca üstteki yüz alanı kalır ve MP4 olarak kaydedilir. Kesim çizgisi önizlemede görünür; gerekirse yüz alanı yüksekliğini ayarlarsın.
  */
 export function SportPlusDialog() {
   const api = requireApi()
-  const openDialog = useStore((s) => s.openDialog)
-  const openProject = useStore((s) => s.openProject)
-  const [project, setProject] = useState('')
-  const [topic, setTopic] = useState('')
-  const [maxSec, setMaxSec] = useState(45)
-  const [shape, setShape] = useState<FaceOnlyShape>('vertical')
-  const [captions, setCaptions] = useState(true)
-  const [exportVideo, setExportVideo] = useState(true)
-  const [cands, setCands] = useState<TopicCandidate[] | null>(null)
-  const [made, setMade] = useState<Record<string, { project: string; video?: string }>>({})
-  const [busy, setBusy] = useState('')
+  const { openDialog, tasks, faceTrimResults } = useStore()
+  const [video, setVideo] = useState('')
+  const [share, setShare] = useState(Math.round(FACE_TRIM_DEFAULT.faceShare * 1000) / 10)
+  const [strip, setStrip] = useState(FACE_TRIM_DEFAULT.stripCut)
+  const [shape, setShape] = useState<FaceTrimShape>(FACE_TRIM_DEFAULT.shape)
+  const [prev, setPrev] = useState<{ original: string; result: string; srcW: number; srcH: number; outW: number; outH: number; durationSec: number; hasAudio: boolean } | null>(null)
   const [err, setErr] = useState('')
+  const [taskId, setTaskId] = useState('')
+  const task = taskId ? tasks[taskId] : undefined
+  const running = task?.status === 'running' || task?.status === 'queued'
+  const result = taskId ? faceTrimResults[taskId] : undefined
+
+  // önizleme: ayar değişince kısa gecikmeyle yenilenir
+  useEffect(() => {
+    if (!video) return
+    let cancelled = false
+    const t = setTimeout(() => {
+      void api.invoke('facetrim:preview', { videoPath: video, faceShare: share / 100, stripCut: strip, shape }).then((r) => {
+        if (cancelled) return
+        setPrev(r)
+        setErr('')
+      }).catch((e) => {
+        if (cancelled) return
+        setPrev(null)
+        setErr(e instanceof Error ? e.message : String(e))
+      })
+    }, 350)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [video, share, strip, shape, api])
 
   const pick = async () => {
-    const p = await api.invoke('dialog:openFile', { title: 'Auto Kick projesi', extensions: ['clipforge'] })
-    if (p) (setProject(p), setCands(null), setMade({}))
+    const v = (await api.invoke('dialog:openMedia')).find((p) => /\.(mp4|mov|mkv|m4v|webm)$/i.test(p))
+    if (v) (setVideo(v), setErr(''), setTaskId(''))
   }
-  const search = async () => {
-    if (!project) return setErr('Önce Auto Kick projesini seçin.')
-    if (!topic.trim()) return setErr('Konuyu yazın (ör. Osimhen).')
-    setErr('')
-    setBusy('search')
-    try {
-      setCands(await api.invoke('autokick:topic', { projectPath: project, topic: topic.trim(), maxSec, minSec: 15 }))
-      setMade({})
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy('')
-    }
-  }
-  const create = async (c: TopicCandidate) => {
-    setBusy(c.id)
+  const save = async () => {
     setErr('')
     try {
-      const r = await api.invoke('faceclip:make', { projectPath: project, subject: topic.trim(), start: c.start, end: c.end, shape, captions, exportVideo })
-      setMade((m) => ({ ...m, [c.id]: { project: r.projectPath, video: r.videoPath } }))
+      setTaskId(await api.invoke('facetrim:start', { videoPath: video, faceShare: share / 100, stripCut: strip, shape }))
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy('')
     }
   }
 
   return (
-    <Modal title="SportDeoPlus — yalnızca yüz kesiti" onClose={() => openDialog(null)} wide>
-      <div className="col" data-testid="sport-plus">
-        <div className="hint">Bir konu yazın (ör. <i>Osimhen</i>): yayında o konuyu konuştuğunuz yerler bulunur; <b>ekran olmadan, yalnızca yüzünüz tüm karede</b> ~40 sn'lik kesit çıkarılır. Auto Kick projesine dokunulmaz; kesit ayrı projede (ve istenirse MP4 olarak) üretilir. Kamera kutusu kayıtta küçükse görüntü büyütüldüğü için keskinlik düşebilir.</div>
-        <Field label="Auto Kick projesi">
-          <div className="row">
-            <input type="text" readOnly value={project} placeholder="Seçilmedi" aria-label="Auto Kick projesi" data-testid="sport-project" style={{ flex: 1 }} />
-            <button className="btn" onClick={() => void pick()} data-testid="sport-pick-project">Proje seç…</button>
-          </div>
-        </Field>
-        <div className="grid2">
-          <Field label="Konu"><input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void search()} placeholder="Osimhen" aria-label="Konu" data-testid="sport-topic" /></Field>
-          <Field label="En uzun kesit (sn)"><Num value={maxSec} min={15} max={120} step={5} label="En uzun kesit" onChange={setMaxSec} /></Field>
+    <Modal title="SportDeoPlus — MP4'ten yalnızca yüzü al" onClose={() => openDialog(null)} wide>
+      <div className="col" data-testid="sport-dialog" style={{ gap: 10 }}>
+        <div className="infobox">Bir <b>dikey MP4</b> seçin (yukarıda yüzünüz, ortada sosyal medyalarınız, aşağıda ekran görüntüsü). <b>Ortadaki şerit ve alttaki ekran silinir</b>, yalnızca <b>yüzünüzün olduğu üst bölüm</b> kalır ve MP4 olarak kaydedilir. Ses aynen korunur. Orijinal dosyaya dokunulmaz; yeni dosya videonun yanına <i>“… - sadece yüz.mp4”</i> adıyla yazılır.</div>
+        <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+          <input type="text" readOnly value={video} placeholder="MP4 seçilmedi" aria-label="MP4" data-testid="sport-video" style={{ flex: 1, minWidth: 260 }} />
+          <button className="btn" onClick={() => void pick()} disabled={running} data-testid="sport-pick">MP4 seç…</button>
         </div>
-        <div className="grid2">
-          <Field label="Biçim">
-            <select value={shape} onChange={(e) => setShape(e.target.value as FaceOnlyShape)} aria-label="Biçim" data-testid="sport-shape">
-              {(Object.keys(FACE_ONLY_SHAPES) as FaceOnlyShape[]).map((k) => <option key={k} value={k}>{FACE_ONLY_SHAPES[k].label}</option>)}
-            </select>
-          </Field>
-          <div className="col">
-            <label className="row"><input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} data-testid="sport-captions" /> Altyazı ekle</label>
-            <label className="row"><input type="checkbox" checked={exportVideo} onChange={(e) => setExportVideo(e.target.checked)} data-testid="sport-export" /> MP4 olarak da dışa aktar</label>
-          </div>
-        </div>
-        {err && <div className="warnbox" role="alert" data-testid="sport-error">{err}</div>}
-        <button className="btn primary" disabled={busy === 'search'} onClick={() => void search()} data-testid="sport-search">{busy === 'search' ? 'Aranıyor…' : 'Kesit adaylarını bul'}</button>
-        {cands && cands.length === 0 && <div className="empty" data-testid="sport-none">Bu konuda transkriptte geçiş bulunamadı. Yazılışı değiştirip deneyin.</div>}
-        {cands?.map((c, i) => (
-          <div key={c.id} className="col topic-cand" data-testid="sport-cand">
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <b>{i + 1}. aday · {mmss(c.start)}–{mmss(c.end)} · {Math.round(c.durationSec)} sn</b>
-              <span className="badge">{c.hits} geçiş</span>
+        {video && (
+          <>
+            <div className="row wrap" style={{ gap: 12, alignItems: 'center' }}>
+              <label className="row" style={{ gap: 6, alignItems: 'center' }}>Yüz alanı yüksekliği (% kare)
+                <button className="btn sm" onClick={() => setShare((v) => Math.max(20, Math.round((v - 0.5) * 10) / 10))} data-testid="sport-share-m">−0,5</button>
+                <Num value={share} step={0.5} min={20} max={70} label="Yüz alanı yüksekliği" onChange={(v) => setShare(Math.round(v * 10) / 10)} />
+                <button className="btn sm" onClick={() => setShare((v) => Math.min(70, Math.round((v + 0.5) * 10) / 10))} data-testid="sport-share-p">+0,5</button>
+              </label>
+              <label className="check"><input type="checkbox" checked={strip} onChange={(e) => setStrip(e.target.checked)} data-testid="sport-strip" /> Ortada sosyal medya şeridi var (onu da kes)</label>
+              <label className="row" style={{ gap: 6, alignItems: 'center' }}>Çıkış biçimi
+                <select value={shape} onChange={(e) => setShape(e.target.value as FaceTrimShape)} aria-label="Çıkış biçimi" data-testid="sport-shape">
+                  {FACE_TRIM_SHAPES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select>
+              </label>
             </div>
-            <div className="hint" style={{ maxHeight: 64, overflow: 'auto' }}>{c.text}</div>
-            {made[c.id] ? (
-              <div className="row wrap">
-                <span className="badge blue" data-testid="sport-made">Kesit hazır{made[c.id].video ? ' (MP4 dahil)' : ''}</span>
-                <button className="btn sm" onClick={() => void api.invoke('shell:reveal', made[c.id].video ?? made[c.id].project)}>Klasörü aç</button>
-                <button className="btn sm" onClick={() => void openProject(made[c.id].project).then((ok) => ok && openDialog(null))}>Uygulamada aç</button>
+            <div className="hint">Kırmızı çizgi kesimin yeri: <b>çizginin üstü kalır, altı silinir</b>. Çizgi yüzünüzün altına denk gelmiyorsa yüz alanı yüksekliğini ayarlayın (Auto Clips klibinde varsayılan %41,5).</div>
+            {prev && (
+              <div className="row wrap" style={{ gap: 16, alignItems: 'flex-start' }} data-testid="sport-preview">
+                <div className="col" style={{ gap: 4 }}>
+                  <span className="hint">Orijinal ({prev.srcW}×{prev.srcH}) + kesim çizgisi</span>
+                  <img src={prev.original} alt="Orijinal kare" style={{ maxHeight: 360, borderRadius: 6 }} data-testid="sport-original" />
+                </div>
+                <div className="col" style={{ gap: 4 }}>
+                  <span className="hint" data-testid="sport-outsize">Çıkacak görüntü: <b>{prev.outW}×{prev.outH}</b>{prev.hasAudio ? ' · ses var' : ' · ses yok'} · {Math.round(prev.durationSec)} sn</span>
+                  <img src={prev.result} alt="Çıkacak görüntü" style={{ maxHeight: 360, borderRadius: 6 }} data-testid="sport-result-img" />
+                </div>
               </div>
-            ) : (
-              <button className="btn sm" disabled={!!busy} onClick={() => void create(c)} data-testid="sport-make">{busy === c.id ? 'Hazırlanıyor…' : 'Bu adaydan yüz kesiti üret'}</button>
             )}
+            {shape === 'vertical' && <div className="warnbox" data-testid="sport-warn">Dikey 9:16 için yüz alanı çok büyütülür (yaklaşık 2,5 kat): görüntü yumuşar. En net sonuç “Olduğu gibi”dir.</div>}
+          </>
+        )}
+        {err && <div className="warnbox" role="alert" data-testid="sport-error">{err}</div>}
+        {task?.status === 'failed' && <div className="warnbox" role="alert" data-testid="sport-failed">{task.error}</div>}
+        <div className="row wrap" style={{ gap: 8 }}>
+          <span style={{ flex: 1 }} />
+          <button className="btn primary" disabled={!video || running || !prev} onClick={() => void save()} data-testid="sport-save">{running ? 'Kaydediliyor…' : 'Yalnızca yüzü MP4 olarak kaydet'}</button>
+        </div>
+        {running && task && (
+          <div className="col" style={{ gap: 3 }} data-testid="sport-progress">
+            <div className="row" style={{ justifyContent: 'space-between' }}><span>{task.message ?? 'Hazırlanıyor…'}</span><b>%{Math.round(task.progress * 100)}</b></div>
+            <Progress value={task.progress} />
+            <button className="btn sm danger" onClick={() => void api.invoke('task:cancel', task.id)}>İptal</button>
           </div>
-        ))}
+        )}
+        {result && (
+          <div className="col" style={{ gap: 4 }} data-testid="sport-done">
+            <div><b>✓ Kaydedildi:</b> {result.width}×{result.height} · {Math.round(result.durationSec)} sn</div>
+            <div className="row wrap"><button className="btn sm" onClick={() => void api.invoke('shell:reveal', result.outputPath)} data-testid="sport-reveal">Dosyayı göster</button><span className="hint" style={{ wordBreak: 'break-all' }}>{result.outputPath}</span></div>
+          </div>
+        )}
       </div>
     </Modal>
   )

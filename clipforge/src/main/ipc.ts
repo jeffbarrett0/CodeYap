@@ -65,6 +65,8 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       if (lines.length) await app.settings.update({ vocabulary: [cur.trim(), ...lines].filter(Boolean).join('\n') })
       return out
     },
+    'facetrim:preview': (r) => app.faceTrimPreview(r),
+    'facetrim:start': (r) => app.faceTrimStart(r),
     'outro:folder': async () => {
       const d = outroFolder(app.deps.userDataDir)
       await mkdir(d, { recursive: true })

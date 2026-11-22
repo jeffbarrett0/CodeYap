@@ -172,6 +172,7 @@ interface State {
   /** "Klip çıkar" penceresinin projesi (Auto Kick manuel iş bitince) */
   clipFindProject: string
   ytcutResults: Record<string, import('@shared/ytcut').YtCutResult>
+  faceTrimResults: Record<string, { outputPath: string; width: number; height: number; durationSec: number }>
   /** Otomatik zincirle (Auto Kick sonrası) çalışan/biten Auto Clips işleri */
   autoClipsJobs: Record<string, AutoClipsStatus>
   setAutoClipsProject(p: string): void
@@ -364,6 +365,7 @@ export const useStore = create<State>()((set, get) => {
     autoClipsManual: false,
     clipFindProject: '',
     ytcutResults: {},
+    faceTrimResults: {},
     autoClipsJobs: {},
     setAutoClipsProject: (p) => set({ autoClipsProject: p }),
     ideas: {},
@@ -449,6 +451,10 @@ export const useStore = create<State>()((set, get) => {
         mutateProject((p) => ({ ...p, candidates: [...p.candidates.filter((c) => c.assetId !== assetId), ...candidates] }))
         set({ suggesting: false })
         get().toast('info', candidates.length ? `${candidates.length} aday bulundu.` : 'Belirgin bir tepki anı bulunamadı.')
+      })
+      a.on('facetrim:done', ({ taskId, ...r }) => {
+        set((s) => ({ faceTrimResults: { ...s.faceTrimResults, [taskId]: r } }))
+        get().toast('success', `SportDeoPlus: yalnızca yüz MP4 olarak kaydedildi (${r.width}×${r.height}).`)
       })
       a.on('ytcut:done', ({ taskId, result }) => {
         set((s) => ({ ytcutResult: { taskId, ...result }, ytcutResults: { ...s.ytcutResults, [taskId]: result } }))
