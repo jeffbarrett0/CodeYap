@@ -82,4 +82,20 @@ describe('SportDeoPlus: MP4\'ten yalnızca yüz', () => {
     await expect(previewFaceTrim(join(tmp, 'yok.mp4'), {}, tools)).rejects.toThrow(/bulunamadı/)
     await expect(previewFaceTrim(join(tmp, 'x.txt'), {}, tools)).rejects.toThrow(/Desteklenen/)
   })
+
+  it('VİDEOYU KES: 3 sn\'lik videodan 0,5–2,5 sn → 2,0 sn; yüz alanı aynı; ses sürer; geçersiz aralık reddedilir; önizleme belirtilen ankinde', async () => {
+    const r = await runFaceTrim(src, { faceShare: 0.415, stripCut: true, shape: 'asis', start: 0.5, end: 2.5 }, tools)
+    expect(r.durationSec).toBeCloseTo(2, 5)
+    const p = probe(r.outputPath)
+    const v = p.streams.find((s: any) => s.codec_type === 'video')
+    expect([v.width, v.height]).toEqual([1080, 750])
+    expect(p.streams.some((s: any) => s.codec_type === 'audio')).toBe(true)
+    expect(Number(p.format.duration)).toBeGreaterThan(1.8)
+    expect(Number(p.format.duration)).toBeLessThan(2.25)
+    await expect(runFaceTrim(src, { start: 2, end: 2.2 }, tools)).rejects.toThrow(/yarım saniye/)
+    const full = await runFaceTrim(src, { start: 0, end: 99 }, tools) // sınırı aşan bitiş = tamamı
+    expect(Number(probe(full.outputPath).format.duration)).toBeGreaterThan(2.8)
+    const pv = await previewFaceTrim(src, { faceShare: 0.415 }, tools, 2.9)
+    expect(pv.result).toMatch(/^data:image\/jpeg/)
+  }, 120_000)
 })

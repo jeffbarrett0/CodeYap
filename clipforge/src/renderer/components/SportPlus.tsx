@@ -16,20 +16,29 @@ export function SportPlusDialog() {
   const [strip, setStrip] = useState(FACE_TRIM_DEFAULT.stripCut)
   const [shape, setShape] = useState<FaceTrimShape>(FACE_TRIM_DEFAULT.shape)
   const [prev, setPrev] = useState<{ original: string; result: string; srcW: number; srcH: number; outW: number; outH: number; durationSec: number; hasAudio: boolean } | null>(null)
+  const [start, setStart] = useState(0)
+  const [end, setEnd] = useState(0)
   const [err, setErr] = useState('')
   const [taskId, setTaskId] = useState('')
   const task = taskId ? tasks[taskId] : undefined
   const running = task?.status === 'running' || task?.status === 'queued'
   const result = taskId ? faceTrimResults[taskId] : undefined
+  const total = prev?.durationSec ?? 0
+  const keep = Math.max(0, end - start)
+  const clampStart = (v: number) => setStart(Math.round(Math.max(0, Math.min(v, end - 0.5)) * 10) / 10)
+  const clampEnd = (v: number) => setEnd(Math.round(Math.min(total || v, Math.max(v, start + 0.5)) * 10) / 10)
+  const trimmed = total > 0 && (start > 0.05 || end < total - 0.05)
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`
 
   // önizleme: ayar değişince kısa gecikmeyle yenilenir
   useEffect(() => {
     if (!video) return
     let cancelled = false
     const t = setTimeout(() => {
-      void api.invoke('facetrim:preview', { videoPath: video, faceShare: share / 100, stripCut: strip, shape }).then((r) => {
+      void api.invoke('facetrim:preview', { videoPath: video, faceShare: share / 100, stripCut: strip, shape, at: start }).then((r) => {
         if (cancelled) return
         setPrev(r)
+        setEnd((e) => (e === 0 ? Math.round(r.durationSec * 10) / 10 : e)) // ilk önizlemede bitiş = videonun sonu
         setErr('')
       }).catch((e) => {
         if (cancelled) return
@@ -41,16 +50,16 @@ export function SportPlusDialog() {
       cancelled = true
       clearTimeout(t)
     }
-  }, [video, share, strip, shape, api])
+  }, [video, share, strip, shape, start, api])
 
   const pick = async () => {
     const v = (await api.invoke('dialog:openMedia')).find((p) => /\.(mp4|mov|mkv|m4v|webm)$/i.test(p))
-    if (v) (setVideo(v), setErr(''), setTaskId(''))
+    if (v) (setVideo(v), setErr(''), setTaskId(''), setStart(0), setEnd(0), setPrev(null))
   }
   const save = async () => {
     setErr('')
     try {
-      setTaskId(await api.invoke('facetrim:start', { videoPath: video, faceShare: share / 100, stripCut: strip, shape }))
+      setTaskId(await api.invoke('facetrim:start', { videoPath: video, faceShare: share / 100, stripCut: strip, shape, start, end }))
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     }
@@ -81,13 +90,36 @@ export function SportPlusDialog() {
             </div>
             <div className="hint">Kırmızı çizgi kesimin yeri: <b>çizginin üstü kalır, altı silinir</b>. Çizgi yüzünüzün altına denk gelmiyorsa yüz alanı yüksekliğini ayarlayın (Auto Clips klibinde varsayılan %41,5).</div>
             {prev && (
+              <div className="col" style={{ gap: 6, padding: 8, border: '1px solid var(--border, #2a3a30)', borderRadius: 8 }} data-testid="sport-trim">
+                <b>Videoyu kes (başlangıç ve bitiş)</b>
+                <div className="row wrap" style={{ gap: 14, alignItems: 'center' }}>
+                  <span className="row" style={{ gap: 4, alignItems: 'center' }}>Başlangıç (sn)
+                    <button className="btn sm" onClick={() => clampStart(start - 1)} data-testid="sport-start-m1">−1</button>
+                    <button className="btn sm" onClick={() => clampStart(start - 0.1)}>−0,1</button>
+                    <Num value={start} step={0.1} min={0} max={Math.max(1, total)} label="Başlangıç (sn)" onChange={clampStart} />
+                    <button className="btn sm" onClick={() => clampStart(start + 0.1)}>+0,1</button>
+                    <button className="btn sm" onClick={() => clampStart(start + 1)} data-testid="sport-start-p1">+1</button>
+                  </span>
+                  <span className="row" style={{ gap: 4, alignItems: 'center' }}>Bitiş (sn)
+                    <button className="btn sm" onClick={() => clampEnd(end - 1)} data-testid="sport-end-m1">−1</button>
+                    <button className="btn sm" onClick={() => clampEnd(end - 0.1)}>−0,1</button>
+                    <Num value={end} step={0.1} min={0.5} max={Math.max(1, total)} label="Bitiş (sn)" onChange={clampEnd} />
+                    <button className="btn sm" onClick={() => clampEnd(end + 0.1)}>+0,1</button>
+                    <button className="btn sm" onClick={() => clampEnd(end + 1)} data-testid="sport-end-p1">+1</button>
+                  </span>
+                  <button className="btn sm" onClick={() => (setStart(0), setEnd(Math.round(total * 10) / 10))} disabled={!trimmed} data-testid="sport-trim-reset">Tamamını al</button>
+                </div>
+                <div className="hint" data-testid="sport-keep">Video {mmss(total)} · kalacak bölüm: <b>{mmss(start)} – {mmss(end)}</b> ({keep.toFixed(1)} sn){trimmed ? ` · silinen: ${start > 0.05 ? `baştan ${start.toFixed(1)} sn` : ''}${start > 0.05 && end < total - 0.05 ? ' ve ' : ''}${end < total - 0.05 ? `sondan ${(total - end).toFixed(1)} sn` : ''}` : ' · tamamı alınır'}. Önizleme karesi başlangıç anındadır.</div>
+              </div>
+            )}
+            {prev && (
               <div className="row wrap" style={{ gap: 16, alignItems: 'flex-start' }} data-testid="sport-preview">
                 <div className="col" style={{ gap: 4 }}>
                   <span className="hint">Orijinal ({prev.srcW}×{prev.srcH}) + kesim çizgisi</span>
                   <img src={prev.original} alt="Orijinal kare" style={{ maxHeight: 360, borderRadius: 6 }} data-testid="sport-original" />
                 </div>
                 <div className="col" style={{ gap: 4 }}>
-                  <span className="hint" data-testid="sport-outsize">Çıkacak görüntü: <b>{prev.outW}×{prev.outH}</b>{prev.hasAudio ? ' · ses var' : ' · ses yok'} · {Math.round(prev.durationSec)} sn</span>
+                  <span className="hint" data-testid="sport-outsize">Çıkacak görüntü: <b>{prev.outW}×{prev.outH}</b>{prev.hasAudio ? ' · ses var' : ' · ses yok'} · {keep.toFixed(1)} sn</span>
                   <img src={prev.result} alt="Çıkacak görüntü" style={{ maxHeight: 360, borderRadius: 6 }} data-testid="sport-result-img" />
                 </div>
               </div>
@@ -99,7 +131,7 @@ export function SportPlusDialog() {
         {task?.status === 'failed' && <div className="warnbox" role="alert" data-testid="sport-failed">{task.error}</div>}
         <div className="row wrap" style={{ gap: 8 }}>
           <span style={{ flex: 1 }} />
-          <button className="btn primary" disabled={!video || running || !prev} onClick={() => void save()} data-testid="sport-save">{running ? 'Kaydediliyor…' : 'Yalnızca yüzü MP4 olarak kaydet'}</button>
+          <button className="btn primary" disabled={!video || running || !prev || keep < 0.5} onClick={() => void save()} data-testid="sport-save">{running ? 'Kaydediliyor…' : 'Yalnızca yüzü MP4 olarak kaydet'}</button>
         </div>
         {running && task && (
           <div className="col" style={{ gap: 3 }} data-testid="sport-progress">

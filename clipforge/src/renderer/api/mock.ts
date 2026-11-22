@@ -228,7 +228,7 @@ export function createMockApi(): ClipforgeApi {
       if (/bozuk/i.test(r.videoPath)) throw new Error('Videoda görüntü akışı bulunamadı.')
       const px = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA='
       const g = faceTrimGeometry(1080, 1920, r)
-      return { original: px, result: px, srcW: 1080, srcH: 1920, outW: g.outW, outH: g.outH, durationSec: 42, hasAudio: true }
+      return { original: px, result: px, srcW: 1080, srcH: 1920, outW: g.outW, outH: g.outH, durationSec: 50, hasAudio: true }
     },
     'facetrim:start': (r) =>
       queue.add({
@@ -236,7 +236,7 @@ export function createMockApi(): ClipforgeApi {
         title: `SportDeoPlus: ${String(r.videoPath).split(/[\\/]/).pop()}`,
         run: async (ctx) => {
           for (let i = 1; i <= 4; i++) (ctx.progress(i / 4), await sleep(50))
-          emit('facetrim:done', { taskId: ctx.id, outputPath: String(r.videoPath).replace(/\.mp4$/i, '') + ' - sadece yüz.mp4', width: 1080, height: faceTrimGeometry(1080, 1920, r).outH, durationSec: 42 })
+          emit('facetrim:done', { taskId: ctx.id, outputPath: String(r.videoPath).replace(/\.mp4$/i, '') + ' - sadece yüz.mp4', width: 1080, height: faceTrimGeometry(1080, 1920, r).outH, durationSec: r.end !== undefined || r.start !== undefined ? Math.round((r.end ?? 50) - (r.start ?? 0)) : 50 })
         }
       }).id,
     'outro:folder': () => '/kullanici/ClipForge/kapanis',

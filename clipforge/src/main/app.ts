@@ -497,13 +497,13 @@ export class AppService {
   }
 
   /** SportDeoPlus: önizleme (dosyaya dokunmaz) */
-  async faceTrimPreview(req: { videoPath: string; faceShare: number; stripCut: boolean; shape: FaceTrimShape }) {
-    const r = await previewFaceTrim(req.videoPath, req, this.tools)
+  async faceTrimPreview(req: { videoPath: string; faceShare: number; stripCut: boolean; shape: FaceTrimShape; at?: number }) {
+    const r = await previewFaceTrim(req.videoPath, req, this.tools, req.at)
     return { original: r.original, result: r.result, srcW: r.probe.width, srcH: r.probe.height, outW: r.geometry.outW, outH: r.geometry.outH, durationSec: r.probe.durationSec, hasAudio: r.probe.hasAudio }
   }
 
   /** SportDeoPlus: MP4'ten yalnızca yüz alanını kaydeder */
-  faceTrimStart(req: { videoPath: string; faceShare: number; stripCut: boolean; shape: FaceTrimShape }): string {
+  faceTrimStart(req: { videoPath: string; faceShare: number; stripCut: boolean; shape: FaceTrimShape; start?: number; end?: number }): string {
     return this.queue.add({
       kind: 'ytcut',
       title: `SportDeoPlus: ${basename(req.videoPath)}`,

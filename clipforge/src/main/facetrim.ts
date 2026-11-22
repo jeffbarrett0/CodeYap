@@ -40,11 +40,11 @@ async function outPathFor(video: string): Promise<string> {
 /**
  * Önizleme: orijinal kare (kesim çizgisi kırmızı) + çıkacak görüntü (JPEG, data URL). Dosyaya dokunmaz.
  */
-export async function previewFaceTrim(videoPath: string, options: Partial<FaceTrimOptions>, tools: MediaTools): Promise<{ original: string; result: string; probe: FaceTrimProbe; geometry: FaceTrimGeometry }> {
+export async function previewFaceTrim(videoPath: string, options: Partial<FaceTrimOptions>, tools: MediaTools, atSec?: number): Promise<{ original: string; result: string; probe: FaceTrimProbe; geometry: FaceTrimGeometry }> {
   const o = norm(options)
   const pr = await probe(tools, videoPath)
   const g = faceTrimGeometry(pr.width, pr.height, o)
-  const at = Math.max(0, Math.min(pr.durationSec / 2, 2))
+  const at = atSec !== undefined ? Math.max(0, Math.min(atSec, Math.max(0, pr.durationSec - 0.1))) : Math.max(0, Math.min(pr.durationSec / 2, 2))
   const work = await mkdtemp(join(tmpdir(), 'clipforge-facetrim-'))
   try {
     const orig = join(work, 'o.jpg')
@@ -63,25 +63,31 @@ export async function previewFaceTrim(videoPath: string, options: Partial<FaceTr
  * Yalnızca yüzü MP4 olarak kaydeder: üst yüz alanı kesilir, ortadaki şerit ve alttaki ekran atılır. Ses AYNEN kalır (yeniden kodlanmaz;
  * MP4'e uymazsa AAC'ye çevrilir). Görüntü yeniden kodlanır (yüksek kalite). Kaynağa dokunulmaz.
  */
-export async function runFaceTrim(videoPath: string, options: Partial<FaceTrimOptions>, tools: MediaTools, hooks: { signal?: AbortSignal; progress?: (f: number) => void } = {}): Promise<{ outputPath: string; width: number; height: number; durationSec: number }> {
+export async function runFaceTrim(videoPath: string, options: Partial<FaceTrimOptions> & { /** videoyu kes (sn): başlangıç/bitiş; boşsa tamamı */ start?: number; end?: number }, tools: MediaTools, hooks: { signal?: AbortSignal; progress?: (f: number) => void } = {}): Promise<{ outputPath: string; width: number; height: number; durationSec: number }> {
   const o = norm(options)
   const pr = await probe(tools, videoPath, hooks.signal)
   const g = faceTrimGeometry(pr.width, pr.height, o)
   if (g.faceH < 64) throw new Error('Yüz alanı çok küçük kaldı: yüz alanı yüksekliğini artırın.')
+  // kesme: başlangıç/bitiş (sn). Tamamı seçiliyse kesme yok (ses copy); kesiliyorsa ses AAC'ye çevrilir (kare/ses kaymasın)
+  const start = Math.max(0, options.start ?? 0)
+  const end = Math.min(pr.durationSec || Infinity, options.end ?? Infinity)
+  const trimmed = start > 0.05 || (Number.isFinite(end) && pr.durationSec > 0 && end < pr.durationSec - 0.05)
+  if (trimmed && !(end - start >= 0.5)) throw new Error('Bitiş, başlangıçtan en az yarım saniye sonra olmalı.')
+  const clipSec = trimmed ? end - start : pr.durationSec
   const out = await outPathFor(videoPath)
   const part = `${out}.part.mp4`
-  const base = ['-y', '-v', 'error', '-nostdin', '-i', videoPath, '-map', '0:v:0', ...(pr.hasAudio ? ['-map', '0:a:0'] : []), '-vf', faceTrimFilter(g), '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
-  const run = (audio: string[]) => runTool(tools.ffmpeg, limitThreads([...base, ...audio, '-progress', 'pipe:1', part]), { signal: hooks.signal, durationSec: pr.durationSec, onProgress: hooks.progress })
+  const base = ['-y', '-v', 'error', '-nostdin', ...(trimmed ? ['-ss', start.toFixed(3), '-t', clipSec.toFixed(3)] : []), '-i', videoPath, '-map', '0:v:0', ...(pr.hasAudio ? ['-map', '0:a:0'] : []), '-vf', faceTrimFilter(g), '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
+  const run = (audio: string[]) => runTool(tools.ffmpeg, limitThreads([...base, ...audio, '-progress', 'pipe:1', part]), { signal: hooks.signal, durationSec: clipSec, onProgress: hooks.progress })
   try {
     try {
-      await run(pr.hasAudio ? ['-c:a', 'copy'] : ['-an'])
+      await run(pr.hasAudio ? (trimmed ? ['-c:a', 'aac', '-b:a', '192k'] : ['-c:a', 'copy']) : ['-an'])
     } catch (e) {
       if (hooks.signal?.aborted || !pr.hasAudio) throw e
       await run(['-c:a', 'aac', '-b:a', '192k']) // ses akışı MP4'e kopyalanamadıysa
     }
     const { rename } = await import('node:fs/promises')
     await rename(part, out)
-    return { outputPath: out, width: g.outW, height: g.outH, durationSec: pr.durationSec }
+    return { outputPath: out, width: g.outW, height: g.outH, durationSec: clipSec }
   } catch (e) {
     await rm(part, { force: true }).catch(() => undefined)
     throw e
