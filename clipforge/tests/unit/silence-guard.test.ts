@@ -35,6 +35,19 @@ describe('ses seviyesinden "ses var" aralıkları', () => {
     expect(r.runs[0][1]).toBeCloseTo(5, 1)
     expect(r.runs[1][0]).toBeCloseTo(20, 1)
   })
+  it('SAF: susma anındaki arka plan sesi (sabit, konuşmadan çok düşük) konuşma sayılmaz; kısa sessiz kelime ve gerçek konuşma korunur', () => {
+    const f = 0.02
+    const db = new Array(2500).fill(-60) // 50 sn
+    const put = (a: number, b: number, fn: (i: number) => number) => { for (let i = Math.round(a / f); i < Math.round(b / f); i++) db[i] = fn(i) }
+    put(2, 8, (i) => -22 + 8 * Math.sin(i / 3)) // konuşma: iner çıkar
+    put(12, 17, () => -42) // 5 sn sabit oyun/oda sesi
+    put(25, 25.5, () => -44) // 0,5 sn sessiz kelime: korunur
+    put(30, 36, (i) => -20 + 9 * Math.sin(i / 2.5))
+    const r = voicedFromFrames(db, f)
+    expect(r.runs.some(([a]) => a > 11 && a < 18)).toBe(false)
+    expect(r.runs.some(([a]) => Math.abs(a - 25) < 0.2)).toBe(true)
+    expect(r.runs.filter(([a]) => a < 10 || a > 29).length).toBe(2)
+  })
   it('SAF: sürekli ses (oyun/müzik aynı kanalda) → continuous işaretlenir ve hemen her yer "ses var" (kesim güvenli yönde azalır)', () => {
     const db = Array.from({ length: 1000 }, (_, i) => -30 + (i % 7))
     const r = voicedFromFrames(db)

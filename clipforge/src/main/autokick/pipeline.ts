@@ -205,7 +205,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
   else {
     stage('silence', { status: 'running', progress: 0 })
     const before = timelineDuration(s.timeline)
-    const words = timelineWords(s.timeline, s.transcripts)
+    let words = timelineWords(s.timeline, s.transcripts)
     const sil = req.silence ?? { minGapSec: settings.silenceMinGapSec, keepSec: settings.silenceKeepSec, cutFillers: settings.cutFillers }
     // KONUŞMA KORUMASI: gerçek ses seviyesinden "ses var" aralıkları; sessizlik kesimleri bunlara giremez (analiz olmazsa temkinli paylarla devam)
     let voiced: [number, number][] | undefined
@@ -218,6 +218,16 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
         const keptClips = (s.timeline.tracks.find((t) => t.id === 'V1')?.clips ?? []).filter((c) => c.assetId === asset.id).map((c) => ({ srcIn: c.srcIn, srcOut: c.srcOut, start: c.start }))
         voiced = mapVoicedToTimeline(va.runs, keptClips)
         guardNote = va.continuous ? ' · ses sürekli (kesim az olabilir)' : ''
+        if (!va.continuous && voiced.length) {
+          // HAYALET KELİMELER: Whisper sessizliği "Altyazı…", "Teşekkürler" gibi sözlerle doldurabilir; bu sözler sessizliği "konuşma" gösterip kesimi engeller.
+          // Çevresinde (±0,4 sn) hiç ses olmayan kelime sayılmaz.
+          const near = (w: { start: number; end: number }) => voiced!.some(([a, b]) => b >= w.start - 0.4 && a <= w.end + 0.4)
+          const real = words.filter(near)
+          if (real.length < words.length && real.length > 0) {
+            guardNote += ` · ${words.length - real.length} hayalet kelime (sessizlikte) yok sayıldı`
+            words = real
+          }
+        }
       } catch (e) {
         check()
         guardNote = ` · ses analizi yapılamadı (${e instanceof Error ? e.message.slice(0, 80) : String(e)}): temkinli paylarla`

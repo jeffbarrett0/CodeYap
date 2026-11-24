@@ -52,7 +52,21 @@ export function voicedFromFrames(db: ArrayLike<number>, frameSec = VOICE_FRAME_S
     if (last && r[0] - last[1] <= mergeGap) last[1] = Math.max(last[1], r[1])
     else merged.push([r[0], r[1]])
   }
-  return { runs: merged.map(([a, b]) => [a * frameSec, b * frameSec] as [number, number]), thresholdDb: thr, noiseDb: noise, refDb: ref, continuous }
+  // ARKA PLAN SESİ AYIKLAMA (kullanıcı: "birkaç saniye susuyorum, kesmemişsin"): oyun/müzik/oda sesi eşiği aşıp susma anlarını "konuşma" gösteriyordu.
+  // Bir saniyeden uzun bir aralık, konuşma seviyesinin (95. yüzdelik) 14 dB'den fazla altında kalıyorsa konuşma sayılmaz. Kısa aralıklar (sessiz tek kelime) hep korunur.
+  const keep = (a: number, b: number): boolean => {
+    if (continuous) return true
+    const len = (b - a) * frameSec
+    if (len < 1.0) return true
+    const seg: number[] = []
+    for (let k = Math.max(0, a); k < Math.min(db.length, b); k++) seg.push(db[k])
+    seg.sort((x, y) => x - y)
+    const p90 = pct(seg, 0.9)
+    if (p90 < ref - 14) return false
+    return true
+  }
+  const speech = merged.filter(([a, b]) => keep(a, b))
+  return { runs: speech.map(([a, b]) => [a * frameSec, b * frameSec] as [number, number]), thresholdDb: thr, noiseDb: noise, refDb: ref, continuous }
 }
 
 /** Kaynak zamanındaki aralıkları çizelge zamanına çevirir (yalnızca korunan klip parçalarına düşenler) */
