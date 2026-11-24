@@ -39,6 +39,9 @@ export interface AutoKickStageState {
   status: AutoKickStageStatus
   progress: number
   detail?: string
+  /** aşamanın başlama/bitiş zamanı (ms): hangi aşama ne kadar sürdü görülsün */
+  startedAt?: number
+  endedAt?: number
 }
 
 export interface AutoKickResult {

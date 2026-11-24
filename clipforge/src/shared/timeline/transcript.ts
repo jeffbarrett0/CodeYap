@@ -23,6 +23,8 @@ export function timelineWords(tl: Timeline, transcripts: Record<ID, Transcript |
       if (w.end <= c.srcIn || w.start >= c.srcOut) continue
       const start = c.start + (Math.max(w.start, c.srcIn) - c.srcIn)
       const end = Math.min(clipEnd(c), c.start + (Math.min(w.end, c.srcOut) - c.srcIn))
+      // kesimden geriye kalan 0,05 sn'den kısa kırıntı bir kelime sayılmaz (duyulmaz; dolgu sesinin ucu 'eee' olarak görünmesin)
+      if (end - start < 0.05 && w.end - w.start > 0.12) continue
       const key = `${c.assetId}|${w.start.toFixed(3)}|${start.toFixed(2)}`
       if (seen.has(key)) continue
       seen.add(key)

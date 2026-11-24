@@ -490,6 +490,7 @@ export interface Settings {
   /** Kesimden sonra her iki yanda bırakılan pay (sn) */
   silenceKeepSec: number
   silenceAudioGuard: boolean
+  autoKickHwEncode: boolean
   /** ııı / eee gibi dolgu seslerini de kes */
   cutFillers: boolean
   /** Özel sözlük: isimler, yöresel kelimeler, terimler (satır ya da virgülle ayrılmış) */

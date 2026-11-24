@@ -90,7 +90,7 @@ function Job({ job }: { job: AutoKickStatus }) {
         <div key={s.id} className="col" style={{ gap: 3 }} data-testid={`ak-stage-${s.id}`} data-stage-status={s.status}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <span>{s.status === 'done' ? '✓ ' : s.status === 'running' ? '⏳ ' : s.status === 'failed' ? '✕ ' : '○ '}{s.label}</span>
-            <span className="hint">{STATUS_LABEL[s.status]}{s.status === 'running' ? ` %${Math.round(s.progress * 100)}` : ''}</span>
+            <span className="hint">{STATUS_LABEL[s.status]}{s.status === 'running' ? ` %${Math.round(s.progress * 100)}` : ''}{s.startedAt && s.endedAt && s.endedAt - s.startedAt >= 2000 ? ` · ⏱ ${fmtElapsed(s.endedAt - s.startedAt)}` : ''}</span>
           </div>
           {s.status === 'running' && <Progress value={s.progress} />}
           {s.detail && <div className="hint" style={{ wordBreak: 'break-all' }}>{s.detail}</div>}
@@ -237,6 +237,7 @@ export function AutoKickDialog() {
   const [language, setLanguage] = useState(settings.language)
   const [minGap, setMinGap] = useState(settings.silenceMinGapSec)
   const [fillers, setFillers] = useState(settings.cutFillers)
+  const [model, setModel] = useState(settings.whisperModel)
   const [err, setErr] = useState('')
   const [chapterList, setChapterList] = useState('')
   const jobs = Object.values(autoKick).sort((a, b) => b.startedAt - a.startedAt)
@@ -252,7 +253,7 @@ export function AutoKickDialog() {
     setVideo(v)
     setErr('')
     try {
-      await api.invoke('autokick:start', { videoPath: v, outDir: outDir.trim() || undefined, language, quality, silence: { minGapSec: minGap, keepSec: settings.silenceKeepSec, cutFillers: fillers }, chapterList: chapterList.trim() || undefined })
+      await api.invoke('autokick:start', { videoPath: v, outDir: outDir.trim() || undefined, language, quality, model, silence: { minGapSec: minGap, keepSec: settings.silenceKeepSec, cutFillers: fillers }, chapterList: chapterList.trim() || undefined })
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     }
@@ -273,6 +274,17 @@ export function AutoKickDialog() {
         <button className="btn primary" style={{ padding: '14px 16px', fontSize: 15 }} onClick={() => void pick()} data-testid="autokick-pick">Yayın kaydını seç ve başlat…</button>
         {video && <div className="hint" data-testid="autokick-path" style={{ wordBreak: 'break-all' }}>Seçilen: {video}</div>}
         {err && <div className="warnbox" role="alert">{err}</div>}
+        <div className="col" style={{ gap: 6 }} data-testid="autokick-speed">
+          <b>Hız</b>
+            <label className="check" title="Ekran kartın (NVIDIA / Intel / AMD) varsa tam video onunla kodlanır: işlemciyle kodlamaya göre çok daha hızlıdır. Kart yoksa ya da hata verirse kendiliğinden işlemciyle kodlanır."><input type="checkbox" checked={settings.autoKickHwEncode} onChange={(e) => void updateSettings({ autoKickHwEncode: e.target.checked })} data-testid="autokick-hw" /> Ekran kartıyla kodla (varsa; tam video çok daha hızlı biter)</label>
+            <label className="row" style={{ gap: 6, alignItems: 'center' }} title="Transkripsiyon, Auto Kick'in en uzun aşamasıdır. Küçük model yaklaşık 2–3 kat hızlı biter; orta model isimleri/kelimeleri daha doğru yazar.">Transkripsiyon modeli
+              <select value={model} onChange={(e) => setModel(e.target.value as typeof model)} aria-label="Transkripsiyon modeli" data-testid="autokick-model">
+                <option value="base">Hızlı (base) — en hızlı, daha çok yanlış</option>
+                <option value="small">Dengeli (small) — hızlı, iyi</option>
+                <option value="medium">Doğru (medium) — en doğru, ~2–3 kat yavaş</option>
+              </select>
+            </label>
+        </div>
         <details>
           <summary>Gelişmiş ayarlar (bir sonraki kayıt için)</summary>
           <div className="col" style={{ marginTop: 8 }}>

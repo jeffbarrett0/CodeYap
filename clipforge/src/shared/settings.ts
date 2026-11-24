@@ -33,6 +33,8 @@ export const DEFAULT_SETTINGS: Settings = {
   silenceKeepSec: 0.15,
   /** Sessizlik kesilirken GERÇEK ses seviyesine de bakılır: konuşma varsa kesilmez (kullanıcı şikâyeti: konuşmanın başı kesiliyordu). Kapatılırsa yalnızca transkript zamanları kullanılır. */
   silenceAudioGuard: true,
+  /** Auto Kick tam videosunu EKRAN KARTIYLA (NVENC/Quick Sync/AMF) kodla: kat kat hızlı; çalışmazsa/hata verirse otomatik yazılım kodlamaya döner. */
+  autoKickHwEncode: true,
   cutFillers: true,
   vocabulary: '',
   transcribeFillers: true,

@@ -3,7 +3,7 @@ import { basename, dirname, extname, join, resolve } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
 import { llmConfigured } from '../ideas/llm'
 import { detectIntro, introReference } from './intro'
-import { initialStages, transcriptionReadiness, type AutoKickRequest, type AutoKickResult, type AutoKickStage, type AutoKickStageState } from '../../shared/autokick'
+import { fmtElapsed, initialStages, transcriptionReadiness, type AutoKickRequest, type AutoKickResult, type AutoKickStage, type AutoKickStageState } from '../../shared/autokick'
 import { cmd } from '../../shared/timeline/commands'
 import { clipsForVideoWithAudio } from '../../shared/timeline/create'
 import { nearestAspect, timelineDuration } from '../../shared/timeline/model'
@@ -14,6 +14,7 @@ import { mergeRanges, renderFastCut, snapToFrame, type Range } from './fastcut'
 import { cutReportText, planSilenceCuts } from '../../shared/timeline/silence'
 import { detectVoicedRuns, mapVoicedToTimeline } from './voice'
 import { appendOutro, resolveOutro } from '../outro'
+import { detectHwEncoder, HW_LABEL, videoEncoderArgs, type HwEncoder } from './hwenc'
 import { timelineWords } from '../../shared/timeline/transcript'
 import { chapterClipRanges, formatChapters, mapChapterList, parseChapterList } from '../../shared/chapters'
 import { autoAdjustFrom } from '../../shared/adjust'
@@ -33,6 +34,8 @@ interface State {
   full?: boolean
   /** YouTube outro (kapanış videosu) tam videonun sonuna eklendi: yeniden çalıştırmada İKİNCİ KEZ eklenmesin */
   outro?: boolean
+  /** tam video hangi donanım kodlayıcıyla yazıldı (outro aynı kodlayıcıyla uydurulsun) */
+  hw?: HwEncoder | null
 }
 
 export class AutoKickCancelled extends Error {
@@ -284,12 +287,27 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
       if (e instanceof Error && /Diskte/.test(e.message)) throw e
     }
     const o = { ...((req.quality ?? 'fast') === 'high' ? { crf: 14, encoderPreset: 'slow', maxrateKbps: 150000, audioKbps: 320 } : { crf: 20, encoderPreset: 'veryfast', maxrateKbps: 40000, audioKbps: 192 }), adjust: autoAdjustFrom(service.settings.value) }
+    // DONANIM KODLAYICI: ekran kartı varsa tam video kat kat hızlı kodlanır; hata olursa yazılım kodlamaya döner
+    const hwFound = settings.autoKickHwEncode !== false ? await detectHwEncoder(service.tools.ffmpeg) : null
     const tmpOut = `${p.full}.part.mp4`
     const abort = new AbortController()
     const onAbort = () => abort.abort()
     hooks.signal.addEventListener('abort', onAbort, { once: true })
+    let usedHw: HwEncoder | null = hwFound
     try {
-      await renderFastCut(asset, kept, o, service.tools.ffmpeg, tmpOut, { signal: abort.signal, onProgress: (f) => stage('full', { progress: f }) })
+      try {
+        if (hwFound) stage('full', { detail: `Ekran kartıyla kodlanıyor (${HW_LABEL[hwFound]})` })
+        await renderFastCut(asset, kept, { ...o, hw: hwFound }, service.tools.ffmpeg, tmpOut, { signal: abort.signal, onProgress: (f) => stage('full', { progress: f }) })
+      } catch (e) {
+        await rm(tmpOut, { force: true })
+        check()
+        if (!hwFound) throw e
+        // ekran kartı kodlaması başarısız: yazılım kodlayıcıyla baştan (iş durmaz)
+        usedHw = null
+        void appendRunLog(p.dir, `Auto Kick: ekran kartı kodlaması başarısız (${e instanceof Error ? e.message.split('\n')[0].slice(0, 100) : String(e)}); yazılım kodlamaya geçildi`)
+        stage('full', { progress: 0, detail: 'Ekran kartı kodlaması olmadı; işlemciyle kodlanıyor (daha yavaş)' })
+        await renderFastCut(asset, kept, { ...o, hw: null }, service.tools.ffmpeg, tmpOut, { signal: abort.signal, onProgress: (f) => stage('full', { progress: f }) })
+      }
     } catch (e) {
       await rm(tmpOut, { force: true })
       check()
@@ -312,6 +330,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     }
     await rename(tmpOut, p.full)
     state.full = true
+    state.hw = usedHw
     await save()
     stage('full', { status: 'done', progress: 1, detail: p.full })
   }
@@ -324,10 +343,9 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
       const outroPath = await resolveOutro(settings.outroPath, service.deps.userDataDir, service.deps.resourcesDir, settings.outroEnabled)
       if (outroPath) {
         stage('full', { detail: 'YouTube outro ekleniyor…' })
-        const preset = (req.quality ?? 'fast') === 'high' ? 'slow' : 'veryfast'
-        const crf = (req.quality ?? 'fast') === 'high' ? '14' : '20'
-        const cap = (req.quality ?? 'fast') === 'high' ? 150000 : 40000
-        const r = await appendOutro(p.full, outroPath, service.tools, { signal: hooks.signal, enc: ['-c:v', 'libx264', '-preset', preset, '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-crf', crf, '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`] })
+        const high = (req.quality ?? 'fast') === 'high'
+        // outro, tam videoyla AYNI kodlayıcıyla uydurulur (parametre uyuşmazlığı olmasın)
+        const r = await appendOutro(p.full, outroPath, service.tools, { signal: hooks.signal, enc: videoEncoderArgs({ crf: high ? 14 : 20, encoderPreset: high ? 'slow' : 'veryfast', maxrateKbps: high ? 150000 : 40000 }, state.hw) })
         if (r.ok) {
           state.outro = true
           await save()
@@ -377,15 +395,19 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     timestampsPath = undefined
   }
 
-  // çıkış kontrolü (ilk kare, siyah ekran, uzun sessizlik, ses şiddeti): tam videonun yanına rapor; hata olursa iş yine başarılıdır
-  let qaPath: string | undefined
-  try {
-    if (req.manual) throw new Error('elle akış: kalite raporu yok')
-    const q = await qaVideo(p.full, service.tools)
-    qaPath = p.full.replace(/\.mp4$/i, '') + ' - kalite raporu.txt'
-    await writeFile(qaPath, qaText(q.items) + '\n', 'utf8')
-  } catch {
-    qaPath = undefined
+  // çıkış kontrolü (ilk kare, siyah ekran, uzun sessizlik, ses şiddeti): tamamlanmış 2,5 saatlik videoyu BAŞTAN SONA üç kez taradığı için
+  // artık işi BEKLETMEZ — iş "bitti" dedikten sonra arka planda çalışır, rapor hazır olunca tam videonun yanına yazılır (kullanıcı: "çok uzun sürüyor")
+  const qaPath = p.full.replace(/\.mp4$/i, '') + ' - kalite raporu.txt'
+  if (!req.manual) {
+    void (async () => {
+      try {
+        const q = await qaVideo(p.full, service.tools)
+        await writeFile(qaPath, qaText(q.items) + '\n', 'utf8')
+        void appendRunLog(p.dir, `Kalite raporu hazır: ${qaPath}`)
+      } catch {
+        /* rapor üretilemedi: iş etkilenmez */
+      }
+    })()
   }
 
   const st = state.silence
@@ -398,7 +420,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     cutReportPath: await access(p.cutReport).then(() => p.cutReport, () => undefined),
     outroNote: outroNote ?? (state.outro ? 'Outro eklendi' : undefined),
     timestampsText,
-    qaPath,
+    qaPath: req.manual ? undefined : qaPath,
     chapterRanges,
     durationBeforeSec: st.before,
     durationAfterSec: st.after,
@@ -444,12 +466,19 @@ export class AutoKickManager {
           signal: ctrl.signal,
           onStage: (sid, patch) => {
             const st = status.stages.find((x) => x.id === sid)
-            if (st) Object.assign(st, patch)
+            if (st) {
+              Object.assign(st, patch)
+              if (patch.status === 'running' && !st.startedAt) st.startedAt = Date.now()
+              if (patch.status && patch.status !== 'running' && patch.status !== 'pending') (st.startedAt ??= Date.now(), (st.endedAt = Date.now()))
+            }
             if (patch.status) void appendRunLog(autoKickPaths(req.videoPath, req.outDir).dir, `[Auto Kick:${sid}] ${patch.status}${patch.detail ? ` — ${patch.detail}` : ''}`)
             push()
           }
         })
         status.status = 'done'
+        // hangi aşama ne kadar sürdü (hız sorunlarını görmek için günlüğe de yazılır)
+        const dur = status.stages.filter((x) => x.startedAt && x.endedAt && x.endedAt - x.startedAt >= 2000).map((x) => `${x.label}: ${fmtElapsed(x.endedAt! - x.startedAt!)}`)
+        if (dur.length) void appendRunLog(status.result.outDir, `Aşama süreleri → ${dur.join(' · ')}`)
         void appendRunLog(status.result.outDir, `Auto Kick TAMAMLANDI. Tam video: ${status.result.fullVideoPath}${status.result.chapterRanges ? ` · liste alanı: ${status.result.chapterRanges.length}` : req.chapterList?.trim() ? ' · liste verildi ama çevrilen bölüm yok' : ''}`)
       } catch (e) {
         const cancelled = e instanceof AutoKickCancelled || ctrl.signal.aborted

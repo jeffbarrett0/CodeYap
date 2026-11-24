@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname } from 'node:path'
 import { adjustFilter, type Adjust } from '../../shared/adjust'
 import type { MediaAsset } from '../../shared/types'
+import { videoEncoderArgs, type HwEncoder } from './hwenc'
 
 /**
  * Tek kaynaklı, çok sayıda kesim içeren uzun kayıtlar (2 saatlik yayın, yüzlerce kesim) için ölçeklenir dışa aktarma:
@@ -58,6 +59,8 @@ export interface FastCutOptions {
   audioKbps: number
   /** CapCut tarzı görüntü ayarı (Ayarlar: otomatik kontrast/keskinlik) */
   adjust?: Adjust
+  /** donanım kodlayıcı (ekran kartı); yoksa yazılım (libx264) */
+  hw?: HwEncoder | null
 }
 
 export function planFastCut(asset: Pick<MediaAsset, 'path' | 'fps' | 'audioStreams' | 'audioMap'>, ranges: Range[], o: FastCutOptions, outputPath: string): { args: string[]; filters: string; durationSec: number } {
@@ -81,8 +84,7 @@ export function planFastCut(asset: Pick<MediaAsset, 'path' | 'fps' | 'audioStrea
     '-i', src,
     '-filter_complex_script', 'filters.txt',
     '-map', '[v]', '-map', '[a]',
-    '-c:v', 'libx264', '-preset', o.encoderPreset, '-profile:v', 'high', '-pix_fmt', 'yuv420p',
-    '-crf', String(o.crf), '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`,
+    ...videoEncoderArgs(o, o.hw),
     '-c:a', 'aac', '-b:a', `${o.audioKbps}k`, '-ar', '48000',
     '-r', `${fn}/${fd}`,
     '-movflags', '+faststart',
