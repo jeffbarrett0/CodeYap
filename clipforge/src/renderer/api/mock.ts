@@ -115,7 +115,7 @@ export function createMockApi(): ClipforgeApi {
   const queue = new TaskQueue()
   queue.onUpdate((t) => emit('task:update', t))
   let userTemplates: import('@shared/types').LayoutTemplate[] = []
-  const w = window as unknown as { __mock?: { nextChat?: string; openFile?: string; fail?: Record<string, string> } }
+  const w = window as unknown as { __mock?: { nextChat?: string; openFile?: string; openMedia?: string[]; fail?: Record<string, string> } }
   w.__mock = w.__mock ?? {}
 
   const SAMPLE_CSV = ['time,user,message', ...Array.from({ length: 12 }, (_, i) => `00:00:${String(i * 8).padStart(2, '0')},u${i},selam`), ...Array.from({ length: 80 }, (_, i) => `00:00:${String(Math.min(59, 40 + Math.floor(i / 5))).padStart(2, '0')}.${i % 10},v${i},LUL`)].join('\n')
@@ -124,7 +124,7 @@ export function createMockApi(): ClipforgeApi {
     'app:info': () => ({ version: 'dev (tarayıcı modu)', platform: 'web', ffmpeg: { ok: true, path: 'mock', version: 'ffmpeg (sahte)' }, ffprobe: { ok: true, path: 'mock', version: 'ffprobe (sahte)' }, whisperCpp: { ok: true, path: 'mock' }, models: (['tiny', 'base', 'small', 'medium'] as const).map((s) => ({ size: s, installed: s === 'small', path: `mock/ggml-${s}.bin` })), userDataDir: 'mock' }),
     'settings:get': () => settings,
     'settings:set': (p) => (settings = normalizeSettings({ ...settings, ...p })),
-    'dialog:openMedia': () => ['/demo/2024-05-12 21-30-45.mkv'],
+    'dialog:openMedia': () => w.__mock?.openMedia ?? ['/demo/2024-05-12 21-30-45.mkv'],
     'dialog:openFile': () => w.__mock?.openFile ?? 'mock://chat',
     'dialog:saveFile': ({ defaultName }) => `/tmp/${defaultName}`,
     'audio:denoise': (r) => r.level,
@@ -224,6 +224,15 @@ export function createMockApi(): ClipforgeApi {
       mockFixes.push({ from: r.from.trim(), to: r.to.trim() })
       return { replaced: 3 }
     },
+    'autokick:outro': (r) =>
+      queue.add({
+        kind: 'ytcut',
+        title: `Outro ekleniyor: ${String(r.fullVideoPath).split(/[\\/]/).pop()}`,
+        run: async (ctx) => {
+          for (let i = 1; i <= 3; i++) (ctx.progress(i / 3), await sleep(40))
+          emit('outro:done', { taskId: ctx.id, fullVideoPath: r.fullVideoPath, ok: true, note: 'Outro eklendi (+10 sn).' })
+        }
+      }).id,
     'facetrim:preview': (r) => {
       if (/bozuk/i.test(r.videoPath)) throw new Error('Videoda görüntü akışı bulunamadı.')
       const px = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA='
@@ -328,7 +337,7 @@ export function createMockApi(): ClipforgeApi {
         }
         status.status = 'done'
         status.finishedAt = Date.now()
-        status.result = { cutReportPath: '/yayin/AutoKick/kayit/Kesim raporu.txt', timestampsText: '00:00:00 Giriş\n00:12:30 Osimhen', timestampsPath: '/yayin/AutoKick/kayit/kayit - zaman damgaları.txt', verified: true, outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
+        status.result = { cutReportPath: '/yayin/AutoKick/kayit/Kesim raporu.txt', outroNote: /outroyok/i.test(req.videoPath) ? undefined : 'Outro eklendi (+10 sn)', timestampsText: '00:00:00 Giriş\n00:12:30 Osimhen', timestampsPath: '/yayin/AutoKick/kayit/kayit - zaman damgaları.txt', verified: true, outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
         push()
         // zincir: Auto Kick bitince Auto Clips kendiliğinden başlar (ayar açıksa)
         if (req.manual) return

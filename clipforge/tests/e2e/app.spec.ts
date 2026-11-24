@@ -973,6 +973,8 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autokick-overall').first()).toContainText('%100')
     for (const id of ['import', 'transcribe', 'silence', 'gaps', 'full']) await expect(page.getByTestId(`ak-stage-${id}`)).toHaveAttribute('data-stage-status', 'done')
     await expect(page.getByTestId('autokick-cutreport')).toBeVisible()
+    await expect(page.getByTestId('autokick-outro-note')).toContainText('Outro eklendi')
+    await expect(page.getByTestId('autokick-outro-add')).toHaveCount(0) // zaten ekli: düğme yok
     await expect(page.getByTestId('autokick-result')).toContainText('doğrulandı')
     await expect(page.getByTestId('autokick-result')).toContainText('412 kesim')
     await expect(page.getByTestId('autokick-elapsed')).toContainText('Toplam süre')
@@ -1423,6 +1425,21 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('outro-path')).toHaveValue('')
     await page.getByTestId('outro-enabled').uncheck()
     await expect(page.getByTestId('outro-enabled')).not.toBeChecked()
+  })
+
+  test('Auto Kick tam videosunda outro yoksa "Outro\'yu şimdi ekle" düğmesi çıkar; basınca eklenir ve not güncellenir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('autokick-btn').click()
+    await page.evaluate(() => void ((window as any).__mock.openMedia = ['/yayin/outroyok kayit.mkv']))
+    await page.getByTestId('autokick-pick').click()
+    await expect(page.getByTestId('autoclips-dialog')).toBeVisible({ timeout: 20000 })
+    await page.keyboard.press('Escape')
+    await page.getByTestId('autokick-btn').click()
+    await expect(page.getByTestId('autokick-result')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByTestId('autokick-outro-add')).toBeVisible()
+    await page.getByTestId('autokick-outro-add').click()
+    await expect(page.getByTestId('autokick-outro-note')).toContainText('Outro eklendi', { timeout: 10000 })
+    await expect(page.getByTestId('autokick-outro-add')).toHaveCount(0)
   })
 
   test('"Claude ile edit yap" düğmesi artık yok (araç çubuğunda ve Auto Kick sonucunda)', async ({ page }) => {

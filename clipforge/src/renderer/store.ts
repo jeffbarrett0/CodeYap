@@ -173,6 +173,8 @@ interface State {
   clipFindProject: string
   ytcutResults: Record<string, import('@shared/ytcut').YtCutResult>
   faceTrimResults: Record<string, { outputPath: string; width: number; height: number; durationSec: number }>
+  /** Auto Kick tam videosuna sonradan eklenen outro: tam video yolu → sonuç notu */
+  outroNotes: Record<string, { ok: boolean; note: string }>
   /** Otomatik zincirle (Auto Kick sonrası) çalışan/biten Auto Clips işleri */
   autoClipsJobs: Record<string, AutoClipsStatus>
   setAutoClipsProject(p: string): void
@@ -366,6 +368,7 @@ export const useStore = create<State>()((set, get) => {
     clipFindProject: '',
     ytcutResults: {},
     faceTrimResults: {},
+    outroNotes: {},
     autoClipsJobs: {},
     setAutoClipsProject: (p) => set({ autoClipsProject: p }),
     ideas: {},
@@ -451,6 +454,10 @@ export const useStore = create<State>()((set, get) => {
         mutateProject((p) => ({ ...p, candidates: [...p.candidates.filter((c) => c.assetId !== assetId), ...candidates] }))
         set({ suggesting: false })
         get().toast('info', candidates.length ? `${candidates.length} aday bulundu.` : 'Belirgin bir tepki anı bulunamadı.')
+      })
+      a.on('outro:done', ({ fullVideoPath, ok, note }) => {
+        set((s) => ({ outroNotes: { ...s.outroNotes, [fullVideoPath]: { ok, note } } }))
+        get().toast(ok ? 'success' : 'error', note)
       })
       a.on('facetrim:done', ({ taskId, ...r }) => {
         set((s) => ({ faceTrimResults: { ...s.faceTrimResults, [taskId]: r } }))

@@ -13,6 +13,7 @@ import type { Settings } from '../../shared/types'
 import { mergeRanges, renderFastCut, snapToFrame, type Range } from './fastcut'
 import { cutReportText, planSilenceCuts } from '../../shared/timeline/silence'
 import { detectVoicedRuns, mapVoicedToTimeline } from './voice'
+import { appendOutro, resolveOutro } from '../outro'
 import { timelineWords } from '../../shared/timeline/transcript'
 import { chapterClipRanges, formatChapters, mapChapterList, parseChapterList } from '../../shared/chapters'
 import { autoAdjustFrom } from '../../shared/adjust'
@@ -30,6 +31,8 @@ interface State {
   intro?: { cutSec: number }
   silence?: { cuts: number; removedSec: number; before: number; after: number; fillers: number }
   full?: boolean
+  /** YouTube outro (kapanış videosu) tam videonun sonuna eklendi: yeniden çalıştırmada İKİNCİ KEZ eklenmesin */
+  outro?: boolean
 }
 
 export class AutoKickCancelled extends Error {
@@ -313,6 +316,33 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     stage('full', { status: 'done', progress: 1, detail: p.full })
   }
 
+  // YouTube OUTRO (kullanıcının kapanış videosu): tam yayın videosunun SONUNA. (Eskiden yalnızca yatay kesitlere ekleniyordu; asıl YouTube'a yüklenen bu video outro'suz kalıyordu.)
+  // Zaman damgaları/kesit aralıkları etkilenmez (outro en sonda). Eklenemezse video outro'suz kalır ve nedeni günlüğe/sonuca yazılır.
+  let outroNote: string | undefined
+  if (!req.manual && !state.outro) {
+    try {
+      const outroPath = await resolveOutro(settings.outroPath, service.deps.userDataDir, service.deps.resourcesDir, settings.outroEnabled)
+      if (outroPath) {
+        stage('full', { detail: 'YouTube outro ekleniyor…' })
+        const preset = (req.quality ?? 'fast') === 'high' ? 'slow' : 'veryfast'
+        const crf = (req.quality ?? 'fast') === 'high' ? '14' : '20'
+        const cap = (req.quality ?? 'fast') === 'high' ? 150000 : 40000
+        const r = await appendOutro(p.full, outroPath, service.tools, { signal: hooks.signal, enc: ['-c:v', 'libx264', '-preset', preset, '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-crf', crf, '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`] })
+        if (r.ok) {
+          state.outro = true
+          await save()
+          outroNote = `Outro eklendi (+${Math.round(r.outroSec ?? 0)} sn)`
+        } else outroNote = r.error
+        void appendRunLog(p.dir, `Auto Kick: ${outroNote}`)
+        stage('full', { detail: `${p.full} · ${outroNote}` })
+      }
+    } catch (e) {
+      check()
+      outroNote = `Outro eklenemedi: ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`
+      void appendRunLog(p.dir, `Auto Kick: ${outroNote}`)
+    }
+  }
+
   // YouTube zaman damgaları (tam videonun yanına .txt); hata olursa iş yine başarılıdır
   let timestampsPath: string | undefined
   let timestampsText: string | undefined
@@ -366,6 +396,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     fullVideoPath: p.full,
     timestampsPath,
     cutReportPath: await access(p.cutReport).then(() => p.cutReport, () => undefined),
+    outroNote: outroNote ?? (state.outro ? 'Outro eklendi' : undefined),
     timestampsText,
     qaPath,
     chapterRanges,

@@ -1,4 +1,5 @@
-import { access, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ffprobeJson, limitThreads, runTool } from './ffmpeg'
@@ -21,6 +22,14 @@ export async function appendOutro(videoPath: string, outroPath: string, tools: M
     await access(outroPath)
   } catch {
     return { ok: false, error: `Outro videosu bulunamadı: ${outroPath}` }
+  }
+  // uzun yayın videosu (GB'larca): birleştirme dosyanın bir kopyasını yazar → yer kontrolü
+  try {
+    const need = (await stat(videoPath)).size * 1.05 + 200e6
+    const fs = await statfs(dirname(videoPath))
+    if (fs.bavail * fs.bsize < need) return { ok: false, error: `Outro eklenemedi: diskte yeterli boş yer yok (${(need / 1e9).toFixed(1)} GB gerekli). Video outro'suz bırakıldı.` }
+  } catch {
+    /* yer ölçülemezse devam */
   }
   const work = await mkdtemp(join(tmpdir(), 'clipforge-outro-'))
   try {
@@ -62,6 +71,19 @@ export async function appendOutro(videoPath: string, outroPath: string, tools: M
     if (!(Math.abs(after - (before + outroSec)) <= 0.6)) {
       await rm(tmpOut, { force: true })
       return { ok: false, error: `Outro eklenirken süre tutmadı (beklenen ${(before + outroSec).toFixed(1)} sn, çıkan ${after.toFixed(1)} sn); video outro'suz bırakıldı.` }
+    }
+    // kuyruk doğrulaması: outro bölümü hatasız çözülmeli (parametre uyuşmazlığı süreyi bozmadan görüntüyü bozabilir); bozuksa ana video DEĞİŞMEZ
+    const tailFrom = Math.max(0, after - outroSec - 1)
+    let decodeErr = ''
+    try {
+      const r = await runTool(tools.ffmpeg, ['-v', 'error', '-nostdin', '-ss', tailFrom.toFixed(2), '-i', tmpOut, '-f', 'null', '-'], { signal: opts.signal })
+      decodeErr = `${r.stderr ?? ''}`.trim() // ffmpeg çözme hatalarını stderr'e yazar
+    } catch (e) {
+      decodeErr = e instanceof Error ? e.message : String(e)
+    }
+    if (decodeErr) {
+      await rm(tmpOut, { force: true })
+      return { ok: false, error: `Outro bölümü çözülemedi (${decodeErr.split('\n')[0].slice(0, 120)}); video outro'suz bırakıldı.` }
     }
     await rename(tmpOut, videoPath)
     return { ok: true, outroSec }

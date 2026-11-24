@@ -51,6 +51,8 @@ export interface AutoKickResult {
   timestampsPath?: string
   /** Kesim raporu: neyin neden kesildiği (zaman + önce/sonra söylenenler) */
   cutReportPath?: string
+  /** Tam videonun sonuna YouTube outro eklendi mi / neden eklenemedi */
+  outroNote?: string
   /** Zaman damgası metni (dosyadakiyle aynı): arayüzde doğrudan gösterilir/kopyalanır */
   timestampsText?: string
   /** Çıkış kontrolü raporu (.txt): ilk kare, siyah ekran, sessizlik, ses seviyesi */

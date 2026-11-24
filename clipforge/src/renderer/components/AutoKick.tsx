@@ -69,6 +69,7 @@ function Job({ job }: { job: AutoKickStatus }) {
   const openProject = useStore((s) => s.openProject)
   const closeDialog = useStore((s) => s.openDialog)
   const toast = useStore((s) => s.toast)
+  const outroNotes = useStore((s) => s.outroNotes)
   const r = job.result
   return (
     <div className="col autokick-job" data-testid="autokick-job" data-status={job.status}>
@@ -101,6 +102,17 @@ function Job({ job }: { job: AutoKickStatus }) {
       {job.status === 'running' && <button className="btn sm danger" onClick={() => void api.invoke('autokick:cancel', job.id)} data-testid="autokick-cancel">İptal</button>}
       {r && (
         <div className="col" data-testid="autokick-result">
+          {(() => {
+            const added = outroNotes[r.fullVideoPath]
+            const note = added?.note ?? r.outroNote
+            const has = added?.ok || (!!r.outroNote && /eklendi|ekli/i.test(r.outroNote))
+            return (
+              <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+                {note && <span className="hint" data-testid="autokick-outro-note">🎬 {note}</span>}
+                {!has && <button className="btn sm" onClick={() => void api.invoke('autokick:outro', { fullVideoPath: r.fullVideoPath })} data-testid="autokick-outro-add" title="Tam videonun sonuna YouTube outro'sunu ekler (videoyu yeniden işlemeden; birkaç dakika sürebilir)">Outro'yu şimdi ekle</button>}
+              </div>
+            )
+          })()}
           {r.cutReportPath && <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}><button className="btn sm" onClick={() => void api.invoke('shell:reveal', r.cutReportPath!)} data-testid="autokick-cutreport" title="Hangi yerlerin neden kesildiği: zaman + önce/sonra söylenenler">Kesim raporunu göster</button><span className="hint">Neyin kesildiğini (zaman + önce/sonra söylenenler) buradan kontrol edebilirsin.</span></div>}
           <div className="hint">
             {r.verified && <b>✓ Çıktı doğrulandı (süre, görüntü, ses; boşluk yok). </b>}Süre: {fmtMin(r.durationBeforeSec)} → <b>{fmtMin(r.durationAfterSec)}</b> ({fmtMin(r.removedSec)} kısaldı, {r.cuts} kesim, {r.fillers} dolgu sesi) · {r.words.toLocaleString('tr')} kelime

@@ -65,6 +65,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       if (lines.length) await app.settings.update({ vocabulary: [cur.trim(), ...lines].filter(Boolean).join('\n') })
       return out
     },
+    'autokick:outro': (r) => app.outroAddStart(r.fullVideoPath),
     'facetrim:preview': (r) => app.faceTrimPreview(r),
     'facetrim:start': (r) => app.faceTrimStart(r),
     'outro:folder': async () => {

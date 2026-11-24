@@ -29,7 +29,7 @@ import { loadTranscript, saveTranscript, transcribeAsset } from './transcribe/pi
 import { builtinAliases, builtinGlossary } from './transcribe/glossary'
 import { TEAMS } from '../shared/story/teams'
 import { appendRunLog } from './runlog'
-import { resolveOutro } from './outro'
+import { appendOutro, resolveOutro } from './outro'
 import { previewFaceTrim, runFaceTrim } from './facetrim'
 import type { FaceTrimShape } from '../shared/facetrim'
 import { applyVocabulary, buildPrompt, fixWord, parseAliases, parseVocabulary, withWords } from '../shared/transcript/vocabulary'
@@ -492,6 +492,37 @@ export class AppService {
         }
         if (logDir) void appendRunLog(logDir, `Auto yatay video TAMAMLANDI: ${result.items.filter((i) => i.path).length}/${result.items.length} kesit${result.items.some((i) => i.error) ? ' · HATALAR: ' + result.items.filter((i) => i.error).map((i) => `${i.title}: ${i.error}`).join(' | ') : ''} → ${result.dir}`)
         this.deps.emit('ytcut:done', { taskId: ctx.id, result })
+      }
+    }).id
+  }
+
+  /**
+   * Zaten üretilmiş Auto Kick tam videosunun sonuna YouTube outro ekler (Auto Kick'i yeniden çalıştırmadan). Aynı klasördeki autokick.json'a işlenir:
+   * sonraki çalıştırmada ikinci kez eklenmez. Eklenemezse video DEĞİŞMEZ.
+   */
+  outroAddStart(fullVideoPath: string): string {
+    return this.queue.add({
+      kind: 'ytcut',
+      title: `Outro ekleniyor: ${basename(fullVideoPath)}`,
+      run: async (ctx) => {
+        const statePath = join(dirname(fullVideoPath), 'autokick.json')
+        let state: { outro?: boolean } & Record<string, unknown> = {}
+        try {
+          state = JSON.parse(await readFile(statePath, 'utf8'))
+        } catch {
+          /* durum dosyası yoksa devam */
+        }
+        const done = async (ok: boolean, note: string) => this.deps.emit('outro:done', { taskId: ctx.id, fullVideoPath, ok, note })
+        if (state.outro) return done(true, 'Outro zaten ekli.')
+        const outro = await resolveOutro(this.settings.value.outroPath, this.deps.userDataDir, this.deps.resourcesDir, true)
+        if (!outro) return done(false, 'Outro dosyası yok: YouTube yatay video penceresinde "Outro seç…" ya da kapanış klasörüne bırakın.')
+        const r = await appendOutro(fullVideoPath, outro, this.tools, { signal: ctx.signal, enc: ['-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-crf', '20', '-maxrate', '40000k', '-bufsize', '80000k'] })
+        if (r.ok) {
+          state.outro = true
+          await writeFile(statePath, JSON.stringify(state, null, 2), 'utf8').catch(() => undefined)
+          void appendRunLog(dirname(fullVideoPath), `Outro eklendi (+${Math.round(r.outroSec ?? 0)} sn): ${basename(fullVideoPath)}`)
+        }
+        await done(r.ok, r.ok ? `Outro eklendi (+${Math.round(r.outroSec ?? 0)} sn).` : (r.error ?? 'Outro eklenemedi.'))
       }
     }).id
   }

@@ -182,6 +182,8 @@ export interface IpcInvoke {
   'facetrim:preview': [[{ videoPath: string; faceShare: number; stripCut: boolean; shape: import('./facetrim').FaceTrimShape; /** önizleme karesi (sn); boşsa videonun başı */ at?: number }], { original: string; result: string; srcW: number; srcH: number; outW: number; outH: number; durationSec: number; hasAudio: boolean }]
   /** MP4 olarak kaydet (görev kuyruğu; bitince 'facetrim:done') */
   'facetrim:start': [[{ videoPath: string; faceShare: number; stripCut: boolean; shape: import('./facetrim').FaceTrimShape; /** videoyu kes: başlangıç/bitiş (sn); boşsa tamamı */ start?: number; end?: number }], string]
+  /** Zaten üretilmiş Auto Kick tam videosunun (`… - full.mp4`) sonuna YouTube outro ekler (yeniden işlemeden; görev kuyruğu; bitince 'outro:done') */
+  'autokick:outro': [[{ fullVideoPath: string }], string]
   /** Kapanış (outro) klasörünün yolu (yoksa oluşturur): kullanıcı outro videosunu buraya bırakır */
   'outro:folder': [[], string]
   'clipfind:search': [[{ projectPath: string; query: string }], { candidates: import('./clipsearch').SceneCandidate[]; projectPath: string; totalSec: number }]
@@ -206,6 +208,7 @@ export interface IpcEvents {
   'transcript:ready': { assetId: string; transcript: Transcript; reused: boolean }
   'suggest:ready': { assetId: string; candidates: ClipCandidate[] }
   'ytcut:done': { taskId: string; result: YtCutResult }
+  'outro:done': { taskId: string; fullVideoPath: string; ok: boolean; note: string }
   'facetrim:done': { taskId: string; outputPath: string; width: number; height: number; durationSec: number }
   'export:done': { taskId: string; outputPath: string; warnings?: string[]; timestampsPath?: string }
   'menu:command': 'open' | 'save' | 'saveAs' | 'import' | 'export'
