@@ -11,7 +11,8 @@ import { findGaps } from '../../shared/timeline/ops'
 import { cpuPolicy, ffprobeJson, setCpuMode } from '../ffmpeg'
 import type { Settings } from '../../shared/types'
 import { mergeRanges, renderFastCut, snapToFrame, type Range } from './fastcut'
-import { planSilenceCuts } from '../../shared/timeline/silence'
+import { cutReportText, planSilenceCuts } from '../../shared/timeline/silence'
+import { detectVoicedRuns, mapVoicedToTimeline } from './voice'
 import { timelineWords } from '../../shared/timeline/transcript'
 import { chapterClipRanges, formatChapters, mapChapterList, parseChapterList } from '../../shared/chapters'
 import { autoAdjustFrom } from '../../shared/adjust'
@@ -44,7 +45,7 @@ export function autoKickPaths(videoPath: string, outDir?: string) {
   const video = resolve(videoPath)
   const name = basename(video, extname(video))
   const dir = resolve(outDir ?? join(dirname(video), 'AutoKick', name))
-  return { video, name, dir, project: join(dir, `${name}.clipforge`), full: join(dir, `${name} - full.mp4`), state: join(dir, 'autokick.json') }
+  return { video, name, dir, project: join(dir, `${name}.clipforge`), full: join(dir, `${name} - full.mp4`), state: join(dir, 'autokick.json'), cutReport: join(dir, 'Kesim raporu.txt') }
 }
 
 async function readState(path: string): Promise<State> {
@@ -200,13 +201,40 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     const before = timelineDuration(s.timeline)
     const words = timelineWords(s.timeline, s.transcripts)
     const sil = req.silence ?? { minGapSec: settings.silenceMinGapSec, keepSec: settings.silenceKeepSec, cutFillers: settings.cutFillers }
-    const plan = planSilenceCuts(words, before, sil)
+    // KONUŞMA KORUMASI: gerçek ses seviyesinden "ses var" aralıkları; sessizlik kesimleri bunlara giremez (analiz olmazsa temkinli paylarla devam)
+    let voiced: [number, number][] | undefined
+    let guardNote = ''
+    if (settings.silenceAudioGuard !== false) {
+      stage('silence', { detail: 'Gerçek ses seviyesi çözümleniyor (konuşmanın kesilmemesi için)…' })
+      try {
+        const tr = s.transcripts[asset.id]
+        const va = await detectVoicedRuns(asset.path, tr?.audioTrack ?? asset.transcriptionTrack ?? 0, service.tools, { signal: hooks.signal, durationSec: asset.durationSec, onProgress: (f) => stage('silence', { progress: f * 0.85 }) })
+        const keptClips = (s.timeline.tracks.find((t) => t.id === 'V1')?.clips ?? []).filter((c) => c.assetId === asset.id).map((c) => ({ srcIn: c.srcIn, srcOut: c.srcOut, start: c.start }))
+        voiced = mapVoicedToTimeline(va.runs, keptClips)
+        guardNote = va.continuous ? ' · ses sürekli (kesim az olabilir)' : ''
+      } catch (e) {
+        check()
+        guardNote = ` · ses analizi yapılamadı (${e instanceof Error ? e.message.slice(0, 80) : String(e)}): temkinli paylarla`
+      }
+    }
+    const plan = planSilenceCuts(words, before, { ...sil, voiced })
     // kesim sınırları kare ızgarasına oturur: görüntü ve ses aynı uzunlukta kalır (kayma olmaz)
     const cuts = mergeRanges(plan.cuts.map(([x, y]) => [snapToFrame(x, fps), snapToFrame(y, fps)] as Range).filter(([x, y]) => y - x >= 1 / fps))
+    // kesim raporu (kesimden ÖNCE: zamanlar kesim öncesi çizelge → orijinal kayıt zamanına çevrilir)
+    try {
+      const v1 = (s.timeline.tracks.find((t) => t.id === 'V1')?.clips ?? []).filter((c) => c.assetId === asset.id)
+      const toSource = (t: number) => {
+        const c = v1.find((x) => t >= x.start - 1e-6 && t < x.start + (x.srcOut - x.srcIn) + 1e-6)
+        return c ? c.srcIn + (t - c.start) : t
+      }
+      await writeFile(p.cutReport, cutReportText({ cuts: cuts as [number, number][], words, toSource, guardNote: voiced ? `açık (gerçek ses seviyesine bakıldı${guardNote})` : undefined }) + '\n', 'utf8')
+    } catch {
+      /* rapor yazılamadı: iş yine sürer */
+    }
     if (cuts.length > 0) s.apply(cmd.cutRanges(cuts))
     state.silence = { cuts: cuts.length, removedSec: before - timelineDuration(s.timeline), before, after: timelineDuration(s.timeline), fillers: plan.fillerCount }
     await save()
-    stage('silence', { status: 'done', progress: 1, detail: `${cuts.length} kesim · ${Math.round((state.silence.removedSec / 60) * 10) / 10} dk kısaldı` })
+    stage('silence', { status: 'done', progress: 1, detail: `${cuts.length} kesim · ${Math.round((state.silence.removedSec / 60) * 10) / 10} dk kısaldı${voiced ? ' · konuşma korundu (ses seviyesine bakıldı)' : ''}${guardNote}` })
   }
 
   // 4) boşlukları kapat ──────────────────────────────────
@@ -337,6 +365,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     projectPath: p.project,
     fullVideoPath: p.full,
     timestampsPath,
+    cutReportPath: await access(p.cutReport).then(() => p.cutReport, () => undefined),
     timestampsText,
     qaPath,
     chapterRanges,

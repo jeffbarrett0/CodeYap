@@ -44,6 +44,7 @@ import { aspectSize, clipEnd, nearestAspect, timelineDuration } from '../shared/
 import { audioCarriersOf, clipsAt, makeTextClip, timelineToSource } from '../shared/timeline/ops'
 import { buildSegments } from '../shared/transcript/sentences'
 import { planSilenceCuts } from '../shared/timeline/silence'
+import { detectVoicedRuns, mapVoicedToTimeline } from '../main/autokick/voice'
 import { timelineWords } from '../shared/timeline/transcript'
 import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/export/presets'
 import type { Clip, MediaAsset, TextSpec } from '../shared/types'
@@ -941,7 +942,22 @@ async function main(argv: string[]): Promise<unknown> {
       if (words.length === 0) throw new Error('Zaman çizelgesindeki içeriğin transkripti yok. `transcribe` çalıştırın.')
       const total = s.timeline.tracks.filter((t) => t.kind !== 'text').flatMap((t) => t.clips).reduce((m, c) => Math.max(m, clipEnd(c)), 0)
       const set = s.service.settings.value
-      const plan = planSilenceCuts(words, total, { minGapSec: num(a.opt['min-gap'], 'min-gap') ?? set.silenceMinGapSec, keepSec: num(a.opt.keep, 'keep') ?? set.silenceKeepSec, cutFillers: a.opt['no-fillers'] ? false : set.cutFillers })
+      // KONUŞMA KORUMASI: gerçek ses seviyesine bakılır (--no-audio-guard ile kapatılır): konuşma olan yer "sessizlik" diye kesilmez
+      let voiced: [number, number][] | undefined
+      if (set.silenceAudioGuard !== false && !a.opt['no-audio-guard']) {
+        try {
+          const aid = words[0].assetId
+          const asset0 = s.project.assets.find((x) => x.id === aid)
+          if (asset0) {
+            const va = await detectVoicedRuns(asset0.path, s.transcripts[aid]?.audioTrack ?? asset0.transcriptionTrack ?? 0, s.service.tools, { durationSec: asset0.durationSec })
+            const keptClips = s.timeline.tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips).filter((c) => c.assetId === aid).map((c) => ({ srcIn: c.srcIn, srcOut: c.srcOut, start: c.start }))
+            voiced = mapVoicedToTimeline(va.runs, keptClips)
+          }
+        } catch {
+          voiced = undefined // analiz olmazsa temkinli paylarla devam
+        }
+      }
+      const plan = planSilenceCuts(words, total, { minGapSec: num(a.opt['min-gap'], 'min-gap') ?? set.silenceMinGapSec, keepSec: num(a.opt.keep, 'keep') ?? set.silenceKeepSec, voiced, cutFillers: a.opt['no-fillers'] ? false : set.cutFillers })
       if (plan.cuts.length === 0) return out({ ok: true, cuts: 0, message: 'Kesilecek sessizlik/dolgu sesi bulunamadı.' })
       s.apply(cmd.cutRanges(plan.cuts))
       await s.save()

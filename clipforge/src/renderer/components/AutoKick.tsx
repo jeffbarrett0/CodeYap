@@ -101,6 +101,7 @@ function Job({ job }: { job: AutoKickStatus }) {
       {job.status === 'running' && <button className="btn sm danger" onClick={() => void api.invoke('autokick:cancel', job.id)} data-testid="autokick-cancel">İptal</button>}
       {r && (
         <div className="col" data-testid="autokick-result">
+          {r.cutReportPath && <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}><button className="btn sm" onClick={() => void api.invoke('shell:reveal', r.cutReportPath!)} data-testid="autokick-cutreport" title="Hangi yerlerin neden kesildiği: zaman + önce/sonra söylenenler">Kesim raporunu göster</button><span className="hint">Neyin kesildiğini (zaman + önce/sonra söylenenler) buradan kontrol edebilirsin.</span></div>}
           <div className="hint">
             {r.verified && <b>✓ Çıktı doğrulandı (süre, görüntü, ses; boşluk yok). </b>}Süre: {fmtMin(r.durationBeforeSec)} → <b>{fmtMin(r.durationAfterSec)}</b> ({fmtMin(r.removedSec)} kısaldı, {r.cuts} kesim, {r.fillers} dolgu sesi) · {r.words.toLocaleString('tr')} kelime
           </div>
@@ -279,6 +280,7 @@ export function AutoKickDialog() {
               <label className="check" title="Gözetimsiz çalışırken tüm işlemci çekirdeklerini kullanır: iş daha hızlı biter, bilgisayar o sırada yavaşlar"><input type="checkbox" checked={settings.autoKickFullSpeed} onChange={(e) => void updateSettings({ autoKickFullSpeed: e.target.checked })} data-testid="autokick-fullspeed" /> Tam hız (bilgisayarı yavaşlatır, iş daha çabuk biter)</label>
               <Field label="Şu kadar sn'den uzun sessizlik kesilir"><Num value={minGap} min={0.2} max={10} step={0.1} label="Sessizlik süresi" onChange={setMinGap} /></Field>
               <label className="check"><input type="checkbox" checked={fillers} onChange={(e) => setFillers(e.target.checked)} /> "ııı / eee" dolgu seslerini de kes</label>
+              <label className="check" title="Whisper'ın kelime zamanları konuşmanın başını geç verebilir ya da bazı sözleri hiç yazmayabilir. Bu kutu açıkken kesilecek yerlerin gerçek ses seviyesine de bakılır: ses (konuşma) olan yer kesilmez."><input type="checkbox" checked={settings.silenceAudioGuard} onChange={(e) => void updateSettings({ silenceAudioGuard: e.target.checked })} data-testid="autokick-audioguard" /> Konuşmayı koru: gerçek ses seviyesine bakıp konuşulan yerleri ASLA kesme (önerilir)</label>
             </div>
           </div>
         </details>

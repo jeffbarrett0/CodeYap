@@ -489,6 +489,7 @@ export interface Settings {
   silenceMinGapSec: number
   /** Kesimden sonra her iki yanda bırakılan pay (sn) */
   silenceKeepSec: number
+  silenceAudioGuard: boolean
   /** ııı / eee gibi dolgu seslerini de kes */
   cutFillers: boolean
   /** Özel sözlük: isimler, yöresel kelimeler, terimler (satır ya da virgülle ayrılmış) */

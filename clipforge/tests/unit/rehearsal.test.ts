@@ -37,7 +37,7 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
 `
   )
   chmodSync(fake, 0o755)
-  writeFileSync(join(ud, 'settings.json'), JSON.stringify({ whisperCppPath: fake, whisperModelDir: join(ud, 'models'), whisperModel: 'tiny', language: 'tr', outroEnabled: false }))
+  writeFileSync(join(ud, 'settings.json'), JSON.stringify({ whisperCppPath: fake, whisperModelDir: join(ud, 'models'), whisperModel: 'tiny', language: 'tr', outroEnabled: false, silenceAudioGuard: false }))
   const ffmpeg = require('ffmpeg-static') as string
   execFileSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=30:duration=60', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=60', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', join(tmp, 'yayin.mp4')])
 }, 120_000)

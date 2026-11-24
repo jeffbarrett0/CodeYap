@@ -328,7 +328,7 @@ export function createMockApi(): ClipforgeApi {
         }
         status.status = 'done'
         status.finishedAt = Date.now()
-        status.result = { timestampsText: '00:00:00 Giriş\n00:12:30 Osimhen', timestampsPath: '/yayin/AutoKick/kayit/kayit - zaman damgaları.txt', verified: true, outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
+        status.result = { cutReportPath: '/yayin/AutoKick/kayit/Kesim raporu.txt', timestampsText: '00:00:00 Giriş\n00:12:30 Osimhen', timestampsPath: '/yayin/AutoKick/kayit/kayit - zaman damgaları.txt', verified: true, outDir: '/yayin/AutoKick/kayit', projectPath: '/yayin/AutoKick/kayit/kayit.clipforge', fullVideoPath: '/yayin/AutoKick/kayit/kayit - full.mp4', durationBeforeSec: 7200, durationAfterSec: 5400, removedSec: 1800, cuts: 412, fillers: 37, words: 21000, sentences: 1500 }
         push()
         // zincir: Auto Kick bitince Auto Clips kendiliğinden başlar (ayar açıksa)
         if (req.manual) return

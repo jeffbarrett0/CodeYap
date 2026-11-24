@@ -972,6 +972,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autokick-job').first()).toHaveAttribute('data-status', 'done')
     await expect(page.getByTestId('autokick-overall').first()).toContainText('%100')
     for (const id of ['import', 'transcribe', 'silence', 'gaps', 'full']) await expect(page.getByTestId(`ak-stage-${id}`)).toHaveAttribute('data-stage-status', 'done')
+    await expect(page.getByTestId('autokick-cutreport')).toBeVisible()
     await expect(page.getByTestId('autokick-result')).toContainText('doğrulandı')
     await expect(page.getByTestId('autokick-result')).toContainText('412 kesim')
     await expect(page.getByTestId('autokick-elapsed')).toContainText('Toplam süre')

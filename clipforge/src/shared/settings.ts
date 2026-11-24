@@ -31,6 +31,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoKickFullSpeed: true,
   silenceMinGapSec: 0.55,
   silenceKeepSec: 0.15,
+  /** Sessizlik kesilirken GERÇEK ses seviyesine de bakılır: konuşma varsa kesilmez (kullanıcı şikâyeti: konuşmanın başı kesiliyordu). Kapatılırsa yalnızca transkript zamanları kullanılır. */
+  silenceAudioGuard: true,
   cutFillers: true,
   vocabulary: '',
   transcribeFillers: true,

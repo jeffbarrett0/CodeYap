@@ -22,19 +22,19 @@ describe('sessizlik ve dolgu kesme planı', () => {
   it('uzun boşluğu iki yandan nefes payı bırakarak keser; kısa boşluğa dokunmaz', () => {
     const words = [w('Merhaba', 0.3), w('arkadaşlar', 0.9), w('bugün', 4.0), w('çok', 4.4)]
     const p = planSilenceCuts(words, 5, { minGapSec: 0.7, keepSec: 0.15 })
-    // 'arkadaşlar' 1.2'de biter, 'bugün' 4.0'da başlar: [1.35, 3.85]
+    // ses analizi YOKKEN temkinli paylar: sözün bitişinden 0,22 sn sonra, bir sonraki sözden 0,3 sn önce ('arkadaşlar' 1.2'de biter, 'bugün' 4.0'da başlar)
     expect(p.cuts).toHaveLength(1)
-    expect(p.cuts[0][0]).toBeCloseTo(1.35)
-    expect(p.cuts[0][1]).toBeCloseTo(3.85)
+    expect(p.cuts[0][0]).toBeCloseTo(1.42)
+    expect(p.cuts[0][1]).toBeCloseTo(3.7)
     expect(p.silenceCount).toBe(1)
-    expect(p.removedSec).toBeCloseTo(2.5)
+    expect(p.removedSec).toBeCloseTo(2.28)
   })
 
   it('baştaki ve sondaki sessizlik kısaltılır', () => {
     const p = planSilenceCuts([w('Merhaba', 3), w('dünya', 3.4)], 10, { keepSec: 0.2 })
     expect(p.cuts[0][0]).toBe(0)
-    expect(p.cuts[0][1]).toBeCloseTo(2.8)
-    expect(p.cuts[1][0]).toBeCloseTo(3.9)
+    expect(p.cuts[0][1]).toBeCloseTo(2.7) // konuşmanın başından 0,3 sn önce biter
+    expect(p.cuts[1][0]).toBeCloseTo(3.92) // 'dünya' 3.7'de biter, +0,22
     expect(p.cuts[1][1]).toBe(10)
   })
 
@@ -46,7 +46,7 @@ describe('sessizlik ve dolgu kesme planı', () => {
     expect(a).toBeGreaterThanOrEqual(1.4 - 1e-9) // 'Şimdi' 1.4'te biter
     expect(b).toBeLessThanOrEqual(2.35 + 1e-9) // 'bakalım' 2.35'te başlar
     expect(a).toBeLessThanOrEqual(1.46)
-    expect(b).toBeGreaterThanOrEqual(2.3)
+    expect(b).toBeGreaterThanOrEqual(2.25)
     // dolgu kesme kapalıysa dokunulmaz
     expect(planSilenceCuts(words, 3, { cutFillers: false }).fillerCount).toBe(0)
   })
@@ -55,8 +55,8 @@ describe('sessizlik ve dolgu kesme planı', () => {
     const words = [w('Evet', 0), w('ııı', 1.2), w('tamam', 3.5)]
     const p = planSilenceCuts(words, 4)
     expect(p.cuts).toHaveLength(1)
-    expect(p.cuts[0][0]).toBeCloseTo(0.45)
-    expect(p.cuts[0][1]).toBeCloseTo(3.35)
+    expect(p.cuts[0][0]).toBeCloseTo(0.52)
+    expect(p.cuts[0][1]).toBeCloseTo(3.2)
   })
 
   it('hiç gerçek kelime yoksa hiçbir şey kesilmez; boş girdi boş döner', () => {
@@ -113,5 +113,69 @@ describe('sessizlik eşiği varsayılanı', () => {
     const words = [w('bir', 0.3), w('iki', 1.2), w('üç', 4)]
     const p = planSilenceCuts(words, 6)
     expect(p.cuts.length).toBeGreaterThan(0)
+  })
+})
+
+
+describe('KONUŞMA KORUMASI: gerçek konuşma asla kesilmez (kullanıcı şikâyeti: "tam konuşmaya başlamışım, oraları kesmişsin")', () => {
+  const inCut = (cuts: [number, number][], a: number, b: number) => cuts.some(([x, y]) => x < b - 1e-9 && y > a + 1e-9)
+
+  it('KÖK NEDEN 1 — kısa kelime iki kesim arasında silinmezdi: "ve" + hemen ardından "ııı" artık korunur', () => {
+    const words = [w('tamam', 0, 1), w('ve', 4.0, 0.1), w('ııı', 4.12, 0.38), w('devam', 8, 0.4)]
+    const p = planSilenceCuts(words, 9, { minGapSec: 0.55, keepSec: 0.15, cutFillers: true })
+    expect(inCut(p.cuts, 4.0, 4.1)).toBe(false) // "ve" kesimin içinde DEĞİL
+    expect(inCut(p.cuts, 0, 1)).toBe(false)
+    expect(inCut(p.cuts, 8, 8.4)).toBe(false)
+  })
+
+  it('KÖK NEDEN 2 — Whisper konuşmanın başlangıcını GEÇ verirse (0,45 sn): ses seviyesi koruması başlangıcı korur; korumasız kesim konuşmaya girerdi', () => {
+    const words = [w('selam', 0, 0.5), w('bugün', 5.6, 0.4)] // gerçekte konuşma 5.15'te başlıyor
+    const voiced: [number, number][] = [[0, 0.5], [5.15, 6.1]]
+    const without = planSilenceCuts(words, 7, { keepSec: 0.15, voiced: undefined })
+    // koruma yokken de temkinli pay (0,3) var ama 0,45 sn'lik gecikmeyi karşılayamaz → konuşmaya giriyor (eski hata)
+    expect(inCut(without.cuts, 5.15, 5.3)).toBe(true)
+    const guarded = planSilenceCuts(words, 7, { keepSec: 0.15, voiced })
+    expect(inCut(guarded.cuts, 5.15, 6.1)).toBe(false) // artık konuşmanın hiçbir yeri kesilmiyor
+    expect(inCut(guarded.cuts, 0, 0.5)).toBe(false)
+    // ve gerçekten sessiz yer hâlâ kesiliyor
+    expect(guarded.cuts.length).toBeGreaterThanOrEqual(1)
+    expect(guarded.removedSec).toBeGreaterThan(3)
+  })
+
+  it('KÖK NEDEN 3 — Whisper\'ın HİÇ yazmadığı ama söylenen sözler: ses varsa "sessizlik" sayılıp kesilmez', () => {
+    const words = [w('başla', 0, 0.5), w('devam', 10, 0.4)] // 3–5. sn arası konuşulmuş ama transkripte girmemiş
+    const p = planSilenceCuts(words, 11, { keepSec: 0.15, voiced: [[0, 0.5], [3, 5], [10, 10.4]] })
+    expect(inCut(p.cuts, 3, 5)).toBe(false)
+    expect(p.cuts.length).toBe(3) // 3-5 öncesi, sonrası ve sondaki sessizlik ayrı ayrı kesilir
+    expect(inCut(p.cuts, 0.65, 2.7)).toBe(true) // gerçek sessizlik hâlâ kesiliyor
+  })
+
+  it('RASTGELE ÖZELLİK TESTİ: 300 farklı konuşma düzeninde (başlangıç 0–0,4 sn erken, bitiş 0–0,3 sn geç, atlanmış sözler) hiçbir gerçek ses kesilmez', () => {
+    let seed = 7
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296)
+    for (let run = 0; run < 300; run++) {
+      const words: { text: string; start: number; end: number }[] = []
+      const voiced: [number, number][] = []
+      let t = rnd() * 2
+      for (let i = 0; i < 25; i++) {
+        const dur = 0.15 + rnd() * 0.5
+        const early = rnd() * 0.4 // Whisper başlangıcı bu kadar geç yazar
+        const late = rnd() * 0.3 // Whisper bitişi bu kadar erken yazar
+        const isFiller = rnd() < 0.12
+        const skipped = rnd() < 0.08 // Whisper hiç yazmadı
+        if (!skipped) words.push({ text: isFiller ? 'ııı' : `k${i}`, start: t + early, end: t + dur - late > t + early + 0.05 ? t + dur - late : t + early + 0.05 })
+        voiced.push([t, t + dur])
+        t += dur + (rnd() < 0.3 ? 0.6 + rnd() * 3 : 0.05 + rnd() * 0.3)
+      }
+      const total = t + 2
+      if (!words.some((x) => x.text !== 'ııı')) continue
+      const p = planSilenceCuts(words, total, { minGapSec: 0.55, keepSec: 0.15, cutFillers: true, voiced })
+      for (const [v0, v1] of voiced) {
+        // dolgu sesleri bilerek kesilir; gerçek (dolgu olmayan) sözlerin sesi ise kesilemez
+        const isFillerSpan = words.some((x) => x.text === 'ııı' && x.start < v1 && x.end > v0 && x.start >= v0 - 0.45)
+        if (isFillerSpan) continue
+        expect(inCut(p.cuts, v0 + 0.02, v1 - 0.02), `koşu ${run}: ses ${v0.toFixed(2)}–${v1.toFixed(2)} kesildi`).toBe(false)
+      }
+    }
   })
 })

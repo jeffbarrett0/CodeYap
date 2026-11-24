@@ -49,6 +49,8 @@ export interface AutoKickResult {
   fullVideoPath: string
   /** YouTube zaman damgaları (.txt), bulunabildiyse */
   timestampsPath?: string
+  /** Kesim raporu: neyin neden kesildiği (zaman + önce/sonra söylenenler) */
+  cutReportPath?: string
   /** Zaman damgası metni (dosyadakiyle aynı): arayüzde doğrudan gösterilir/kopyalanır */
   timestampsText?: string
   /** Çıkış kontrolü raporu (.txt): ilk kare, siyah ekran, sessizlik, ses seviyesi */
