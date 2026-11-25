@@ -194,7 +194,7 @@ export function AutoClipsDialog() {
   }, [])
 
   const pick = async () => {
-    const p = await api.invoke('dialog:openFile', { title: 'Auto Kick projesi', extensions: ['clipforge'] })
+    const p = await api.invoke('dialog:openFile', { title: 'Video seç (Auto Kick çıktısı yanında aranır)', extensions: ['mkv', 'mp4', 'mov', 'm4v', 'webm', 'flv', 'ts', 'clipforge'] })
     if (p) {
       setPath(p)
       setAutoClipsProject(p)
@@ -278,10 +278,10 @@ export function AutoClipsDialog() {
           ))}
         </div>
         <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
-          <button className="btn" onClick={() => void pick()} data-testid="autoclips-pick">Auto Kick projesini seç…</button>
+          <button className="btn" onClick={() => void pick()} data-testid="autoclips-pick">Video seç…</button>
           <span className="hint" style={{ wordBreak: 'break-all' }} data-testid="autoclips-path">{path || 'Henüz seçilmedi (Auto Kick bitince otomatik gelir)'}</span>
         </div>
-        <div className="hint" data-testid="autoclips-pick-hint">Seçilecek dosya <b>Auto Kick'in çıkardığı “.clipforge” projesidir</b> (videonun yanındaki <b>AutoKick</b> klasöründe: <i>…\AutoKick\&lt;video adı&gt;\&lt;video adı&gt;.clipforge</i>). Ham kayıt videosunu (.mkv/.mp4) seçersen yanındaki Auto Kick çıktısı aranır; yoksa önce videoyu Auto Kick'ten geçirmelisin.</div>
+        <div className="hint" data-testid="autoclips-pick-hint">Yayın kaydınızı seçin (<b>.mkv / .mp4</b> …): videonun yanındaki <b>AutoKick</b> klasöründeki Auto Kick çıktısı kendiliğinden bulunur. Henüz Auto Kick'ten geçirmediyseniz önce <b>Auto Kick</b>'te işleyin. (Elinizde <i>.clipforge</i> proje dosyası varsa onu da seçebilirsiniz.)</div>
         <div className="row wrap" style={{ gap: 10, alignItems: 'center' }}>
           <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={10} min={30} max={MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
           <button className="btn primary" disabled={!path || busy} onClick={() => void find()} data-testid="autoclips-find" title="Transkriptten paylaşılabilecek klipleri kendisi bulur (kaç tane çıkarsa; sayı sınırı yok). Sonra istediklerinizi işaretlersiniz.">{busy && !cands ? 'Klipler aranıyor…' : cands ? 'Otomatik klip öner (yeniden)' : 'Otomatik klip öner'}</button>

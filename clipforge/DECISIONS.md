@@ -600,3 +600,6 @@ Kullanıcı: "Deniz Gül'ü 1 dk anlattım, adı 30. saniyede geçti diye 30. sa
 Ek (§109): isimle klipte birbirine ≤60 sn yakın anışlar, konunun başı-sonu en çok 178 sn'ye sığdığı sürece TEK klipte birleşir (kullanıcı: parça parça 47/59 sn klip yerine uzun klip; sonra kendisi keser).
 
 Güncelleme (§106): dynaudnorm kazancı başta ve içeride sesi kısıyordu (kullanıcı şikâyeti) → sabit eğrili compand'e geçildi; çıkış HER noktada ≥ giriş.
+
+## 110. Auto Clips: video seçilir
+Kullanıcı: 'Auto Kick projesini seç' yerine doğrudan MKV/MP4 seçmek istiyor. Düğme 'Video seç…'; dosya penceresi video türlerini (+ .clipforge) gösterir; seçilen videonun yanındaki AutoKick çıktısı `resolveProjectPath` ile bulunur.
