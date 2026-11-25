@@ -2,6 +2,7 @@ import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, extname, join } from 'node:path'
 import { FACE_TRIM_DEFAULT, faceTrimFilter, faceTrimGeometry, type FaceTrimGeometry, type FaceTrimOptions } from '../shared/facetrim'
+import { detectHwEncoder, videoEncoderArgs, type HwEncoder } from './autokick/hwenc'
 import { ffprobeJson, limitThreads, runTool } from './ffmpeg'
 import type { MediaTools } from './media/import'
 
@@ -63,7 +64,7 @@ export async function previewFaceTrim(videoPath: string, options: Partial<FaceTr
  * Yalnızca yüzü MP4 olarak kaydeder: üst yüz alanı kesilir, ortadaki şerit ve alttaki ekran atılır. Ses AYNEN kalır (yeniden kodlanmaz;
  * MP4'e uymazsa AAC'ye çevrilir). Görüntü yeniden kodlanır (yüksek kalite). Kaynağa dokunulmaz.
  */
-export async function runFaceTrim(videoPath: string, options: Partial<FaceTrimOptions> & { /** videoyu kes (sn): başlangıç/bitiş; boşsa tamamı */ start?: number; end?: number }, tools: MediaTools, hooks: { signal?: AbortSignal; progress?: (f: number) => void } = {}): Promise<{ outputPath: string; width: number; height: number; durationSec: number }> {
+export async function runFaceTrim(videoPath: string, options: Partial<FaceTrimOptions> & { /** videoyu kes (sn): başlangıç/bitiş; boşsa tamamı */ start?: number; end?: number }, tools: MediaTools, hooks: { signal?: AbortSignal; progress?: (f: number) => void; /** false: ekran kartı kullanma */ hw?: boolean } = {}): Promise<{ outputPath: string; width: number; height: number; durationSec: number }> {
   const o = norm(options)
   const pr = await probe(tools, videoPath, hooks.signal)
   const g = faceTrimGeometry(pr.width, pr.height, o)
@@ -76,14 +77,22 @@ export async function runFaceTrim(videoPath: string, options: Partial<FaceTrimOp
   const clipSec = trimmed ? end - start : pr.durationSec
   const out = await outPathFor(videoPath)
   const part = `${out}.part.mp4`
-  const base = ['-y', '-v', 'error', '-nostdin', ...(trimmed ? ['-ss', start.toFixed(3), '-t', clipSec.toFixed(3)] : []), '-i', videoPath, '-map', '0:v:0', ...(pr.hasAudio ? ['-map', '0:a:0'] : []), '-vf', faceTrimFilter(g), '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
-  const run = (audio: string[]) => runTool(tools.ffmpeg, limitThreads([...base, ...audio, '-progress', 'pipe:1', part]), { signal: hooks.signal, durationSec: clipSec, onProgress: hooks.progress })
+  // HIZLI kodlama (kullanıcı: "kısa video 15 dk sürüyor"): eskiden `slow` + crf 16 ve yarım çekirdekti. Şimdi veryfast + crf 17 (görsel fark yok), ekran kartı varsa o (hata → yazılım)
+  const baseWith = (hw: HwEncoder | null) => ['-y', '-v', 'error', '-nostdin', ...(trimmed ? ['-ss', start.toFixed(3), '-t', clipSec.toFixed(3)] : []), '-i', videoPath, '-map', '0:v:0', ...(pr.hasAudio ? ['-map', '0:a:0'] : []), '-vf', faceTrimFilter(g), ...videoEncoderArgs({ crf: 17, encoderPreset: 'veryfast', maxrateKbps: 30000 }, hw), '-movflags', '+faststart']
+  const run = (audio: string[], hw: HwEncoder | null) => runTool(tools.ffmpeg, limitThreads([...baseWith(hw), ...audio, '-progress', 'pipe:1', part]), { signal: hooks.signal, durationSec: clipSec, onProgress: hooks.progress })
+  const hwFound = hooks.hw === false ? null : await detectHwEncoder(tools.ffmpeg)
+  const audioArgs = pr.hasAudio ? (trimmed ? ['-c:a', 'aac', '-b:a', '192k'] : ['-c:a', 'copy']) : ['-an']
   try {
     try {
-      await run(pr.hasAudio ? (trimmed ? ['-c:a', 'aac', '-b:a', '192k'] : ['-c:a', 'copy']) : ['-an'])
+      try {
+        await run(audioArgs, hwFound)
+      } catch (e) {
+        if (hooks.signal?.aborted || !hwFound) throw e
+        await run(audioArgs, null) // ekran kartı kodlaması olmadı: yazılım
+      }
     } catch (e) {
       if (hooks.signal?.aborted || !pr.hasAudio) throw e
-      await run(['-c:a', 'aac', '-b:a', '192k']) // ses akışı MP4'e kopyalanamadıysa
+      await run(['-c:a', 'aac', '-b:a', '192k'], null) // ses akışı MP4'e kopyalanamadıysa
     }
     const { rename } = await import('node:fs/promises')
     await rename(part, out)

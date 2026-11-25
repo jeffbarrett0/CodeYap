@@ -4,6 +4,31 @@ import { requireApi } from '../api'
 import { useStore } from '../store'
 import { Modal, Num, Progress } from './ui'
 
+
+/** "1:48", "1:48,5", "0:03.2", "108" → saniye (geçersizse null) */
+export function parseTime(t: string): number | null {
+  const x = t.trim().replace(',', '.')
+  if (!x) return null
+  const parts = x.split(':')
+  if (parts.length > 3 || parts.some((p) => !/^\d+(\.\d+)?$/.test(p.trim()))) return null
+  return parts.reduce((a, p) => a * 60 + Number(p), 0)
+}
+
+/** Süre kutusu: dakika:saniye (1:48) ya da saniye (108) yazılır; Enter/odak çıkınca uygulanır */
+function TimeBox({ value, onCommit, label, testid }: { value: number; onCommit: (v: number) => void; label: string; testid: string }) {
+  const fmt = (v: number) => `${Math.floor(v / 60)}:${(v % 60).toFixed(1).padStart(4, '0')}`
+  const [text, setText] = useState(fmt(value))
+  const [focus, setFocus] = useState(false)
+  useEffect(() => { if (!focus) setText(fmt(value)) }, [value, focus])
+  const commit = () => {
+    const v = parseTime(text)
+    if (v !== null) onCommit(v)
+    setFocus(false)
+    setText(fmt(v ?? value))
+  }
+  return <input type="text" inputMode="decimal" value={text} aria-label={label} data-testid={testid} style={{ width: 84, textAlign: 'center' }} title="Dakika:saniye (1:48) ya da saniye (108) yazın" onFocus={() => setFocus(true)} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget.blur())} />
+}
+
 /**
  * SportDeoPlus (yenilendi): bir DİKEY MP4 ver (yukarıda yüzün, ortada sosyal medyaların, aşağıda ekran görüntüsü). Ortadaki şerit ve alttaki ekran
  * silinir, yalnızca üstteki yüz alanı kalır ve MP4 olarak kaydedilir. Kesim çizgisi önizlemede görünür; gerekirse yüz alanı yüksekliğini ayarlarsın.
@@ -123,17 +148,17 @@ export function SportPlusDialog() {
               <div className="col" style={{ gap: 6, padding: 8, border: '1px solid var(--border, #2a3a30)', borderRadius: 8 }} data-testid="sport-trim">
                 <b>Videoyu kes (başlangıç ve bitiş)</b>
                 <div className="row wrap" style={{ gap: 14, alignItems: 'center' }}>
-                  <span className="row" style={{ gap: 4, alignItems: 'center' }}>Başlangıç (sn)
+                  <span className="row" style={{ gap: 4, alignItems: 'center' }}>Başlangıç (dk:sn)
                     <button className="btn sm" onClick={() => clampStart(start - 1)} data-testid="sport-start-m1">−1</button>
                     <button className="btn sm" onClick={() => clampStart(start - 0.1)}>−0,1</button>
-                    <Num value={start} step={0.1} min={0} max={Math.max(1, total)} label="Başlangıç (sn)" onChange={clampStart} />
+                    <TimeBox value={start} onCommit={clampStart} label="Başlangıç (dk:sn)" testid="sport-start-box" />
                     <button className="btn sm" onClick={() => clampStart(start + 0.1)}>+0,1</button>
                     <button className="btn sm" onClick={() => clampStart(start + 1)} data-testid="sport-start-p1">+1</button>
                   </span>
-                  <span className="row" style={{ gap: 4, alignItems: 'center' }}>Bitiş (sn)
+                  <span className="row" style={{ gap: 4, alignItems: 'center' }}>Bitiş (dk:sn)
                     <button className="btn sm" onClick={() => clampEnd(end - 1)} data-testid="sport-end-m1">−1</button>
                     <button className="btn sm" onClick={() => clampEnd(end - 0.1)}>−0,1</button>
-                    <Num value={end} step={0.1} min={0.5} max={Math.max(1, total)} label="Bitiş (sn)" onChange={clampEnd} />
+                    <TimeBox value={end} onCommit={clampEnd} label="Bitiş (dk:sn)" testid="sport-end-box" />
                     <button className="btn sm" onClick={() => clampEnd(end + 0.1)}>+0,1</button>
                     <button className="btn sm" onClick={() => clampEnd(end + 1)} data-testid="sport-end-p1">+1</button>
                   </span>

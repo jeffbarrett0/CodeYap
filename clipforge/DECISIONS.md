@@ -606,3 +606,6 @@ Kullanıcı: 'Auto Kick projesini seç' yerine doğrudan MKV/MP4 seçmek istiyor
 
 ## 111. SportDeoPlus: dinleyerek ön izleme
 Kullanıcı: başlangıç saniyesini seçerken videoyu o saniyeden dinleyip doğrulamak istiyor. Pencerede oynatıcı (`cf-media://file/<base64url yol>`: yalnızca önizleme için kaydedilmiş dosyalar, `AppService.previewFiles`), '▶ Başlangıçtan çal' (bitişte durur), '▶ Bitişi dinle (son 3 sn)', Durdur; başlangıç ±0,1/±1 ile değişince oynatıcı o kareye gider.
+
+## 112. SportDeoPlus: hızlı kodlama + dakika:saniye girişi
+Kullanıcı: kısa video 15 dk sürüyor; '108 sn yerine 1:48 yazabileyim'. (1) Yüz kesimi `slow`+crf16+yarım çekirdek idi → veryfast+crf17, ekran kartı varsa o (hata → yazılım), iş süresince tüm çekirdekler. (2) Başlangıç/bitiş kutuları metin: '1:48', '1:48,5' ya da '108' (`parseTime`); Enter/odak çıkınca uygulanır.

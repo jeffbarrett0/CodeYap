@@ -567,7 +567,13 @@ export class AppService {
       kind: 'ytcut',
       title: `SportDeoPlus: ${basename(req.videoPath)}`,
       run: async (ctx) => {
-        const r = await runFaceTrim(req.videoPath, req, this.tools, { signal: ctx.signal, progress: ctx.progress })
+        const release = this.settings.value.autoKickFullSpeed ? acquireFullSpeed() : () => undefined
+        let r
+        try {
+          r = await runFaceTrim(req.videoPath, req, this.tools, { signal: ctx.signal, progress: ctx.progress, hw: this.settings.value.autoKickHwEncode !== false })
+        } finally {
+          release()
+        }
         this.deps.emit('facetrim:done', { taskId: ctx.id, ...r })
       }
     }).id
