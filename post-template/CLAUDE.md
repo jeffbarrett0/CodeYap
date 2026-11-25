@@ -11,6 +11,8 @@ Her gonderi icin kullanici metin + video verir; sen sablonla birlestirip MP4 ure
 ## Degismez kurallar
 - **Guvenli alan:** ust 230px, alt 430px, sag/sol 130px bos. Reels/TikTok/Shorts arayuzu bu bolgeleri kapatir. Icerik ortada, kucuk yazi (32px).
 - **Outro:** `outro.mp4` HER gonderinin en sonuna eklenir (kullanici istedi).
+- **Gecis sesi:** `transition.mp4` (sadece ses kullanilir) video bitip outro'ya gecerken HER gonderide calar. Sesin vurgu ani (0,55. sn) kesim anina hizalanir (`PEAK`),
+  ses seviyesi videonun ortalama seviyesine (LUFS) gore otomatik esitlenir. Hepsi `add-outro.sh` icinde.
 - **YouTube butonu:** `youtube-button.mp4` (yesil perde, 4K) -> `prep-button.sh` ile yesili silinip `youtube-button.mov` (640px genislik) yapilir.
   Video basladiktan **1. saniyede** oynar, sonra **her 30 saniyede** bir (1, 31, 61...). 5 sn'lik animasyon sigmiyorsa eklenmez.
   Buton videonun **ustune degil ALTINA** gelir (`.btn-slot`), videoyu kapatmaz. Boyutu `--btn-w` ile ayarlanir (su an 640px).
