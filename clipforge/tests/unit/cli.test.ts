@@ -960,8 +960,8 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
     const r = cli('yt-cut', src, '--list', join(tmp, 'cta-liste.txt'), '--out', join(tmp, 'CTA Çıktı'))
     expect(r.ok, JSON.stringify(r)).toBe(true)
     expect(r.warnings.join(' ')).not.toMatch(/eklenemedi/)
-    expect(r.items[0].ctaAt).toEqual([12, 62, 112, 162])
-    expect(r.items[1].ctaAt).toEqual([4.5]) // 15 sn'lik kesitte de 1 buton
+    expect(r.items[0].ctaAt).toEqual([2, 22, 42, 62, 82, 102, 122, 142, 162])
+    expect(r.items[1].ctaAt).toEqual([2]) // 15 sn'lik kesitte de 1 buton
     const probe = (f: string) => JSON.parse(execFileSync(require('@ffprobe-installer/ffprobe').path as string, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', f]).toString())
     expect(Number(probe(r.items[0].file).format.duration)).toBeGreaterThan(179)
     expect(Number(probe(r.items[0].file).format.duration)).toBeLessThan(181)

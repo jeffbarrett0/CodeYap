@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname } from 'node:path'
+import { VOICE_LEVEL_FILTER } from '../../shared/voicelevel'
 import { adjustFilter, type Adjust } from '../../shared/adjust'
 import type { MediaAsset } from '../../shared/types'
 import { videoEncoderArgs, type HwEncoder } from './hwenc'
@@ -59,6 +60,8 @@ export interface FastCutOptions {
   audioKbps: number
   /** CapCut tarzı görüntü ayarı (Ayarlar: otomatik kontrast/keskinlik) */
   adjust?: Adjust
+  /** konuşma sesini yalnızca yukarı seviyele */
+  voiceLift?: boolean
   /** donanım kodlayıcı (ekran kartı); yoksa yazılım (libx264) */
   hw?: HwEncoder | null
 }
@@ -74,7 +77,7 @@ export function planFastCut(asset: Pick<MediaAsset, 'path' | 'fps' | 'audioStrea
     // kare hızı açıkça verilir (FRAME_RATE seçimden sonra bilinmez → 25 fps'e düşüp kareleri atardı)
     `[0:v:0]select='${expr}',setpts=N/((${fn}/${fd})*TB),fps=${fn}/${fd}${adjustFilter(o.adjust)}[v]`,
     // ses çerçevesi, kare süresine tam bölünür: her kesimde ses tam kare kadar uzunlukta kalır (kayma olmaz)
-    `[0:a:${a}]aformat=sample_rates=48000:channel_layouts=stereo,asetnsamples=n=${frameSamples}:p=0,aselect='${expr}',asetpts=N/SR/TB[a]`
+    `[0:a:${a}]aformat=sample_rates=48000:channel_layouts=stereo,asetnsamples=n=${frameSamples}:p=0,aselect='${expr}',asetpts=N/SR/TB${o.voiceLift ? ',' + VOICE_LEVEL_FILTER : ''}[a]`
   ].join(';\n')
   const duration = kept.reduce((n, [s, e]) => n + (e - s), 0)
   const src = asset.path.startsWith('-') ? `./${asset.path}` : asset.path

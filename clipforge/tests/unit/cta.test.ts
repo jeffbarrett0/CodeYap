@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ctaRect, ctaSequence, ctaTimes, ctaTimesEvery, defaultCtaSize, parseCtaManifest, youtubeCtaSize } from '@shared/cta'
+import { ctaRect, ctaSequence, ctaTimes, ctaTimesEvery, defaultCtaSize, parseCtaManifest, youtubeCtaSize, verticalCtaRect } from '@shared/cta'
 import { chromaFilter } from '@shared/export/plan'
 
 const dir = join(__dirname, '..', '..', 'resources', 'cta')
@@ -44,22 +44,25 @@ describe('çağrı butonları: manifest ve yerleşim', () => {
     expect(f.endsWith(',')).toBe(true)
   })
 
-  it('HER 50 SN\'DE BİR YouTube butonu (kullanıcının kararı): her videoda en az bir; sona taşmaz; üst üste binmez; alt orta, küçük', () => {
-    expect(ctaTimesEvery(8)).toEqual([]) // buton (5,2 sn) sığmaz
-    expect(ctaTimesEvery(20)).toEqual([6]) // kısa video: %30'unda
-    expect(ctaTimesEvery(30)).toEqual([9])
-    expect(ctaTimesEvery(60)).toEqual([12])
-    expect(ctaTimesEvery(75)).toEqual([12, 62])
-    expect(ctaTimesEvery(180)).toEqual([12, 62, 112, 162])
-    expect(ctaTimesEvery(600).length).toBe(12) // 10 dk: 12, 62, … 562
-    for (const D of [11, 12, 20, 45, 60, 99, 100, 178, 300, 1500, 3600]) {
+  it('İLK BUTON 2. SANİYEDE, sonra HER 20 SN\'DE (kullanıcının kalıcı kararı); sona taşmaz; üst üste binmez', () => {
+    expect(ctaTimesEvery(7)).toEqual([]) // buton (5,2 sn) sığmaz
+    expect(ctaTimesEvery(8)).toEqual([2])
+    expect(ctaTimesEvery(30)).toEqual([2, 22])
+    expect(ctaTimesEvery(62)).toEqual([2, 22, 42])
+    expect(ctaTimesEvery(600).length).toBe(30)
+    for (const D of [8, 12, 20, 45, 60, 99, 178, 300, 1500, 3600]) {
       const t = ctaTimesEvery(D)
-      if (D >= 11) expect(t.length).toBeGreaterThanOrEqual(1)
+      expect(t[0]).toBe(2)
       for (let i = 0; i < t.length; i++) {
-        expect(t[i] + 5.2).toBeLessThanOrEqual(D - 1.5 + 1e-6)
-        if (i) expect(t[i] - t[i - 1]).toBeCloseTo(50, 5)
+        expect(t[i] + 5.2).toBeLessThanOrEqual(D - 0.5 + 1e-6)
+        if (i) expect(t[i] - t[i - 1]).toBeCloseTo(20, 5)
       }
     }
+    // dikey: kullanıcının kırmızı ile işaretlediği yer (yatayda ortada, alt kenar %63,5'te)
+    const vr = verticalCtaRect({ crop: { x: 0.17, y: 0.44, w: 0.66, h: 0.56 } }, 3840, 2160)
+    expect(vr.x + vr.w / 2).toBeCloseTo(0.5, 5)
+    expect(vr.y + vr.h).toBeCloseTo(0.635, 5)
+    expect(vr.w).toBeCloseTo(0.52, 5)
     // yer: altta ortada (tam ortaya değil), küçük; dikeyde de alt orta
     for (const asp of ['16:9', '9:16']) {
       const r = ctaRect({ crop: { x: 0, y: 0, w: 1, h: 1 }, flushBottom: true }, 1280, 720, asp, { pos: 'bottom-center', size: youtubeCtaSize(asp) })

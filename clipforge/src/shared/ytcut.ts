@@ -13,6 +13,8 @@ export interface YtCutRequest {
   quality?: 'fast' | 'high'
   /** Görüntü ayarı (Ayarlar'daki otomatik kontrast/keskinlik); ana süreç ekler */
   adjust?: import('./adjust').Adjust
+  /** konuşma sesini yalnızca yukarı seviyele (butonun sesi konuşmadan kısık kalır) */
+  voiceLift?: boolean
   /** YouTube abone butonu (resources/cta): kesite ~2 dakikada bir eklenir; false = ekleme. Varsayılan: ekle */
   cta?: boolean
   /** Kaynak zaten +kontrast/keskinlik uygulanmış (Auto Kick'in full videosu): ana süreç ayarı yeniden eklemez */

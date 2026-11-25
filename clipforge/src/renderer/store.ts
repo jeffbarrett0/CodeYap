@@ -13,6 +13,7 @@ import { captionsForTimeline, untranslated } from '@shared/timeline/captions'
 import { planSilenceCuts } from '@shared/timeline/silence'
 import { timelineWords } from '@shared/timeline/transcript'
 import { clipForTrack, clipItemsForSource, clipsForVideoWithAudio, retargetItems } from '@shared/timeline/create'
+import { CTA_AUDIO_VOLUME } from '@shared/voicelevel'
 import { ctaRect } from '@shared/cta'
 import { mutedState, removeClipsOfAsset } from '@shared/timeline/ops'
 import { clipEnd, createDefaultTimeline, findClip, groupMembers, nearestAspect, newId, timelineDuration } from '@shared/timeline/model'
@@ -1060,7 +1061,7 @@ export const useStore = create<State>()((set, get) => {
         const atr = tl.tracks.find((t) => t.id === 'CTAS')
         if (atr) {
           const a = clipForTrack(asset, atr, { at, duration: dur })
-          if (!('error' in a)) items.push({ trackId: 'CTAS', clip: { ...a.clip, label: `Buton sesi: ${entry.label}`, groupId: grp, volume: 0.8 } })
+          if (!('error' in a)) items.push({ trackId: 'CTAS', clip: { ...a.clip, label: `Buton sesi: ${entry.label}`, groupId: grp, volume: CTA_AUDIO_VOLUME } })
         }
         get().exec(cmd.addClips(items, 'Çağrı butonu ekle'))
         get().toast('success', `${entry.label} eklendi (${at.toFixed(1)} sn). Yeşil perde şeffaf olur; buton alttan yükselir, tıklanır, iner.`)

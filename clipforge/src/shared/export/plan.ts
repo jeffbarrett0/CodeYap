@@ -1,3 +1,4 @@
+import { CTA_AUDIO_VOLUME, VOICE_LEVEL_FILTER } from '../voicelevel'
 import { localizeCaptions } from '../timeline/captions'
 import { adjustFilter } from '../adjust'
 import type { Clip, ExportOptions, ID, MediaAsset, Timeline, Track } from '../types'
@@ -275,7 +276,7 @@ export function buildExportPlan(
       const delay = Math.round(p.at * 1000)
       const label = `au${audioLabels.length}`
       lines.push(
-        `[${idx}:a:${stream}]asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo${c.fx?.denoise ? denoiseChain(c.fx.denoise) : ''},volume=${vol.toFixed(3)}${audioFx(c, p.dur)}${delay > 0 ? `,adelay=${delay}|${delay}` : ''}[${label}]`
+        `[${idx}:a:${stream}]asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo${c.fx?.denoise ? denoiseChain(c.fx.denoise) : ''},volume=${(t.id === 'CTAS' ? Math.min(vol, CTA_AUDIO_VOLUME) : vol).toFixed(3)}${o.voiceLift && t.id !== 'CTAS' ? ',' + VOICE_LEVEL_FILTER : ''}${audioFx(c, p.dur)}${delay > 0 ? `,adelay=${delay}|${delay}` : ''}[${label}]`
       )
       audioLabels.push(label)
     }

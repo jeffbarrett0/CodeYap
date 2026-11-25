@@ -50,6 +50,7 @@ import { EXPORT_PRESETS, exportWarnings, optionsFromPreset } from '../shared/exp
 import type { Clip, MediaAsset, TextSpec } from '../shared/types'
 import { qaText } from '../shared/qa'
 import { runYtCut } from '../main/ytcut'
+import { CTA_AUDIO_VOLUME } from '../shared/voicelevel'
 import { autoAdjustFrom } from '../shared/adjust'
 import { resolveOutro } from '../main/outro'
 import { qaVideo } from '../main/qa'
@@ -408,7 +409,7 @@ async function main(argv: string[]): Promise<unknown> {
     const listFile = str(a.opt.list)
     if (!listFile) throw new Error('--list <liste.txt> verin (örn. "00:34:00 - Leo" / "00:03:00 - 00:09:00 Noah Lang").')
     const svc = await makeService()
-    const r = await runYtCut({ adjust: autoAdjustFrom(svc.settings.value), outroPath: str(a.opt.outro) ? resolve(str(a.opt.outro)!) : await resolveOutro(svc.settings.value.outroPath, svc.deps.userDataDir, svc.deps.resourcesDir, svc.settings.value.outroEnabled && !a.opt['no-outro']), videoPath: resolve(projectArg), list: await readFile(resolve(listFile), 'utf8'), outDir: str(a.opt.out) ? resolve(str(a.opt.out)!) : undefined, quality: a.opt.quality === 'high' ? 'high' : 'fast', cta: a.opt['no-cta'] ? false : undefined }, svc.tools, { resourcesDir: svc.deps.resourcesDir, progress: (f, msg) => log(`[yt-cut] %${Math.round(f * 100)}${msg ? ` — ${msg}` : ''}`) })
+    const r = await runYtCut({ adjust: autoAdjustFrom(svc.settings.value), voiceLift: svc.settings.value.autoVoiceLevel !== false, outroPath: str(a.opt.outro) ? resolve(str(a.opt.outro)!) : await resolveOutro(svc.settings.value.outroPath, svc.deps.userDataDir, svc.deps.resourcesDir, svc.settings.value.outroEnabled && !a.opt['no-outro']), videoPath: resolve(projectArg), list: await readFile(resolve(listFile), 'utf8'), outDir: str(a.opt.out) ? resolve(str(a.opt.out)!) : undefined, quality: a.opt.quality === 'high' ? 'high' : 'fast', cta: a.opt['no-cta'] ? false : undefined }, svc.tools, { resourcesDir: svc.deps.resourcesDir, progress: (f, msg) => log(`[yt-cut] %${Math.round(f * 100)}${msg ? ` — ${msg}` : ''}`) })
     return out({ ok: r.items.some((i) => i.path), dir: r.dir, count: r.items.filter((i) => i.path).length, items: r.items.map((i) => ({ index: i.index, title: i.title, start: r1(i.start), end: r1(i.end), durationSec: r1(i.durationSec), file: i.path, ctaAt: i.ctaAt, error: i.error })), warnings: r.warnings })
   }
   if (command === 'qa') {
@@ -1147,7 +1148,7 @@ async function main(argv: string[]): Promise<unknown> {
           const atr = s.timeline.tracks.find((t) => t.id === 'CTAS')
           if (atr) {
             const ar = clipForTrack(asset, atr, { at, duration: Math.min(dur, asset.durationSec) })
-            if (!('error' in ar)) s.apply(cmd.addClip('CTAS', { ...ar.clip, label: `Buton sesi: ${entry.label}`, groupId: grp, volume: 0.8 }))
+            if (!('error' in ar)) s.apply(cmd.addClip('CTAS', { ...ar.clip, label: `Buton sesi: ${entry.label}`, groupId: grp, volume: CTA_AUDIO_VOLUME }))
           }
           placedItems.push({ at: r1(at), button: entry.id })
         }

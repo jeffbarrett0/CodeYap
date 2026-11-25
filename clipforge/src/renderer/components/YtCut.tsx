@@ -64,8 +64,8 @@ export function YtCutDialog() {
             <input type="text" value={outDir} onChange={(e) => setOutDir(e.target.value)} aria-label="Çıkış klasörü" placeholder="Varsayılan" disabled={running} />
           </Field>
         </div>
-        <label className="check" title="İlk buton başlangıçtan ~12 sn sonra, sonra her 50 saniyede bir; altta ortada, küçük. Yeşil perde kesilir, yalnızca buton görünür. 10 sn'den kısa kesitte sığmaz.">
-          <input type="checkbox" checked={cta} onChange={(e) => setCta(e.target.checked)} disabled={running} data-testid="ytcut-cta" /> Her kesite YouTube abone butonunu ekle (her 50 saniyede bir, altta ortada; kısa kesitte de en az 1)
+        <label className="check" title="İlk buton 2. saniyede, sonra her 20 saniyede bir; altta ortada, küçük. Yeşil perde kesilir, yalnızca buton görünür. 8 sn'den kısa kesitte sığmaz.">
+          <input type="checkbox" checked={cta} onChange={(e) => setCta(e.target.checked)} disabled={running} data-testid="ytcut-cta" /> Her kesite YouTube abone butonunu ekle (2. saniyede ilk, sonra her 20 saniyede bir, altta ortada)
         </label>
         <OutroPicker disabled={running} />
         {err && <div className="warnbox" role="alert" data-testid="ytcut-error">{err}</div>}

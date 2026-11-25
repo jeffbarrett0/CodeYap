@@ -296,7 +296,7 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
     } catch (e) {
       if (e instanceof Error && /Diskte/.test(e.message)) throw e
     }
-    const o = { ...((req.quality ?? 'fast') === 'high' ? { crf: 14, encoderPreset: 'slow', maxrateKbps: 150000, audioKbps: 320 } : { crf: 20, encoderPreset: 'veryfast', maxrateKbps: 40000, audioKbps: 192 }), adjust: autoAdjustFrom(service.settings.value) }
+    const o = { ...((req.quality ?? 'fast') === 'high' ? { crf: 14, encoderPreset: 'slow', maxrateKbps: 150000, audioKbps: 320 } : { crf: 20, encoderPreset: 'veryfast', maxrateKbps: 40000, audioKbps: 192 }), adjust: autoAdjustFrom(service.settings.value), voiceLift: service.settings.value.autoVoiceLevel !== false }
     // DONANIM KODLAYICI: ekran kartı varsa tam video kat kat hızlı kodlanır; hata olursa yazılım kodlamaya döner
     const hwFound = settings.autoKickHwEncode !== false ? await detectHwEncoder(service.tools.ffmpeg) : null
     const tmpOut = `${p.full}.part.mp4`

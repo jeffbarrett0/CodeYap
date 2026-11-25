@@ -437,6 +437,8 @@ export interface ExportOptions {
   encoderPreset?: 'ultrafast' | 'veryfast' | 'fast' | 'medium' | 'slow' | 'slower'
   maxDurationSec?: number
   normalizeAudio: boolean
+  /** konuşma sesini yalnızca yukarı seviyele (yüksek sese dokunmaz); çağrı butonu sesi hariç */
+  voiceLift?: boolean
 }
 
 export interface ExportJob {
@@ -531,6 +533,8 @@ export interface Settings {
   autoAdjustEnabled: boolean
   autoAdjustContrast: number
   autoAdjustSharpen: number
+  /** Her videoda sessiz konuşmayı yükselt (yalnızca yukarı; yüksek sese dokunulmaz) */
+  autoVoiceLevel: boolean
   llmProvider: 'off' | 'openai' | 'anthropic'
   /** boşsa sağlayıcının varsayılanı (OpenAI: gpt-4o-mini, Anthropic: claude-haiku-5-5) */
   llmModel: string

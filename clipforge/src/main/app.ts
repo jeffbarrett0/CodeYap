@@ -457,6 +457,7 @@ export class AppService {
         // her videoya otomatik görüntü ayarı (kontrast/keskinlik; Ayarlar'dan kapatılır): yalnızca dışa aktarılan çizelgeye uygulanır
         const auto = autoAdjustFrom(this.settings.value)
         if (auto) req = { ...req, timeline: withDefaultAdjust(req.timeline, auto) }
+        if (this.settings.value.autoVoiceLevel !== false) req = { ...req, options: { ...req.options, voiceLift: true } }
         const { outputPath, warnings } = await runExport(req, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
         // YouTube bölüm zamanları: dışa aktarılan videonun yanına .txt (yalnızca tam video; hata dışa aktarmayı bozmaz)
         let timestampsPath: string | undefined
@@ -485,7 +486,7 @@ export class AppService {
         const logDir = req.auto && req.outDir ? dirname(req.outDir) : null
         let result
         try {
-          result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value), outroPath: req.outroPath ?? (await resolveOutro(this.settings.value.outroPath, this.deps.userDataDir, this.deps.resourcesDir, this.settings.value.outroEnabled)) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
+          result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value), voiceLift: this.settings.value.autoVoiceLevel !== false, outroPath: req.outroPath ?? (await resolveOutro(this.settings.value.outroPath, this.deps.userDataDir, this.deps.resourcesDir, this.settings.value.outroEnabled)) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
         } catch (e) {
           if (logDir) void appendRunLog(logDir, `Auto yatay video HATA: ${e instanceof Error ? e.message : String(e)}`)
           throw e

@@ -64,16 +64,28 @@ export function parseCtaManifest(raw: unknown): CtaManifest | null {
 export const CTA_CLIP_SEC = 5.2
 
 /**
- * KULLANICININ KARARI: "her 50 saniyede bir YouTube butonu" (yatay kesitler) — dikey kliplerde de aynı aralık; her videoda en az bir buton.
- * İlk buton videonun başından ~12 sn sonra (kısa videoda %30'unda), sonra her `everySec`'te; son 1,5 sn'ye taşmaz. 10 sn'den kısa videoda sığmaz.
+ * KULLANICININ KARARI (kalıcı, 2 kez söyledi): İLK buton videonun 2. SANİYESİNDE, sonra HER 20 SANİYEDE bir — yatay ve dikey, tüm videolar.
+ * Son 0,5 sn'ye taşmaz; videoya sığmayacak kadar kısaysa (<~7,7 sn) eklenmez.
  */
-export function ctaTimesEvery(durationSec: number, everySec = 50, clipSec = CTA_CLIP_SEC): number[] {
-  const D = durationSec
-  if (!(D >= clipSec + 5)) return []
-  const first = Math.min(12, Math.max(3, D * 0.3))
+export const CTA_FIRST_SEC = 2
+export const CTA_EVERY_SEC = 20
+export function ctaTimesEvery(durationSec: number, everySec = CTA_EVERY_SEC, clipSec = CTA_CLIP_SEC): number[] {
   const out: number[] = []
-  for (let t = first; t + clipSec <= D - 1.5 + 1e-6; t += everySec) out.push(Math.round(t * 10) / 10)
+  for (let t = CTA_FIRST_SEC; t + clipSec <= durationSec - 0.5 + 1e-6; t += everySec) out.push(Math.round(t * 10) / 10)
   return out
+}
+
+/**
+ * DİKEY (9:16) buton yeri — KULLANICININ KIRMIZI İLE İŞARETLEDİĞİ yer: yatayda tam ortada, dikeyde yüz ile ekran görüntüsünün birleştiği çizginin biraz altında
+ * (ekran görüntüsünün üst kısmı; alt kenar karenin %63,5'inde). Genişlik karenin %52'si. Yatay ve kare videolar eskisi gibi alt ortada kalır.
+ */
+export const VERTICAL_CTA = { width: 0.52, bottom: 0.635 }
+export function verticalCtaRect(entry: Pick<CtaEntry, 'crop'>, assetW: number, assetH: number): NormRect {
+  const crop = entry.crop ?? { x: 0, y: 0, w: 1, h: 1 }
+  const ratio = (crop.w * Math.max(1, assetW)) / (crop.h * Math.max(1, assetH))
+  const w = VERTICAL_CTA.width
+  const h = Math.min(0.5, (w / ratio) * frameAspectOf('9:16'))
+  return { x: (1 - w) / 2, y: VERTICAL_CTA.bottom - h, w, h }
 }
 
 /** Butonun varsayılan genişliği (kare genişliğinin oranı) ve yeri: ALTTA ORTA, göz almayacak küçüklükte (kullanıcı: "tam ortaya değil, çok göz almayacak") */

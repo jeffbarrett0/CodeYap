@@ -48,7 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   /** Auto yatay video: Auto Kick bitince (hazır liste verildiyse) listeye göre yatay kesitler kendiliğinden */
   autoHorizontalAfterKick: true,
   autoHorizontalCta: true,
-  /** Dikey Auto Clips / YouTube dikey video klipleri: her 50 sn'de bir YouTube abone butonu (alt orta) */
+  /** Dikey Auto Clips / YouTube dikey video klipleri: 2. sn'de ilk, sonra her 20 sn'de bir YouTube abone butonu */
   autoClipsCta: true,
   /** YouTube outro (kapanış) videosu: HER yatay videonun sonuna eklenir (YouTube yatay video, Auto yatay, yatay Klip çıkar). Boşsa eklenmez. */
   outroPath: '',
@@ -60,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoAdjustEnabled: true,
   autoAdjustContrast: 5,
   autoAdjustSharpen: 5,
+  autoVoiceLevel: true,
   autoClipsOverlay: true,
   autoClipsOverlayPath: '',
   llmProvider: 'off',

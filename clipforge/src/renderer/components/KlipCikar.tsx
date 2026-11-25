@@ -205,7 +205,7 @@ export function KlipCikarDialog() {
                   <label className="check"><input type="checkbox" checked={vertical} onChange={(e) => setVertical(e.target.checked)} data-testid="klipcikar-vertical" /> Dikey (9:16): yüzün üstte, ortada sosyal medyaların, altta ekran görüntüsü</label>
                   <label className="check"><input type="checkbox" checked={horizontal} onChange={(e) => setHorizontal(e.target.checked)} data-testid="klipcikar-horizontal" /> Yatay (16:9): normal video</label>
                 </div>
-                <div className="hint">Her ikisinde de YouTube butonu (her 50 sn'de bir) ve +5 kontrast/+5 keskinlik uygulanır. Çıktı tek klip (MP4).</div>
+                <div className="hint">Her ikisinde de YouTube butonu (2. sn'de ilk, sonra her 20 sn'de bir) ve +5 kontrast/+5 keskinlik uygulanır. Çıktı tek klip (MP4).</div>
                 <div className="row wrap" style={{ gap: 8 }}>
                   <span style={{ flex: 1 }} />
                   <button className="btn primary" disabled={!(dur >= 1) || (!vertical && !horizontal)} onClick={() => void save()} data-testid="klipcikar-save">Klibi MP4 olarak kaydet</button>

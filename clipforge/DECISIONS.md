@@ -579,3 +579,9 @@ Kullanıcı: yayını bitirince Auto Kick 2–2,5 saat sürüyor; zamanı kısı
 
 ## 104. Kesilmeyen sessizlikler (aşırı korumanın bedeli)
 Kullanıcı: bu sefer tersi — birkaç saniyelik susmalar kesilmemiş. Nedenler: (1) ses koruması, konuşma seviyesinin çok altındaki arka plan sesini (oyun/oda) "konuşma" sayıyordu → artık 1 sn'den uzun ve konuşma seviyesinin (95. yüzdelik) 14 dB'den fazla altındaki aralıklar konuşma sayılmaz (kısa sessiz kelimeler hep korunur; `voice.ts keep`); (2) Whisper'ın sessizliği doldurduğu hayalet kelimeler kesimi engelliyordu → çevresinde (±0,4 sn) hiç ses olmayan kelimeler kesim planında yok sayılır, günlüğe yazılır. Ses gerçekten sürekliyse (oyun/müzik aynı kanalda) kesim yine azalır; bu ayrıştırılamaz.
+
+## 105. Abone butonu: 2. sn + her 20 sn; dikeyde kırmızı işaretli yer
+Kullanıcı (ikinci kez): ilk buton 2. saniyede, sonra her 20 sn; dikeyde ekran görüntüsüyle işaretlediği yere (yatayda ortada, yüz/ekran birleşiminin biraz altı). Eski 50 sn/12. sn kuralı kalktı. `ctaTimesEvery` (2 sn, 20 sn, sona 0,5 sn kala taşmaz), `verticalCtaRect` (genişlik 0,52, alt kenar 0,635). Kalıcı kural CLAUDE.md'de.
+
+## 106. Ses: yalnızca yukarı seviyeleme + buton sesi kısık
+Kullanıcı: butonun sesi benim sesimden yüksek olmasın; sessiz kayıtlarda konuşmayı yükselt, yüksek olana dokunma. `src/shared/voicelevel.ts`: `VOICE_LEVEL_FILTER` (dynaudnorm f=300 g=11 p=0.9 m=8 t=0.005: en çok +18 dB, düşürmez, −46 dB altı gürültüyü yükseltmez; tek geçiş), `CTA_AUDIO_VOLUME`=0.3 (buton hep ≈−10 dB). Uygulandığı yerler: dışa aktarma planı (konuşma izleri; `CTAS` hariç, `voiceLift`), Auto Kick tam video (fastcut), YouTube yatay kesit (ytcut, butonlu ve butonsuz). Ayar `autoVoiceLevel` (varsayılan açık; Ayarlar → Ses seviyesi).

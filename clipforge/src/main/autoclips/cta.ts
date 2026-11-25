@@ -1,12 +1,13 @@
 import { access, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Session, waitTask } from '../../cli/session'
-import { ctaRect, ctaTimesEvery, CTA_CLIP_SEC, parseCtaManifest, youtubeCtaSize } from '../../shared/cta'
+import { CTA_AUDIO_VOLUME } from '../../shared/voicelevel'
+import { ctaRect, ctaTimesEvery, verticalCtaRect, CTA_CLIP_SEC, parseCtaManifest, youtubeCtaSize } from '../../shared/cta'
 import { cmd } from '../../shared/timeline/commands'
 import { clipForTrack } from '../../shared/timeline/create'
 
 /**
- * Klip projesine kullanıcının YouTube abone butonunu ekler (KULLANICININ KARARI: her videoda, her 50 sn'de bir; alt orta, göz almayacak küçüklükte).
+ * Klip projesine kullanıcının YouTube abone butonunu ekler (KULLANICININ KARARI: her videoda, 2. saniyede ilk, sonra her 20 sn'de bir; yatayda alt orta, dikeyde kullanıcının kırmızı ile işaretlediği yer (verticalCtaRect)).
  * Yeşil perde dışa aktarmada şeffaflaşır (`fx.chroma`), butonun sesi karışır. Buton dosyası yoksa/eklenemezse klip butonsuz kalır (iş durmaz).
  * Dönen: butonların yerleri (sn). Çizelge süresi `dur` (kesim/şerit eklendikten SONRA).
  */
@@ -28,7 +29,7 @@ export async function addYoutubeCta(c: Session, dur: number): Promise<number[]> 
     if (!asset || asset.kind !== 'video') return []
     c.project = { ...c.project, assets: [...c.project.assets, asset] }
     const aspect = c.timeline.aspect
-    const rect = ctaRect(entry, asset.width, asset.height, aspect, { pos: 'bottom-center', size: youtubeCtaSize(aspect) })
+    const rect = aspect === '9:16' ? verticalCtaRect(entry, asset.width, asset.height) : ctaRect(entry, asset.width, asset.height, aspect, { pos: 'bottom-center', size: youtubeCtaSize(aspect) })
     c.apply(cmd.addTrack({ id: 'CTAV', name: 'Çağrı butonları', kind: 'video', role: 'screen', placement: { rect, fit: 'contain', visible: true, opacity: 1 } }))
     if (asset.audioStreams.length > 0) c.apply(cmd.addTrack({ id: 'CTAS', name: 'Çağrı butonu sesi', kind: 'audio', role: 'mix' }))
     const vtr = c.timeline.tracks.find((t) => t.id === 'CTAV')!
@@ -41,7 +42,7 @@ export async function addYoutubeCta(c: Session, dur: number): Promise<number[]> 
       c.apply(cmd.addClip('CTAV', { ...r.clip, label: `Buton: ${entry.label}`, crop: entry.crop, groupId: grp, fx: { chroma: { color: manifest.chroma } } }))
       if (atr) {
         const ar = clipForTrack(asset, atr, { at, duration: len })
-        if (!('error' in ar)) c.apply(cmd.addClip('CTAS', { ...ar.clip, label: `Buton sesi: ${entry.label}`, groupId: grp, volume: 0.8 }))
+        if (!('error' in ar)) c.apply(cmd.addClip('CTAS', { ...ar.clip, label: `Buton sesi: ${entry.label}`, groupId: grp, volume: CTA_AUDIO_VOLUME }))
       }
     })
     // buton en önde çizilsin (listede ilk)

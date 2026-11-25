@@ -2,6 +2,7 @@ import { mkdir, access, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join } from 'node:path'
 import { adjustFilter } from '../shared/adjust'
 import { parseChapterList } from '../shared/chapters'
+import { CTA_AUDIO_VOLUME, VOICE_LEVEL_FILTER } from '../shared/voicelevel'
 import { ctaRect, ctaTimesEvery, parseCtaManifest, youtubeCtaSize, type CtaEntry } from '../shared/cta'
 import { chromaFilter } from '../shared/export/plan'
 import { clipTranscriptText, safeFileTitle, ytCutFileName, ytCutRanges, type YtCutRequest, type YtCutResult } from '../shared/ytcut'
@@ -33,7 +34,7 @@ async function loadYoutubeCta(resourcesDir: string | undefined, tools: MediaTool
 }
 
 /** Kesite abone butonları: yeşil perde şeffaflaşır, buton sol altta; butonun sesi kesit sesine karışır. Dönen: ek girişler + filter_complex + haritalar. */
-export function ctaGraph(o: { cta: CtaAsset; times: number[]; srcW: number; srcH: number; hasAudio: boolean; videoPre: string }): { inputs: string[]; filter: string; maps: string[] } {
+export function ctaGraph(o: { cta: CtaAsset; times: number[]; srcW: number; srcH: number; hasAudio: boolean; videoPre: string; voiceLift?: boolean }): { inputs: string[]; filter: string; maps: string[] } {
   const rect = ctaRect(o.cta.entry, o.cta.width, o.cta.height, '16:9', { pos: 'bottom-center', size: youtubeCtaSize('16:9') })
   const pw = Math.max(2, Math.round((rect.w * o.srcW) / 2) * 2)
   const ph = Math.max(2, Math.round((rect.h * o.srcH) / 2) * 2)
@@ -52,14 +53,14 @@ export function ctaGraph(o: { cta: CtaAsset; times: number[]; srcW: number; srcH
     lines.push(`[b${i}][c${k}]overlay=${px}:${py}:eof_action=pass:repeatlast=0[b${k}]`)
     if (o.hasAudio && o.cta.hasAudio) {
       const ms = Math.round(t * 1000)
-      lines.push(`[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo,adelay=${ms}|${ms},volume=0.8[ca${k}]`)
+      lines.push(`[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo,adelay=${ms}|${ms},volume=${CTA_AUDIO_VOLUME}[ca${k}]`)
       audios.push(`[ca${k}]`)
     }
   })
   const maps = ['-map', `[b${o.times.length}]`]
   if (o.hasAudio) {
     if (audios.length) {
-      lines.push(`[0:a:0]aformat=sample_rates=48000:channel_layouts=stereo[a0]`)
+      lines.push(`[0:a:0]aformat=sample_rates=48000:channel_layouts=stereo${o.voiceLift ? ',' + VOICE_LEVEL_FILTER : ''}[a0]`)
       lines.push(`[a0]${audios.join('')}amix=inputs=${audios.length + 1}:duration=first:dropout_transition=0:normalize=0[aout]`)
       maps.push('-map', '[aout]')
     } else maps.push('-map', '0:a:0')
@@ -106,11 +107,11 @@ export async function runYtCut(req: YtCutRequest, tools: MediaTools, hooks: { si
     const out = join(dir, ytCutFileName(it.index, it.title, items.length))
     const times = cta ? ctaTimesEvery(it.durationSec) : []
     const enc = ['-c:v', 'libx264', '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p', ...(hasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []), '-movflags', '+faststart', '-progress', 'pipe:1', out]
-    const plain = ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, '-map', '0:v:0', ...(hasAudio ? ['-map', '0:a:0'] : []), ...(vf ? ['-vf', vf] : []), ...enc]
+    const plain = ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, '-map', '0:v:0', ...(hasAudio ? ['-map', '0:a:0'] : []), ...(vf ? ['-vf', vf] : []), ...(hasAudio && req.voiceLift ? ['-af', VOICE_LEVEL_FILTER] : []), ...enc]
     const run = (args: string[]) => runTool(tools.ffmpeg, limitThreads(args), { signal: hooks.signal, durationSec: it.durationSec, onProgress: (f) => hooks.progress?.(Math.min(1, (doneSec + f * it.durationSec) / totalSec), `${it.index}/${items.length}: ${it.title}`) })
     try {
       if (cta && times.length) {
-        const g = ctaGraph({ cta, times, srcW, srcH, hasAudio, videoPre: vf })
+        const g = ctaGraph({ cta, times, srcW, srcH, hasAudio, videoPre: vf, voiceLift: req.voiceLift })
         const withCta = ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, ...g.inputs, '-filter_complex', g.filter, ...g.maps, '-t', it.durationSec.toFixed(3), ...enc]
         try {
           await run(withCta)

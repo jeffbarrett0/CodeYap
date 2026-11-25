@@ -147,6 +147,9 @@ export function SettingsDialog() {
             </Field>
           </div>
           <Field label="Varsayılan dil"><select value={s.language} onChange={(e) => set({ language: e.target.value })} aria-label="Dil">{LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}</select></Field>
+          <Field label="Ses seviyesi (her videoya)">
+            <label className="check"><input type="checkbox" checked={s.autoVoiceLevel !== false} onChange={(e) => set({ autoVoiceLevel: e.target.checked })} data-testid="auto-voice-level" /> Sessiz konuşmayı yükselt (yalnızca yukarı; yüksek sese dokunulmaz). Abone butonunun sesi hep konuşmadan kısık kalır.</label>
+          </Field>
           <Field label="Otomatik görüntü ayarı (her videoya)">
             <div className="col" style={{ gap: 6 }}>
               <label className="check"><input type="checkbox" checked={s.autoAdjustEnabled} onChange={(e) => set({ autoAdjustEnabled: e.target.checked })} data-testid="auto-adjust-enabled" /> Dışa aktarılan her videoya kontrast ve keskinlik ekle (Auto Kick tam video + klipler, YouTube yatay video, normal dışa aktarma)</label>
