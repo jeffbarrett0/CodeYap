@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Kullanim: ./add-button.sh [ana-video] [cikti]
 # YouTube butonunu 3. saniyede ve sonra her 30 saniyede bir ekler (5 sn'lik animasyon sigarsa).
-# Butonun sesi, videonun kendi ses seviyesine (LUFS) gore otomatik ayarlanir.
+# Butonun sesi, videonun kendi ses seviyesinin (LUFS) QUIETER_DB dB altina otomatik ayarlanir.
 set -euo pipefail
 cd "$(dirname "$0")"
 IN="${1:-post.mp4}"
 OUT="${2:-post-btn.mp4}"
 BTN=youtube-button.mov
-START=3; EVERY=30; BTN_DUR=5
-X=130; Y=1211          # videonun alt kenarina hizali (butonun animasyonu video kenarinin ardindan cikar)
+START=1; EVERY=30; BTN_DUR=5
+QUIETER_DB=6           # buton sesi videonun ortalama sesinden bu kadar dB KISIK olsun
+# Buton, videonun ALTINDaki yuvaya yerlesir (konum layout.json'dan; kirpma alaninda butonun ust boslugu 8px)
+read -r X Y < <(python3 -c "import json;b=json.load(open('layout.json'))['btn'];print(b['x'],b['y']-8)")
 
 [ -f "$BTN" ] || ./prep-button.sh
 
@@ -17,11 +19,11 @@ DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$IN")
 # Ortalama (entegre) ses seviyesi, LUFS
 lufs() { ffmpeg -hide_banner -nostats -i "$1" -vn -af ebur128=framelog=quiet -f null - 2>&1 | awk '/^ *I:/{v=$2} END{print v}'; }
 L_MAIN=$(lufs "$IN"); L_BTN=$(lufs "$BTN")
-# Butonun sesini videonunkiyle ayni seviyeye getir (ses cok kisik/yok ise dokunma)
-GAIN=$(python3 - "$L_MAIN" "$L_BTN" <<'PY'
+# Butonun sesini videonun seviyesinin QUIETER_DB altina getir (ses cok kisik/yok ise dokunma)
+GAIN=$(python3 - "$L_MAIN" "$L_BTN" "$QUIETER_DB" <<'PY'
 import sys
-m,b=float(sys.argv[1]),float(sys.argv[2])
-g=0.0 if m<-60 or b<-60 else max(-24.0,min(30.0,m-b))
+m,b,q=float(sys.argv[1]),float(sys.argv[2]),float(sys.argv[3])
+g=0.0 if m<-60 or b<-60 else max(-30.0,min(30.0,m-b-q))
 print(f"{g:.2f}")
 PY
 )

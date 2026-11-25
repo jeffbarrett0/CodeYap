@@ -17,15 +17,18 @@
     --safe-bottom:430px;
     --safe-side:130px;     /* sol-sag esit: icerik ortada kalir (sagdaki butonlar icin pay) */
 
-    --avatar:92px;
+    --avatar:84px;
     --name-size:36px;
     --handle-size:30px;
-    --body-size:32px;
-    --body-line:1.42;
+    --body-size:31px;
+    --body-line:1.36;
     --body-align:left;     /* left | center */
     --video-radius:22px;
-    --gap-header:30px;
-    --gap-video:34px;
+    --gap-header:26px;
+    --gap-video:26px;
+    --btn-w:640px;         /* YouTube butonu genisligi */
+    --btn-h:112px;         /* butonun durdugu yuvanin yuksekligi */
+    --gap-btn:16px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{background:#222}
@@ -55,6 +58,9 @@
   .video video{width:100%;height:100%;object-fit:cover;display:block}
   .video .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#555;font-size:36px}
 
+  .btn-slot{width:var(--btn-w);height:var(--btn-h);margin:var(--gap-btn) auto 0;flex:none;position:relative}
+  body.show-guides .btn-slot{outline:2px dashed rgba(80,160,255,.9)}
+
   /* ?guides=1 : arayuz bolgelerini kirmizi gosterir (sadece kontrol icin) */
   .guides{display:none;position:absolute;inset:0;pointer-events:none}
   .guides i{position:absolute;background:rgba(255,40,40,.28);border:1px dashed rgba(255,80,80,.9)}
@@ -76,6 +82,7 @@
     </div>
     <div class="body" id="text"></div>
     <div class="video" id="video"><div class="ph" id="ph">VIDEO ALANI</div></div>
+    <div class="btn-slot" id="btn-slot"></div>
 
     <div class="guides">
       <i style="left:0;top:0;width:1080px;height:230px"></i>
