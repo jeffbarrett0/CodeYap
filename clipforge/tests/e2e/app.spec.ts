@@ -1177,6 +1177,10 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await page.getByTestId('sport-end-m1').click()
     await expect(page.getByTestId('sport-keep')).toContainText('3.0 – 47.0'.replace('3.0', '0:03.0').replace('47.0', '0:47.0'))
     await expect(page.getByTestId('sport-keep')).toContainText('44.0 sn')
+    // dinleyerek ön izleme: oynatıcı ve başlangıçtan çal düğmeleri
+    await expect(page.getByTestId('sport-player')).toBeVisible()
+    await expect(page.getByTestId('sport-play-start')).toContainText('0:03.0')
+    await expect(page.getByTestId('sport-play-end')).toBeVisible()
     await expect(page.getByTestId('sport-keep')).toContainText('baştan 3.0 sn ve sondan 3.0 sn')
     await page.getByTestId('sport-trim-reset').click()
     await expect(page.getByTestId('sport-keep')).toContainText('tamamı alınır')

@@ -603,3 +603,6 @@ Güncelleme (§106): dynaudnorm kazancı başta ve içeride sesi kısıyordu (ku
 
 ## 110. Auto Clips: video seçilir
 Kullanıcı: 'Auto Kick projesini seç' yerine doğrudan MKV/MP4 seçmek istiyor. Düğme 'Video seç…'; dosya penceresi video türlerini (+ .clipforge) gösterir; seçilen videonun yanındaki AutoKick çıktısı `resolveProjectPath` ile bulunur.
+
+## 111. SportDeoPlus: dinleyerek ön izleme
+Kullanıcı: başlangıç saniyesini seçerken videoyu o saniyeden dinleyip doğrulamak istiyor. Pencerede oynatıcı (`cf-media://file/<base64url yol>`: yalnızca önizleme için kaydedilmiş dosyalar, `AppService.previewFiles`), '▶ Başlangıçtan çal' (bitişte durur), '▶ Bitişi dinle (son 3 sn)', Durdur; başlangıç ±0,1/±1 ile değişince oynatıcı o kareye gider.

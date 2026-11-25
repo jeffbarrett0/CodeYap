@@ -82,6 +82,16 @@ void app.whenReady().then(async () => {
   protocol.handle('cf-media', async (req) => {
     const u = new URL(req.url)
     const [assetId, kind, idx, variant] = u.pathname.split('/').filter(Boolean)
+    // kullanıcının seçtiği (önizleme için kaydedilmiş) dosya: cf-media://file/<base64url yol>
+    if (u.hostname === 'file') {
+      const p = Buffer.from(assetId ?? '', 'base64url').toString('utf8')
+      if (!service.previewFiles.has(p)) return new Response('İzin yok', { status: 403 })
+      try {
+        return await serveFile(p, req.headers.get('range'))
+      } catch {
+        return new Response('Bulunamadı', { status: 404 })
+      }
+    }
     const file = service.resolveMediaPath(u.hostname === 'm' ? assetId : u.hostname, kind, Number(idx ?? 0), variant)
     if (!file) return new Response('Bulunamadı', { status: 404 })
     // Range'i kendimiz karşılarız (net.fetch(file://) yok sayıyordu → büyük videolarda bozuk oynatma)

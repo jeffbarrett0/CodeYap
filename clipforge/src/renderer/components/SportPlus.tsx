@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FACE_TRIM_DEFAULT, FACE_TRIM_SHAPES, type FaceTrimShape } from '@shared/facetrim'
 import { requireApi } from '../api'
 import { useStore } from '../store'
@@ -19,6 +19,8 @@ export function SportPlusDialog() {
   const [start, setStart] = useState(0)
   const [end, setEnd] = useState(0)
   const [err, setErr] = useState('')
+  const player = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
   const [taskId, setTaskId] = useState('')
   const task = taskId ? tasks[taskId] : undefined
   const running = task?.status === 'running' || task?.status === 'queued'
@@ -51,6 +53,34 @@ export function SportPlusDialog() {
       clearTimeout(t)
     }
   }, [video, share, strip, shape, start, api])
+
+  /** Oynatıcı adresi: uygulamada cf-media://file/<yol>; tarayıcı (deneme) kipinde örnek video */
+  const videoUrl = video ? (window.clipforge ? `cf-media://file/${btoa(String.fromCharCode(...new TextEncoder().encode(video))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}` : '/demo/sample.mp4') : ''
+  /** Başlangıç değişince oynatıcı o ana gider (duraklatılmış; kare görünür) */
+  useEffect(() => {
+    const v = player.current
+    if (v && prev) {
+      v.pause()
+      setPlaying(false)
+      try { v.currentTime = start } catch { /* henüz yüklenmedi */ }
+    }
+  }, [start, prev === null])
+  /** Seçilen aralığı çalar: başlangıçtan bitişe (ya da yalnızca bitişin son 3 sn'si); bitişte durur */
+  const playRange = (from: number, to: number) => {
+    const v = player.current
+    if (!v) return
+    v.currentTime = from
+    void v.play()
+    setPlaying(true)
+    const stop = () => {
+      if (v.currentTime >= to - 0.05) {
+        v.pause()
+        setPlaying(false)
+        v.removeEventListener('timeupdate', stop)
+      }
+    }
+    v.addEventListener('timeupdate', stop)
+  }
 
   const pick = async () => {
     const v = (await api.invoke('dialog:openMedia')).find((p) => /\.(mp4|mov|mkv|m4v|webm)$/i.test(p))
@@ -110,6 +140,18 @@ export function SportPlusDialog() {
                   <button className="btn sm" onClick={() => (setStart(0), setEnd(Math.round(total * 10) / 10))} disabled={!trimmed} data-testid="sport-trim-reset">Tamamını al</button>
                 </div>
                 <div className="hint" data-testid="sport-keep">Video {mmss(total)} · kalacak bölüm: <b>{mmss(start)} – {mmss(end)}</b> ({keep.toFixed(1)} sn){trimmed ? ` · silinen: ${start > 0.05 ? `baştan ${start.toFixed(1)} sn` : ''}${start > 0.05 && end < total - 0.05 ? ' ve ' : ''}${end < total - 0.05 ? `sondan ${(total - end).toFixed(1)} sn` : ''}` : ' · tamamı alınır'}. Önizleme karesi başlangıç anındadır.</div>
+              </div>
+            )}
+            {prev && (
+              <div className="col" style={{ gap: 6, padding: 8, border: '1px solid var(--border, #2a3a30)', borderRadius: 8 }} data-testid="sport-player-box">
+                <b>Dinleyerek ön izle</b>
+                <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+                  <button className="btn primary" onClick={() => playRange(start, end)} data-testid="sport-play-start" title="Seçtiğiniz başlangıç saniyesinden çalar; bitişte durur">▶ Başlangıçtan çal ({mmss(start)})</button>
+                  <button className="btn" onClick={() => playRange(Math.max(start, end - 3), end)} data-testid="sport-play-end" title="Bitişten önceki son 3 saniyeyi çalar">▶ Bitişi dinle (son 3 sn)</button>
+                  <button className="btn" onClick={() => (player.current?.pause(), setPlaying(false))} disabled={!playing} data-testid="sport-pause">⏸ Durdur</button>
+                  <span className="hint">Başlangıcı ±0,1/±1 ile oynatırken de değiştirebilirsiniz; oynatıcı o ana gider.</span>
+                </div>
+                <video ref={player} src={videoUrl} controls preload="auto" style={{ maxHeight: 320, maxWidth: '100%', borderRadius: 6, background: '#000' }} data-testid="sport-player" />
               </div>
             )}
             {prev && (

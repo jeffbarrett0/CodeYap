@@ -553,7 +553,10 @@ export class AppService {
   }
 
   /** SportDeoPlus: önizleme (dosyaya dokunmaz) */
+  /** Önizleme oynatıcısının (cf-media://file/…) çalabileceği, kullanıcının seçtiği dosyalar */
+  readonly previewFiles = new Set<string>()
   async faceTrimPreview(req: { videoPath: string; faceShare: number; stripCut: boolean; shape: FaceTrimShape; at?: number }) {
+    this.previewFiles.add(req.videoPath)
     const r = await previewFaceTrim(req.videoPath, req, this.tools, req.at)
     return { original: r.original, result: r.result, srcW: r.probe.width, srcH: r.probe.height, outW: r.geometry.outW, outH: r.geometry.outH, durationSec: r.probe.durationSec, hasAudio: r.probe.hasAudio }
   }
