@@ -85,6 +85,8 @@ export interface ExportRequest {
   options: ExportOptions
   range: { start: number; end: number }
   outputPath: string
+  /** HIZLI dışa aktarma (Auto Clips): hızlı ön ayar (veryfast, crf 18), ekran kartı varsa o, tüm çekirdekler; sosyal medya klipleri için yeterli kalite */
+  fast?: boolean
 }
 
 export interface ChatImportRequest {

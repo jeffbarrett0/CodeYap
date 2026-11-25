@@ -515,34 +515,17 @@ fs.writeFileSync(val('-of') + '.json', JSON.stringify({ transcription: tr }))
         expect(pr.streams[0].height).toBe(1920)
         expect(md5(proj4)).toBe(before)
       }
-      // YouTube butonu dikey klibe de eklenir (her 50 sn'de bir; yeşil perde dışa aktarmada şeffaflaşır → kare, butonsuz halden FARKLI)
+      // YouTube butonu YALNIZCA yatay videolarda (kullanıcının kararı): dikey klibe EKLENMEZ
       {
         const { makeAutoClip } = await import('../../src/main/autoclips/pipeline')
-        const { exportClipProject } = await import('../../src/main/autoclips/run')
         const { Session, makeService } = await import('../../src/cli/session')
-        const { ctaTimesEvery } = await import('../../src/shared/cta')
-        const { cmd } = await import('../../src/shared/timeline/commands')
-        const mk = await makeAutoClip(proj4, { start: 1, end: 14, subject: 'Butonlu' }, {}, { userDataDir: ud })
+        const mk = await makeAutoClip(proj4, { start: 1, end: 14, subject: 'Butonsuz dikey' }, {}, { userDataDir: ud })
         const ps = await Session.open(mk.projectPath, await makeService({ userDataDir: ud }))
-        const times = ctaTimesEvery(mk.durationSec)
-        expect(times.length).toBeGreaterThanOrEqual(1)
-        const ctav = ps.timeline.tracks.find((t) => t.id === 'CTAV')!
-        expect(ctav.clips.length).toBe(times.length)
-        expect(ctav.clips.map((c) => Math.round(c.start * 10) / 10)).toEqual(times)
-        expect(ctav.clips[0].fx?.chroma?.color).toMatch(/^#/)
-        expect(ps.timeline.tracks.some((t) => t.id === 'CTAS')).toBe(true) // butonun sesi
-        expect(ps.timeline.tracks[0].id).toBe('CTAV') // en önde çizilir
-        const withBtn = await exportClipProject(mk.projectPath, { userDataDir: ud })
-        const keep = join(tmp, 'butonlu.mp4')
-        copyFileSync(withBtn, keep)
-        ps.apply(cmd.removeTrack('CTAV'), cmd.removeTrack('CTAS'))
-        await ps.save()
-        const without = await exportClipProject(mk.projectPath, { userDataDir: ud })
-        const at = String(times[0] + 2.5)
-        const png = (src: string, out: string) => execFileSync(require('ffmpeg-static') as string, ['-y', '-v', 'error', '-ss', at, '-i', src, '-frames:v', '1', out])
-        png(keep, join(tmp, 'f-with.png'))
-        png(without, join(tmp, 'f-without.png'))
-        expect(md5(join(tmp, 'f-with.png'))).not.toBe(md5(join(tmp, 'f-without.png'))) // buton görünüyor
+        expect(ps.timeline.tracks.some((t) => t.id === 'CTAV')).toBe(false)
+        expect(ps.timeline.tracks.some((t) => t.id === 'CTAS')).toBe(false)
+        const hz = await makeAutoClip(proj4, { start: 1, end: 14, subject: 'Butonlu yatay' }, { horizontal: true }, { userDataDir: ud })
+        const hs = await Session.open(hz.projectPath, await makeService({ userDataDir: ud }))
+        expect(hs.timeline.tracks.find((t) => t.id === 'CTAV')?.clips.length).toBeGreaterThanOrEqual(1)
       }
       // transkript yan klasörü kaybolmuşsa: neden yazılır; "şimdi çıkar" yeniden yazıya döker
       const lost = join(tmp, 'kayip-transkript', 'kayip.clipforge')

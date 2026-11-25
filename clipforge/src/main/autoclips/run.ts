@@ -30,7 +30,7 @@ export async function exportClipProject(projectPath: string, env: Env, signal?: 
   if (total <= 0) throw new Error('Klip boş.')
   const out = join(dirname(projectPath), `${basename(projectPath).replace(/\.clipforge$/i, '')}.mp4`)
   const options = optionsFromPreset(preset)
-  const id = service.exportStart({ name: 'autoclips', timeline: { ...s.timeline, aspect: options.aspect }, assets: s.project.assets, options, range: { start: 0, end: total }, outputPath: out })
+  const id = service.exportStart({ fast: true, name: 'autoclips', timeline: { ...s.timeline, aspect: options.aspect }, assets: s.project.assets, options, range: { start: 0, end: total }, outputPath: out })
   const onAbort = () => service.queue.cancel(id)
   signal?.addEventListener('abort', onAbort, { once: true })
   try {

@@ -585,3 +585,11 @@ Kullanıcı (ikinci kez): ilk buton 2. saniyede, sonra her 20 sn; dikeyde ekran 
 
 ## 106. Ses: yalnızca yukarı seviyeleme + buton sesi kısık
 Kullanıcı: butonun sesi benim sesimden yüksek olmasın; sessiz kayıtlarda konuşmayı yükselt, yüksek olana dokunma. `src/shared/voicelevel.ts`: `VOICE_LEVEL_FILTER` (dynaudnorm f=300 g=11 p=0.9 m=8 t=0.005: en çok +18 dB, düşürmez, −46 dB altı gürültüyü yükseltmez; tek geçiş), `CTA_AUDIO_VOLUME`=0.3 (buton hep ≈−10 dB). Uygulandığı yerler: dışa aktarma planı (konuşma izleri; `CTAS` hariç, `voiceLift`), Auto Kick tam video (fastcut), YouTube yatay kesit (ytcut, butonlu ve butonsuz). Ayar `autoVoiceLevel` (varsayılan açık; Ayarlar → Ses seviyesi).
+
+## 107. Auto Clips dışa aktarma hızlandırma; Fragman ve Referans düğmeleri kaldırıldı
+Kullanıcı: kliplerin dosyası küçük ama dışa aktarma saatler sürüyor (30 dk'lık iş ~4 saat). Nedenler: (1) klipler "maksimum kalite" ön ayarıyla (x264 crf 14, `slow`, 150 Mbps sınırı, loudnorm) kodlanıyordu; (2) arka plan kipinde yalnızca yarım çekirdek + düşük öncelik; (3) 20 sn'de bir buton = klip başına daha çok 4K buton çözümü. Çözüm: `ExportRequest.fast` (Auto Clips): veryfast + crf 18 (20 Mbps sınır), ekran kartı varsa o (hata → yazılım), loudnorm yok (ses yalnızca yukarı seviyelenir), iş süresince TÜM çekirdekler (`acquireFullSpeed`, sayaçlı; `autoKickFullSpeed` ayarına bağlı); YouTube yatay/Auto yatay işleri de tüm çekirdeklerle. Normal (elle) dışa aktarma maksimum kalitede kalır. Fragman (Trailer) ve Referans düğmeleri arayüzden kaldırıldı (kod duruyor, düğme yok; ilgili 3 arayüz testi silindi) — kullanıcı: ihtiyaç yok, referansı sohbette konuşuyoruz.
+
+Güncelleme: dikey buton ikinci ekran görüntüsüne göre büyütüldü ve aşağı alındı (genişlik 0,72, alt kenar 0,80).
+
+## 108. Abone butonu yalnızca yatay
+Kullanıcı: dikey videolara YouTube butonu koyma; yalnızca yatay. `addYoutubeCta` timeline aspect 16:9 değilse buton eklemez (`verticalCtaRect` kullanılmaz hâle geldi, kodda duruyor). Zaman kuralı (2. sn + her 20 sn) yatayda geçerli.

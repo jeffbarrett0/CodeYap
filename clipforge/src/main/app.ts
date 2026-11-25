@@ -13,7 +13,8 @@ import { runExport } from './export'
 import { autoAdjustFrom, withDefaultAdjust } from '../shared/adjust'
 import { runYtCut } from './ytcut'
 import type { YtCutRequest } from '../shared/ytcut'
-import { cpuThreads, resolveFfmpegPath, resolveFfprobePath, runTool, setCpuMode, ToolError, toolVersion } from './ffmpeg'
+import { detectHwEncoder, videoEncoderArgs, type HwEncoder } from './autokick/hwenc'
+import { acquireFullSpeed, cpuThreads, resolveFfmpegPath, resolveFfprobePath, runTool, setCpuMode, ToolError, toolVersion } from './ffmpeg'
 import { denoiseChain } from '../shared/export/plan'
 import { audioLevelSeries, detectScenes, extractWavChunk } from './media/audio'
 import { importMedia, loadMarkers, type MediaTools } from './media/import'
@@ -458,7 +459,25 @@ export class AppService {
         const auto = autoAdjustFrom(this.settings.value)
         if (auto) req = { ...req, timeline: withDefaultAdjust(req.timeline, auto) }
         if (this.settings.value.autoVoiceLevel !== false) req = { ...req, options: { ...req.options, voiceLift: true } }
-        const { outputPath, warnings } = await runExport(req, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
+        let outputPath: string
+        let warnings: string[]
+        const release = req.fast && this.settings.value.autoKickFullSpeed ? acquireFullSpeed() : () => undefined
+        try {
+          if (req.fast) {
+            // HIZLI: veryfast + sabit kalite (crf 18, 20 Mbps üst sınır); ekran kartı varsa o (hata olursa yazılım kodlamaya döner); loudnorm yok (ses ayrıca yalnızca yukarı seviyelenir)
+            const fastOpts = { ...req.options, crf: 18, encoderPreset: 'veryfast' as const, videoBitrateKbps: 20000, audioBitrateKbps: 192, normalizeAudio: false }
+            const hw = this.settings.value.autoKickHwEncode !== false ? await detectHwEncoder(this.tools.ffmpeg) : null
+            const run = (h: HwEncoder | null) => runExport({ ...req, options: { ...fastOpts, videoCodecArgs: videoEncoderArgs({ crf: 18, encoderPreset: 'veryfast', maxrateKbps: 20000 }, h) } }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
+            try {
+              ;({ outputPath, warnings } = await run(hw))
+            } catch (e) {
+              if (!hw || ctx.signal.aborted) throw e
+              ;({ outputPath, warnings } = await run(null))
+            }
+          } else ({ outputPath, warnings } = await runExport(req, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir }))
+        } finally {
+          release()
+        }
         // YouTube bölüm zamanları: dışa aktarılan videonun yanına .txt (yalnızca tam video; hata dışa aktarmayı bozmaz)
         let timestampsPath: string | undefined
         if (req.timestamps && req.range.start <= 0.01) {
@@ -486,7 +505,12 @@ export class AppService {
         const logDir = req.auto && req.outDir ? dirname(req.outDir) : null
         let result
         try {
-          result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value), voiceLift: this.settings.value.autoVoiceLevel !== false, outroPath: req.outroPath ?? (await resolveOutro(this.settings.value.outroPath, this.deps.userDataDir, this.deps.resourcesDir, this.settings.value.outroEnabled)) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
+          const releaseCpu = this.settings.value.autoKickFullSpeed ? acquireFullSpeed() : () => undefined
+          try {
+            result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value), voiceLift: this.settings.value.autoVoiceLevel !== false, outroPath: req.outroPath ?? (await resolveOutro(this.settings.value.outroPath, this.deps.userDataDir, this.deps.resourcesDir, this.settings.value.outroEnabled)) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
+          } finally {
+            releaseCpu()
+          }
         } catch (e) {
           if (logDir) void appendRunLog(logDir, `Auto yatay video HATA: ${e instanceof Error ? e.message : String(e)}`)
           throw e

@@ -2,7 +2,7 @@ import { access, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Session, waitTask } from '../../cli/session'
 import { CTA_AUDIO_VOLUME } from '../../shared/voicelevel'
-import { ctaRect, ctaTimesEvery, verticalCtaRect, CTA_CLIP_SEC, parseCtaManifest, youtubeCtaSize } from '../../shared/cta'
+import { ctaRect, ctaTimesEvery, CTA_CLIP_SEC, parseCtaManifest, youtubeCtaSize } from '../../shared/cta'
 import { cmd } from '../../shared/timeline/commands'
 import { clipForTrack } from '../../shared/timeline/create'
 
@@ -14,6 +14,8 @@ import { clipForTrack } from '../../shared/timeline/create'
 export async function addYoutubeCta(c: Session, dur: number): Promise<number[]> {
   const st = c.service.settings.value
   if (st.autoClipsCta === false) return []
+  // KULLANICININ KARARI: YouTube butonu YALNIZCA yatay (16:9) videolarda; dikey/kare videolara konmaz
+  if (c.timeline.aspect !== '16:9') return []
   const times = ctaTimesEvery(dur)
   if (times.length === 0) return []
   try {
@@ -29,7 +31,7 @@ export async function addYoutubeCta(c: Session, dur: number): Promise<number[]> 
     if (!asset || asset.kind !== 'video') return []
     c.project = { ...c.project, assets: [...c.project.assets, asset] }
     const aspect = c.timeline.aspect
-    const rect = aspect === '9:16' ? verticalCtaRect(entry, asset.width, asset.height) : ctaRect(entry, asset.width, asset.height, aspect, { pos: 'bottom-center', size: youtubeCtaSize(aspect) })
+    const rect = ctaRect(entry, asset.width, asset.height, aspect, { pos: 'bottom-center', size: youtubeCtaSize(aspect) })
     c.apply(cmd.addTrack({ id: 'CTAV', name: 'Çağrı butonları', kind: 'video', role: 'screen', placement: { rect, fit: 'contain', visible: true, opacity: 1 } }))
     if (asset.audioStreams.length > 0) c.apply(cmd.addTrack({ id: 'CTAS', name: 'Çağrı butonu sesi', kind: 'audio', role: 'mix' }))
     const vtr = c.timeline.tracks.find((t) => t.id === 'CTAV')!

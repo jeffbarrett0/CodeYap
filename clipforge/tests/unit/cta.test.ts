@@ -58,11 +58,11 @@ describe('çağrı butonları: manifest ve yerleşim', () => {
         if (i) expect(t[i] - t[i - 1]).toBeCloseTo(20, 5)
       }
     }
-    // dikey: kullanıcının kırmızı ile işaretlediği yer (yatayda ortada, alt kenar %63,5'te)
+    // dikey: kullanıcının kırmızı ile işaretlediği yer (yatayda ortada, alt kenar %80'de)
     const vr = verticalCtaRect({ crop: { x: 0.17, y: 0.44, w: 0.66, h: 0.56 } }, 3840, 2160)
     expect(vr.x + vr.w / 2).toBeCloseTo(0.5, 5)
-    expect(vr.y + vr.h).toBeCloseTo(0.635, 5)
-    expect(vr.w).toBeCloseTo(0.52, 5)
+    expect(vr.y + vr.h).toBeCloseTo(0.8, 5)
+    expect(vr.w).toBeCloseTo(0.72, 5)
     // yer: altta ortada (tam ortaya değil), küçük; dikeyde de alt orta
     for (const asp of ['16:9', '9:16']) {
       const r = ctaRect({ crop: { x: 0, y: 0, w: 1, h: 1 }, flushBottom: true }, 1280, 720, asp, { pos: 'bottom-center', size: youtubeCtaSize(asp) })

@@ -67,6 +67,22 @@ export function setCpuMode(mode: string | undefined): void {
   cpuPolicy.mode = mode === 'full' ? 'full' : 'balanced'
 }
 /** Çekirdek payı kadar iş parçacığı ("tam"da hepsi) */
+/** Gözetimsiz hızlı işler için tüm çekirdekler: sayaçlı (birden çok iş aynı anda isteyebilir); son iş bırakınca eski kip geri gelir. Dönen işlev bırakır. */
+let fullSpeedHolders = 0
+let modeBeforeFull: 'balanced' | 'full' = 'balanced'
+export function acquireFullSpeed(): () => void {
+  if (fullSpeedHolders++ === 0) {
+    modeBeforeFull = cpuPolicy.mode
+    setCpuMode('full')
+  }
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    if (--fullSpeedHolders === 0) setCpuMode(modeBeforeFull)
+  }
+}
+
 export function cpuThreads(fraction = 0.5): number {
   return cpuPolicy.mode === 'full' ? cpuPolicy.cores : Math.max(2, Math.floor(cpuPolicy.cores * fraction))
 }

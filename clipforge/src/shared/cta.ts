@@ -77,9 +77,9 @@ export function ctaTimesEvery(durationSec: number, everySec = CTA_EVERY_SEC, cli
 
 /**
  * DİKEY (9:16) buton yeri — KULLANICININ KIRMIZI İLE İŞARETLEDİĞİ yer: yatayda tam ortada, dikeyde yüz ile ekran görüntüsünün birleştiği çizginin biraz altında
- * (ekran görüntüsünün üst kısmı; alt kenar karenin %63,5'inde). Genişlik karenin %52'si. Yatay ve kare videolar eskisi gibi alt ortada kalır.
+ * (ekran görüntüsünün üst kısmı; alt kenar karenin %80'inde; buton kutusunun üst kısmında görünür, ~%63–72 arası). Genişlik karenin %72'si (kullanıcı: "çok küçük, büyüt"). Yatay ve kare videolar eskisi gibi alt ortada kalır.
  */
-export const VERTICAL_CTA = { width: 0.52, bottom: 0.635 }
+export const VERTICAL_CTA = { width: 0.72, bottom: 0.8 }
 export function verticalCtaRect(entry: Pick<CtaEntry, 'crop'>, assetW: number, assetH: number): NormRect {
   const crop = entry.crop ?? { x: 0, y: 0, w: 1, h: 1 }
   const ratio = (crop.w * Math.max(1, assetW)) / (crop.h * Math.max(1, assetH))

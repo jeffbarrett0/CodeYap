@@ -12,13 +12,11 @@ export function TopBar() {
       <button className="btn" onClick={() => void saveProject(false)} data-testid="save">Kaydet</button>
       <button className="btn" onClick={() => void pickAndImport()}>Kayıt içe aktar</button>
       <button className="btn" onClick={() => openDialog('autoclips')} data-testid="autoclips-btn" title="Auto Kick'ten çıkan videodan klipler: konuştuğunuz konuları bulur; yüz üstte, konuşulan görüntü altta 9:16 klip projesi yapar">Auto Clips{autoClipsProject ? ' ●' : ''}</button>
-      <button className="btn" onClick={() => openDialog('trailer')} data-testid="trailer-btn" title="Vlogunuzdan seçtiğiniz 10–60 sn'lik yerlerden hızlı kurgulu fragman yapar">Fragman</button>
       <button className="btn" onClick={() => openDialog('ytcut')} data-testid="ytcut-btn" title="Bütün yayını ve zaman damgalarını ver: her zaman damgasını ayrı bir yatay YouTube videosu olarak keser">YouTube yatay video</button>
       <button className="btn" onClick={() => openDialog('ytdikey')} data-testid="ytdikey-btn" title="Bir video ver: sessiz yerler kesilir, transkript çıkar; transkripti okuyup dikey (9:16) klipleri sen seçersin">YouTube dikey video</button>
       <button className="btn" onClick={() => openDialog('autoyatay')} data-testid="autoyatay-btn" title="Auto Kick'e bağlı: Auto Kick bitince zaman damgası listene göre her satır ayrı yatay video olarak kendiliğinden kesilir">Auto yatay video</button>
       <button className="btn" onClick={() => openDialog('klipcikar')} data-testid="klipcikar-btn" title="Bir an anlat (ör. Okan Buruk'un kırmızı kart gördüğü yer): konuşmada bulur, başını/sonunu sen ayarlarsın, dikey ve/veya yatay tek klip olarak kaydeder">Klip çıkar</button>
       <button className="btn" onClick={() => openDialog('sportplus')} data-testid="sportplus-btn" title="Yayından konuştuğun konunun ~40 sn'lik kesiti: ekran yok, yalnızca yüzün tüm karede">SportDeoPlus</button>
-      <button className="btn" onClick={() => openDialog('reference')} data-testid="reference-btn" title="Beğendiğin bir videoyu buraya at: ölçüm + kare tablosu çıkarılır, Claude Code inceleyip tarzını siteye uyarlar">Referans</button>
       <button className="btn primary" onClick={() => openDialog('autokick')} data-testid="autokick-btn" title="Yayın kaydını otomatik işle: transkript → sessizleri kırp → tam video → klipler">Auto Kick</button>
       <span className="projname" title={projectPath ?? ''}><b>{project.name}</b>{dirty ? ' •' : ''}</span>
       {parentProjectPath && (

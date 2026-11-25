@@ -439,6 +439,8 @@ export interface ExportOptions {
   normalizeAudio: boolean
   /** konuşma sesini yalnızca yukarı seviyele (yüksek sese dokunmaz); çağrı butonu sesi hariç */
   voiceLift?: boolean
+  /** HAZIR video kodlayıcı argümanları (ekran kartı vb.; ana süreç hesaplar). Verilmezse libx264 + crf/preset kullanılır. */
+  videoCodecArgs?: string[]
 }
 
 export interface ExportJob {
