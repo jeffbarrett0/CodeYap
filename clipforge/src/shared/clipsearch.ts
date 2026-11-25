@@ -116,6 +116,21 @@ export function findMentionClips(words: TranscriptWord[], query: string, opts: {
     if (g && segs[i].start - segs[g[g.length - 1]].end <= 25) g.push(i)
     else groups.push([i])
   }
+  // AZ ve UZUN KLİP (kullanıcı: "47 sn, 59 sn diye parçalama; direkt uzun çıkar, sonra ben keserim"): birbirine ≤60 sn uzaktaki gruplar, konunun başı-sonu
+  // en çok maxSec'e sığdığı sürece TEK klipte birleşir; ancak sığmayanlar ayrı kalır.
+  const merged: number[][] = []
+  for (const g of groups) {
+    const last = merged[merged.length - 1]
+    if (last && segs[g[0]].start - segs[last[last.length - 1]].end <= 60) {
+      const span = segs[topicEnd(segs, g[g.length - 1])].end - segs[topicStart(segs, last[0], 1)].start
+      if (span <= maxSec - 2) {
+        last.push(...g)
+        continue
+      }
+    }
+    merged.push([...g])
+  }
+  groups.splice(0, groups.length, ...merged)
   const subject = query.trim().replace(/\s+/g, ' ')
   const out: Omit<AutoClipCandidate, 'id'>[] = []
   for (const g of groups) {

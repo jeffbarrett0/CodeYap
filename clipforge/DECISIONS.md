@@ -596,3 +596,5 @@ Kullanıcı: dikey videolara YouTube butonu koyma; yalnızca yatay. `addYoutubeC
 
 ## 109. İsimle klip: konunun gerçek başı/sonu; klipler paralel dışa aktarılır
 Kullanıcı: "Deniz Gül'ü 1 dk anlattım, adı 30. saniyede geçti diye 30. saniyeden almışsın"; ayrıca "MP4 olarak kaydet" ~40 dk sürdü. (1) `findMentionClips`: klip artık ilk anıştan 1 cümle önce değil, ismin öncesindeki ≤40 sn içinde en belirgin konuşma duraklamasından (en büyük boşluk, ≥0,9 sn; `topicStart`) başlar ve son anıştan sonraki ≤30 sn içinde en belirgin duraklamada biter (`topicEnd`; duraklama yoksa eski davranış: 1 cümle önce / 3 cümle sonra). Süre sınırı (maxSec) ve `hotWindows` aynen geçerli. (2) Klip dışa aktarma sırayla değil 2–3 klip AYNI ANDA (çekirdek sayısına göre; `run.ts`), hızlı ön ayar (§107) ile birlikte. Gerçek makinede ölçülmedi; kullanıcıdan süre geri bildirimi istenecek.
+
+Ek (§109): isimle klipte birbirine ≤60 sn yakın anışlar, konunun başı-sonu en çok 178 sn'ye sığdığı sürece TEK klipte birleşir (kullanıcı: parça parça 47/59 sn klip yerine uzun klip; sonra kendisi keser).

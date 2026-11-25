@@ -28,3 +28,14 @@ describe('isimle klip: konunun gerçek başı', () => {
     expect(c[0].end).toBeLessThan(135) // sonraki konuya taşmaz
   })
 })
+
+describe('isimle klip: az ve uzun', () => {
+  it('birbirine yakın (≤60 sn) anışlar 2 dk 58 sn\'ye sığdığı sürece TEK klip olur', () => {
+    const s: [string, number][] = []
+    for (let t = 0; t < 200; t += 5.2) s.push([t > 20 && t < 30 || t > 70 && t < 80 || t > 120 && t < 130 ? `Deniz Gül şunu yaptı bakın ${t.toFixed(0)}.` : `Başka konu anlatıyorum şimdi ${t.toFixed(0)}.`, t])
+    const c = findMentionClips(words(s), 'Deniz Gül', { minSec: 20 })
+    expect(c.length).toBe(1)
+    expect(c[0].durationSec).toBeGreaterThan(100)
+    expect(c[0].durationSec).toBeLessThanOrEqual(178.01)
+  })
+})
