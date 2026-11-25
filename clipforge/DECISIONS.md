@@ -609,3 +609,6 @@ Kullanıcı: başlangıç saniyesini seçerken videoyu o saniyeden dinleyip doğ
 
 ## 112. SportDeoPlus: hızlı kodlama + dakika:saniye girişi
 Kullanıcı: kısa video 15 dk sürüyor; '108 sn yerine 1:48 yazabileyim'. (1) Yüz kesimi `slow`+crf16+yarım çekirdek idi → veryfast+crf17, ekran kartı varsa o (hata → yazılım), iş süresince tüm çekirdekler. (2) Başlangıç/bitiş kutuları metin: '1:48', '1:48,5' ya da '108' (`parseTime`); Enter/odak çıkınca uygulanır.
+
+## 113. Kesilmeyen zincir kapatıldı; SportDeoPlus çıktısı İndirilenler'e
+Kullanıcı: 1s15dk'lık kayıt Auto Kick'te çok uzun sürdü; akışı: transkript → sessiz kes → full → zaman damgalarından YouTube yatay → dikey klipleri Auto Clips'ten kendisi çıkaracak. `autoClipsAfterKick` varsayılan KAPALI + tek seferlik göç (`chainOffMigrated`: eski kayıtlı açık ayar bir kez kapatılır; kullanıcı isterse Auto Clips penceresinden tekrar açar). Zaman damgası listesi verildiyse YouTube yatay (autoHorizontalAfterKick) devam eder. SportDeoPlus çıktısı İndirilenler (Downloads) klasörüne yazılır (`AppDeps.downloadsDir`; CLI'da videonun yanı).

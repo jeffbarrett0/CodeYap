@@ -512,6 +512,8 @@ export interface Settings {
   introDurationSec: number
   /** Auto Kick bitince Auto Clips KENDİLİĞİNDEN çalışsın (adayları bul + klip projelerini üret): bilgisayar başında olmasanız da zincir sürer */
   autoClipsAfterKick: boolean
+  /** eski 'otomatik klip' ayarı bir kez kapatıldı */
+  chainOffMigrated: boolean
   /** Üretilen klipleri MP4 olarak da dışa aktar (9:16) */
   autoClipsExport: boolean
   /** Auto Kick sonrası YATAY (16:9, YouTube) klipler de üretilsin */

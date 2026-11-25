@@ -42,7 +42,8 @@ export const DEFAULT_SETTINGS: Settings = {
   introCutEnabled: true,
   introReferencePath: '',
   introDurationSec: 164,
-  autoClipsAfterKick: true,
+  autoClipsAfterKick: false, // KULLANICI KARARI: Auto Kick sonrası klipler otomatik üretilmez; dikey klipleri Auto Clips'ten kendisi çıkarır
+  chainOffMigrated: true, // yeni kurulumda göç gerekmez; eski kayıt dosyasında bu alan yoktur → bir kez kapatılır
   autoClipsExport: true,
   autoClipsHorizontal: true,
   /** Auto yatay video: Auto Kick bitince (hazır liste verildiyse) listeye göre yatay kesitler kendiliğinden */
@@ -91,6 +92,9 @@ export function normalizeSettings(raw: unknown): Settings {
       if (typeof v === typeof d && (Array.isArray(v) === Array.isArray(d))) out[k] = v
     }
   }
+  // TEK SEFERLİK: eski kayıtlı 'Auto Kick bitince klipleri üret' açık kalmasın (kullanıcı: 2–2,5 saatlik bekleme; dikey klipleri kendisi çıkarıyor)
+  if (raw && typeof raw === 'object' && (raw as Record<string, unknown>).chainOffMigrated !== true) out.autoClipsAfterKick = false
+  out.chainOffMigrated = true
   const s = out as unknown as Settings
   s.fuzzyThreshold = Math.min(1, Math.max(0.5, s.fuzzyThreshold))
   s.preRollSec = Math.max(0, s.preRollSec)

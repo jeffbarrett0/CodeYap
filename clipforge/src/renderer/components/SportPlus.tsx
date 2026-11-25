@@ -123,7 +123,7 @@ export function SportPlusDialog() {
   return (
     <Modal title="SportDeoPlus — MP4'ten yalnızca yüzü al" onClose={() => openDialog(null)} wide>
       <div className="col" data-testid="sport-dialog" style={{ gap: 10 }}>
-        <div className="infobox">Bir <b>dikey MP4</b> seçin (yukarıda yüzünüz, ortada sosyal medyalarınız, aşağıda ekran görüntüsü). <b>Ortadaki şerit ve alttaki ekran silinir</b>, yalnızca <b>yüzünüzün olduğu üst bölüm</b> kalır ve MP4 olarak kaydedilir. Ses aynen korunur. Orijinal dosyaya dokunulmaz; yeni dosya videonun yanına <i>“… - sadece yüz.mp4”</i> adıyla yazılır.</div>
+        <div className="infobox">Bir <b>dikey MP4</b> seçin (yukarıda yüzünüz, ortada sosyal medyalarınız, aşağıda ekran görüntüsü). <b>Ortadaki şerit ve alttaki ekran silinir</b>, yalnızca <b>yüzünüzün olduğu üst bölüm</b> kalır ve MP4 olarak kaydedilir. Ses aynen korunur. Orijinal dosyaya dokunulmaz; yeni dosya İndirilenler (Downloads) klasörüne <i>“… - sadece yüz.mp4”</i> adıyla yazılır.</div>
         <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
           <input type="text" readOnly value={video} placeholder="MP4 seçilmedi" aria-label="MP4" data-testid="sport-video" style={{ flex: 1, minWidth: 260 }} />
           <button className="btn" onClick={() => void pick()} disabled={running} data-testid="sport-pick">MP4 seç…</button>

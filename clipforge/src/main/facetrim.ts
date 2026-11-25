@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, extname, join } from 'node:path'
 import { FACE_TRIM_DEFAULT, faceTrimFilter, faceTrimGeometry, type FaceTrimGeometry, type FaceTrimOptions } from '../shared/facetrim'
@@ -31,8 +31,9 @@ async function probe(tools: MediaTools, file: string, signal?: AbortSignal): Pro
 const norm = (o: Partial<FaceTrimOptions>): FaceTrimOptions => ({ ...FACE_TRIM_DEFAULT, ...o })
 
 /** Çıkış dosyası: videonun yanına `<ad> - sadece yüz.mp4` (varsa (2), (3)…) */
-async function outPathFor(video: string): Promise<string> {
-  const base = join(dirname(video), `${basename(video, extname(video))} - sadece yüz`)
+async function outPathFor(video: string, outDir?: string): Promise<string> {
+  if (outDir) await mkdir(outDir, { recursive: true })
+  const base = join(outDir || dirname(video), `${basename(video, extname(video))} - sadece yüz`)
   let p = `${base}.mp4`
   for (let i = 2; await access(p).then(() => true, () => false); i++) p = `${base} (${i}).mp4`
   return p
@@ -64,7 +65,7 @@ export async function previewFaceTrim(videoPath: string, options: Partial<FaceTr
  * Yalnızca yüzü MP4 olarak kaydeder: üst yüz alanı kesilir, ortadaki şerit ve alttaki ekran atılır. Ses AYNEN kalır (yeniden kodlanmaz;
  * MP4'e uymazsa AAC'ye çevrilir). Görüntü yeniden kodlanır (yüksek kalite). Kaynağa dokunulmaz.
  */
-export async function runFaceTrim(videoPath: string, options: Partial<FaceTrimOptions> & { /** videoyu kes (sn): başlangıç/bitiş; boşsa tamamı */ start?: number; end?: number }, tools: MediaTools, hooks: { signal?: AbortSignal; progress?: (f: number) => void; /** false: ekran kartı kullanma */ hw?: boolean } = {}): Promise<{ outputPath: string; width: number; height: number; durationSec: number }> {
+export async function runFaceTrim(videoPath: string, options: Partial<FaceTrimOptions> & { /** videoyu kes (sn): başlangıç/bitiş; boşsa tamamı */ start?: number; end?: number }, tools: MediaTools, hooks: { signal?: AbortSignal; progress?: (f: number) => void; /** false: ekran kartı kullanma */ hw?: boolean; /** çıkış klasörü (yoksa videonun yanı) */ outDir?: string } = {}): Promise<{ outputPath: string; width: number; height: number; durationSec: number }> {
   const o = norm(options)
   const pr = await probe(tools, videoPath, hooks.signal)
   const g = faceTrimGeometry(pr.width, pr.height, o)
@@ -75,7 +76,7 @@ export async function runFaceTrim(videoPath: string, options: Partial<FaceTrimOp
   const trimmed = start > 0.05 || (Number.isFinite(end) && pr.durationSec > 0 && end < pr.durationSec - 0.05)
   if (trimmed && !(end - start >= 0.5)) throw new Error('Bitiş, başlangıçtan en az yarım saniye sonra olmalı.')
   const clipSec = trimmed ? end - start : pr.durationSec
-  const out = await outPathFor(videoPath)
+  const out = await outPathFor(videoPath, hooks.outDir)
   const part = `${out}.part.mp4`
   // HIZLI kodlama (kullanıcı: "kısa video 15 dk sürüyor"): eskiden `slow` + crf 16 ve yarım çekirdekti. Şimdi veryfast + crf 17 (görsel fark yok), ekran kartı varsa o (hata → yazılım)
   const baseWith = (hw: HwEncoder | null) => ['-y', '-v', 'error', '-nostdin', ...(trimmed ? ['-ss', start.toFixed(3), '-t', clipSec.toFixed(3)] : []), '-i', videoPath, '-map', '0:v:0', ...(pr.hasAudio ? ['-map', '0:a:0'] : []), '-vf', faceTrimFilter(g), ...videoEncoderArgs({ crf: 17, encoderPreset: 'veryfast', maxrateKbps: 30000 }, hw), '-movflags', '+faststart']

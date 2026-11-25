@@ -1230,6 +1230,10 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
 
   test('Auto Clips: Auto Kick bitince Auto Clips KENDİLİĞİNDEN açılır ve klipler otomatik üretilir (konular → klip projeleri → MP4); bilgisayar başında olmak gerekmez', async ({ page }) => {
     await boot(page)
+    // varsayılan KAPALI (kullanıcı kararı); bu testte kullanıcının açtığı akış denenir
+    await page.getByTestId('autoclips-btn').click()
+    await page.getByTestId('autoclips-after').check()
+    await page.keyboard.press('Escape')
     await page.getByTestId('autokick-btn').click()
     await page.getByTestId('autokick-pick').click()
     await expect(page.getByTestId('autoclips-dialog')).toBeVisible({ timeout: 20000 }) // pencere kendiliğinden açıldı
@@ -1248,9 +1252,8 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
   test('Auto Clips: ayarlardan otomatik üretim kapatılırsa Auto Kick bitince pencere yine açılır ama klipler elle seçilir; MP4 dışa aktarma kapatılabilir', async ({ page }) => {
     await boot(page)
     await page.getByTestId('autoclips-btn').click()
-    await expect(page.getByTestId('autoclips-after')).toBeChecked() // varsayılan: açık
+    await expect(page.getByTestId('autoclips-after')).not.toBeChecked() // varsayılan: KAPALI (kullanıcı dikey klipleri kendisi çıkarır)
     await expect(page.getByTestId('autoclips-export')).toBeChecked()
-    await page.getByTestId('autoclips-after').uncheck()
     await page.keyboard.press('Escape')
     await page.getByTestId('autokick-btn').click()
     await page.getByTestId('autokick-pick').click()

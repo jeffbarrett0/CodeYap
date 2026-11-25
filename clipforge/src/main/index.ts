@@ -72,6 +72,7 @@ function buildMenu() {
 void app.whenReady().then(async () => {
   service = new AppService({
     userDataDir: app.getPath('userData'),
+    downloadsDir: app.getPath('downloads'),
     resourcesDir: app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources'),
     version: app.getVersion(),
     platform: process.platform,

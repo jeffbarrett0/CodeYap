@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
@@ -48,6 +49,8 @@ export interface AppDeps {
   emit: <E extends IpcEventName>(event: E, payload: IpcEvents[E]) => void
   /** Komut satırı: önizleme kopyaları (proxy) arka planda üretilmez */
   headless?: boolean
+  /** İndirilenler klasörü (SportDeoPlus çıktıları buraya yazılır) */
+  downloadsDir?: string
 }
 
 /**
@@ -570,7 +573,7 @@ export class AppService {
         const release = this.settings.value.autoKickFullSpeed ? acquireFullSpeed() : () => undefined
         let r
         try {
-          r = await runFaceTrim(req.videoPath, req, this.tools, { signal: ctx.signal, progress: ctx.progress, hw: this.settings.value.autoKickHwEncode !== false })
+          r = await runFaceTrim(req.videoPath, req, this.tools, { signal: ctx.signal, progress: ctx.progress, hw: this.settings.value.autoKickHwEncode !== false, outDir: this.deps.downloadsDir ?? join(homedir(), 'Downloads') })
         } finally {
           release()
         }
