@@ -238,6 +238,8 @@ export function AutoKickDialog() {
   const [minGap, setMinGap] = useState(settings.silenceMinGapSec)
   const [fillers, setFillers] = useState(settings.cutFillers)
   const [model, setModel] = useState(settings.whisperModel)
+  const [hw, setHw] = useState<{ available: boolean; label: string } | null>(null)
+  useEffect(() => { void api.invoke('hw:status').then(setHw).catch(() => setHw({ available: false, label: '' })) }, [api])
   const [err, setErr] = useState('')
   const [chapterList, setChapterList] = useState('')
   const jobs = Object.values(autoKick).sort((a, b) => b.startedAt - a.startedAt)
@@ -276,6 +278,7 @@ export function AutoKickDialog() {
         {err && <div className="warnbox" role="alert">{err}</div>}
         <div className="col" style={{ gap: 6 }} data-testid="autokick-speed">
           <b>Hız</b>
+            <div className="hint" data-testid="autokick-hw-status">{hw === null ? 'Ekran kartı denetleniyor…' : hw.available ? `✓ Ekran kartı bulundu: ${hw.label} — otomatik kullanılır, elle bir şey yapmanız gerekmez.` : 'Ekran kartı kodlayıcısı bulunamadı (sürücü/ffmpeg desteği yok); işlemciyle kodlanır. Güncel NVIDIA sürücüsü kurulu olmalı.'}</div>
             <label className="check" title="Ekran kartın (NVIDIA / Intel / AMD) varsa tam video onunla kodlanır: işlemciyle kodlamaya göre çok daha hızlıdır. Kart yoksa ya da hata verirse kendiliğinden işlemciyle kodlanır."><input type="checkbox" checked={settings.autoKickHwEncode} onChange={(e) => void updateSettings({ autoKickHwEncode: e.target.checked })} data-testid="autokick-hw" /> Ekran kartıyla kodla (varsa; tam video çok daha hızlı biter)</label>
             <label className="row" style={{ gap: 6, alignItems: 'center' }} title="Transkripsiyon, Auto Kick'in en uzun aşamasıdır. Küçük model yaklaşık 2–3 kat hızlı biter; orta model isimleri/kelimeleri daha doğru yazar.">Transkripsiyon modeli
               <select value={model} onChange={(e) => setModel(e.target.value as typeof model)} aria-label="Transkripsiyon modeli" data-testid="autokick-model">

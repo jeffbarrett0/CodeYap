@@ -612,3 +612,6 @@ Kullanıcı: kısa video 15 dk sürüyor; '108 sn yerine 1:48 yazabileyim'. (1) 
 
 ## 113. Kesilmeyen zincir kapatıldı; SportDeoPlus çıktısı İndirilenler'e
 Kullanıcı: 1s15dk'lık kayıt Auto Kick'te çok uzun sürdü; akışı: transkript → sessiz kes → full → zaman damgalarından YouTube yatay → dikey klipleri Auto Clips'ten kendisi çıkaracak. `autoClipsAfterKick` varsayılan KAPALI + tek seferlik göç (`chainOffMigrated`: eski kayıtlı açık ayar bir kez kapatılır; kullanıcı isterse Auto Clips penceresinden tekrar açar). Zaman damgası listesi verildiyse YouTube yatay (autoHorizontalAfterKick) devam eder. SportDeoPlus çıktısı İndirilenler (Downloads) klasörüne yazılır (`AppDeps.downloadsDir`; CLI'da videonun yanı).
+
+## 114. Ekran kartı durumu görünür
+Kullanıcı (RTX 3070): ekran kartı otomatik mi? Kodlama zaten OTOMATİK (autoKickHwEncode açık; NVENC gerçek deneme kodlamasıyla algılanır). Auto Kick penceresi → Hız bölümünde 'hw:status' ile 'Ekran kartı bulundu: … / bulunamadı' gösterilir. Bulunamazsa nedeni: paketle gelen ffmpeg'de nvenc yok olabilir → Ayarlar → FFmpeg yolu ile tam derleme (nvenc'li) seçilir. NOT: Whisper (transkripsiyon) ekran kartını KULLANMAZ (CPU), ayrı konu.

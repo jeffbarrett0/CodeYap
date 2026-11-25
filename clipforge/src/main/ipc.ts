@@ -1,3 +1,4 @@
+import { detectHwEncoder, HW_LABEL } from './autokick/hwenc'
 import { BrowserWindow, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -66,6 +67,10 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       return out
     },
     'autokick:outro': (r) => app.outroAddStart(r.fullVideoPath),
+    'hw:status': async () => {
+      const h = await detectHwEncoder(app.tools.ffmpeg)
+      return { available: !!h, label: h ? HW_LABEL[h] : '' }
+    },
     'facetrim:preview': (r) => app.faceTrimPreview(r),
     'facetrim:start': (r) => app.faceTrimStart(r),
     'outro:folder': async () => {

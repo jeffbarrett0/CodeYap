@@ -181,6 +181,8 @@ export interface IpcInvoke {
   'autoclips:transcribe': [[{ projectPath: string }], { words: number; sentences: number; already: boolean }]
   'autoclips:fix': [[{ projectPath: string; from: string; to: string }], { replaced: number }]
   /** SportDeoPlus (yenilendi): MP4'ten yalnızca üst yüz alanı kalır (şerit + ekran silinir). Önizleme: orijinal kare (kesim çizgisi) + çıkacak görüntü */
+  /** Ekran kartı kodlayıcısı bu bilgisayarda çalışıyor mu (gerçek deneme kodlamasıyla) */
+  'hw:status': [[], { available: boolean; label: string }],
   'facetrim:preview': [[{ videoPath: string; faceShare: number; stripCut: boolean; shape: import('./facetrim').FaceTrimShape; /** önizleme karesi (sn); boşsa videonun başı */ at?: number }], { original: string; result: string; srcW: number; srcH: number; outW: number; outH: number; durationSec: number; hasAudio: boolean }]
   /** MP4 olarak kaydet (görev kuyruğu; bitince 'facetrim:done') */
   'facetrim:start': [[{ videoPath: string; faceShare: number; stripCut: boolean; shape: import('./facetrim').FaceTrimShape; /** videoyu kes: başlangıç/bitiş (sn); boşsa tamamı */ start?: number; end?: number }], string]

@@ -233,6 +233,7 @@ export function createMockApi(): ClipforgeApi {
           emit('outro:done', { taskId: ctx.id, fullVideoPath: r.fullVideoPath, ok: true, note: 'Outro eklendi (+10 sn).' })
         }
       }).id,
+    'hw:status': () => ({ available: true, label: 'NVIDIA NVENC' }),
     'facetrim:preview': (r) => {
       if (/bozuk/i.test(r.videoPath)) throw new Error('Videoda görüntü akışı bulunamadı.')
       const px = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA='

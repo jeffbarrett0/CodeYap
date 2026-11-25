@@ -959,6 +959,7 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autokick-dialog')).toBeVisible()
     await expect(page.getByTestId('autokick-readiness')).toHaveAttribute('data-ok', 'true') // transkripsiyon hazır
     await expect(page.getByTestId('autokick-start')).toHaveCount(0) // ayrıca başlatmaya gerek yok
+    await expect(page.getByTestId('autokick-hw-status')).toContainText('NVIDIA NVENC')
     await expect(page.getByTestId('autokick-hw')).toBeChecked() // ekran kartı kodlaması varsayılan açık
     await expect(page.getByTestId('autokick-model')).toBeVisible()
     await page.getByTestId('autokick-model').selectOption('small')
