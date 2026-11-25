@@ -8,7 +8,7 @@ IN="${1:-post.mp4}"
 OUT="${2:-post-btn.mp4}"
 BTN=youtube-button.mov
 START=1; EVERY=30; BTN_DUR=5
-QUIETER_DB=6           # buton sesi videonun ortalama sesinden bu kadar dB KISIK olsun
+QUIETER_DB=10          # buton sesi videonun ortalama sesinden bu kadar dB KISIK olsun
 # Buton, videonun ALTINDaki yuvaya yerlesir (konum layout.json'dan; kirpma alaninda butonun ust boslugu 8px)
 read -r X Y < <(python3 -c "import json;b=json.load(open('layout.json'))['btn'];print(b['x'],b['y']-8)")
 
