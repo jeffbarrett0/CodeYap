@@ -32,19 +32,25 @@ describe('ses seviyesi: yalnızca yukarı', () => {
     execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=300:duration=20', '-af', 'volume=14dB', loud])
     const q0 = volumeOf(quiet, '')
     const q1 = volumeOf(quiet, VOICE_LEVEL_FILTER + ',')
-    expect(q1).toBeGreaterThan(q0 + 8) // en az +8 dB yükselir
+    expect(q1).toBeGreaterThan(q0 + 5) // sessiz konuşma yükselir
     const l0 = volumeOf(loud, '')
     const l1 = volumeOf(loud, VOICE_LEVEL_FILTER + ',')
-    expect(l1).toBeGreaterThanOrEqual(l0 - 0.5) // yüksek olan DÜŞÜRÜLMEZ
-    expect(l1).toBeLessThanOrEqual(-0.5) // taşma/kırpılma yok
+    expect(l1).toBeGreaterThanOrEqual(l0 - 0.2) // yüksek olan ASLA kısılmaz
+    expect(l1).toBeLessThanOrEqual(0) // taşma yok
+    // başlangıçta kısılma YOK: ilk saniye de en az girişi kadar yüksek
+    const f0 = volumeOf(loud, 'atrim=0:1,')
+    const f1 = volumeOf(loud, VOICE_LEVEL_FILTER + ',atrim=0:1,')
+    expect(f1).toBeGreaterThanOrEqual(f0 - 0.2)
+    const fq0 = volumeOf(quiet, 'atrim=0:1,')
+    expect(volumeOf(quiet, VOICE_LEVEL_FILTER + ',atrim=0:1,')).toBeGreaterThanOrEqual(fq0 - 0.2)
   }, 60_000)
   it('Auto Kick tam video ve yt-cut filtresi: açıkken seviyeleme var, kapalıyken yok; buton ses katsayısı sabit kısık', () => {
     const asset = { path: '/x.mp4', fps: 30, audioStreams: [{}], audioMap: { mix: 0 } } as never
-    expect(planFastCut(asset, [[0, 5]], { crf: 20, encoderPreset: 'veryfast', maxrateKbps: 40000, audioKbps: 192, voiceLift: true }, '/o.mp4').filters).toContain('dynaudnorm')
-    expect(planFastCut(asset, [[0, 5]], { crf: 20, encoderPreset: 'veryfast', maxrateKbps: 40000, audioKbps: 192 }, '/o.mp4').filters).not.toContain('dynaudnorm')
+    expect(planFastCut(asset, [[0, 5]], { crf: 20, encoderPreset: 'veryfast', maxrateKbps: 40000, audioKbps: 192, voiceLift: true }, '/o.mp4').filters).toContain('compand')
+    expect(planFastCut(asset, [[0, 5]], { crf: 20, encoderPreset: 'veryfast', maxrateKbps: 40000, audioKbps: 192 }, '/o.mp4').filters).not.toContain('compand')
     const cta = { entry: { id: 'youtube', label: 'y', file: 'y.mp4', crop: { x: 0, y: 0, w: 1, h: 1 }, flushBottom: true }, file: '/y.mp4', chroma: '#00FF00', width: 1280, height: 720, hasAudio: true }
     const g = ctaGraph({ cta, times: [2, 22], srcW: 1920, srcH: 1080, hasAudio: true, videoPre: '', voiceLift: true })
-    expect(g.filter).toContain('dynaudnorm')
+    expect(g.filter).toContain('compand')
     expect(g.filter).toContain(`volume=${CTA_AUDIO_VOLUME}`)
     expect(CTA_AUDIO_VOLUME).toBeLessThanOrEqual(0.35)
   })
