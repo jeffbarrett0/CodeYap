@@ -593,3 +593,6 @@ Güncelleme: dikey buton ikinci ekran görüntüsüne göre büyütüldü ve aş
 
 ## 108. Abone butonu yalnızca yatay
 Kullanıcı: dikey videolara YouTube butonu koyma; yalnızca yatay. `addYoutubeCta` timeline aspect 16:9 değilse buton eklemez (`verticalCtaRect` kullanılmaz hâle geldi, kodda duruyor). Zaman kuralı (2. sn + her 20 sn) yatayda geçerli.
+
+## 109. İsimle klip: konunun gerçek başı/sonu; klipler paralel dışa aktarılır
+Kullanıcı: "Deniz Gül'ü 1 dk anlattım, adı 30. saniyede geçti diye 30. saniyeden almışsın"; ayrıca "MP4 olarak kaydet" ~40 dk sürdü. (1) `findMentionClips`: klip artık ilk anıştan 1 cümle önce değil, ismin öncesindeki ≤40 sn içinde en belirgin konuşma duraklamasından (en büyük boşluk, ≥0,9 sn; `topicStart`) başlar ve son anıştan sonraki ≤30 sn içinde en belirgin duraklamada biter (`topicEnd`; duraklama yoksa eski davranış: 1 cümle önce / 3 cümle sonra). Süre sınırı (maxSec) ve `hotWindows` aynen geçerli. (2) Klip dışa aktarma sırayla değil 2–3 klip AYNI ANDA (çekirdek sayısına göre; `run.ts`), hızlı ön ayar (§107) ile birlikte. Gerçek makinede ölçülmedi; kullanıcıdan süre geri bildirimi istenecek.

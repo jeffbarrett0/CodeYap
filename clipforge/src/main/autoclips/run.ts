@@ -1,3 +1,4 @@
+import { cpus as osCpus } from 'node:os'
 import { writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
@@ -105,15 +106,28 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   else {
     stage('export', { status: 'running', progress: 0 })
     const todo = clips.filter((c) => c.projectPath)
-    for (const [i, c] of todo.entries()) {
-      check()
-      try {
-        c.videoPath = await exportClipProject(c.projectPath!, env, hooks.signal, (f) => stage('export', { progress: (i + f) / todo.length, detail: `${i + 1}/${todo.length}: ${c.subject}` }), req.horizontal ? 'youtube' : 'shorts')
-      } catch (e) {
+    // KLİPLER AYNI ANDA kodlanır (kullanıcı: "40 dk bekledim"): filtre/kaplama adımları tek çekirdeklidir; 2 klip birden işlemciyi/ekran kartını çok daha iyi doldurur
+    const conc = osCpus().length >= 8 ? 3 : osCpus().length >= 4 ? 2 : 1
+    let next = 0
+    let doneN = 0
+    const preset = req.horizontal ? 'youtube' : 'shorts'
+    const worker = async () => {
+      for (;;) {
         check()
-        c.error = `MP4 dışa aktarılamadı: ${e instanceof Error ? e.message : String(e)}`
+        const i = next++
+        if (i >= todo.length) return
+        const c = todo[i]
+        try {
+          c.videoPath = await exportClipProject(c.projectPath!, env, hooks.signal, (f) => stage('export', { progress: (doneN + f) / todo.length, detail: `${Math.min(doneN + 1, todo.length)}/${todo.length}: ${c.subject}` }), preset)
+        } catch (e) {
+          check()
+          c.error = `MP4 dışa aktarılamadı: ${e instanceof Error ? e.message : String(e)}`
+        }
+        doneN++
+        stage('export', { progress: doneN / todo.length, detail: `${doneN}/${todo.length} klip hazır` })
       }
     }
+    await Promise.all(Array.from({ length: Math.min(conc, todo.length) }, worker))
     stage('export', { status: 'done', progress: 1, detail: `${clips.filter((c) => c.videoPath).length} MP4` })
   }
   const first = clips.find((c) => c.projectPath)

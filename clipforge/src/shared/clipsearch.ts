@@ -67,6 +67,35 @@ export function mentionSuggestions(words: TranscriptWord[], limit = 60): Mention
   return out.sort((a, b) => b.count - a.count).slice(0, limit)
 }
 
+
+const PAUSE_SEC = 0.9
+const LEAD_MAX_SEC = 40
+const TAIL_MAX_SEC = 30
+
+/** İlk anıştan geriye: en çok LEAD_MAX_SEC içinde en büyük konuşma boşluğundan (≥0,9 sn) sonraki cümle; boşluk yoksa 1 cümle önce */
+export function topicStart(segs: Segment[], hit: number, fallbackBack = 1): number {
+  let best = -1
+  let bestGap = PAUSE_SEC
+  for (let i = hit; i > 0; i--) {
+    if (segs[hit].start - segs[i - 1].start > LEAD_MAX_SEC) break
+    const gap = segs[i].start - segs[i - 1].end
+    if (gap >= bestGap) (bestGap = gap, (best = i))
+  }
+  return best >= 0 ? best : Math.max(0, hit - fallbackBack)
+}
+
+/** Son anıştan ileriye: en çok TAIL_MAX_SEC içinde en büyük boşluktan ÖNCEKİ cümle; boşluk yoksa 3 cümle sonra */
+export function topicEnd(segs: Segment[], hit: number): number {
+  let best = -1
+  let bestGap = PAUSE_SEC
+  for (let i = hit; i < segs.length - 1; i++) {
+    if (segs[i].end - segs[hit].end > TAIL_MAX_SEC) break
+    const gap = segs[i + 1].start - segs[i].end
+    if (gap >= bestGap) (bestGap = gap, (best = i))
+  }
+  return best >= 0 ? Math.max(best, Math.min(segs.length - 1, hit + 1)) : Math.min(segs.length - 1, hit + 3)
+}
+
 /**
  * İsmin geçtiği yerlerden klip adayları. Birbirine ≤25 sn yakın anılar TEK klip olur (konu yarıda kesilmez); klip ilk anıştan 1 cümle önce
  * başlar, son anıştan 2 cümle sonra biter (cümle sınırında, başı/sonu `refineClipBounds` ile temizlenir). minSec'ten kısaysa komşu cümlelerle uzatılır;
@@ -90,8 +119,10 @@ export function findMentionClips(words: TranscriptWord[], query: string, opts: {
   const subject = query.trim().replace(/\s+/g, ' ')
   const out: Omit<AutoClipCandidate, 'id'>[] = []
   for (const g of groups) {
-    const a0 = Math.max(0, g[0] - 1)
-    let b0 = Math.min(segs.length - 1, g[g.length - 1] + 2)
+    // KONUNUN GERÇEK BAŞI/SONU (kullanıcı: "1 dk anlatmışım, 30. saniyede adı geçti diye 30. saniyeden almışsın"): isim konuşmanın ortasında geçebilir;
+    // ismin öncesinde (≤40 sn) ve sonrasında (≤30 sn) konuşma duraklarının en belirgininde (en büyük boşluk, ≥0,9 sn) başlayıp biter.
+    const a0 = topicStart(segs, g[0], g[g.length - 1] > g[0] ? 0 : 1)
+    let b0 = topicEnd(segs, g[g.length - 1])
     let inside = segs.slice(a0, b0 + 1)
     // çok kısaysa sonrasına (sonra öncesine) cümle ekle
     let a = a0
