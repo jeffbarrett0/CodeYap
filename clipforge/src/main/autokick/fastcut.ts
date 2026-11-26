@@ -75,7 +75,8 @@ export function planFastCut(asset: Pick<MediaAsset, 'path' | 'fps' | 'audioStrea
   const a = Math.min(asset.audioMap.mix ?? 0, asset.audioStreams.length - 1)
   const filters = [
     // kare hızı açıkça verilir (FRAME_RATE seçimden sonra bilinmez → 25 fps'e düşüp kareleri atardı)
-    `[0:v:0]select='${expr}',setpts=N/((${fn}/${fd})*TB),fps=${fn}/${fd}${adjustFilter(o.adjust)}[v]`,
+    // ÖNCE sabit kare hızına çevrilir (fps): kayıt DEĞİŞKEN kare hızlıysa (OBS kare atlayınca) eksik kareler tekrarlanır; yoksa her kesimde görüntü kısalır, ses kayar
+    `[0:v:0]fps=${fn}/${fd}:round=near,select='${expr}',setpts=N/((${fn}/${fd})*TB),fps=${fn}/${fd}${adjustFilter(o.adjust)}[v]`,
     // ses çerçevesi, kare süresine tam bölünür: her kesimde ses tam kare kadar uzunlukta kalır (kayma olmaz)
     `[0:a:${a}]aformat=sample_rates=48000:channel_layouts=stereo,asetnsamples=n=${frameSamples}:p=0,aselect='${expr}',asetpts=N/SR/TB${o.voiceLift ? ',' + VOICE_LEVEL_FILTER : ''}[a]`
   ].join(';\n')

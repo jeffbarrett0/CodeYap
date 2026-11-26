@@ -615,3 +615,6 @@ Kullanıcı: 1s15dk'lık kayıt Auto Kick'te çok uzun sürdü; akışı: transk
 
 ## 114. Ekran kartı durumu görünür
 Kullanıcı (RTX 3070): ekran kartı otomatik mi? Kodlama zaten OTOMATİK (autoKickHwEncode açık; NVENC gerçek deneme kodlamasıyla algılanır). Auto Kick penceresi → Hız bölümünde 'hw:status' ile 'Ekran kartı bulundu: … / bulunamadı' gösterilir. Bulunamazsa nedeni: paketle gelen ffmpeg'de nvenc yok olabilir → Ayarlar → FFmpeg yolu ile tam derleme (nvenc'li) seçilir. NOT: Whisper (transkripsiyon) ekran kartını KULLANMAZ (CPU), ayrı konu.
+
+## 115. Ses kayması: kare atlamış (VFR) kayıtta kesimlerde görüntü kısalıyordu
+Kullanıcı: Auto Kick full videosunda ses tamamen kaymış. Yeniden üretilen kök neden: `planFastCut` kaynağın SABİT kare hızlı olduğunu varsayıyordu (`select` + `setpts=N/fps`); OBS kare atlayınca (değişken kare hızı) her kesimde görüntü kısalıyor, ses aynı kalıyor → kesim sayısıyla büyüyen kayma (denemede 16 kesimde 3,7 sn). Çözüm: seçimden ÖNCE `fps=…:round=near` (eksik kareler tekrarlanır). Test: `fastcut-vfr.test.ts`. NOT: çıktı doğrulaması (görüntü/ses ≤0,25 sn) zaten vardı; bu kök neden yetmiyorsa (kayma sabit/başta ise) NVENC/outro/aktarım şüphelisi: kullanıcıdan kaymanın ne kadar ve nerede (başta mı sonda mı) olduğu istenecek.
