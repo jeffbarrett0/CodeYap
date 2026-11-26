@@ -326,7 +326,19 @@ async function runAutoKickInner(req: AutoKickRequest, p: ReturnType<typeof autoK
       hooks.signal.removeEventListener('abort', onAbort)
     }
     // doğrulama: süre, görüntü ve ses var mı
-    const probe = await ffprobeJson(service.tools.ffprobe, tmpOut)
+    let probe = await ffprobeJson(service.tools.ffprobe, tmpOut)
+    // SES-GÖRÜNTÜ BAŞLANGIÇ FARKI (kullanıcı: "ses videonun tamamında kaymış"): ekran kartı kodlayıcısı görüntünün başlangıcını kaydırabilir (B kareleri); fark 0,08 sn'yi aşarsa
+    // çıktı ATILIR ve yazılım kodlamayla yeniden üretilir (yavaş ama senkron)
+    const startOf = (pr: typeof probe, t: string) => Number(pr.streams?.find((x) => x.codec_type === t)?.start_time)
+    const startGap = (pr: typeof probe) => Math.abs((startOf(pr, 'video') || 0) - (startOf(pr, 'audio') || 0))
+    if (usedHw && startGap(probe) > 0.08) {
+      void appendRunLog(p.dir, `Auto Kick: ekran kartı çıktısında ses-görüntü başlangıç farkı ${startGap(probe).toFixed(2)} sn; yazılım kodlamayla yeniden üretiliyor`)
+      stage('full', { progress: 0, detail: 'Ses-görüntü senkronu için işlemciyle yeniden kodlanıyor' })
+      await rm(tmpOut, { force: true })
+      await renderFastCut(asset, kept, { ...o, hw: null }, service.tools.ffmpeg, tmpOut, { signal: abort.signal, onProgress: (f) => stage('full', { progress: f }) })
+      usedHw = null
+      probe = await ffprobeJson(service.tools.ffprobe, tmpOut)
+    }
     const vs = probe.streams?.find((x) => x.codec_type === 'video')
     const as = probe.streams?.find((x) => x.codec_type === 'audio')
     const fmtDur = Number(probe.format?.duration)

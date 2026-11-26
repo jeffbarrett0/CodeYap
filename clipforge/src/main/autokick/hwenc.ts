@@ -48,8 +48,8 @@ export const resetHwEncoderCache = () => void (cached = undefined)
 export function videoEncoderArgs(o: { crf: number; encoderPreset: string; maxrateKbps: number }, hw?: HwEncoder | null): string[] {
   const cap = Math.max(1000, o.maxrateKbps)
   const common = ['-profile:v', 'high', '-pix_fmt', 'yuv420p']
-  if (hw === 'nvenc') return ['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq', '-rc', 'vbr', '-cq', String(o.crf + 1), '-b:v', '0', '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`, '-spatial-aq', '1', ...common]
-  if (hw === 'qsv') return ['-c:v', 'h264_qsv', '-preset', 'medium', '-global_quality', String(o.crf + 1), '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`, ...common]
-  if (hw === 'amf') return ['-c:v', 'h264_amf', '-quality', 'quality', '-rc', 'cqp', '-qp_i', String(o.crf + 1), '-qp_p', String(o.crf + 2), '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`, ...common]
+  if (hw === 'nvenc') return ['-c:v', 'h264_nvenc', '-preset', 'p5', '-tune', 'hq', '-bf', '0', '-rc', 'vbr', '-cq', String(o.crf + 1), '-b:v', '0', '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`, '-spatial-aq', '1', ...common]
+  if (hw === 'qsv') return ['-c:v', 'h264_qsv', '-preset', 'medium', '-global_quality', String(o.crf + 1), '-bf', '0', '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`, ...common]
+  if (hw === 'amf') return ['-c:v', 'h264_amf', '-quality', 'quality', '-bf', '0', '-rc', 'cqp', '-qp_i', String(o.crf + 1), '-qp_p', String(o.crf + 2), '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`, ...common]
   return ['-c:v', 'libx264', '-preset', o.encoderPreset, ...common.slice(0, 2), '-pix_fmt', 'yuv420p', '-crf', String(o.crf), '-maxrate', `${cap}k`, '-bufsize', `${cap * 2}k`]
 }

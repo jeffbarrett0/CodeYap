@@ -7,6 +7,7 @@ export interface FfprobeJson {
   chapters?: { start_time?: string; end_time?: string; tags?: Record<string, string> }[]
 }
 export interface FfprobeStream {
+  start_time?: string
   index: number
   codec_type?: string
   codec_name?: string
