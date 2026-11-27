@@ -14,13 +14,20 @@ export function Gta6Dialog() {
   return <RangeClipsDialog mode="gta" />
 }
 
+/** Videodan klip çıkart: GTA 6 düğmesinin kopyası; fark: oyun/ekran Auto Clips gibi BÜYÜK (sohbet/chatting yayınları) */
+export function VideodanKlipDialog() {
+  return <RangeClipsDialog mode="videodan" />
+}
+
 /** YouTube dikey video: yayın + elle yazılan aralıklar → standart dikey klipler (yüz üstte, ekran altta); transkript YOK, buton/outro YOK */
 export function YtDikeyDialog() {
   return <RangeClipsDialog mode="dikey" />
 }
 
-function RangeClipsDialog({ mode }: { mode: 'gta' | 'dikey' }) {
+function RangeClipsDialog({ mode }: { mode: 'gta' | 'dikey' | 'videodan' }) {
   const gta = mode === 'gta'
+  const vd = mode === 'videodan'
+  const pre = vd ? 'videodan' : gta ? 'gta' : 'ytdikey'
   const api = requireApi()
   const { openDialog, autoClipsJobs } = useStore()
   const [video, setVideo] = useState('')
@@ -53,42 +60,44 @@ function RangeClipsDialog({ mode }: { mode: 'gta' | 'dikey' }) {
   }
 
   return (
-    <Modal title={gta ? 'GTA 6 klip çıkar' : 'YouTube dikey video — aralıklardan dikey klip'} onClose={() => openDialog(null)} wide>
-      <div className="col" data-testid={gta ? 'gta-dialog' : 'ytdikey-dialog'} style={{ gap: 10 }}>
-        {gta ? (
+    <Modal title={gta ? 'GTA 6 klip çıkar' : vd ? 'Videodan klip çıkart' : 'YouTube dikey video — aralıklardan dikey klip'} onClose={() => openDialog(null)} wide>
+      <div className="col" data-testid={`${pre}-dialog`} style={{ gap: 10 }}>
+        {vd ? (
+          <div className="infobox">Bir video seçin ve <b>klip olacak aralıkları</b> yazın (her satıra bir aralık). <b>Transkript yapılmaz</b>; yazdığınız saniyeler aynen klip olur. Düzen (Auto Clips gibi): <b>üstte yüzünüz</b>, ortada sosyal medya şeridi, altta <b>ekran görüntüsü büyük</b>; <b>YouTube abone butonu</b> eklenir, sonunda <b>Kick outro</b> gelir. Orijinal videoya dokunulmaz.</div>
+        ) : gta ? (
           <div className="infobox">Bütün yayını seçin, <b>kesmek istediğiniz aralıkları</b> yazın (her satıra bir aralık). <b>Transkript yapılmaz</b>; yazdığınız saniyeler aynen klip olur. Düzen: <b>üstte yüzünüz</b>, ortada sosyal medya şeridi, altında <b>oyun ekranı (birazcık büyütülmüş)</b>, altında <b>bulanık kopyası</b> ve <b>YouTube abone butonu</b>; sonunda <b>Kick outro</b>. Orijinal yayına dokunulmaz.</div>
         ) : (
           <div className="infobox">Bir video seçin (yatay yayın/video) ve <b>klip olacak aralıkları</b> yazın (her satıra bir aralık). <b>Transkript yapılmaz</b>; yazdığınız saniyeler aynen <b>dikey (9:16) klip</b> olur: üstte yüzünüz, ortada sosyal medya şeridi, altta ekran görüntüsü. Dikey videoda YouTube butonu/outro yoktur. Orijinal videoya dokunulmaz. Transkriptten klip için <b>Transcript ile clip</b> düğmesini kullanın.</div>
         )}
         <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
-          <input type="text" readOnly value={video} placeholder="Video seçilmedi" aria-label="Video" data-testid={gta ? 'gta-video' : 'ytdikey-video'} style={{ flex: 1, minWidth: 260 }} />
-          <button className="btn" onClick={() => void pick()} disabled={running} data-testid={gta ? 'gta-pick' : 'ytdikey-pick'}>Video seç…</button>
+          <input type="text" readOnly value={video} placeholder="Video seçilmedi" aria-label="Video" data-testid={`${pre}-video`} style={{ flex: 1, minWidth: 260 }} />
+          <button className="btn" onClick={() => void pick()} disabled={running} data-testid={`${pre}-pick`}>Video seç…</button>
         </div>
         <label className="col" style={{ gap: 4 }}>Aralıklar (dakika:saniye; her satıra bir klip, istersen sonuna isim)
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} disabled={running} placeholder={'0:28 - 0:45\n1:02:10 - 1:03:00 Heist sahnesi\n95 - 140'} data-testid={gta ? 'gta-ranges' : 'ytdikey-ranges'} style={{ width: '100%', fontFamily: 'inherit' }} />
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} disabled={running} placeholder={'0:28 - 0:45\n1:02:10 - 1:03:00 Heist sahnesi\n95 - 140'} data-testid={`${pre}-ranges`} style={{ width: '100%', fontFamily: 'inherit' }} />
         </label>
-        {err && <div className="warnbox" role="alert" data-testid={gta ? 'gta-error' : 'ytdikey-error'}>{err}</div>}
-        {warnings.map((w) => <div key={w} className="warnbox" data-testid={gta ? 'gta-warning' : 'ytdikey-warning'}>{w}</div>)}
+        {err && <div className="warnbox" role="alert" data-testid={`${pre}-error`}>{err}</div>}
+        {warnings.map((w) => <div key={w} className="warnbox" data-testid={`${pre}-warning`}>{w}</div>)}
         <div className="row wrap" style={{ gap: 8 }}>
           <span style={{ flex: 1 }} />
-          <button className="btn primary" disabled={running || !video} onClick={() => void start()} data-testid={gta ? 'gta-start' : 'ytdikey-start'}>{busy ? 'Hazırlanıyor…' : running ? 'Klipler hazırlanıyor…' : 'Klipleri çıkar'}</button>
+          <button className="btn primary" disabled={running || !video} onClick={() => void start()} data-testid={`${pre}-start`}>{busy ? 'Hazırlanıyor…' : running ? 'Klipler hazırlanıyor…' : 'Klipleri çıkar'}</button>
         </div>
         {job && (
-          <div className="col" style={{ gap: 4 }} data-testid={gta ? 'gta-job' : 'ytdikey-job'} data-status={job.status}>
+          <div className="col" style={{ gap: 4 }} data-testid={`${pre}-job`} data-status={job.status}>
             {job.stages.filter((s) => s.id !== 'find').map((s) => (
               <div key={s.id} className="col" style={{ gap: 2 }}>
                 <div className="row" style={{ justifyContent: 'space-between' }}><span>{s.status === 'done' ? '✓ ' : s.status === 'running' ? '⏳ ' : '○ '}{s.label}</span><span className="hint">{s.detail ?? ''}</span></div>
                 {s.status === 'running' && <Progress value={s.progress} />}
               </div>
             ))}
-            {job.error && <div className="warnbox" role="alert" data-testid={gta ? 'gta-job-error' : 'ytdikey-job-error'}>{job.error}</div>}
+            {job.error && <div className="warnbox" role="alert" data-testid={`${pre}-job-error`}>{job.error}</div>}
             {job.status === 'done' && job.result && (
-              <div className="col" style={{ gap: 4 }} data-testid={gta ? 'gta-done' : 'ytdikey-done'}>
+              <div className="col" style={{ gap: 4 }} data-testid={`${pre}-done`}>
                 <b>✓ {job.result.clips.filter((c) => c.videoPath).length} klip MP4 olarak hazır</b>
                 {job.result.clips.map((c) => (
                   <div key={c.id} className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
                     <span>{c.subject} · {Math.round(c.durationSec)} sn</span>
-                    {c.videoPath ? <button className="btn sm" onClick={() => void api.invoke('shell:reveal', c.videoPath!)} data-testid={gta ? 'gta-reveal' : 'ytdikey-reveal'}>MP4'ü göster</button> : <span className="err">{c.error}</span>}
+                    {c.videoPath ? <button className="btn sm" onClick={() => void api.invoke('shell:reveal', c.videoPath!)} data-testid={`${pre}-reveal`}>MP4'ü göster</button> : <span className="err">{c.error}</span>}
                   </div>
                 ))}
               </div>

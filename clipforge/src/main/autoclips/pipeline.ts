@@ -148,7 +148,7 @@ export async function autoClipCandidatesForRanges(projectPath: string, ranges: {
  * Seçilen aralıktan BAĞIMSIZ klip projesi (9:16): kaynaktaki yüz bölgesi ÜSTTE (kırpılıp büyütülür), konuşulan görüntü ALTTA. Ortaya yazı konmaz.
  * Auto Kick projesi değişmez. Düzen yerleşimi sonradan arayüzde elle de ayarlanabilir.
  */
-export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string; /** yatay (16:9) klip: yüz/şerit yok, kare olduğu gibi */ horizontal?: boolean; /** otomatik altyazı: 2–4 kelime, iri beyaz, yüzün hemen altında (dikey) */ captions?: boolean; /** yalnızca yüz klibi (ekran yok, şerit yok): yüz tüm kareyi doldurur */ faceOnly?: FaceOnlyShape; /** GTA 6: oyun YAKINLAŞTIRILMAZ (tüm kare sığar), altındaki boş yere YouTube butonu */ fullGame?: boolean } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
+export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string; /** yatay (16:9) klip: yüz/şerit yok, kare olduğu gibi */ horizontal?: boolean; /** otomatik altyazı: 2–4 kelime, iri beyaz, yüzün hemen altında (dikey) */ captions?: boolean; /** yalnızca yüz klibi (ekran yok, şerit yok): yüz tüm kareyi doldurur */ faceOnly?: FaceOnlyShape; /** GTA 6: oyun YAKINLAŞTIRILMAZ (tüm kare sığar), altındaki boş yere YouTube butonu */ fullGame?: boolean; /** standart dikey düzen + YouTube butonu (kırmızı işaretli yer): 'Videodan klip çıkart' */ verticalCta?: boolean } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
   const s = await Session.open(await resolveProjectPath(projectPath), await makeService(env))
   const total = timelineDuration(s.timeline)
   if (!(cand.end > cand.start) || cand.start < 0 || cand.end > total + 0.5) throw new Error(`Geçersiz aralık: ${cand.start.toFixed(1)}–${cand.end.toFixed(1)} (çizelge ${total.toFixed(1)} sn).`)
@@ -247,7 +247,7 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
   const c = await Session.open(created.path, await makeService(env))
   c.project = { ...c.project, timeline: tl }
   await addOverlay(c, layout, dur)
-  await addYoutubeCta(c, dur, { gtaBottom: !!layout.fullGame })
+  await addYoutubeCta(c, dur, { gtaBottom: !!layout.fullGame, verticalRed: !!layout.verticalCta && !layout.fullGame })
   await c.save()
   return { projectPath: created.path, durationSec: dur, name }
 }

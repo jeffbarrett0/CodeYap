@@ -173,7 +173,7 @@ export interface IpcInvoke {
   /** Auto Clips otomatik zinciri: adayları bul → klip projelerini üret → (isteğe bağlı) MP4 dışa aktar; arka planda sürer */
   'autoclips:start': [[AutoClipsRequest], string]
   /** GTA 6 klip çıkar: yayın + elle yazılan aralıklar (transkript yok) → dikey klipler (oyun yakınlaştırılmaz, altta YouTube butonu) */
-  'gta:start': [[{ videoPath: string; text: string; /** 'dikey' = YouTube dikey video: standart Auto Clips düzeni (yüz üstte, ekran altta), buton/outro YOK */ mode?: 'gta' | 'dikey' }], { jobId: string; count: number; warnings: string[] }]
+  'gta:start': [[{ videoPath: string; text: string; /** 'dikey' = YouTube dikey video: standart Auto Clips düzeni (yüz üstte, ekran altta), buton/outro YOK */ mode?: 'gta' | 'dikey' | 'videodan' }], { jobId: string; count: number; warnings: string[] }]
   /** Transcript ile clip: ham video seçilince temel proje hazırlanır (Auto Kick çıktısı varsa o kullanılır); transkript sonra çıkarılır */
   'autoclips:prepare': [[{ videoPath: string }], { projectPath: string; fromAutoKick: boolean }]
   'autoclips:cancel': [[string], void]

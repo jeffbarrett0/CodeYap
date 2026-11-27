@@ -13,7 +13,7 @@ import { ReferenceDialog } from './components/Reference'
 import { SportPlusDialog } from './components/SportPlus'
 import { YtCutDialog } from './components/YtCut'
 import { AutoYatayDialog } from './components/AutoYatayDikey'
-import { Gta6Dialog, YtDikeyDialog } from './components/Gta6'
+import { Gta6Dialog, VideodanKlipDialog, YtDikeyDialog } from './components/Gta6'
 import { KlipCikarDialog } from './components/KlipCikar'
 
 function useShortcuts() {
@@ -136,6 +136,7 @@ export function App() {
       {dialog === 'ytcut' && <YtCutDialog />}
       {dialog === 'ytdikey' && <YtDikeyDialog />}
       {dialog === 'gta6' && <Gta6Dialog />}
+      {dialog === 'videodan' && <VideodanKlipDialog />}
       {dialog === 'autoyatay' && <AutoYatayDialog />}
       {dialog === 'klipcikar' && <KlipCikarDialog />}
       <Toasts />

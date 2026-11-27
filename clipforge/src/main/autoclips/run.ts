@@ -100,7 +100,7 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   for (const [i, c] of found.candidates.entries()) {
     check()
     try {
-      const m = await makeAutoClip(req.projectPath, c, { face: req.face, facePos: req.facePos, faceShare: req.faceShare, faceZoom: req.faceZoom, faceFocus: req.faceFocus, screenZoom: req.screenZoom, horizontal: req.horizontal, captions: req.horizontal ? false : req.captions, fullGame: req.fullGame }, env)
+      const m = await makeAutoClip(req.projectPath, c, { face: req.face, facePos: req.facePos, faceShare: req.faceShare, faceZoom: req.faceZoom, faceFocus: req.faceFocus, screenZoom: req.screenZoom, horizontal: req.horizontal, captions: req.horizontal ? false : req.captions, fullGame: req.fullGame, verticalCta: req.verticalCta }, env)
       clips[i].projectPath = m.projectPath
     } catch (e) {
       check()

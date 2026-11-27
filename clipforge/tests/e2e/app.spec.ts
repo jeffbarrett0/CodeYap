@@ -1332,6 +1332,19 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoyatay-reveal')).toBeVisible()
   })
 
+  test('Videodan klip çıkart: GTA 6 düğmesinin kopyası; video + aralıklar → MP4 klipler (transkript yok)', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('videodan-btn').click()
+    await expect(page.getByTestId('videodan-start')).toBeDisabled()
+    await page.getByTestId('videodan-pick').click()
+    await expect(page.getByTestId('videodan-video')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
+    await page.getByTestId('videodan-ranges').fill('0:10 - 0:40\n1:00 - 1:30 Sohbet')
+    await page.getByTestId('videodan-start').click()
+    await expect(page.getByTestId('videodan-job')).toHaveAttribute('data-status', 'done', { timeout: 20000 })
+    await expect(page.getByTestId('videodan-reveal')).toHaveCount(2)
+    await expect(page.getByTestId('autoclips-dialog')).toHaveCount(0)
+  })
+
   test('GTA 6 klip çıkar: yayın + elle yazılan aralıklar (transkript yok) → her aralık MP4 klip; bozuk satır uyarı; boş liste engellenir', async ({ page }) => {
     await boot(page)
     await page.getByTestId('gta-btn').click()

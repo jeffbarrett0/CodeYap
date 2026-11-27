@@ -632,3 +632,6 @@ Kullanıcı: (1) YouTube yatay: aralık ver → doğrudan kes, transkript yok, b
 
 ## 119. 'Klip çıkar' düğmesi kaldırıldı (kullanıcı isteği); arka uç kodu duruyor, arayüz testi silindi.
 Doğrulama (§118 sonrası): Auto Kick → zaman damgası → Auto yatay video zinciri (`chainAutoHorizontal`, `autoClipsAfterKick`'ten BAĞIMSIZ) rehearsal.test.ts'te uçtan uca geçti; liste yoksa günlükte nedeni yazılır.
+
+## 120. Videodan klip çıkart
+Kullanıcı: GTA 6 klip çıkar'ın kopyası; fark: ekran Auto Clips gibi çok büyük (chatting). Aralıklar elle, transkript yok, YouTube butonu (kırmızı işaretli yer, 2. sn + 20 sn), sonda Kick outro. `gta:start` mode:'videodan' → `verticalCta`.

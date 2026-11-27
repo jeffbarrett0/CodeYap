@@ -157,7 +157,7 @@ export function createMockApi(): ClipforgeApi {
     'gta:start': (r) => {
       const { ranges, warnings } = parseGtaRanges(r.text)
       if (ranges.length === 0) throw new Error(warnings[0] ?? 'Geçerli bir zaman aralığı yok. Örnek: 0:28 - 0:45')
-      const jobId = handlers['autoclips:start']({ projectPath: `${r.videoPath}.clipforge`, ranges, exact: true, exportVideos: true, noTranscript: true, ...(r.mode === 'dikey' ? {} : { fullGame: true }) }) as string
+      const jobId = handlers['autoclips:start']({ projectPath: `${r.videoPath}.clipforge`, ranges, exact: true, exportVideos: true, noTranscript: true, ...(r.mode === 'dikey' ? {} : r.mode === 'videodan' ? { verticalCta: true } : { fullGame: true }) }) as string
       return { jobId, count: ranges.length, warnings }
     },
     'autoclips:start': (req) => {

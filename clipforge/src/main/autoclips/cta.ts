@@ -11,13 +11,13 @@ import { clipForTrack } from '../../shared/timeline/create'
  * Yeşil perde dışa aktarmada şeffaflaşır (`fx.chroma`), butonun sesi karışır. Buton dosyası yoksa/eklenemezse klip butonsuz kalır (iş durmaz).
  * Dönen: butonların yerleri (sn). Çizelge süresi `dur` (kesim/şerit eklendikten SONRA).
  */
-export async function addYoutubeCta(c: Session, dur: number, opts: { gtaBottom?: boolean } = {}): Promise<number[]> {
+export async function addYoutubeCta(c: Session, dur: number, opts: { gtaBottom?: boolean; /** standart dikey düzen: buton kullanıcının kırmızı işaretlediği yerde (VERTICAL_CTA) */ verticalRed?: boolean } = {}): Promise<number[]> {
   const st = c.service.settings.value
   if (st.autoClipsCta === false) return []
   // KULLANICININ KARARI: YouTube butonu YALNIZCA yatay (16:9) videolarda; dikey/kare videolara konmaz
   // GTA 6 klibi (dikey): kullanıcı özellikle istedi → oyun altındaki boş bölgeye konur; diğer dikey/kare videolarda yine yok
-  if (c.timeline.aspect !== '16:9' && !opts.gtaBottom) return []
-  const times = ctaTimesEvery(dur, opts.gtaBottom ? GTA_EVERY_SEC : undefined)
+  if (c.timeline.aspect !== '16:9' && !opts.gtaBottom && !opts.verticalRed) return []
+  const times = ctaTimesEvery(dur, opts.gtaBottom || opts.verticalRed ? GTA_EVERY_SEC : undefined)
   if (times.length === 0) return []
   try {
     const dir = join(c.service.deps.resourcesDir, 'cta')
@@ -32,7 +32,7 @@ export async function addYoutubeCta(c: Session, dur: number, opts: { gtaBottom?:
     if (!asset || asset.kind !== 'video') return []
     c.project = { ...c.project, assets: [...c.project.assets, asset] }
     const aspect = c.timeline.aspect
-    const rect = opts.gtaBottom ? verticalCtaRect(entry, asset.width, asset.height, GTA_CTA) : ctaRect(entry, asset.width, asset.height, aspect, { pos: 'bottom-center', size: youtubeCtaSize(aspect) })
+    const rect = opts.gtaBottom ? verticalCtaRect(entry, asset.width, asset.height, GTA_CTA) : opts.verticalRed ? verticalCtaRect(entry, asset.width, asset.height) : ctaRect(entry, asset.width, asset.height, aspect, { pos: 'bottom-center', size: youtubeCtaSize(aspect) })
     c.apply(cmd.addTrack({ id: 'CTAV', name: 'Çağrı butonları', kind: 'video', role: 'screen', placement: { rect, fit: 'contain', visible: true, opacity: 1 } }))
     if (asset.audioStreams.length > 0) c.apply(cmd.addTrack({ id: 'CTAS', name: 'Çağrı butonu sesi', kind: 'audio', role: 'mix' }))
     const vtr = c.timeline.tracks.find((t) => t.id === 'CTAV')!

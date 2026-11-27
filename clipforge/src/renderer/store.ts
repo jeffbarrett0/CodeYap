@@ -30,7 +30,7 @@ import { denoiseKey, denoiseReady } from './preview/denoiseState'
 export type RightTab = 'inspector' | 'layout' | 'audio' | 'captions' | 'source' | 'search' | 'transcript' | 'ideas' | 'chapters'
 const waveRequested = new Set<string>()
 
-export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer' | 'reference' | 'sportplus' | 'ytcut' | 'ytdikey' | 'autoyatay' | 'klipcikar' | 'gta6'
+export type Dialog = null | 'settings' | 'export' | 'clip' | 'help' | 'autokick' | 'autoclips' | 'trailer' | 'reference' | 'sportplus' | 'ytcut' | 'ytdikey' | 'autoyatay' | 'klipcikar' | 'gta6' | 'videodan'
 
 export interface Toast {
   id: string

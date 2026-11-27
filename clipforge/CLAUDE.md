@@ -40,6 +40,7 @@ Kullanıcı GTA 6 yayını yapacak; BÜTÜN yayını verir, **elle saniye aralı
 - **YouTube yatay video**: bütün yayın + elle yazılan aralıklar (`0:03:00 - 0:05:00 Noalank`) → her aralık yatay MP4. **Transkript/Auto Kick YOK**, doğrudan orijinalden kesim. Buton: 2. sn + her 30 sn; sonda Berkalog outro KENDİLİĞİNDEN (`resources/outro/youtube-outro.mp4`; "Outro seç" arayüzden KALDIRILDI — kullanıcı outro'yu zaten verdi, tekrar sorma).
 - **YouTube dikey video**: video + elle aralıklar → her aralık standart dikey klip (yüz üstte, şerit, ekran altta). Transkript YOK, buton/outro YOK (`gta:start` mode:'dikey'; klasör `YouTube Dikey Klipleri/`).
 - **Transcript ile clip** (eski adı Auto Clips): video seç → transkript çıkarılır (yoksa kendiliğinden) → konuştuğun yerler isimle bulunup klip (`autoclips:prepare`: Auto Kick çıktısı varsa o, yoksa `Transcript Klipleri/` temel projesi).
+- **Videodan klip çıkart**: GTA 6 düğmesinin kopyası (aralık yaz, transkript yok, Kick outro, YouTube butonu 2. sn + her 20 sn) AMA düzen standart Auto Clips (ekran BÜYÜK, `verticalCta`: buton kullanıcının kırmızı işaretli yerinde — alt kenar %80, genişlik %72). Chatting yayınları için. Klasör `Videodan Klipler/`.
 - **GTA 6 klip çıkar**: aşağıda.
 
 ### SportDeoPlus (MP4'ten yalnızca yüz) — YENİLENDİ

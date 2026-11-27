@@ -59,4 +59,20 @@ describe('GTA 6 klip çıkar', () => {
     expect(Number(pr.format.duration)).toBeGreaterThan(20.5) // 18 sn klip + 3 sn outro
     expect(Number(pr.format.duration)).toBeLessThan(22)
   }, 120_000)
+
+  it('Videodan klip çıkart: standart (büyük ekran) dikey düzen + YouTube butonu kırmızı işaretli yerde (alt kenar %80), transkript yok', async () => {
+    const src = join(tmp, 'gta-yayin.mp4')
+    const env = { userDataDir: join(tmp, 'ud') }
+    const prep = await prepareGtaProject(src, env, undefined, 'Videodan Klipler')
+    expect(prep.projectPath).toContain('Videodan Klipler')
+    const m = await makeAutoClip(prep.projectPath, { start: 10, end: 40, subject: 'Chat' }, { verticalCta: true }, env)
+    const s = await Session.open(m.projectPath, await makeService(env))
+    const v1 = s.timeline.tracks.find((t) => t.id === 'V1')!
+    expect(v1.placement!.fit).toBe('cover') // ekran alanı doldurur (büyük, Auto Clips gibi)
+    expect(v1.clips[0].crop).toBeDefined()
+    expect(s.timeline.tracks.find((t) => t.id === 'VB')).toBeUndefined() // bulanık kopya yok
+    const ctav = s.timeline.tracks.find((t) => t.id === 'CTAV')!
+    expect(ctav.placement!.rect.y + ctav.placement!.rect.h).toBeCloseTo(0.8, 2)
+    expect(ctav.clips.map((c) => Math.round(c.start))).toEqual([2, 22]) // 2. sn + her 20 sn
+  }, 120_000)
 })

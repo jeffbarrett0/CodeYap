@@ -67,12 +67,13 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       const { ranges, warnings } = parseGtaRanges(r.text)
       if (ranges.length === 0) throw new Error(warnings[0] ?? 'Geçerli bir zaman aralığı yok. Örnek: 0:28 - 0:45')
       const dikey = r.mode === 'dikey'
-      const prep = await prepareGtaProject(r.videoPath, envDirs, undefined, dikey ? 'YouTube Dikey Klipleri' : 'GTA 6 Klipleri')
+      const videodan = r.mode === 'videodan'
+      const prep = await prepareGtaProject(r.videoPath, envDirs, undefined, dikey ? 'YouTube Dikey Klipleri' : videodan ? 'Videodan Klipler' : 'GTA 6 Klipleri')
       const bad = ranges.filter((x) => x.start >= prep.durationSec - 1)
       if (bad.length === ranges.length) throw new Error(`Aralıklar yayının süresinin (${Math.round(prep.durationSec)} sn) dışında.`)
       const ok = ranges.map((x) => ({ ...x, end: Math.min(x.end, prep.durationSec) })).filter((x) => x.start < prep.durationSec - 1)
       if (bad.length) warnings.push(`${bad.length} aralık yayının dışında kaldığı için atlandı.`)
-      const jobId = autoClips.start({ projectPath: prep.projectPath, ranges: ok, exact: true, exportVideos: true, noTranscript: true, ...(dikey ? {} : { fullGame: true, outroPath: join(app.deps.resourcesDir, 'outro', 'kick-outro-dikey.mp4') }) })
+      const jobId = autoClips.start({ projectPath: prep.projectPath, ranges: ok, exact: true, exportVideos: true, noTranscript: true, ...(dikey ? {} : videodan ? { verticalCta: true, outroPath: join(app.deps.resourcesDir, 'outro', 'kick-outro-dikey.mp4') } : { fullGame: true, outroPath: join(app.deps.resourcesDir, 'outro', 'kick-outro-dikey.mp4') }) })
       return { jobId, count: ok.length, warnings }
     },
     'autoclips:cancel': (id) => autoClips.cancel(id),
