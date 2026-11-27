@@ -41,6 +41,7 @@ Kullanıcı GTA 6 yayını yapacak; BÜTÜN yayını verir, **elle saniye aralı
 - **YouTube dikey video**: video + elle aralıklar → her aralık standart dikey klip (yüz üstte, şerit, ekran altta). Transkript YOK, buton/outro YOK (`gta:start` mode:'dikey'; klasör `YouTube Dikey Klipleri/`).
 - **Transcript ile clip** (eski adı Auto Clips): video seç → transkript çıkarılır (yoksa kendiliğinden) → konuştuğun yerler isimle bulunup klip (`autoclips:prepare`: Auto Kick çıktısı varsa o, yoksa `Transcript Klipleri/` temel projesi).
 - **Videodan klip çıkart**: GTA 6 düğmesinin kopyası (aralık yaz, transkript yok, Kick outro, YouTube butonu 2. sn + her 20 sn) AMA düzen standart Auto Clips (ekran BÜYÜK, `verticalCta`: buton kullanıcının kırmızı işaretli yerinde — alt kenar %80, genişlik %72). Chatting yayınları için. Klasör `Videodan Klipler/`.
+- **GTA 6 yayın edit**: BÜTÜN yayın videosu, transkript/kesim YOK; 2. sn'de YouTube butonu + her 2 dk (`ctaEverySec`:120), sonda YouTube outro, +5 kontrast/+5 keskinlik (`gtaedit:start` → `ytCutStart` tek aralık 0..süre; klasör `GTA 6 Yayın Edit/`). Uzun videoda butonlar parça parça işlenir (`splitForButtons`: parçada ≤4 buton, sonra kayıpsız birleştirme) — tek grafikte 60 buton belleği patlatıyordu. `ytcut` artık ekran kartı da kullanır (outro aynı kodlayıcıyla).
 - **GTA 6 klip çıkar**: aşağıda.
 
 ### SportDeoPlus (MP4'ten yalnızca yüz) — YENİLENDİ

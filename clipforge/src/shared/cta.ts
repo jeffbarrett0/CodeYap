@@ -114,3 +114,19 @@ export function ctaTimes(durationSec: number): number[] {
   if (out.length === 0 || last - out[out.length - 1] >= 45) out.push(last)
   return out
 }
+
+/**
+ * UZUN VİDEO: çok sayıda buton tek ffmpeg grafiğinde bellek patlatır (60 buton → bellek yetersiz, işlem öldürülür). Çözüm: video, her parçada en çok `perPiece` buton olacak şekilde
+ * parçalara bölünür; sınırlar iki buton ARASININ ortasına (yarım saniyeye yuvarlı) konur, hiçbir buton iki parçaya düşmez. Her parça ayrı kodlanır, sonra kayıpsız birleştirilir.
+ * Dönen `times` parçanın KENDİ başlangıcına göredir.
+ */
+export function splitForButtons(times: number[], durationSec: number, perPiece = 4, clipSec = CTA_CLIP_SEC): { a: number; b: number; times: number[] }[] {
+  if (times.length <= perPiece) return [{ a: 0, b: durationSec, times }]
+  const cuts: number[] = []
+  for (let i = perPiece; i < times.length; i += perPiece) {
+    const mid = (times[i - 1] + clipSec + times[i]) / 2
+    cuts.push(Math.round(mid * 2) / 2)
+  }
+  const bounds = [0, ...cuts, durationSec]
+  return bounds.slice(0, -1).map((a, i) => ({ a, b: bounds[i + 1], times: times.filter((t) => t >= a && t < bounds[i + 1]).map((t) => Math.round((t - a) * 10) / 10) }))
+}

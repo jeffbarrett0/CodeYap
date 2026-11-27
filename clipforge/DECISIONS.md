@@ -635,3 +635,6 @@ Doğrulama (§118 sonrası): Auto Kick → zaman damgası → Auto yatay video z
 
 ## 120. Videodan klip çıkart
 Kullanıcı: GTA 6 klip çıkar'ın kopyası; fark: ekran Auto Clips gibi çok büyük (chatting). Aralıklar elle, transkript yok, YouTube butonu (kırmızı işaretli yer, 2. sn + 20 sn), sonda Kick outro. `gta:start` mode:'videodan' → `verticalCta`.
+
+## 121. GTA 6 yayın edit
+Kullanıcı: yayın videosu ver; transkript yok; 2. sn'de buton + her 2 dk; sonda outro; +5/+5. Mevcut `ytcut` motoru tek aralıkla kullanılır. Bulgu: 10 dk'lık videoda 59 buton tek ffmpeg grafiğinde bellek yetersizliğiyle öldü (butonsuz geri dönüyordu) → `splitForButtons` ile parçalı kodlama + concat copy (60 butonlu 10 dk deneme: görüntü 600,000 sn / ses 600,021 sn, senkron). ytcut'a ekran kartı kodlaması eklendi (hata → yazılım; outro aynı args).

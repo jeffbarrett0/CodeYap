@@ -174,6 +174,8 @@ export interface IpcInvoke {
   'autoclips:start': [[AutoClipsRequest], string]
   /** GTA 6 klip çıkar: yayın + elle yazılan aralıklar (transkript yok) → dikey klipler (oyun yakınlaştırılmaz, altta YouTube butonu) */
   'gta:start': [[{ videoPath: string; text: string; /** 'dikey' = YouTube dikey video: standart Auto Clips düzeni (yüz üstte, ekran altta), buton/outro YOK */ mode?: 'gta' | 'dikey' | 'videodan' }], { jobId: string; count: number; warnings: string[] }]
+  /** GTA 6 yayın edit: bütün yayın, transkript YOK; 2. sn'de YouTube butonu + her 2 dk'da bir, sonda outro, +5 kontrast/+5 keskinlik */
+  'gtaedit:start': [[{ videoPath: string }], string]
   /** Transcript ile clip: ham video seçilince temel proje hazırlanır (Auto Kick çıktısı varsa o kullanılır); transkript sonra çıkarılır */
   'autoclips:prepare': [[{ videoPath: string }], { projectPath: string; fromAutoKick: boolean }]
   'autoclips:cancel': [[string], void]

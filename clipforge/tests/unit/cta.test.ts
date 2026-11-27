@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ctaRect, ctaSequence, ctaTimes, ctaTimesEvery, defaultCtaSize, parseCtaManifest, youtubeCtaSize, verticalCtaRect } from '@shared/cta'
+import { splitForButtons, ctaRect, ctaSequence, ctaTimes, ctaTimesEvery, defaultCtaSize, parseCtaManifest, youtubeCtaSize, verticalCtaRect } from '@shared/cta'
 import { chromaFilter } from '@shared/export/plan'
 
 const dir = join(__dirname, '..', '..', 'resources', 'cta')
@@ -90,5 +90,22 @@ describe('çağrı butonları: manifest ve yerleşim', () => {
         if (i) expect(t[i] - t[i - 1]).toBeGreaterThanOrEqual(45) // butonlar üst üste binmez
       }
     }
+  })
+
+  it('uzun video: butonlar parçalara bölünür (parça başına ≤4), hiçbir buton iki parçaya düşmez, parçalar videoyu eksiksiz kaplar', () => {
+    const D = 3 * 3600
+    const times = ctaTimesEvery(D, 120) // GTA 6 yayın edit: 2. sn + her 2 dk
+    expect(times[0]).toBe(2)
+    const parts = splitForButtons(times, D)
+    expect(parts.length).toBeGreaterThan(10)
+    expect(parts[0].a).toBe(0)
+    expect(parts[parts.length - 1].b).toBe(D)
+    parts.forEach((p, i) => {
+      expect(p.times.length).toBeLessThanOrEqual(4)
+      if (i) expect(p.a).toBe(parts[i - 1].b)
+      p.times.forEach((t) => expect(t + 5.2).toBeLessThanOrEqual(p.b - p.a + 1e-6)) // buton parça içinde biter
+    })
+    expect(parts.reduce((n, p) => n + p.times.length, 0)).toBe(times.length)
+    expect(splitForButtons([2, 32], 60)).toEqual([{ a: 0, b: 60, times: [2, 32] }]) // kısa video tek parça
   })
 })

@@ -3,7 +3,8 @@ import { parseGtaRanges, prepareGtaProject } from './autoclips/gta'
 import { detectHwEncoder, HW_LABEL } from './autokick/hwenc'
 import { BrowserWindow, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
+import { ffprobeJson } from './ffmpeg'
 import type { IpcChannel, IpcInvoke, IpcResult } from '../shared/ipc'
 import type { AppService } from './app'
 import { userMessage } from './tasks'
@@ -54,6 +55,13 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
   setInterval(() => keepAwake.tick(), 15_000).unref()
   const handlers: Handlers = {
     'autoclips:start': (r) => autoClips.start(r),
+    'gtaedit:start': async (r) => {
+      const pr = (await ffprobeJson(app.tools.ffprobe, r.videoPath)) as { format?: { duration?: string } }
+      const dur = Number(pr.format?.duration) || 0
+      if (dur < 10) throw new Error('Video süresi okunamadı ya da çok kısa.')
+      const base = basename(r.videoPath, extname(r.videoPath))
+      return app.ytCutStart({ videoPath: r.videoPath, list: '', ranges: [{ start: 0, end: dur, title: `${base} - GTA 6 edit` }], outDir: join(dirname(r.videoPath), 'GTA 6 Yayın Edit'), cta: true, ctaEverySec: 120, quality: 'fast' })
+    },
     'autoclips:prepare': async (r) => {
       // Auto Kick çıktısı varsa o (sessizleri kesilmiş video + transkript); yoksa ham videodan temel proje (kesim yok)
       try {

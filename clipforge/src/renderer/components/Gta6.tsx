@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { fmt } from './ui'
 import { requireApi } from '../api'
 import { useStore } from '../store'
 import { Modal, Progress } from './ui'
@@ -102,6 +103,70 @@ function RangeClipsDialog({ mode }: { mode: 'gta' | 'dikey' | 'videodan' }) {
                 ))}
               </div>
             )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+/**
+ * GTA 6 yayın edit: BÜTÜN yayın videosu; transkript YOK, kesim YOK. Videonun 2. saniyesinde YouTube abone butonu, sonra her 2 dakikada bir;
+ * sonda YouTube outro; +5 kontrast/+5 keskinlik (Ayarlar'daki otomatik görüntü ayarı). Çıktı yayının yanındaki "GTA 6 Yayın Edit" klasörüne yazılır.
+ */
+export function GtaEditDialog() {
+  const api = requireApi()
+  const { openDialog, tasks, ytcutResult } = useStore()
+  const [video, setVideo] = useState('')
+  const [err, setErr] = useState('')
+  const [taskId, setTaskId] = useState('')
+  const task = taskId ? tasks[taskId] : undefined
+  const running = task?.status === 'running' || task?.status === 'queued'
+  const result = ytcutResult && ytcutResult.taskId === taskId ? ytcutResult : null
+  const pick = async () => {
+    const v = (await api.invoke('dialog:openMedia')).find(isMedia)
+    if (v) (setVideo(v), setErr(''), setTaskId(''))
+  }
+  const start = async () => {
+    if (!video) return setErr('Önce yayın videosunu seçin.')
+    setErr('')
+    try {
+      setTaskId(await api.invoke('gtaedit:start', { videoPath: video }))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    }
+  }
+  return (
+    <Modal title="GTA 6 yayın edit" onClose={() => openDialog(null)} wide>
+      <div className="col" data-testid="gtaedit-dialog" style={{ gap: 10 }}>
+        <div className="infobox">Yayın videonuzu seçin. <b>Transkript çıkarılmaz</b>, hiçbir yer kesilmez. Videonun <b>2. saniyesinde YouTube abone butonu</b>, sonra <b>her 2 dakikada bir</b> buton eklenir; <b>en sonda outro</b> gelir; görüntüye <b>+5 kontrast ve +5 keskinlik</b> uygulanır. Orijinal videoya dokunulmaz; sonuç yayının yanındaki <b>GTA 6 Yayın Edit</b> klasörüne yazılır. Uzun yayında kodlama süresi alır (ekran kartı varsa kullanılır).</div>
+        <div className="row wrap" style={{ gap: 8, alignItems: 'center' }}>
+          <input type="text" readOnly value={video} placeholder="Yayın videosu seçilmedi" aria-label="Yayın videosu" data-testid="gtaedit-video" style={{ flex: 1, minWidth: 260 }} />
+          <button className="btn" onClick={() => void pick()} disabled={running} data-testid="gtaedit-pick">Video seç…</button>
+        </div>
+        {err && <div className="warnbox" role="alert" data-testid="gtaedit-error">{err}</div>}
+        {task?.status === 'failed' && <div className="warnbox" role="alert" data-testid="gtaedit-failed">{task.error}</div>}
+        <div className="row wrap" style={{ gap: 8 }}>
+          <span style={{ flex: 1 }} />
+          <button className="btn primary" disabled={running || !video} onClick={() => void start()} data-testid="gtaedit-start">{running ? 'Hazırlanıyor…' : 'Yayını düzenle'}</button>
+        </div>
+        {running && task && (
+          <div className="col" style={{ gap: 3 }} data-testid="gtaedit-progress">
+            <div className="row" style={{ justifyContent: 'space-between' }}><span>{task.message ?? 'Hazırlanıyor…'}</span><b>%{Math.round(task.progress * 100)}</b></div>
+            <Progress value={task.progress} />
+            <button className="btn sm danger" onClick={() => void api.invoke('task:cancel', task.id)}>İptal</button>
+          </div>
+        )}
+        {result && (
+          <div className="col" style={{ gap: 4 }} data-testid="gtaedit-done">
+            {result.items.map((i) => (
+              <div key={i.index}>{i.path ? '✓' : '✕'} {i.title} · {fmt(i.durationSec)}{i.ctaAt?.length ? ` · ${i.ctaAt.length} buton` : ''}{i.outroSec ? ` · outro +${Math.round(i.outroSec)} sn` : ''}{i.error ? ` — ${i.error}` : ''}</div>
+            ))}
+            {result.warnings.map((w, i) => <div key={i} className="hint">⚠ {w}</div>)}
+            <div className="row wrap">
+              <button className="btn sm" onClick={() => void api.invoke('shell:reveal', result.items.find((i) => i.path)?.path ?? result.dir)} data-testid="gtaedit-reveal">Dosyayı göster</button>
+              <span className="hint" style={{ wordBreak: 'break-all' }}>{result.dir}</span>
+            </div>
           </div>
         )}
       </div>

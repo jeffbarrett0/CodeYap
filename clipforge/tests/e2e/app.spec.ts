@@ -1332,6 +1332,18 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoyatay-reveal')).toBeVisible()
   })
 
+  test('GTA 6 yayın edit: video seç → bütün yayın düzenlenir (transkript yok); sonuç + dosyayı göster', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('gtaedit-btn').click()
+    await expect(page.getByTestId('gtaedit-start')).toBeDisabled()
+    await page.getByTestId('gtaedit-pick').click()
+    await expect(page.getByTestId('gtaedit-video')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
+    await page.getByTestId('gtaedit-start').click()
+    await expect(page.getByTestId('gtaedit-done')).toBeVisible({ timeout: 20000 })
+    await expect(page.getByTestId('gtaedit-reveal')).toBeVisible()
+    await expect(page.getByTestId('autoclips-dialog')).toHaveCount(0)
+  })
+
   test('Videodan klip çıkart: GTA 6 düğmesinin kopyası; video + aralıklar → MP4 klipler (transkript yok)', async ({ page }) => {
     await boot(page)
     await page.getByTestId('videodan-btn').click()

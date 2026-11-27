@@ -1,7 +1,10 @@
-import { mkdir, access, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, access, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { basename, dirname, extname, join } from 'node:path'
 import { adjustFilter } from '../shared/adjust'
 import { parseChapterList } from '../shared/chapters'
+import { detectHwEncoder, videoEncoderArgs, type HwEncoder } from './autokick/hwenc'
+import { splitForButtons } from '../shared/cta'
 import { CTA_AUDIO_VOLUME, VOICE_LEVEL_FILTER } from '../shared/voicelevel'
 import { ctaRect, ctaTimesEvery, parseCtaManifest, youtubeCtaSize, type CtaEntry } from '../shared/cta'
 import { chromaFilter } from '../shared/export/plan'
@@ -75,7 +78,7 @@ export const ytCutDir = (req: Pick<YtCutRequest, 'videoPath' | 'outDir'>) => req
  * Her zaman damgası aralığını orijinal kayıttan ayrı bir MP4 olarak keser (yatay: kare olduğu gibi, yeniden boyutlandırma yok).
  * Tek bir bölümde hata olursa diğerleri sürer. Orijinal dosyaya dokunulmaz.
  */
-export async function runYtCut(req: YtCutRequest, tools: MediaTools, hooks: { signal?: AbortSignal; progress?: (f: number, msg?: string) => void; resourcesDir?: string } = {}): Promise<YtCutResult> {
+export async function runYtCut(req: YtCutRequest, tools: MediaTools, hooks: { signal?: AbortSignal; progress?: (f: number, msg?: string) => void; resourcesDir?: string; /** false: ekran kartı kullanma */ hw?: boolean } = {}): Promise<YtCutResult> {
   if (!MEDIA_RE.test(req.videoPath)) throw new Error('Desteklenen bir video seçin (MKV, MP4, MOV, FLV, M4V, WEBM).')
   try {
     await access(req.videoPath)
@@ -102,31 +105,70 @@ export async function runYtCut(req: YtCutRequest, tools: MediaTools, hooks: { si
   if (req.cta !== false && !cta) warnings.push('Abone butonu eklenemedi: resources/cta/youtube-abone.mp4 bulunamadı; videolar butonsuz kesildi.')
   const crf = req.quality === 'high' ? '17' : '19'
   const preset = req.quality === 'high' ? 'slow' : 'veryfast'
+  const hwFound = hooks.hw === false ? null : await detectHwEncoder(tools.ffmpeg)
   for (const it of items) {
     if (hooks.signal?.aborted) throw new Error('İptal edildi.')
     const out = join(dir, ytCutFileName(it.index, it.title, items.length))
-    const times = cta ? ctaTimesEvery(it.durationSec) : []
-    const enc = ['-c:v', 'libx264', '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p', ...(hasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []), '-movflags', '+faststart', '-progress', 'pipe:1', out]
-    const plain = ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, '-map', '0:v:0', ...(hasAudio ? ['-map', '0:a:0'] : []), ...(vf ? ['-vf', vf] : []), ...(hasAudio && req.voiceLift ? ['-af', VOICE_LEVEL_FILTER] : []), ...enc]
-    const run = (args: string[]) => runTool(tools.ffmpeg, limitThreads(args), { signal: hooks.signal, durationSec: it.durationSec, onProgress: (f) => hooks.progress?.(Math.min(1, (doneSec + f * it.durationSec) / totalSec), `${it.index}/${items.length}: ${it.title}`) })
+    const times = cta ? ctaTimesEvery(it.durationSec, req.ctaEverySec) : []
+    // ekran kartı (varsa) ile kodlanır; hata olursa yazılım. Outro aynı kodlayıcı ayarıyla uydurulur (kayıpsız birleştirme için)
+    let hwNow: HwEncoder | null = hwFound
+    const vEnc = (h: HwEncoder | null) => videoEncoderArgs({ crf: Number(crf), encoderPreset: preset, maxrateKbps: 40000 }, h)
+    const encFor = (h: HwEncoder | null, o: string = out) => [...vEnc(h), ...(hasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []), '-movflags', '+faststart', '-progress', 'pipe:1', o]
+    const plainFor = (h: HwEncoder | null) => ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, '-map', '0:v:0', ...(hasAudio ? ['-map', '0:a:0'] : []), ...(vf ? ['-vf', vf] : []), ...(hasAudio && req.voiceLift ? ['-af', VOICE_LEVEL_FILTER] : []), ...encFor(h)]
+    const run1 = (args: string[], base = 0, span = it.durationSec) => runTool(tools.ffmpeg, limitThreads(args), { signal: hooks.signal, durationSec: span, onProgress: (f) => hooks.progress?.(Math.min(1, (doneSec + base + f * span) / totalSec), `${it.index}/${items.length}: ${it.title}`) })
+    /** önce ekran kartı, olmazsa yazılım kodlayıcı */
+    const run = async (build: (h: HwEncoder | null) => string[], base = 0, span = it.durationSec) => {
+      try {
+        await run1(build(hwNow), base, span)
+      } catch (e) {
+        if (hooks.signal?.aborted || !hwNow) throw e
+        hwNow = null
+        await run1(build(null), base, span)
+      }
+    }
     try {
       if (cta && times.length) {
-        const g = ctaGraph({ cta, times, srcW, srcH, hasAudio, videoPre: vf, voiceLift: req.voiceLift })
-        const withCta = ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, ...g.inputs, '-filter_complex', g.filter, ...g.maps, '-t', it.durationSec.toFixed(3), ...enc]
+        const pieces = splitForButtons(times, it.durationSec)
+        const g = pieces.length === 1 ? ctaGraph({ cta, times, srcW, srcH, hasAudio, videoPre: vf, voiceLift: req.voiceLift }) : null
+        const withCta = (h: HwEncoder | null) => ['-y', '-v', 'error', '-nostdin', '-ss', it.start.toFixed(3), '-t', it.durationSec.toFixed(3), '-i', req.videoPath, ...g!.inputs, '-filter_complex', g!.filter, ...g!.maps, '-t', it.durationSec.toFixed(3), ...encFor(h)]
         try {
-          await run(withCta)
+          if (g) await run(withCta)
+          else {
+            // UZUN VİDEO: parça parça (her parçada ≤4 buton), sonra kayıpsız birleştir (tek grafikte onlarca buton belleği patlatıyordu)
+            const tmpDir = await mkdtemp(join(tmpdir(), 'cf-ytcut-'))
+            try {
+              const parts: string[] = []
+              for (const [k, pc] of pieces.entries()) {
+                const partOut = join(tmpDir, `p${String(k).padStart(4, '0')}.mp4`)
+                const dur = pc.b - pc.a
+                const pg = pc.times.length ? ctaGraph({ cta, times: pc.times, srcW, srcH, hasAudio, videoPre: vf, voiceLift: req.voiceLift }) : null
+                const build = (h: HwEncoder | null) =>
+                  pg
+                    ? ['-y', '-v', 'error', '-nostdin', '-ss', (it.start + pc.a).toFixed(3), '-t', dur.toFixed(3), '-i', req.videoPath, ...pg.inputs, '-filter_complex', pg.filter, ...pg.maps, '-t', dur.toFixed(3), ...encFor(h, partOut)]
+                    : ['-y', '-v', 'error', '-nostdin', '-ss', (it.start + pc.a).toFixed(3), '-t', dur.toFixed(3), '-i', req.videoPath, '-map', '0:v:0', ...(hasAudio ? ['-map', '0:a:0'] : []), ...(vf ? ['-vf', vf] : []), ...(hasAudio && req.voiceLift ? ['-af', VOICE_LEVEL_FILTER] : []), ...encFor(h, partOut)]
+                await run(build, pc.a, dur)
+                parts.push(partOut)
+              }
+              const list = join(tmpDir, 'list.txt')
+              await writeFile(list, parts.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join('\n'), 'utf8')
+              await runTool(tools.ffmpeg, ['-y', '-v', 'error', '-nostdin', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', out], { signal: hooks.signal })
+            } finally {
+              await rm(tmpDir, { recursive: true, force: true })
+            }
+          }
           it.ctaAt = times
         } catch (e) {
           if (hooks.signal?.aborted) throw e
           // buton eklenemezse kesit butonsuz kesilir (iş durmaz)
           warnings.push(`"${it.title}": abone butonu eklenemedi (${(e instanceof Error ? e.message : String(e)).split('\n')[0].slice(0, 120)}); butonsuz kesildi.`)
-          await run(plain)
+          await run(plainFor)
         }
-      } else await run(plain)
+      } else await run(plainFor)
       it.path = out
+      const outroEnc = vEnc(hwNow).filter((x) => x !== '-progress')
       if (req.outroPath?.trim()) {
         // kapanış (outro) videosu: kesitin sonuna; olmazsa kesit outro'suz kalır ve uyarı yazılır
-        const o = await appendOutro(out, req.outroPath.trim(), tools, { signal: hooks.signal, enc: ['-c:v', 'libx264', '-preset', preset, '-crf', crf, '-pix_fmt', 'yuv420p'] })
+        const o = await appendOutro(out, req.outroPath.trim(), tools, { signal: hooks.signal, enc: outroEnc })
         if (o.ok) it.outroSec = o.outroSec
         else warnings.push(`"${it.title}": ${o.error}`)
       }

@@ -17,6 +17,8 @@ export interface YtCutRequest {
   voiceLift?: boolean
   /** YouTube abone butonu (resources/cta): kesite ~2 dakikada bir eklenir; false = ekleme. Varsayılan: ekle */
   cta?: boolean
+  /** abone butonu aralığı (sn); boşsa yatay varsayılanı (30). GTA 6 yayın edit: 120 */
+  ctaEverySec?: number
   /** Kaynak zaten +kontrast/keskinlik uygulanmış (Auto Kick'in full videosu): ana süreç ayarı yeniden eklemez */
   noAdjust?: boolean
   /** YouTube outro videosu: her kesitin sonuna eklenir (ana süreç ayardan doldurur); boş = eklenmez */

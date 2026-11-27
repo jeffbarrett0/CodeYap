@@ -489,6 +489,7 @@ export function createMockApi(): ClipforgeApi {
       if (lines.length === 0) throw new Error('Liste boş ya da okunamadı.')
       return { text: lines.map((l: string, i: number) => `00:0${i}:00 ${l.replace(/[\d:]+\s*-?\s*/g, '').trim()}`).join('\n'), warnings: [], path: '/yayin/AutoKick/kayit/kayit - zaman damgaları.txt' }
     },
+    'gtaedit:start': (r) => handlers['ytcut:start']({ videoPath: r.videoPath, list: 'GTA 6 yayın edit', cta: true, ctaEverySec: 120 }) as string,
     'ytcut:start': (req) =>
       queue.add({
         kind: 'ytcut',

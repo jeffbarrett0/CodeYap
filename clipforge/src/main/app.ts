@@ -510,7 +510,7 @@ export class AppService {
         try {
           const releaseCpu = this.settings.value.autoKickFullSpeed ? acquireFullSpeed() : () => undefined
           try {
-            result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value), voiceLift: this.settings.value.autoVoiceLevel !== false, outroPath: req.outroPath ?? (await resolveOutro(this.settings.value.outroPath, this.deps.userDataDir, this.deps.resourcesDir, this.settings.value.outroEnabled)) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir })
+            result = await runYtCut({ ...req, adjust: req.noAdjust ? undefined : autoAdjustFrom(this.settings.value), voiceLift: this.settings.value.autoVoiceLevel !== false, outroPath: req.outroPath ?? (await resolveOutro(this.settings.value.outroPath, this.deps.userDataDir, this.deps.resourcesDir, this.settings.value.outroEnabled)) }, this.tools, { signal: ctx.signal, progress: ctx.progress, resourcesDir: this.deps.resourcesDir, hw: this.settings.value.autoKickHwEncode !== false })
           } finally {
             releaseCpu()
           }
