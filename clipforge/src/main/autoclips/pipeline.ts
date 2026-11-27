@@ -147,7 +147,7 @@ export async function autoClipCandidatesForRanges(projectPath: string, ranges: {
  * Seçilen aralıktan BAĞIMSIZ klip projesi (9:16): kaynaktaki yüz bölgesi ÜSTTE (kırpılıp büyütülür), konuşulan görüntü ALTTA. Ortaya yazı konmaz.
  * Auto Kick projesi değişmez. Düzen yerleşimi sonradan arayüzde elle de ayarlanabilir.
  */
-export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string; /** yatay (16:9) klip: yüz/şerit yok, kare olduğu gibi */ horizontal?: boolean; /** otomatik altyazı: 2–4 kelime, iri beyaz, yüzün hemen altında (dikey) */ captions?: boolean; /** yalnızca yüz klibi (ekran yok, şerit yok): yüz tüm kareyi doldurur */ faceOnly?: FaceOnlyShape } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
+export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandidate, 'start' | 'end' | 'subject'>, layout: Partial<AutoClipLayout> & { /** false: şerit yok; yol: o görüntü; yoksa ayardaki */ overlay?: false | string; /** yatay (16:9) klip: yüz/şerit yok, kare olduğu gibi */ horizontal?: boolean; /** otomatik altyazı: 2–4 kelime, iri beyaz, yüzün hemen altında (dikey) */ captions?: boolean; /** yalnızca yüz klibi (ekran yok, şerit yok): yüz tüm kareyi doldurur */ faceOnly?: FaceOnlyShape; /** GTA 6: oyun YAKINLAŞTIRILMAZ (tüm kare sığar), altındaki boş yere YouTube butonu */ fullGame?: boolean } = {}, env: Env = {}): Promise<{ projectPath: string; durationSec: number; name: string }> {
   const s = await Session.open(await resolveProjectPath(projectPath), await makeService(env))
   const total = timelineDuration(s.timeline)
   if (!(cand.end > cand.start) || cand.start < 0 || cand.end > total + 0.5) throw new Error(`Geçersiz aralık: ${cand.start.toFixed(1)}–${cand.end.toFixed(1)} (çizelge ${total.toFixed(1)} sn).`)
@@ -198,12 +198,19 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
     return { projectPath: fcreated.path, durationSec: fdur, name: fname }
   }
   // düzen: 9:16, yüz üstte/altta; konuşulan görüntü (tüm kare) ortada-altta. Yüz klipleri aynı kaynağın yüz bölgesi kırpmasıdır.
-  const tpl = autoClipTemplate({ facePos, faceShare: layout.faceShare })
+  let tpl = autoClipTemplate({ facePos, faceShare: layout.faceShare })
+  if (layout.fullGame) {
+    // oyun ekranı tam kare sığar (yakınlaştırma yok): genişlik = kare genişliği, yükseklik = kaynak oranına göre; yüz/şerit düzeni aynı, altta boş kalan yere buton konur
+    const share = layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare
+    const srcAsp = asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 16 / 9
+    const gameH = Math.min(1 - share, (1080 / srcAsp) / 1920)
+    tpl = { ...tpl, layers: tpl.layers.map((l) => (l.id === 'V1' ? { ...l, placement: { rect: { x: 0, y: facePos === 'top' ? share : 1 - share - gameH, w: 1, h: gameH }, fit: 'contain' as const, visible: true, opacity: 1 } } : l)) }
+  }
   const v1 = tl.tracks.find((t) => t.id === 'V1')
   const screenClips = (v1?.clips ?? []).filter((c) => c.assetId === asset.id)
   // alttaki konuşulan görüntü: biraz yakınlaştırılmış, ortalı kırpma (yüz kutusu altta görünmesin)
   const crop = screenCrop({ face, faceShare: layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare, screenZoom: layout.screenZoom ?? DEFAULT_AUTOCLIP_LAYOUT.screenZoom }, asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 16 / 9)
-  tl = { ...tl, tracks: tl.tracks.map((t) => (t.id === 'V1' ? { ...t, clips: t.clips.map((c) => (c.assetId === asset.id ? { ...c, crop } : c)) } : t)) }
+  if (!layout.fullGame) tl = { ...tl, tracks: tl.tracks.map((t) => (t.id === 'V1' ? { ...t, clips: t.clips.map((c) => (c.assetId === asset.id ? { ...c, crop } : c)) } : t)) }
   const srcAspect = asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 16 / 9
   const faceRect = faceCrop({ face, faceShare: layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare, faceZoom: layout.faceZoom ?? DEFAULT_AUTOCLIP_LAYOUT.faceZoom, faceFocus: layout.faceFocus ?? DEFAULT_AUTOCLIP_LAYOUT.faceFocus }, srcAspect)
   const faceClips: Clip[] = screenClips.map((c) => ({ ...c, id: newId('clip'), trackId: 'V2', crop: faceRect, label: 'Yüz', groupId: undefined }))
@@ -227,7 +234,7 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
   const c = await Session.open(created.path, await makeService(env))
   c.project = { ...c.project, timeline: tl }
   await addOverlay(c, layout, dur)
-  await addYoutubeCta(c, dur)
+  await addYoutubeCta(c, dur, { gtaBottom: !!layout.fullGame })
   await c.save()
   return { projectPath: created.path, durationSec: dur, name }
 }

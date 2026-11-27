@@ -12,6 +12,7 @@ import { appendOutro, resolveOutro } from '../outro'
 
 type Env = { userDataDir?: string; resourcesDir?: string }
 
+class SkipTranscript extends Error {}
 export class AutoClipsCancelled extends Error {
   constructor() {
     super('Auto Clips iptal edildi.')
@@ -58,11 +59,16 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   stage('find', { status: 'running', progress: 0 })
   // transkript projeye bağlı değilse/bulunamıyorsa (Auto Kick bitti ama yan dosya yok) sessizce başarısız olma: önce hazırla
   try {
+    if (req.noTranscript) throw new SkipTranscript()
     const t = await autoClipEnsureTranscript(req.projectPath, env)
     if (!t.already) stage('find', { detail: `Transkript bulunamadı, yeniden çıkarıldı (${t.words} kelime)` })
   } catch (e) {
+    if (e instanceof SkipTranscript) {
+      /* transkript istenmedi (GTA 6 klibi): aralıklar kullanıcıdan */
+    } else {
     check()
     throw new Error(`Transkript hazırlanamadı: ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
   check()
   // hazır liste: konu aranmaz, her aralık bir klip olur (adlar kullanıcıdan); yoksa konular otomatik bulunur
@@ -92,7 +98,7 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
   for (const [i, c] of found.candidates.entries()) {
     check()
     try {
-      const m = await makeAutoClip(req.projectPath, c, { face: req.face, facePos: req.facePos, faceShare: req.faceShare, faceZoom: req.faceZoom, faceFocus: req.faceFocus, screenZoom: req.screenZoom, horizontal: req.horizontal, captions: req.horizontal ? false : req.captions }, env)
+      const m = await makeAutoClip(req.projectPath, c, { face: req.face, facePos: req.facePos, faceShare: req.faceShare, faceZoom: req.faceZoom, faceFocus: req.faceFocus, screenZoom: req.screenZoom, horizontal: req.horizontal, captions: req.horizontal ? false : req.captions, fullGame: req.fullGame }, env)
       clips[i].projectPath = m.projectPath
     } catch (e) {
       check()

@@ -351,6 +351,10 @@ export interface AutoClipsRequest {
   horizontal?: boolean
   /** Kullanıcının hazır bölüm listesi (ÇİZELGE zamanı): verilirse konu bulunmaz; her aralık bir (yatay) klip olur */
   ranges?: { start: number; end: number; title: string }[]
+  /** GTA 6 klibi: oyun ekranı YAKINLAŞTIRILMAZ (tüm kare sığar), altta boş kalan yere YouTube butonu konur */
+  fullGame?: boolean
+  /** transkript hiç çıkarılmaz/aranmaz (aralıklar kullanıcıdan gelir; ör. GTA 6 klibi) */
+  noTranscript?: boolean
   /** `ranges` KULLANICININ seçtiği tam aralıklardır: olduğu gibi klip olur (aralık içinde yeniden en güçlü parça aranmaz) */
   exact?: boolean
 }

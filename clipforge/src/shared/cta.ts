@@ -80,12 +80,14 @@ export function ctaTimesEvery(durationSec: number, everySec = CTA_EVERY_SEC, cli
  * (ekran görüntüsünün üst kısmı; alt kenar karenin %80'inde; buton kutusunun üst kısmında görünür, ~%63–72 arası). Genişlik karenin %72'si (kullanıcı: "çok küçük, büyüt"). Yatay ve kare videolar eskisi gibi alt ortada kalır.
  */
 export const VERTICAL_CTA = { width: 0.72, bottom: 0.8 }
-export function verticalCtaRect(entry: Pick<CtaEntry, 'crop'>, assetW: number, assetH: number): NormRect {
+/** GTA 6 klibi: oyun kare altında boş kalan bölgenin ortasına (alt kenar karenin %94'ü), genişlik %72 */
+export const GTA_CTA = { width: 0.72, bottom: 0.94 }
+export function verticalCtaRect(entry: Pick<CtaEntry, 'crop'>, assetW: number, assetH: number, at: { width: number; bottom: number } = VERTICAL_CTA): NormRect {
   const crop = entry.crop ?? { x: 0, y: 0, w: 1, h: 1 }
   const ratio = (crop.w * Math.max(1, assetW)) / (crop.h * Math.max(1, assetH))
-  const w = VERTICAL_CTA.width
+  const w = at.width
   const h = Math.min(0.5, (w / ratio) * frameAspectOf('9:16'))
-  return { x: (1 - w) / 2, y: VERTICAL_CTA.bottom - h, w, h }
+  return { x: (1 - w) / 2, y: at.bottom - h, w, h }
 }
 
 /** Butonun varsayılan genişliği (kare genişliğinin oranı) ve yeri: ALTTA ORTA, göz almayacak küçüklükte (kullanıcı: "tam ortaya değil, çok göz almayacak") */

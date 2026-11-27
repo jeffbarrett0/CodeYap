@@ -1331,6 +1331,23 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoyatay-reveal')).toBeVisible()
   })
 
+  test('GTA 6 klip çıkar: yayın + elle yazılan aralıklar (transkript yok) → her aralık MP4 klip; bozuk satır uyarı; boş liste engellenir', async ({ page }) => {
+    await boot(page)
+    await page.getByTestId('gta-btn').click()
+    await expect(page.getByTestId('gta-start')).toBeDisabled() // video seçilmeden başlamaz
+    await page.getByTestId('gta-pick').click()
+    await expect(page.getByTestId('gta-video')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
+    await page.getByTestId('gta-start').click()
+    await expect(page.getByTestId('gta-error')).toBeVisible() // aralık yok
+    await page.getByTestId('gta-ranges').fill('0:28 - 0:45\n1:02 - 1:30 Heist\nsaçma satır')
+    await page.getByTestId('gta-start').click()
+    await expect(page.getByTestId('gta-job')).toHaveAttribute('data-status', 'done', { timeout: 20000 })
+    await expect(page.getByTestId('gta-reveal')).toHaveCount(2)
+    await expect(page.getByTestId('gta-done')).toContainText('2 klip MP4 olarak hazır')
+    await expect(page.getByTestId('gta-warning')).toHaveCount(1) // "saçma satır" okunamadı
+    await expect(page.getByTestId('autoclips-dialog')).toHaveCount(0) // transkript/Auto Clips penceresi açılmaz
+  })
+
   test('Transkript: yanlış yazılan ismi (Osman → Osimhen) tümünde düzelt; bulunamazsa açıklama; eksik alan engellenir', async ({ page }) => {
     await boot(page)
     await page.getByTestId('ytdikey-btn').click()

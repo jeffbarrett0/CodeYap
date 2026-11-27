@@ -172,6 +172,8 @@ export interface IpcInvoke {
   'templates:delete': [[string], LayoutTemplate[]]
   /** Auto Clips otomatik zinciri: adayları bul → klip projelerini üret → (isteğe bağlı) MP4 dışa aktar; arka planda sürer */
   'autoclips:start': [[AutoClipsRequest], string]
+  /** GTA 6 klip çıkar: yayın + elle yazılan aralıklar (transkript yok) → dikey klipler (oyun yakınlaştırılmaz, altta YouTube butonu) */
+  'gta:start': [[{ videoPath: string; text: string }], { jobId: string; count: number; warnings: string[] }]
   'autoclips:cancel': [[string], void]
   'autoclips:list': [[], AutoClipsStatus[]]
   /** Auto Clips: Auto Kick projesinin transkriptinden klip adayları (projeyi değiştirmez) */

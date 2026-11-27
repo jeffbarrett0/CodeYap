@@ -1,3 +1,4 @@
+import { parseGtaRanges, prepareGtaProject } from './autoclips/gta'
 import { detectHwEncoder, HW_LABEL } from './autokick/hwenc'
 import { BrowserWindow, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -52,6 +53,17 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
   setInterval(() => keepAwake.tick(), 15_000).unref()
   const handlers: Handlers = {
     'autoclips:start': (r) => autoClips.start(r),
+    'gta:start': async (r) => {
+      const { ranges, warnings } = parseGtaRanges(r.text)
+      if (ranges.length === 0) throw new Error(warnings[0] ?? 'Geçerli bir zaman aralığı yok. Örnek: 0:28 - 0:45')
+      const prep = await prepareGtaProject(r.videoPath, envDirs)
+      const bad = ranges.filter((x) => x.start >= prep.durationSec - 1)
+      if (bad.length === ranges.length) throw new Error(`Aralıklar yayının süresinin (${Math.round(prep.durationSec)} sn) dışında.`)
+      const ok = ranges.map((x) => ({ ...x, end: Math.min(x.end, prep.durationSec) })).filter((x) => x.start < prep.durationSec - 1)
+      if (bad.length) warnings.push(`${bad.length} aralık yayının dışında kaldığı için atlandı.`)
+      const jobId = autoClips.start({ projectPath: prep.projectPath, ranges: ok, exact: true, exportVideos: true, fullGame: true, noTranscript: true })
+      return { jobId, count: ok.length, warnings }
+    },
     'autoclips:cancel': (id) => autoClips.cancel(id),
     'autoclips:list': () => autoClips.list(),
     'autoclips:find': (r) => autoClipCandidates(r.projectPath, { ...(r.minSec ? { minSec: r.minSec } : {}), ...(r.maxSec ? { maxSec: r.maxSec } : {}), ...(r.max ? { max: r.max } : {}), ...(r.horizontal ? { horizontal: true } : {}) }, { userDataDir: app.deps.userDataDir, resourcesDir: app.deps.resourcesDir }),

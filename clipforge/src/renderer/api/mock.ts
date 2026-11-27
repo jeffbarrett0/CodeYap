@@ -5,6 +5,7 @@
  */
 import type { ClipforgeApi, IpcChannel, IpcEventName, IpcEvents, IpcInvoke } from '@shared/ipc'
 import { parseChatLog } from '@shared/chat/parse'
+import { parseGtaRanges } from '@shared/gtaRanges'
 import { DEFAULT_SETTINGS, normalizeSettings } from '@shared/settings'
 import { DEFAULT_SEARCH_OPTIONS } from '@shared/search/engine'
 import { SearchService } from '@shared/search/service'
@@ -152,6 +153,12 @@ export function createMockApi(): ClipforgeApi {
     },
     'reference:remove': (id) => void mockRefs.splice(0, mockRefs.length, ...mockRefs.filter((x) => x.id !== id)),
     'trailer:build': (r) => ({ projectPath: '/demo/fragman.clipforge', durationSec: Math.min(r.targetSec ?? 45, 40), shots: r.segments.map((s) => ({ segmentId: s.id, a: s.start, b: s.start + 4, text: 'Örnek an' })) }),
+    'gta:start': (r) => {
+      const { ranges, warnings } = parseGtaRanges(r.text)
+      if (ranges.length === 0) throw new Error(warnings[0] ?? 'Geçerli bir zaman aralığı yok. Örnek: 0:28 - 0:45')
+      const jobId = handlers['autoclips:start']({ projectPath: `${r.videoPath}.clipforge`, ranges, exact: true, exportVideos: true, fullGame: true, noTranscript: true }) as string
+      return { jobId, count: ranges.length, warnings }
+    },
     'autoclips:start': (req) => {
       const id = `autoclips-${acJobs.size + 1}`
       const status: AutoClipsStatus = { id, request: req, name: req.projectPath.split(/[\\/]/).pop()?.replace(/\.clipforge$/, '') ?? 'proje', status: 'running', stages: initialAutoClipsStages(), startedAt: Date.now() }
