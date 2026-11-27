@@ -1,3 +1,4 @@
+import { resolveProjectPath } from './autokick/clips'
 import { parseGtaRanges, prepareGtaProject } from './autoclips/gta'
 import { detectHwEncoder, HW_LABEL } from './autokick/hwenc'
 import { BrowserWindow, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
@@ -53,15 +54,25 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
   setInterval(() => keepAwake.tick(), 15_000).unref()
   const handlers: Handlers = {
     'autoclips:start': (r) => autoClips.start(r),
+    'autoclips:prepare': async (r) => {
+      // Auto Kick çıktısı varsa o (sessizleri kesilmiş video + transkript); yoksa ham videodan temel proje (kesim yok)
+      try {
+        return { projectPath: await resolveProjectPath(r.videoPath), fromAutoKick: true }
+      } catch {
+        const prep = await prepareGtaProject(r.videoPath, envDirs, undefined, 'Transcript Klipleri')
+        return { projectPath: prep.projectPath, fromAutoKick: false }
+      }
+    },
     'gta:start': async (r) => {
       const { ranges, warnings } = parseGtaRanges(r.text)
       if (ranges.length === 0) throw new Error(warnings[0] ?? 'Geçerli bir zaman aralığı yok. Örnek: 0:28 - 0:45')
-      const prep = await prepareGtaProject(r.videoPath, envDirs)
+      const dikey = r.mode === 'dikey'
+      const prep = await prepareGtaProject(r.videoPath, envDirs, undefined, dikey ? 'YouTube Dikey Klipleri' : 'GTA 6 Klipleri')
       const bad = ranges.filter((x) => x.start >= prep.durationSec - 1)
       if (bad.length === ranges.length) throw new Error(`Aralıklar yayının süresinin (${Math.round(prep.durationSec)} sn) dışında.`)
       const ok = ranges.map((x) => ({ ...x, end: Math.min(x.end, prep.durationSec) })).filter((x) => x.start < prep.durationSec - 1)
       if (bad.length) warnings.push(`${bad.length} aralık yayının dışında kaldığı için atlandı.`)
-      const jobId = autoClips.start({ projectPath: prep.projectPath, ranges: ok, exact: true, exportVideos: true, fullGame: true, noTranscript: true, outroPath: join(app.deps.resourcesDir, 'outro', 'kick-outro-dikey.mp4') })
+      const jobId = autoClips.start({ projectPath: prep.projectPath, ranges: ok, exact: true, exportVideos: true, noTranscript: true, ...(dikey ? {} : { fullGame: true, outroPath: join(app.deps.resourcesDir, 'outro', 'kick-outro-dikey.mp4') }) })
       return { jobId, count: ok.length, warnings }
     },
     'autoclips:cancel': (id) => autoClips.cancel(id),

@@ -3,7 +3,6 @@ import { parseChapterList } from '@shared/chapters'
 import { requireApi } from '../api'
 import { useStore } from '../store'
 import { fmt, Field, Modal, Progress } from './ui'
-import { OutroPicker } from './AutoYatayDikey'
 
 /**
  * YouTube yatay video: BÜTÜN yayın + zaman damgaları → her zaman damgası ayrı bir yatay (16:9) MP4.
@@ -50,7 +49,7 @@ export function YtCutDialog() {
           </div>
         </Field>
         <Field label="2) Zaman damgaları (orijinal kayıt zamanı)">
-          <textarea rows={7} value={list} onChange={(e) => setList(e.target.value)} placeholder={'Giriş - 00:00:00\nNoah Lang - 00:03:00\nLeo - 00:34:00\n(ya da önce zaman: 00:34:00 - Leo)'} aria-label="Zaman damgaları" data-testid="ytcut-list" style={{ width: '100%' }} disabled={running} />
+          <textarea rows={7} value={list} onChange={(e) => setList(e.target.value)} placeholder={'0:03:00 - 0:05:00 Noalank\n0:34:00 - 0:41:30 Leo\n(her satır = bir video; başlangıç - bitiş, sonuna isim)'} aria-label="Zaman damgaları" data-testid="ytcut-list" style={{ width: '100%' }} disabled={running} />
         </Field>
         <div className="hint" data-testid="ytcut-parsed">{parsed.length ? `${parsed.length} satır okundu (başlık önce, zaman sonda ya da zaman önce: ikisi de olur). Tek zaman yazarsanız bölüm bir sonraki satırın başına kadar sürer (son satır: kaydın sonuna); "34:00 - 41:00 Ad" yazarsanız tam o aralık kesilir.` : 'Henüz okunan satır yok. Her satırda bir zaman olmalı: "Leo - 00:34:00" ya da "00:34:00 - Leo".'}</div>
         <div className="grid2">
@@ -64,10 +63,10 @@ export function YtCutDialog() {
             <input type="text" value={outDir} onChange={(e) => setOutDir(e.target.value)} aria-label="Çıkış klasörü" placeholder="Varsayılan" disabled={running} />
           </Field>
         </div>
-        <label className="check" title="İlk buton 2. saniyede, sonra her 20 saniyede bir; altta ortada, küçük. Yeşil perde kesilir, yalnızca buton görünür. 8 sn'den kısa kesitte sığmaz.">
-          <input type="checkbox" checked={cta} onChange={(e) => setCta(e.target.checked)} disabled={running} data-testid="ytcut-cta" /> Her kesite YouTube abone butonunu ekle (2. saniyede ilk, sonra her 20 saniyede bir, altta ortada)
+        <label className="check" title="İlk buton 2. saniyede, sonra her 30 saniyede bir; altta ortada, küçük. Yeşil perde kesilir, yalnızca buton görünür. 8 sn'den kısa kesitte sığmaz.">
+          <input type="checkbox" checked={cta} onChange={(e) => setCta(e.target.checked)} disabled={running} data-testid="ytcut-cta" /> Her kesite YouTube abone butonunu ekle (2. saniyede ilk, sonra her 30 saniyede bir, altta ortada)
         </label>
-        <OutroPicker disabled={running} />
+        <div className="hint" data-testid="outro-auto-note">Kapanış: <b>Berkalog YouTube outro</b> her videonun sonuna kendiliğinden eklenir (ayrıca seçmenize gerek yok).</div>
         {err && <div className="warnbox" role="alert" data-testid="ytcut-error">{err}</div>}
         {task?.status === 'failed' && <div className="warnbox" role="alert" data-testid="ytcut-failed">{task.error}</div>}
         <button className="btn primary" disabled={running} onClick={() => void start()} data-testid="ytcut-start">{running ? 'Kesiliyor…' : 'Videoları kes ve kaydet'}</button>

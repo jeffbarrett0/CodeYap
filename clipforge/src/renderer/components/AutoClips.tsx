@@ -18,7 +18,7 @@ const mm = (s: number) => `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600
  * Transkript + isimle klip: kullanıcı transkripti okur, bir isim yazar (ya da önerilen adlara tıklar); o ismin geçtiği yerlerden klip adayları çıkar.
  * Konuya program karar vermez: ne konuşulduğunu kullanıcı seçer.
  */
-function TranscriptPanel({ path, maxSec, onFound, autoLoad }: { path: string; maxSec: number; onFound: (c: AutoClipCandidate[]) => void; autoLoad?: boolean }) {
+function TranscriptPanel({ path, maxSec, onFound, autoLoad, autoTranscribe }: { path: string; maxSec: number; onFound: (c: AutoClipCandidate[]) => void; autoLoad?: boolean; /** transkript yoksa kendiliğinden çıkar (Transcript ile clip: video seçilince) */ autoTranscribe?: boolean }) {
   const api = requireApi()
   const [data, setData] = useState<{ lines: { start: number; end: number; text: string }[]; suggestions: { name: string; count: number; firstAt: number; talkSec: number }[] } | null>(null)
   const [query, setQuery] = useState('')
@@ -61,6 +61,14 @@ function TranscriptPanel({ path, maxSec, onFound, autoLoad }: { path: string; ma
     if (autoLoad) void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, autoLoad])
+  const triedAuto = useRef('')
+  useEffect(() => {
+    if (autoTranscribe && error && /transkript yok/i.test(error) && triedAuto.current !== path) {
+      triedAuto.current = path
+      void transcribe()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error, autoTranscribe, path])
   const fix = async () => {
     setBusy(true)
     setError('')
@@ -157,6 +165,7 @@ export function AutoClipsDialog() {
   // otomatik zincir çalışıyorsa/çalıştıysa elle bulma beklenmez (aynı işi ikinci kez yapmayalım)
   const autoRan = !!job && (!autoClipsProject || job.request.projectPath === autoClipsProject)
   const [path, setPath] = useState(autoClipsProject)
+  const [fresh, setFresh] = useState(false)
   const [cands, setCands] = useState<AutoClipCandidate[] | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -194,8 +203,22 @@ export function AutoClipsDialog() {
   }, [])
 
   const pick = async () => {
-    const p = await api.invoke('dialog:openFile', { title: 'Video seç (Auto Kick çıktısı yanında aranır)', extensions: ['mkv', 'mp4', 'mov', 'm4v', 'webm', 'flv', 'ts', 'clipforge'] })
-    if (p) {
+    const p = await api.invoke('dialog:openFile', { title: 'Video seç', extensions: ['mkv', 'mp4', 'mov', 'm4v', 'webm', 'flv', 'ts', 'clipforge'] })
+    if (p && /\.(mkv|mp4|mov|m4v|webm|flv|ts)$/i.test(p)) {
+      // ham video: Auto Kick çıktısı varsa o, yoksa temel proje hazırlanır; transkript kendiliğinden çıkarılır, konuştuğunuz yerler bulunur
+      setError('')
+      try {
+        const r = await api.invoke('autoclips:prepare', { videoPath: p })
+        setFresh(true)
+        setPath(r.projectPath)
+        setAutoClipsProject(r.projectPath)
+        setCands(null)
+        setMade([])
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    } else if (p) {
+      setFresh(false)
       setPath(p)
       setAutoClipsProject(p)
       void find(p)
@@ -233,7 +256,7 @@ export function AutoClipsDialog() {
   const setF = (k: keyof NormRect, v: number) => setFace((f) => ({ ...f, [k]: Math.min(1, Math.max(0, v / 100)) }))
 
   return (
-    <Modal title="Auto Clips — konuştuğunuz konulardan klipler" onClose={() => openDialog(null)} wide>
+    <Modal title="Transcript ile clip — konuştuğunuz yerlerden klipler" onClose={() => openDialog(null)} wide>
       <div className="col" data-testid="autoclips-dialog" style={{ gap: 10 }}>
         <div className="infobox">Auto Kick bitince tam video <b>buraya otomatik devredilir, bu pencere kendiliğinden açılır ve klipler kendiliğinden üretilir</b> (ayarlardan kapatılabilir). Transkripti okur, <b>kimin/neyin hakkında konuştuğunuzu</b> bulur ve “şu aralıkta şunu konuşmuşsun, klip olarak paylaşabilirsin” diye önerir. Seçtiklerinizden <b>9:16 klip projesi</b> yapar: yüzünüz üstte (kaynak karedeki yüz bölgesi), konuşulan görüntü altta.</div>
         <div className="col" ref={jobsRef} data-testid="autoclips-auto" style={{ gap: 6, padding: 8, border: '1px solid var(--border, #2a3a30)', borderRadius: 8 }}>
@@ -281,12 +304,12 @@ export function AutoClipsDialog() {
           <button className="btn" onClick={() => void pick()} data-testid="autoclips-pick">Video seç…</button>
           <span className="hint" style={{ wordBreak: 'break-all' }} data-testid="autoclips-path">{path || 'Henüz seçilmedi (Auto Kick bitince otomatik gelir)'}</span>
         </div>
-        <div className="hint" data-testid="autoclips-pick-hint">Yayın kaydınızı seçin (<b>.mkv / .mp4</b> …): videonun yanındaki <b>AutoKick</b> klasöründeki Auto Kick çıktısı kendiliğinden bulunur. Henüz Auto Kick'ten geçirmediyseniz önce <b>Auto Kick</b>'te işleyin. (Elinizde <i>.clipforge</i> proje dosyası varsa onu da seçebilirsiniz.)</div>
+        <div className="hint" data-testid="autoclips-pick-hint">Bir video seçin (<b>.mkv / .mp4</b> …): <b>transkripti çıkarılır</b> ve videoda <b>konuştuğunuz yerler bulunup klip</b> olur. Videonun yanında Auto Kick çıktısı varsa o kullanılır (sessizleri kesilmiş + hazır transkript); yoksa video olduğu gibi işlenir. Transkript yoksa kendiliğinden çıkarılır (uzun videoda birkaç dakika sürebilir).</div>
         <div className="row wrap" style={{ gap: 10, alignItems: 'center' }}>
           <label className="row" style={{ gap: 6 }}>En uzun klip (sn) <Num value={maxSec} step={10} min={30} max={MAX_CLIP_SEC} label="En uzun klip" onChange={setMaxSec} /></label>
           <button className="btn primary" disabled={!path || busy} onClick={() => void find()} data-testid="autoclips-find" title="Transkriptten paylaşılabilecek klipleri kendisi bulur (kaç tane çıkarsa; sayı sınırı yok). Sonra istediklerinizi işaretlersiniz.">{busy && !cands ? 'Klipler aranıyor…' : cands ? 'Otomatik klip öner (yeniden)' : 'Otomatik klip öner'}</button>
         </div>
-        {path && <TranscriptPanel path={path} maxSec={maxSec} autoLoad={autoClipsManual && path === autoClipsProject} onFound={(c) => { setCands(c); setPicked(new Set(c.map((x) => x.id))); setMade([]) }} />}
+        {path && <TranscriptPanel path={path} maxSec={maxSec} autoLoad={fresh || (autoClipsManual && path === autoClipsProject)} autoTranscribe={fresh} onFound={(c) => { setCands(c); setPicked(new Set(c.map((x) => x.id))); setMade([]) }} />}
         {error && <div className="warnbox" role="alert" data-testid="autoclips-error">{error}</div>}
         {cands && cands.length === 0 && <div className="warnbox" data-testid="autoclips-empty">Klip olabilecek net bir konu bulunamadı (konuşmada kişi/takım adı az olabilir). “En uzun klip” süresini artırıp yeniden deneyin.</div>}
         {cands && cands.length > 0 && (

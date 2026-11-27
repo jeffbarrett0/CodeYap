@@ -11,7 +11,7 @@ export function TopBar() {
       <button className="btn" onClick={() => void openProject()}>Aç</button>
       <button className="btn" onClick={() => void saveProject(false)} data-testid="save">Kaydet</button>
       <button className="btn" onClick={() => void pickAndImport()}>Kayıt içe aktar</button>
-      <button className="btn" onClick={() => openDialog('autoclips')} data-testid="autoclips-btn" title="Auto Kick'ten çıkan videodan klipler: konuştuğunuz konuları bulur; yüz üstte, konuşulan görüntü altta 9:16 klip projesi yapar">Auto Clips{autoClipsProject ? ' ●' : ''}</button>
+      <button className="btn" onClick={() => openDialog('autoclips')} data-testid="autoclips-btn" title="Auto Kick'ten çıkan videodan klipler: konuştuğunuz konuları bulur; yüz üstte, konuşulan görüntü altta 9:16 klip projesi yapar">Transcript ile clip{autoClipsProject ? ' ●' : ''}</button>
       <button className="btn" onClick={() => openDialog('ytcut')} data-testid="ytcut-btn" title="Bütün yayını ve zaman damgalarını ver: her zaman damgasını ayrı bir yatay YouTube videosu olarak keser">YouTube yatay video</button>
       <button className="btn" onClick={() => openDialog('ytdikey')} data-testid="ytdikey-btn" title="Bir video ver: sessiz yerler kesilir, transkript çıkar; transkripti okuyup dikey (9:16) klipleri sen seçersin">YouTube dikey video</button>
       <button className="btn" onClick={() => openDialog('autoyatay')} data-testid="autoyatay-btn" title="Auto Kick'e bağlı: Auto Kick bitince zaman damgası listene göre her satır ayrı yatay video olarak kendiliğinden kesilir">Auto yatay video</button>

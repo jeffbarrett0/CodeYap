@@ -13,9 +13,9 @@ type Env = { userDataDir?: string; resourcesDir?: string }
  * Transkript, sessizlik kesimi vb. YAPILMAZ (kullanıcı aralıkları kendisi verir). Aynı video için proje varsa yeniden kullanılır.
  * Klipler `<yayın klasörü>/GTA 6 Klipleri/<ad>/` altına yazılır.
  */
-export async function prepareGtaProject(videoPath: string, env: Env = {}, onStatus?: (msg: string) => void): Promise<{ projectPath: string; durationSec: number }> {
+export async function prepareGtaProject(videoPath: string, env: Env = {}, onStatus?: (msg: string) => void, folder = 'GTA 6 Klipleri'): Promise<{ projectPath: string; durationSec: number }> {
   const base = basename(videoPath, extname(videoPath))
-  const dir = join(dirname(videoPath), 'GTA 6 Klipleri', base)
+  const dir = join(dirname(videoPath), folder, base)
   await mkdir(dir, { recursive: true })
   const projectPath = join(dir, `${base}.clipforge`)
   const service = await makeService(env)

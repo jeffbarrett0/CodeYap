@@ -626,3 +626,6 @@ Kullanıcı: GTA 6 yayını için ayrı düğme; aralıkları kendisi yazar (tra
 
 ## 117. GTA 6 klip: oyun biraz büyütüldü, altı bulanık kopya, Kick outro
 Kullanıcı: oyunu birazcık büyüt (eskisi gibi aşırı değil), alttaki siyahı oyunun kopyasıyla doldurup bulanıklaştır, videonun sonuna verdiği dikey Kick outro'yu koy. `GTA_GAME_ZOOM`=1,12 (ortalı yan kırpma), `VB` izi (blurOnly), `GTA_CTA` genişlik 0,62/alt 0,95 (oyuna binmesin), `ExportRequest`/`AutoClipsRequest.outroPath` → `exportClipProject(…, extraOutro)`; outro dosyası `resources/outro/kick-outro-dikey.mp4`.
+
+## 118. Düğme işleri yeniden düzenlendi
+Kullanıcı: (1) YouTube yatay: aralık ver → doğrudan kes, transkript yok, buton 2. sn + her 30 sn, sonda outro; 'Outro seç' kalksın (outro projede). (2) YouTube dikey: aynı mantık, aralıktan dikey klip. (3) Auto Clips → 'Transcript ile clip': video seç, transkript çıkar, konuştuğun yerlerden klip. Uygulama: `CTA_EVERY_SEC` 30 (GTA 20), `OutroPicker` kaldırıldı (not), `YtDikeyDialog` = `RangeClipsDialog(mode:'dikey')`, `autoclips:prepare`, `TranscriptPanel autoTranscribe`.

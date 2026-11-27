@@ -64,11 +64,12 @@ export function parseCtaManifest(raw: unknown): CtaManifest | null {
 export const CTA_CLIP_SEC = 5.2
 
 /**
- * KULLANICININ KARARI (kalıcı, 2 kez söyledi): İLK buton videonun 2. SANİYESİNDE, sonra HER 20 SANİYEDE bir — yatay ve dikey, tüm videolar.
+ * KULLANICININ KARARI (kalıcı): İLK buton videonun 2. SANİYESİNDE, sonra YATAY videolarda HER 30 SANİYEDE bir (GTA 6 dikey klipte her 20 sn).
  * Son 0,5 sn'ye taşmaz; videoya sığmayacak kadar kısaysa (<~7,7 sn) eklenmez.
  */
 export const CTA_FIRST_SEC = 2
-export const CTA_EVERY_SEC = 20
+export const CTA_EVERY_SEC = 30 // YATAY videolar (kullanıcı: ilk buton 2. sn, sonra her 30 sn)
+export const GTA_EVERY_SEC = 20 // GTA 6 dikey klip
 export function ctaTimesEvery(durationSec: number, everySec = CTA_EVERY_SEC, clipSec = CTA_CLIP_SEC): number[] {
   const out: number[] = []
   for (let t = CTA_FIRST_SEC; t + clipSec <= durationSec - 0.5 + 1e-6; t += everySec) out.push(Math.round(t * 10) / 10)

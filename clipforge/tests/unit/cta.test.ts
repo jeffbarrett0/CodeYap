@@ -47,15 +47,15 @@ describe('çağrı butonları: manifest ve yerleşim', () => {
   it('İLK BUTON 2. SANİYEDE, sonra HER 20 SN\'DE (kullanıcının kalıcı kararı); sona taşmaz; üst üste binmez', () => {
     expect(ctaTimesEvery(7)).toEqual([]) // buton (5,2 sn) sığmaz
     expect(ctaTimesEvery(8)).toEqual([2])
-    expect(ctaTimesEvery(30)).toEqual([2, 22])
-    expect(ctaTimesEvery(62)).toEqual([2, 22, 42])
-    expect(ctaTimesEvery(600).length).toBe(30)
+    expect(ctaTimesEvery(30)).toEqual([2]) // 30 sn'de tek buton (2. sn; ikincisi sığmaz)
+    expect(ctaTimesEvery(62)).toEqual([2, 32])
+    expect(ctaTimesEvery(600).length).toBe(20)
     for (const D of [8, 12, 20, 45, 60, 99, 178, 300, 1500, 3600]) {
       const t = ctaTimesEvery(D)
       expect(t[0]).toBe(2)
       for (let i = 0; i < t.length; i++) {
         expect(t[i] + 5.2).toBeLessThanOrEqual(D - 0.5 + 1e-6)
-        if (i) expect(t[i] - t[i - 1]).toBeCloseTo(20, 5)
+        if (i) expect(t[i] - t[i - 1]).toBeCloseTo(30, 5)
       }
     }
     // dikey: kullanıcının kırmızı ile işaretlediği yer (yatayda ortada, alt kenar %80'de)

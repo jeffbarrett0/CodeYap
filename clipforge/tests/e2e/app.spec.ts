@@ -1298,18 +1298,19 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-transcribe')).toHaveCount(0)
   })
 
-  test('YouTube dikey video: video seç → sessizleri kes + transkript → Auto Clips transkriptle açılır, klipler OTOMATİK üretilmez', async ({ page }) => {
+  test('YouTube dikey video: video + yazılan aralıklar → her aralık dikey klip (transkript yok, Auto Clips penceresi açılmaz)', async ({ page }) => {
     await boot(page)
     await page.getByTestId('ytdikey-btn').click()
     await expect(page.getByTestId('ytdikey-start')).toBeDisabled()
     await page.getByTestId('ytdikey-pick').click()
     await expect(page.getByTestId('ytdikey-video')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
     await page.getByTestId('ytdikey-start').click()
-    await expect(page.getByTestId('autoclips-dialog')).toBeVisible({ timeout: 20000 })
-    await expect(page.getByTestId('autoclips-transcript')).toContainText('Osimhen gol krallığında') // transkript kendiliğinden yüklendi
-    await expect(page.getByTestId('autoclips-suggestion')).toHaveCount(2)
-    await expect(page.getByTestId('autoclips-job')).toHaveCount(0) // otomatik klip işi yok
-    await expect(page.getByTestId('autoclips-cand')).toHaveCount(0) // otomatik aday listesi de yok: seçim kullanıcıda
+    await expect(page.getByTestId('ytdikey-error')).toBeVisible() // aralık yok
+    await page.getByTestId('ytdikey-ranges').fill('0:28 - 0:45\n3:00 - 5:00 Noalank')
+    await page.getByTestId('ytdikey-start').click()
+    await expect(page.getByTestId('ytdikey-job')).toHaveAttribute('data-status', 'done', { timeout: 20000 })
+    await expect(page.getByTestId('ytdikey-reveal')).toHaveCount(2)
+    await expect(page.getByTestId('autoclips-dialog')).toHaveCount(0) // transkript akışı yok
   })
 
   test('Auto yatay video: Auto Kick listeyle bitince yatay kesitler kendiliğinden; liste yoksa iş yok; ayarlar kapatılabilir', async ({ page }) => {
@@ -1349,10 +1350,10 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
   })
 
   test('Transkript: yanlış yazılan ismi (Osman → Osimhen) tümünde düzelt; bulunamazsa açıklama; eksik alan engellenir', async ({ page }) => {
+    await page.addInitScript(() => ((window as unknown as { __mock: { openFile: string } }).__mock = { openFile: '/yayin/kayit.mkv' }))
     await boot(page)
-    await page.getByTestId('ytdikey-btn').click()
-    await page.getByTestId('ytdikey-pick').click()
-    await page.getByTestId('ytdikey-start').click()
+    await page.getByTestId('autoclips-btn').click()
+    await page.getByTestId('autoclips-pick').click() // video seçilir: temel proje hazırlanır, transkript kendiliğinden gelir
     await expect(page.getByTestId('autoclips-transcript')).toContainText('Osman çok iyi bitirdi', { timeout: 20000 })
     await page.getByTestId('autoclips-fix-box').locator('summary').click()
     await expect(page.getByTestId('autoclips-fix')).toBeDisabled()
@@ -1366,11 +1367,11 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-transcript')).toContainText('Osimhen çok iyi bitirdi')
   })
 
-  test('YouTube dikey video: seçim alanı (isim · kaç kez · kaç dk) + Otomatik klip öner; seçilenlerin HEPSİ dikey MP4 olarak kaydedilir', async ({ page }) => {
+  test('Transcript ile clip: video seç → seçim alanı (isim · kaç kez · kaç dk) + Otomatik klip öner; seçilenlerin HEPSİ dikey MP4 olarak kaydedilir', async ({ page }) => {
+    await page.addInitScript(() => ((window as unknown as { __mock: { openFile: string } }).__mock = { openFile: '/yayin/kayit.mkv' }))
     await boot(page)
-    await page.getByTestId('ytdikey-btn').click()
-    await page.getByTestId('ytdikey-pick').click()
-    await page.getByTestId('ytdikey-start').click()
+    await page.getByTestId('autoclips-btn').click()
+    await page.getByTestId('autoclips-pick').click()
     await expect(page.getByTestId('autoclips-transcript')).toBeVisible({ timeout: 20000 })
     // seçim alanı: isim önerileri konuşma süresiyle
     await expect(page.getByTestId('autoclips-suggestion').first()).toContainText('Osimhen · 12× · ~7 dk')
@@ -1434,22 +1435,15 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('klipcikar-reveal')).toHaveCount(2) // her biçimde TEK klip (MP4)
   })
 
-  test('YouTube outro: hem YouTube yatay video hem Auto yatay video penceresinde seçilir, kaldırılır; ayar ortaktır', async ({ page }) => {
+  test('YouTube outro: yatay video pencerelerinde outro seçtirilmez; Berkalog outro kendiliğinden eklenir (not görünür)', async ({ page }) => {
     await boot(page)
     await page.getByTestId('ytcut-btn').click()
-    await expect(page.getByTestId('outro-path')).toHaveValue('')
-    await expect(page.getByTestId('outro-clear')).toHaveCount(0)
-    await expect(page.getByTestId('outro-enabled')).toBeChecked() // varsayılan: açık
-    await expect(page.getByTestId('outro-folder')).toBeVisible()
-    await page.getByTestId('outro-pick').click()
-    await expect(page.getByTestId('outro-path')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
+    await expect(page.getByTestId('outro-auto-note')).toContainText('Berkalog YouTube outro')
+    await expect(page.getByTestId('outro-pick')).toHaveCount(0) // "Outro seç" kalktı
     await page.keyboard.press('Escape')
     await page.getByTestId('autoyatay-btn').click()
-    await expect(page.getByTestId('outro-path')).toHaveValue(/2024-05-12 21-30-45\.mkv/) // aynı ayar
-    await page.getByTestId('outro-clear').click()
-    await expect(page.getByTestId('outro-path')).toHaveValue('')
-    await page.getByTestId('outro-enabled').uncheck()
-    await expect(page.getByTestId('outro-enabled')).not.toBeChecked()
+    await expect(page.getByTestId('outro-auto-note')).toBeVisible()
+    await expect(page.getByTestId('outro-pick')).toHaveCount(0)
   })
 
   test('Auto Kick tam videosunda outro yoksa "Outro\'yu şimdi ekle" düğmesi çıkar; basınca eklenir ve not güncellenir', async ({ page }) => {

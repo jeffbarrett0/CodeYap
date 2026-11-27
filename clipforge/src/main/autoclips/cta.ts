@@ -2,7 +2,7 @@ import { access, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Session, waitTask } from '../../cli/session'
 import { CTA_AUDIO_VOLUME } from '../../shared/voicelevel'
-import { ctaRect, ctaTimesEvery, GTA_CTA, verticalCtaRect, CTA_CLIP_SEC, parseCtaManifest, youtubeCtaSize } from '../../shared/cta'
+import { ctaRect, ctaTimesEvery, GTA_CTA, GTA_EVERY_SEC, verticalCtaRect, CTA_CLIP_SEC, parseCtaManifest, youtubeCtaSize } from '../../shared/cta'
 import { cmd } from '../../shared/timeline/commands'
 import { clipForTrack } from '../../shared/timeline/create'
 
@@ -17,7 +17,7 @@ export async function addYoutubeCta(c: Session, dur: number, opts: { gtaBottom?:
   // KULLANICININ KARARI: YouTube butonu YALNIZCA yatay (16:9) videolarda; dikey/kare videolara konmaz
   // GTA 6 klibi (dikey): kullanıcı özellikle istedi → oyun altındaki boş bölgeye konur; diğer dikey/kare videolarda yine yok
   if (c.timeline.aspect !== '16:9' && !opts.gtaBottom) return []
-  const times = ctaTimesEvery(dur)
+  const times = ctaTimesEvery(dur, opts.gtaBottom ? GTA_EVERY_SEC : undefined)
   if (times.length === 0) return []
   try {
     const dir = join(c.service.deps.resourcesDir, 'cta')
