@@ -623,3 +623,6 @@ Ek (§115): kullanıcı kaymanın 'videonun tamamında' sabit olduğunu bildirdi
 
 ## 116. GTA 6 klip çıkar
 Kullanıcı: GTA 6 yayını için ayrı düğme; aralıkları kendisi yazar (transkript yok); düzen Auto Clips gibi ama oyun yakınlaştırılmaz (tüm oyun sığmalı), altta boş yere YouTube butonu. Uygulama: `fullGame`+`noTranscript` alanları (AutoClipsRequest), `makeAutoClip` fullGame düzeni, `addYoutubeCta(gtaBottom)`, `prepareGtaProject`, `gta:start` IPC, `Gta6.tsx`. Dikey videolara buton yok kuralının tek istisnası GTA 6 klipleri. İlk sürüm; geliştirme kullanıcıyla.
+
+## 117. GTA 6 klip: oyun biraz büyütüldü, altı bulanık kopya, Kick outro
+Kullanıcı: oyunu birazcık büyüt (eskisi gibi aşırı değil), alttaki siyahı oyunun kopyasıyla doldurup bulanıklaştır, videonun sonuna verdiği dikey Kick outro'yu koy. `GTA_GAME_ZOOM`=1,12 (ortalı yan kırpma), `VB` izi (blurOnly), `GTA_CTA` genişlik 0,62/alt 0,95 (oyuna binmesin), `ExportRequest`/`AutoClipsRequest.outroPath` → `exportClipProject(…, extraOutro)`; outro dosyası `resources/outro/kick-outro-dikey.mp4`.

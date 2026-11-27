@@ -1,3 +1,4 @@
+import { GTA_GAME_ZOOM } from '../../shared/cta'
 import { access } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Session, makeService, waitTask } from '../../cli/session'
@@ -198,19 +199,25 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
     return { projectPath: fcreated.path, durationSec: fdur, name: fname }
   }
   // düzen: 9:16, yüz üstte/altta; konuşulan görüntü (tüm kare) ortada-altta. Yüz klipleri aynı kaynağın yüz bölgesi kırpmasıdır.
+  let gameZone: { y: number; h: number } | null = null
   let tpl = autoClipTemplate({ facePos, faceShare: layout.faceShare })
   if (layout.fullGame) {
     // oyun ekranı tam kare sığar (yakınlaştırma yok): genişlik = kare genişliği, yükseklik = kaynak oranına göre; yüz/şerit düzeni aynı, altta boş kalan yere buton konur
     const share = layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare
     const srcAsp = asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 16 / 9
-    const gameH = Math.min(1 - share, (1080 / srcAsp) / 1920)
-    tpl = { ...tpl, layers: tpl.layers.map((l) => (l.id === 'V1' ? { ...l, placement: { rect: { x: 0, y: facePos === 'top' ? share : 1 - share - gameH, w: 1, h: gameH }, fit: 'contain' as const, visible: true, opacity: 1 } } : l)) }
+    // oyun BİRAZ büyütülür (kullanıcı: "çok değil, birazcık"): yanlardan %1/1,12 kırpılır, yükseklik 1,12 kat; tüm HUD'u tutan ortalı kırpma
+    const gz = GTA_GAME_ZOOM
+    const gameH = Math.min(1 - share, ((1080 / srcAsp) / 1920) * gz)
+    const gy = facePos === 'top' ? share : 1 - share - gameH
+    tpl = { ...tpl, layers: tpl.layers.map((l) => (l.id === 'V1' ? { ...l, placement: { rect: { x: 0, y: gy, w: 1, h: gameH }, fit: 'cover' as const, visible: true, opacity: 1 } } : l)) }
+    gameZone = { y: gy, h: gameH }
   }
   const v1 = tl.tracks.find((t) => t.id === 'V1')
   const screenClips = (v1?.clips ?? []).filter((c) => c.assetId === asset.id)
   // alttaki konuşulan görüntü: biraz yakınlaştırılmış, ortalı kırpma (yüz kutusu altta görünmesin)
   const crop = screenCrop({ face, faceShare: layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare, screenZoom: layout.screenZoom ?? DEFAULT_AUTOCLIP_LAYOUT.screenZoom }, asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 16 / 9)
-  if (!layout.fullGame) tl = { ...tl, tracks: tl.tracks.map((t) => (t.id === 'V1' ? { ...t, clips: t.clips.map((c) => (c.assetId === asset.id ? { ...c, crop } : c)) } : t)) }
+  const gameCrop = { x: (1 - 1 / GTA_GAME_ZOOM) / 2, y: 0, w: 1 / GTA_GAME_ZOOM, h: 1 }
+  tl = { ...tl, tracks: tl.tracks.map((t) => (t.id === 'V1' ? { ...t, clips: t.clips.map((c) => (c.assetId === asset.id ? { ...c, crop: layout.fullGame ? gameCrop : crop } : c)) } : t)) }
   const srcAspect = asset.width > 0 && asset.height > 0 ? asset.width / asset.height : 16 / 9
   const faceRect = faceCrop({ face, faceShare: layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare, faceZoom: layout.faceZoom ?? DEFAULT_AUTOCLIP_LAYOUT.faceZoom, faceFocus: layout.faceFocus ?? DEFAULT_AUTOCLIP_LAYOUT.faceFocus }, srcAspect)
   const faceClips: Clip[] = screenClips.map((c) => ({ ...c, id: newId('clip'), trackId: 'V2', crop: faceRect, label: 'Yüz', groupId: undefined }))
@@ -219,6 +226,12 @@ export async function makeAutoClip(projectPath: string, cand: Pick<AutoClipCandi
     tracks: tl.tracks.some((t) => t.id === 'V2') ? tl.tracks.map((t) => (t.id === 'V2' ? { ...t, clips: faceClips } : t)) : [...tl.tracks, { id: 'V2', name: 'Video 2', kind: 'video' as const, role: 'webcam' as const, clips: faceClips, muted: false, locked: false, volume: 1 }]
   }
   tl = { ...applyTemplate(tl, tpl), aspect: '9:16', aspectAuto: false }
+  if (gameZone) {
+    // oyunun ALTINDAKİ boş yer: aynı oyun ekranının KOPYASI, bulanık + karartılmış (net oyun çizilmez); üstüne YouTube butonu gelir
+    const yb = gameZone.y + gameZone.h
+    const blurClips: Clip[] = screenClips.map((c) => ({ ...c, id: newId('clip'), trackId: 'VB', crop: undefined, label: 'Alt: bulanık kopya', groupId: undefined, fx: { ...c.fx, blurFill: true, blurOnly: true } }))
+    tl = { ...tl, tracks: [...tl.tracks, { id: 'VB', name: 'Alt bulanık kopya', kind: 'video' as const, role: 'screen' as const, clips: blurClips, muted: false, locked: false, volume: 1, placement: { rect: { x: 0, y: yb, w: 1, h: 1 - yb }, fit: 'contain' as const, visible: true, opacity: 1 } }] }
+  }
   if (layout.captions) {
     // otomatik altyazı: iri beyaz, satırda 2–4 kelime; yüz ile görüntünün birleştiği çizginin (şerit) hemen ÜSTÜNDE
     const share = layout.faceShare ?? DEFAULT_AUTOCLIP_LAYOUT.faceShare

@@ -186,7 +186,10 @@ export function buildExportPlan(
         const fx = k > 0 ? { w: even(sw * k), h: even(sh * k) } : { w: r.w, h: r.h }
         const ck = c.fx?.chroma ? chromaFilter(c.fx.chroma) : ''
         const blurFill = !!c.fx?.blurFill && t.kind === 'video' && t.placement.fit !== 'cover'
-        if (blurFill) {
+        if (blurFill && c.fx?.blurOnly) {
+          // yalnızca bulanık, karartılmış büyütülmüş kopya (net görüntü yok): kutuyu doldurur
+          lines.push(`[${idx}:v]setpts=PTS-STARTPTS,fps=${fps},${crop}scale=${r.w}:${r.h}:flags=lanczos:force_original_aspect_ratio=increase,crop=${r.w}:${r.h},boxblur=30:4,eq=brightness=-0.12,setpts=PTS+${f3(p.at)}/TB[ly${L}]`)
+        } else if (blurFill) {
           // oran korunur; boş alan aynı görüntünün bulanık/karartılmış büyütülmüş hâliyle dolar (kutu = r)
           lines.push(`[${idx}:v]setpts=PTS-STARTPTS,fps=${fps},${crop}split=2[bfa${L}][bfb${L}]`)
           lines.push(`[bfa${L}]scale=${r.w}:${r.h}:flags=lanczos:force_original_aspect_ratio=increase,crop=${r.w}:${r.h},boxblur=30:4,eq=brightness=-0.12[bfg${L}]`)

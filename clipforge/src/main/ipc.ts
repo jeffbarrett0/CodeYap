@@ -61,7 +61,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       if (bad.length === ranges.length) throw new Error(`Aralıklar yayının süresinin (${Math.round(prep.durationSec)} sn) dışında.`)
       const ok = ranges.map((x) => ({ ...x, end: Math.min(x.end, prep.durationSec) })).filter((x) => x.start < prep.durationSec - 1)
       if (bad.length) warnings.push(`${bad.length} aralık yayının dışında kaldığı için atlandı.`)
-      const jobId = autoClips.start({ projectPath: prep.projectPath, ranges: ok, exact: true, exportVideos: true, fullGame: true, noTranscript: true })
+      const jobId = autoClips.start({ projectPath: prep.projectPath, ranges: ok, exact: true, exportVideos: true, fullGame: true, noTranscript: true, outroPath: join(app.deps.resourcesDir, 'outro', 'kick-outro-dikey.mp4') })
       return { jobId, count: ok.length, warnings }
     },
     'autoclips:cancel': (id) => autoClips.cancel(id),

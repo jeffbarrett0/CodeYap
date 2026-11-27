@@ -260,6 +260,8 @@ export interface ClipFx {
   denoise?: 'light' | 'medium' | 'strong'
   /** Oran korunur (sığdır) ve boş kalan alan aynı görüntünün bulanık, karartılmış büyütülmüş hâliyle doldurulur (dikey karede yatay maç görüntüsü) */
   blurFill?: boolean
+  /** blurFill ile birlikte: ön plandaki net görüntü ÇİZİLMEZ, yalnızca bulanık büyütülmüş kopya (GTA 6 klibinde oyunun altı) */
+  blurOnly?: boolean
   /** CapCut tarzı görüntü ayarları (Ayarla): sıcaklık, doygunluk, pozlama, kontrast, keskinlik, vinyet… (shared/adjust.ts) */
   adjust?: import('./adjust').Adjust
   /** Ses seviyesini hedef ses şiddetine eşitler (loudnorm) */

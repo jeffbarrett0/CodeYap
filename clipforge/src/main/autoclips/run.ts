@@ -25,7 +25,7 @@ export interface AutoClipsHooks {
 }
 
 /** Bir klip projesini 9:16 MP4 olarak dışa aktarır (proje dosyasının yanına, aynı adla) */
-export async function exportClipProject(projectPath: string, env: Env, signal?: AbortSignal, onProgress?: (f: number) => void, preset: 'shorts' | 'youtube' | 'square' = 'shorts'): Promise<string> {
+export async function exportClipProject(projectPath: string, env: Env, signal?: AbortSignal, onProgress?: (f: number) => void, preset: 'shorts' | 'youtube' | 'square' = 'shorts', extraOutro?: string): Promise<string> {
   const service = await makeService(env)
   const s = await Session.open(projectPath, service)
   const total = timelineDuration(s.timeline)
@@ -43,6 +43,8 @@ export async function exportClipProject(projectPath: string, env: Env, signal?: 
   // YATAY videonun sonuna kullanıcının YouTube outro (kapanış) videosu; olmazsa video outro'suz kalır (iş durmaz)
   const outro = await resolveOutro(service.settings.value.outroPath, service.deps.userDataDir, service.deps.resourcesDir, service.settings.value.outroEnabled)
   if (preset === 'youtube' && outro) await appendOutro(out, outro, service.tools, { signal })
+  // açıkça verilen kapanış (GTA 6 dikey Kick outro): dikey klibin sonuna; olmazsa klip outro'suz kalır
+  if (extraOutro) await appendOutro(out, extraOutro, service.tools, { signal })
   return out
 }
 
@@ -124,7 +126,7 @@ export async function runAutoClips(req: AutoClipsRequest, env: Env, hooks: AutoC
         if (i >= todo.length) return
         const c = todo[i]
         try {
-          c.videoPath = await exportClipProject(c.projectPath!, env, hooks.signal, (f) => stage('export', { progress: (doneN + f) / todo.length, detail: `${Math.min(doneN + 1, todo.length)}/${todo.length}: ${c.subject}` }), preset)
+          c.videoPath = await exportClipProject(c.projectPath!, env, hooks.signal, (f) => stage('export', { progress: (doneN + f) / todo.length, detail: `${Math.min(doneN + 1, todo.length)}/${todo.length}: ${c.subject}` }), preset, req.outroPath)
         } catch (e) {
           check()
           c.error = `MP4 dışa aktarılamadı: ${e instanceof Error ? e.message : String(e)}`

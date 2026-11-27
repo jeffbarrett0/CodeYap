@@ -81,7 +81,9 @@ export function ctaTimesEvery(durationSec: number, everySec = CTA_EVERY_SEC, cli
  */
 export const VERTICAL_CTA = { width: 0.72, bottom: 0.8 }
 /** GTA 6 klibi: oyun kare altında boş kalan bölgenin ortasına (alt kenar karenin %94'ü), genişlik %72 */
-export const GTA_CTA = { width: 0.72, bottom: 0.94 }
+/** GTA 6 klibinde oyun ekranının yakınlığı: 1 = tam sığar; 1,12 = "birazcık" büyük (yanlardan ~%4,5'er kırpılır) */
+export const GTA_GAME_ZOOM = 1.12
+export const GTA_CTA = { width: 0.62, bottom: 0.95 }
 export function verticalCtaRect(entry: Pick<CtaEntry, 'crop'>, assetW: number, assetH: number, at: { width: number; bottom: number } = VERTICAL_CTA): NormRect {
   const crop = entry.crop ?? { x: 0, y: 0, w: 1, h: 1 }
   const ratio = (crop.w * Math.max(1, assetW)) / (crop.h * Math.max(1, assetH))
