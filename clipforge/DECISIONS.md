@@ -629,3 +629,6 @@ Kullanıcı: oyunu birazcık büyüt (eskisi gibi aşırı değil), alttaki siya
 
 ## 118. Düğme işleri yeniden düzenlendi
 Kullanıcı: (1) YouTube yatay: aralık ver → doğrudan kes, transkript yok, buton 2. sn + her 30 sn, sonda outro; 'Outro seç' kalksın (outro projede). (2) YouTube dikey: aynı mantık, aralıktan dikey klip. (3) Auto Clips → 'Transcript ile clip': video seç, transkript çıkar, konuştuğun yerlerden klip. Uygulama: `CTA_EVERY_SEC` 30 (GTA 20), `OutroPicker` kaldırıldı (not), `YtDikeyDialog` = `RangeClipsDialog(mode:'dikey')`, `autoclips:prepare`, `TranscriptPanel autoTranscribe`.
+
+## 119. 'Klip çıkar' düğmesi kaldırıldı (kullanıcı isteği); arka uç kodu duruyor, arayüz testi silindi.
+Doğrulama (§118 sonrası): Auto Kick → zaman damgası → Auto yatay video zinciri (`chainAutoHorizontal`, `autoClipsAfterKick`'ten BAĞIMSIZ) rehearsal.test.ts'te uçtan uca geçti; liste yoksa günlükte nedeni yazılır.

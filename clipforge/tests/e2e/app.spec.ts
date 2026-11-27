@@ -1393,48 +1393,6 @@ test.describe('ClipForge arayüzü (tarayıcı modu, sahte ana süreç)', () => 
     await expect(page.getByTestId('autoclips-export-picked')).toContainText('(3)')
   })
 
-  test('Klip çıkar: video hazırla → açıklamayla an bul → aday seç → başı/sonu ince ayar → dikey + yatay TEK klip MP4; bulunamazsa açıklama', async ({ page }) => {
-    await boot(page)
-    await page.getByTestId('klipcikar-btn').click()
-    await expect(page.getByTestId('klipcikar-prepare')).toBeDisabled()
-    await page.getByTestId('klipcikar-pick').click()
-    await expect(page.getByTestId('klipcikar-video')).toHaveValue(/2024-05-12 21-30-45\.mkv/)
-    await page.getByTestId('klipcikar-prepare').click()
-    await expect(page.getByTestId('klipcikar-query')).toBeVisible({ timeout: 20000 }) // hazır olunca arama kutusu (Auto Clips penceresi AÇILMAZ)
-    await expect(page.getByTestId('autoclips-dialog')).toHaveCount(0)
-    // bulunamayan
-    await page.getByTestId('klipcikar-query').fill('yokisim')
-    await page.getByTestId('klipcikar-search').click()
-    await expect(page.getByTestId('klipcikar-note')).toContainText('konuşulmadıysa')
-    // bulunan: ilk aday seçilir, aralık ona göre dolar
-    await page.getByTestId('klipcikar-query').fill("Okan Buruk'un kırmızı kart gördüğü yer")
-    await page.getByTestId('klipcikar-search').click()
-    await expect(page.getByTestId('klipcikar-cand')).toHaveCount(2)
-    await expect(page.getByTestId('klipcikar-dur')).toContainText('47.0 sn')
-    // ince ayar: başlangıcı 1 sn öne al, bitişi 1 sn geri al
-    await page.getByTestId('klipcikar-start-m1').click()
-    await page.getByTestId('klipcikar-end-m1').click()
-    await expect(page.getByTestId('klipcikar-dur')).toContainText('47.0 sn') // +1 −1: aynı süre
-    await page.getByTestId('klipcikar-end-p1').click()
-    await expect(page.getByTestId('klipcikar-dur')).toContainText('48.0 sn')
-    await expect(page.getByTestId('klipcikar-lines')).toContainText('Osimhen gol krallığında')
-    // sonu cümleye göre ayarla
-    await page.getByTestId('klipcikar-line-end').first().click()
-    // biçim: ikisi de varsayılan açık; yalnızca yatay bırak
-    await expect(page.getByTestId('klipcikar-vertical')).toBeChecked()
-    await expect(page.getByTestId('klipcikar-horizontal')).toBeChecked()
-    await page.getByTestId('klipcikar-vertical').uncheck()
-    await page.getByTestId('klipcikar-horizontal').uncheck()
-    await expect(page.getByTestId('klipcikar-save')).toBeDisabled()
-    await page.getByTestId('klipcikar-vertical').check()
-    await page.getByTestId('klipcikar-horizontal').check()
-    await page.getByTestId('klipcikar-save').click()
-    await expect(page.getByTestId('klipcikar-save-note')).toContainText('dikey + yatay')
-    await expect(page.getByTestId('klipcikar-job-out')).toHaveCount(2)
-    await expect(page.getByTestId('klipcikar-job-out').first()).toHaveAttribute('data-status', 'done', { timeout: 15000 })
-    await expect(page.getByTestId('klipcikar-reveal')).toHaveCount(2) // her biçimde TEK klip (MP4)
-  })
-
   test('YouTube outro: yatay video pencerelerinde outro seçtirilmez; Berkalog outro kendiliğinden eklenir (not görünür)', async ({ page }) => {
     await boot(page)
     await page.getByTestId('ytcut-btn').click()
