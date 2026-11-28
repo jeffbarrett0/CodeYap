@@ -60,7 +60,7 @@ export function registerIpc(app: AppService, getWindow: () => BrowserWindow | nu
       const dur = Number(pr.format?.duration) || 0
       if (dur < 10) throw new Error('Video süresi okunamadı ya da çok kısa.')
       const base = basename(r.videoPath, extname(r.videoPath))
-      return app.ytCutStart({ videoPath: r.videoPath, list: '', ranges: [{ start: 0, end: dur, title: `${base} - GTA 6 edit` }], outDir: join(dirname(r.videoPath), 'GTA 6 Yayın Edit'), cta: true, ctaEverySec: 120, quality: 'fast' })
+      return app.ytCutStart({ videoPath: r.videoPath, list: '', ranges: [{ start: 0, end: dur, title: `${base} - GTA 6 edit` }], outDir: join(dirname(r.videoPath), 'GTA 6 Yayın Edit'), cta: true, ctaEverySec: 120, quality: 'fast', outroPath: join(app.deps.resourcesDir, 'outro', 'youtube-outro.mp4') })
     },
     'autoclips:prepare': async (r) => {
       // Auto Kick çıktısı varsa o (sessizleri kesilmiş video + transkript); yoksa ham videodan temel proje (kesim yok)

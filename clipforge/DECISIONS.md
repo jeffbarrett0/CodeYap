@@ -638,3 +638,6 @@ Kullanıcı: GTA 6 klip çıkar'ın kopyası; fark: ekran Auto Clips gibi çok b
 
 ## 121. GTA 6 yayın edit
 Kullanıcı: yayın videosu ver; transkript yok; 2. sn'de buton + her 2 dk; sonda outro; +5/+5. Mevcut `ytcut` motoru tek aralıkla kullanılır. Bulgu: 10 dk'lık videoda 59 buton tek ffmpeg grafiğinde bellek yetersizliğiyle öldü (butonsuz geri dönüyordu) → `splitForButtons` ile parçalı kodlama + concat copy (60 butonlu 10 dk deneme: görüntü 600,000 sn / ses 600,021 sn, senkron). ytcut'a ekran kartı kodlaması eklendi (hata → yazılım; outro aynı args).
+
+## 122. Yanlış outro hatası (GTA 6 yayın edit)
+Kullanıcı: GTA 6 yayın editinde outro yanlış. Neden: `resolveOutro` uygulama klasöründeki İLK dosyayı (alfabetik) alıyordu; dikey `kick-outro-dikey.mp4` eklenince `youtube-outro.mp4`'ten önce geldi → TÜM yatay videolar (YouTube yatay, Auto Kick full, Auto yatay, GTA yayın edit) yanlış outro aldı. Düzeltme: yatayda `youtube-outro.*` tercih edilir, `kick-*` dosyaları yatay seçimden hariç; GTA yayın edit ayrıca `outroPath`'i açıkça verir. Kullanıcının yeniden gönderdiği dosya `resources/outro/youtube-outro.mp4` ile birebir aynıydı (md5).

@@ -109,7 +109,9 @@ export async function resolveOutro(settingPath: string | undefined, userDataDir:
   const { readdir } = await import('node:fs/promises')
   for (const dir of [outroFolder(userDataDir), ...(resourcesDir ? [join(resourcesDir, 'outro')] : [])]) {
     try {
-      const f = (await readdir(dir)).filter((x) => OUTRO_EXT.test(x) && !x.startsWith('.')).sort()[0]
+      // uygulamayla gelen klasörde dikey Kick outro (GTA 6 klipleri) de durur: YATAY outro her zaman `youtube-outro.mp4`; "kick-" ile başlayanlar yatay videolara ASLA seçilmez
+      const all = (await readdir(dir)).filter((x) => OUTRO_EXT.test(x) && !x.startsWith('.') && !/^kick-/i.test(x)).sort()
+      const f = all.find((x) => /^youtube-outro\./i.test(x)) ?? all[0]
       if (f) return join(dir, f)
     } catch {
       /* klasör yok */

@@ -79,6 +79,9 @@ describe('YouTube outro (kapanış videosu) ekleme', () => {
     execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=25:duration=1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', join(res, 'outro', 'youtube-outro.mp4')])
     expect(await resolveOutro('', ud2, res)).toBe(join(res, 'outro', 'youtube-outro.mp4'))
     expect(await resolveOutro('', ud, res)).toBe(join(outroFolder(ud), 'a-outro.mp4')) // kullanıcı klasörü bundan önce
+    // GTA 6 dikey Kick outro da aynı klasörde durur: YATAY videolar ASLA onu almaz (alfabetik sırada 'kick-' önce gelirdi → yanlış outro koyuyordu)
+    execFileSync(ffm, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=180x320:rate=25:duration=1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', join(res, 'outro', 'kick-outro-dikey.mp4')])
+    expect(await resolveOutro('', ud2, res)).toBe(join(res, 'outro', 'youtube-outro.mp4'))
   })
 })
 
